@@ -13,7 +13,11 @@ if [ ! -f "$T" ]; then
 	wget -qO "$T" "https://github.com/$REPO/releases/latest/download/nightfall-root.tar.gz" || { echo "Не удалось скачать архив. Загрузите nightfall-root.tar.gz в /tmp вручную."; exit 1; }
 fi
 tar -xzf "$T" -C /
-chmod 755 /usr/libexec/nightfall-collector /usr/libexec/nightfall-history /usr/libexec/nightfall-config /usr/libexec/nightfall-speed /usr/libexec/nightfall-stats
+chmod 755 /usr/libexec/nightfall-collector /usr/libexec/nightfall-history /usr/libexec/nightfall-config /usr/libexec/nightfall-speed /usr/libexec/nightfall-stats /etc/init.d/nightfall-collector
+# регистрация темы и включение сборщика (нужно при первой установке этой же командой)
+for f in /etc/uci-defaults/30_luci-theme-nightfall /etc/uci-defaults/40_nightfall-collector; do
+	[ -f "$f" ] && { sh "$f"; rm -f "$f"; }
+done
 rm -f /www/luci-static/resources/view/nightfall/sysauth.js
 rm -rf /tmp/luci-indexcache* /tmp/luci-modulecache 2>/dev/null || true
 /etc/init.d/rpcd reload 2>/dev/null || /etc/init.d/rpcd restart 2>/dev/null || true
