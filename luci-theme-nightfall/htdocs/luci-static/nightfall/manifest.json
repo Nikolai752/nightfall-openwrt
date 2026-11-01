@@ -1,0 +1,88 @@
+{
+  "name": "OpenWrt (Nightfall)",
+  "short_name": "OpenWrt",
+  "start_url": "/cgi-bin/luci/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#202020",
+  "theme_color": "#0067c0",
+  "icons": [
+    {
+      "src": "logo_192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "logo_512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Статус",
+      "short_name": "Статус",
+      "description": "Обзор роутера",
+      "url": "/cgi-bin/luci/admin/status/overview",
+      "icons": [
+        {
+          "src": "logo_192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Монитор ресурсов",
+      "short_name": "Монитор",
+      "description": "Нагрузка, температура, трафик",
+      "url": "/cgi-bin/luci/admin/status/nightfall-monitor",
+      "icons": [
+        {
+          "src": "logo_192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Wi-Fi клиенты",
+      "short_name": "Клиенты",
+      "description": "Кто подключён и уровень сигнала",
+      "url": "/cgi-bin/luci/admin/status/nightfall-monitor#net",
+      "icons": [
+        {
+          "src": "logo_192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Службы",
+      "short_name": "Службы",
+      "description": "Состояние и перезапуск служб",
+      "url": "/cgi-bin/luci/admin/status/nightfall-monitor#svcs",
+      "icons": [
+        {
+          "src": "logo_192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Перезапустить Wi-Fi",
+      "short_name": "Wi-Fi",
+      "description": "Быстрое действие (потребуется подтверждение)",
+      "url": "/cgi-bin/luci/admin/status/overview#nf-wifi",
+      "icons": [
+        {
+          "src": "logo_192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,424 @@
+#!/bin/sh
+# Nightfall collector: фоновый сборщик истории для «Монитора ресурсов».
+# Раз в STEP секунд (15) пишет в /tmp/nightfall:
+#   hist.fine    — последний час (шаг 15 с)
+#   hist.coarse  — последние 7 суток (шаг 5 мин)
+#   dev.rate / dev.day / dev.yday — трафик по устройствам (из conntrack accounting)
+#   events.log, alerts.active    — события и активные предупреждения
+# Настройки: /etc/nightfall-monitor.conf (см. /usr/share/nightfall/nightfall-monitor.conf.default)
+
+PROC=${NF_PROC:-/proc}
+SYS=${NF_SYS:-/sys}
+DIR=${NF_DIR:-/tmp/nightfall}
+CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
+STEP=${NF_STEP:-15}
+LOOPS=${NF_LOOPS:-0}            # для тестов: сколько циклов выполнить (0 = бесконечно)
+CT=${NF_CT:-$PROC/net/nf_conntrack}
+
+TEMP_WARN=80; TEMP_CRIT=90; MEM_MIN_PCT=10; FLASH_MAX_PCT=90; CT_MAX_PCT=80
+CPU_MAX_PCT=90; CPU_MINUTES=3
+PING_TARGET=1.1.1.1; PING_TARGET2=77.88.8.8
+PERSIST_DIR=; PERSIST_HOURS=6; JOURNAL=1; WIFI_HIST=1; SPEED_HOURS=0
+SPEED_URL=https://speed.cloudflare.com/__down?bytes=25000000
+JOURNAL_FILE=${NF_JOURNAL:-/etc/nightfall-journal.log}
+[ -r "$CONF" ] && . "$CONF"
+
+mkdir -p "$DIR" || exit 1
+
+# одна копия: если уже работает другой сборщик (например, оставшийся от прошлой версии), останавливаем его
+for p in /proc/[0-9]*; do
+	pid=${p#/proc/}
+	[ "$pid" = "$$" ] && continue
+	cmd=$( { tr '\0' ' ' < "$p/cmdline"; } 2>/dev/null )
+	case "$cmd" in "/bin/sh $0 "*|"sh $0 "*) kill "$pid" 2>/dev/null ;; esac
+done
+echo $$ > "$DIR/pid"
+AGG=${NF_AGG:-$((300 / STEP))}  # сколько шагов в 5 минутах
+[ "$AGG" -ge 1 ] || AGG=1
+HOST=$(cat "$PROC/sys/kernel/hostname" 2>/dev/null || echo router)
+
+# ---------- события и предупреждения ----------
+clean() { printf '%s' "$1" | tr -d '"\\|' | tr '\n' ' '; }
+
+event() {   # event LEVEL TEXT
+	printf '%s|%s|%s\n' "$now" "$1" "$(clean "$2")" >> "$DIR/events.log"
+}
+
+fmt_dur() {
+	d=$1
+	if [ "$d" -ge 3600 ]; then echo "$((d / 3600)) ч $((d % 3600 / 60)) мин"
+	elif [ "$d" -ge 60 ]; then echo "$((d / 60)) мин $((d % 60)) с"
+	else echo "$d с"; fi
+}
+
+# alert KEY LEVEL NEED_ON COND(0|1) TEXT
+alert() {
+	k=$1; lvl=$2; need=$3; cond=$4; txt=$5
+	eval "n=\${n_$k:-0}; f=\${f_$k:-0}; a=\${a_$k:-0}"
+	if [ "$cond" = 1 ]; then
+		n=$((n + 1)); f=0
+		if [ "$a" = 0 ] && [ "$n" -ge "$need" ]; then
+			a=$now
+			printf '%s|%s|%s|%s\n' "$k" "$now" "$lvl" "$(clean "$txt")" >> "$DIR/alerts.active"
+			event "$lvl" "$txt"
+			logger -t nightfall -p daemon.warning "$txt" 2>/dev/null
+		fi
+	else
+		f=$((f + 1)); n=0
+		if [ "$a" != 0 ] && [ "$f" -ge 2 ]; then
+			dur=$(fmt_dur $((now - a)))
+			was=$(grep "^$k|" "$DIR/alerts.active" 2>/dev/null | head -n 1 | cut -d'|' -f4)
+			[ -n "$was" ] || was=$txt
+			grep -v "^$k|" "$DIR/alerts.active" > "$DIR/alerts.tmp" 2>/dev/null; mv "$DIR/alerts.tmp" "$DIR/alerts.active"
+			event ok "Снова в норме: $was (длилось $dur)"
+			logger -t nightfall "Снова в норме: $was" 2>/dev/null
+			a=0
+		fi
+	fi
+	eval "n_$k=$n; f_$k=$f; a_$k=$a"
+}
+
+# ---------- измерения ----------
+read_temp() {   # печатает температуру процессора в °C с десятой долей или -1
+	best=""; first=""
+	for z in "$SYS"/class/thermal/thermal_zone*; do
+		[ -r "$z/temp" ] || continue
+		t=""; read -r t < "$z/temp" 2>/dev/null || continue
+		nm=""; read -r nm < "$z/type" 2>/dev/null
+		case "$nm" in *phy*|*mt76*|*mt79*|*wifi*|*wlan*|*ath*|*iwlwifi*) continue ;; esac
+		[ -n "$first" ] || first=$t
+		case "$nm" in *cpu*|*soc*|*core*|*a53*|*a73*|*thermal*) best=$t; break ;; esac
+	done
+	if [ -z "$best" ]; then
+		for h in "$SYS"/class/hwmon/hwmon*; do
+			[ -r "$h/temp1_input" ] || continue
+			read -r first < "$h/temp1_input" 2>/dev/null && break
+		done
+	fi
+	[ -n "$best" ] || best=$first
+	case "$best" in ''|*[!0-9]*) echo -1; return ;; esac
+	[ "$best" -gt 0 ] || { echo -1; return; }
+	echo "$((best / 1000)).$((best % 1000 / 100))"
+}
+
+ping_ms() {     # ping_ms HOST -> миллисекунды или -1
+	[ -n "$1" ] || { echo -1; return; }
+	r=$(ping -c 1 -W 1 "$1" 2>/dev/null | awk -F'time=' '/time=/ { split($2, a, " "); print a[1]; exit }')
+	[ -n "$r" ] && echo "$r" || echo -1
+}
+
+do_devices() {  # трафик по устройствам: разница счётчиков conntrack между замерами
+	[ -r "$CT" ] || return 0
+	today=$(date +%Y%m%d)
+	if [ "$today" -gt 20240101 ] 2>/dev/null; then
+		old=$(cat "$DIR/day.date" 2>/dev/null)
+		if [ "$old" != "$today" ]; then
+			[ -n "$old" ] && mv "$DIR/dev.day" "$DIR/dev.yday" 2>/dev/null
+			echo "$today" > "$DIR/day.date"
+			: > "$DIR/dev.day"
+		fi
+	fi
+	first=0; [ -s "$DIR/ct.state" ] || first=1
+	rm -f "$DIR/ct.state.new"
+	head -n 40000 "$CT" 2>/dev/null | awk -v statef="$DIR/ct.state" -v newf="$DIR/ct.state.new" -v dayf="$DIR/dev.day" \
+		-v ratef="$DIR/dev.rate.new" -v tmpf="$DIR/dev.day.tmp" -v svcf="$DIR/svc.raw" -v dstf="$DIR/dst.raw" -v dt="$dtm" -v first="$first" -v ts="$now" '
+	function isprivate(ip) { return ip ~ /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|127\.|169\.254\.)/ || ip ~ /^(f[cdef]|FE|FC|FD)/ || ip == "::1" || ip ~ /^0000:0000:0000:0000:0000:0000:0000:0001$/ }
+	BEGIN {
+		while ((getline l < statef) > 0) { split(l, a, " "); po[a[1]] = a[2]; pr[a[1]] = a[3] }
+		close(statef)
+		while ((getline l < dayf) > 0) { split(l, a, " "); dd[a[1]] = a[2] + 0; du[a[1]] = a[3] + 0 }
+		close(dayf)
+	}
+	{
+		src = ""; dst = ""; sp = ""; dp = ""; nb = 0; ob = 0; rb = 0
+		for (i = 4; i <= NF; i++) {
+			f = $i
+			if (src == "" && substr(f, 1, 4) == "src=") src = substr(f, 5)
+			else if (dst == "" && substr(f, 1, 4) == "dst=") dst = substr(f, 5)
+			else if (sp == "" && substr(f, 1, 6) == "sport=") sp = substr(f, 7)
+			else if (dp == "" && substr(f, 1, 6) == "dport=") dp = substr(f, 7)
+			else if (substr(f, 1, 6) == "bytes=") { nb++; if (nb == 1) ob = substr(f, 7) + 0; else if (nb == 2) rb = substr(f, 7) + 0 }
+		}
+		if (nb < 2 || src == "" || dst == "") next
+		if (!isprivate(src) && $1 == "ipv4") next          # соединение извне, не устройство локальной сети
+		if (isprivate(src) && isprivate(dst)) next          # трафик внутри сети/до роутера — не интернет
+		key = $1 "|" $3 "|" src ">" dst ":" sp ">" dp
+		printf "%s %.0f %.0f\n", key, ob, rb > newf
+		if (first) next
+		if (key in po) { do_ = ob - po[key]; dr_ = rb - pr[key]; if (do_ < 0) do_ = ob; if (dr_ < 0) dr_ = rb }
+		else { do_ = ob; dr_ = rb }
+		cu[src] += do_; cd[src] += dr_
+		if (do_ + dr_ > 0) {
+			sk = src " " $3 " " (dp == "" ? "-" : dp); sv_d[sk] += dr_; sv_u[sk] += do_
+			if (!isprivate(dst)) { dk = src " " dst; ds_d[dk] += dr_; ds_u[dk] += do_ }
+		}
+	}
+	END {
+		print ts > ratef
+		for (ip in cd) {
+			if (cd[ip] + cu[ip] <= 0) continue
+			printf "%s %.0f %.0f\n", ip, cd[ip] / dt, cu[ip] / dt > ratef
+			dd[ip] += cd[ip]; du[ip] += cu[ip]
+		}
+		for (ip in dd) printf "%s %.0f %.0f %.0f\n", ip, dd[ip], du[ip], dd[ip] + du[ip] > tmpf
+		if (dt > 0) {
+			for (k in sv_d) printf "%s %.0f %.0f\n", k, sv_d[k] / dt, sv_u[k] / dt > svcf
+			for (k in ds_d) printf "%s %.0f %.0f\n", k, ds_d[k] / dt, ds_u[k] / dt > dstf
+		}
+	}'
+	if [ "$first" = 0 ]; then
+		{ echo "$now"; [ -f "$DIR/svc.raw" ] && sort -k4,4nr "$DIR/svc.raw" | head -n 40; } > "$DIR/svc.rate.new"; mv "$DIR/svc.rate.new" "$DIR/svc.rate"
+		{ echo "$now"; [ -f "$DIR/dst.raw" ] && sort -k3,3nr "$DIR/dst.raw" | head -n 40; } > "$DIR/dst.rate.new"; mv "$DIR/dst.rate.new" "$DIR/dst.rate"
+	fi
+	rm -f "$DIR/svc.raw" "$DIR/dst.raw"
+	[ -f "$DIR/ct.state.new" ] && mv "$DIR/ct.state.new" "$DIR/ct.state" || : > "$DIR/ct.state"
+	[ -f "$DIR/dev.rate.new" ] && mv "$DIR/dev.rate.new" "$DIR/dev.rate"
+	if [ -f "$DIR/dev.day.tmp" ]; then
+		sort -k4,4nr "$DIR/dev.day.tmp" | head -n 64 | cut -d' ' -f1-3 > "$DIR/dev.day"
+		rm -f "$DIR/dev.day.tmp"
+	fi
+}
+
+write_info() {
+	off=$(uci -q get firewall.@defaults[0].flow_offloading 2>/dev/null)
+	acct=0; [ -r "$PROC/sys/net/netfilter/nf_conntrack_acct" ] && acct=$(cat "$PROC/sys/net/netfilter/nf_conntrack_acct" 2>/dev/null)
+	{
+		echo "step=$STEP"
+		echo "started=$started"
+		echo "wan_dev=$wdev"
+		echo "gateway=$gw"
+		echo "targets=$PING_TARGET $PING_TARGET2"
+		echo "acct=${acct:-0}"
+		echo "offload=${off:-0}"
+		echo "router_ips=$(ip -4 addr show 2>/dev/null | awk '/inet / { split($2, a, "/"); printf "%s ", a[1] }')"
+		echo "persist=$([ -n "$PERSIST_DIR" ] && [ "$persist_ok" = 1 ] && echo 1 || echo 0)"
+		echo "persist_dir=$PERSIST_DIR"
+		echo "persist_blocked=$([ -n "$PERSIST_DIR" ] && [ "$persist_ok" = 0 ] && echo 1 || echo 0)"
+		echo "persist_hours=$PERSIST_HOURS"
+		echo "persist_kb=${persist_kb:-0}"
+		echo "persist_last=${persist_last:-0}"
+		echo "journal=$JOURNAL"
+		echo "journal_file=$JOURNAL_FILE"
+		echo "speed_hours=$SPEED_HOURS"
+		echo "wifi_hist=$WIFI_HIST"
+		echo "limits=temp>=$TEMP_WARN/$TEMP_CRIT, free RAM<$MEM_MIN_PCT%, flash>=$FLASH_MAX_PCT%, conntrack>=$CT_MAX_PCT%, CPU>=$CPU_MAX_PCT% $CPU_MINUTES min"
+	} > "$DIR/info.tmp" && mv "$DIR/info.tmp" "$DIR/info"
+}
+
+on_flash() {    # 0, если каталог находится на встроенной флеш-памяти роутера (её нельзя изнашивать)
+	d=$1; mkdir -p "$d" 2>/dev/null || return 1
+	fd=$(df -P "$d" 2>/dev/null | awk 'NR == 2 { print $1 }')
+	for r in /overlay / /rom; do
+		[ -d "$r" ] || continue
+		fr=$(df -P "$r" 2>/dev/null | awk 'NR == 2 { print $1 }')
+		[ -n "$fd" ] && [ "$fd" = "$fr" ] && return 0
+	done
+	case "$fd" in ubi*|mtd*|/dev/mtd*|/dev/ubi*|rootfs*|overlay*) return 0 ;; esac
+	return 1
+}
+
+PFILES="hist.coarse events.log dev.day dev.yday day.date speed.log"
+persist() {
+	[ -n "$PERSIST_DIR" ] && [ "$persist_ok" = 1 ] || return 0
+	mkdir -p "$PERSIST_DIR" 2>/dev/null || return 0
+	for f in $PFILES; do
+		[ -f "$DIR/$f" ] || continue
+		cmp -s "$DIR/$f" "$PERSIST_DIR/$f" 2>/dev/null && continue    # без изменений — не пишем
+		cp "$DIR/$f" "$PERSIST_DIR/$f.tmp" 2>/dev/null && mv "$PERSIST_DIR/$f.tmp" "$PERSIST_DIR/$f"
+	done
+	persist_last=$(date +%s)
+	persist_kb=$(du -sk "$PERSIST_DIR" 2>/dev/null | awk '{ print $1 + 0 }')
+}
+
+restore() {
+	[ -n "$PERSIST_DIR" ] && [ "$persist_ok" = 1 ] && [ -f "$PERSIST_DIR/hist.coarse" ] && [ ! -f "$DIR/hist.coarse" ] || return 0
+	for f in $PFILES; do
+		[ -f "$PERSIST_DIR/$f" ] && cp "$PERSIST_DIR/$f" "$DIR/$f"
+	done
+}
+
+# ---------- журнал перезагрузок и обрывов связи (редкие короткие записи на флеш) ----------
+jwrite() {      # jwrite TS TYPE DURATION TEXT
+	[ "$JOURNAL" = 1 ] || return 0
+	printf '%s|%s|%s|%s\n' "$1" "$2" "$3" "$(clean "$4")" >> "$JOURNAL_FILE" 2>/dev/null || return 0
+	if [ "$(wc -l < "$JOURNAL_FILE" 2>/dev/null)" -gt 260 ]; then
+		tail -n 200 "$JOURNAL_FILE" > "$JOURNAL_FILE.tmp" 2>/dev/null && mv "$JOURNAL_FILE.tmp" "$JOURNAL_FILE"
+	fi
+}
+
+# ---------- Wi-Fi клиенты в динамике (раз в минуту, только в памяти) ----------
+do_wifi() {
+	command -v ubus >/dev/null 2>&1 || return 0
+	devs=$(ubus call iwinfo devices 2>/dev/null | awk -F'"' 'NF >= 3 && $2 != "devices" { print $2 }')
+	[ -n "$devs" ] || return 0
+	: > "$DIR/wifi.cur.new"
+	for d in $devs; do
+		ubus call iwinfo assoclist "{\"device\":\"$d\"}" 2>/dev/null | awk -v ts="$now" -v d="$d" -F'"' '
+			$2 == "mac" { m = tolower($4) }
+			$2 == "signal" && m != "" { s = $3; gsub(/[^-0-9]/, "", s); if (s != "") print ts, m, s, d; m = "" }' >> "$DIR/wifi.cur.new"
+	done
+	cat "$DIR/wifi.cur.new" >> "$DIR/wifi.fine"
+	if [ -f "$DIR/wifi.cur" ]; then
+		awk -v ts="$now" 'NR == FNR { old[$2] = $4; next } { new_[$2] = $4; if (!($2 in old)) print ts, $2, "join", $4 }
+			END { for (m in old) if (!(m in new_)) print ts, m, "leave", old[m] }' "$DIR/wifi.cur" "$DIR/wifi.cur.new" >> "$DIR/wifi.ev"
+	fi
+	mv "$DIR/wifi.cur.new" "$DIR/wifi.cur"
+}
+
+stop() { persist; exit 0; }
+trap stop TERM INT
+
+# ---------- основной цикл ----------
+now=$(date +%s); started=$now
+persist_ok=1
+if [ -n "$PERSIST_DIR" ] && on_flash "$PERSIST_DIR"; then persist_ok=0; fi
+case "$PERSIST_HOURS" in ''|*[!0-9]*) PERSIST_HOURS=6 ;; esac; [ "$PERSIST_HOURS" -ge 1 ] || PERSIST_HOURS=1
+restore
+read -r up0 _ < "$PROC/uptime" 2>/dev/null; up0=${up0%.*}; case "$up0" in ''|*[!0-9]*) up0=99999 ;; esac
+boot_pending=0; [ "$up0" -lt 300 ] && boot_pending=1
+gap_note=""
+if [ -s "$DIR/hist.coarse" ]; then lastts=$(tail -n 1 "$DIR/hist.coarse" | cut -d' ' -f1); else lastts=0; fi
+out_n=0; out_t=0; out_gwfail=0; last_speed=0; wtick=0
+[ -s "$DIR/speed.log" ] && last_speed=$(tail -n 1 "$DIR/speed.log" | cut -d' ' -f1)
+: > "$DIR/alerts.active"
+ptot=""; pidl=""; prx=""; ptx=""; pts=""; tick=0; loops=0
+
+while :; do
+	now=$(date +%s)
+	tick=$((tick + 1))
+
+	# процессор
+	cpu=-1
+	read -r _ u n s i w q sq st _ < "$PROC/stat"
+	tot=$((u + n + s + i + w + q + sq + st)); idl=$((i + w))
+	if [ -n "$ptot" ]; then
+		dt=$((tot - ptot)); di=$((idl - pidl))
+		[ "$dt" -gt 0 ] && cpu=$((100 * (dt - di) / dt))
+	fi
+	ptot=$tot; pidl=$idl
+
+	# память
+	set -- $(awk '/^MemTotal:/ { t = $2 } /^MemAvailable:/ { a = $2 } /^MemFree:/ { f = $2 } /^Buffers:/ { b = $2 } /^Cached:/ { c = $2 } END { if (a == "") a = f + b + c; print t + 0, a + 0 }' "$PROC/meminfo")
+	memt=${1:-0}; mema=${2:-0}
+	mem=0; [ "$memt" -gt 0 ] && mem=$((100 * (memt - mema) / memt))
+
+	temp=$(read_temp)
+
+	# WAN-интерфейс и шлюз (маршрут по умолчанию)
+	if [ -n "$NF_WAN_DEV" ]; then wdev=$NF_WAN_DEV; gw=${NF_GW:-}
+	else
+		set -- $(ip -4 route show default 2>/dev/null | awk 'NR == 1 { d = ""; g = ""; for (i = 1; i <= NF; i++) { if ($i == "dev") d = $(i + 1); if ($i == "via") g = $(i + 1) } print d, g }')
+		wdev=${1:-}; gw=${2:-}
+	fi
+
+	# скорость WAN
+	rx=-1; tx=-1; dtm=0
+	if [ -n "$wdev" ]; then
+		set -- $(awk -v d="$wdev" '{ gsub(/:/, " ") } $1 == d { print $2, $10 }' "$PROC/net/dev")
+		crx=$1; ctx=$2
+		if [ -n "$crx" ] && [ -n "$prx" ] && [ -n "$pts" ]; then
+			dtm=$((now - pts))
+			if [ "$dtm" -gt 0 ]; then
+				rx=$(( (crx - prx) / dtm )); tx=$(( (ctx - ptx) / dtm ))
+				[ "$rx" -ge 0 ] || rx=0; [ "$tx" -ge 0 ] || tx=0
+			fi
+		fi
+		prx=$crx; ptx=$ctx
+	else
+		prx=""; ptx=""
+	fi
+	[ "$dtm" -gt 0 ] || dtm=$((now - ${pts:-$now}))
+	pts=$now
+
+	# задержка до шлюза и до интернета
+	gwms=-1; netms=-1
+	[ -n "$gw" ] && gwms=$(ping_ms "$gw")
+	if [ -n "$PING_TARGET" ]; then
+		netms=$(ping_ms "$PING_TARGET")
+		[ "$netms" = -1 ] && [ -n "$PING_TARGET2" ] && netms=$(ping_ms "$PING_TARGET2")
+	fi
+	loss=0; [ "$netms" = -1 ] && loss=100
+
+	# журнал обрывов: старт — первый неудачный замер, запись — когда связь вернулась (от 2 неудач подряд)
+	if [ -n "$PING_TARGET" ] && [ "$tick" -gt 1 ] && [ "$now" -gt 1700000000 ]; then
+		if [ "$netms" = -1 ]; then
+			out_n=$((out_n + 1)); [ "$out_n" = 1 ] && { out_t=$now; out_gwfail=0; }
+			[ "$gwms" = -1 ] && [ -n "$gw" ] && out_gwfail=1
+		elif [ "$out_n" -gt 0 ]; then
+			if [ "$out_n" -ge 2 ]; then
+				if [ "$out_gwfail" = 1 ]; then cz="нет связи со шлюзом (кабель, модем или провайдер)"; else cz="шлюз отвечал, нет выхода в интернет (провайдер или DNS)"; fi
+				jwrite "$out_t" outage "$((now - out_t))" "$cz"
+			fi
+			out_n=0
+		fi
+	fi
+	# журнал перезагрузок: пишем один раз после синхронизации времени
+	if [ "$boot_pending" = 1 ] && [ "$now" -gt 1700000000 ]; then
+		boot_pending=0
+		read -r upn _ < "$PROC/uptime"; upn=${upn%.*}; bt=$((now - upn))
+		if [ "$lastts" -gt 1700000000 ] && [ "$bt" -gt "$lastts" ]; then gap_note="; данных не было $(fmt_dur $((bt - lastts)))"; fi
+		if ! tail -n 5 "$JOURNAL_FILE" 2>/dev/null | awk -F'|' -v bt="$bt" '$2 == "boot" { d = bt - $1; if (d < 0) d = -d; if (d < 180) f = 1 } END { exit !f }'; then
+			jwrite "$bt" boot 0 "Роутер загружен${gap_note}"
+		fi
+	fi
+
+	# соединения, диск
+	ctn=0; ctm=0
+	# /proc/sys читаем через cat: BusyBox read читает по байту, а sysctl при этом отдаёт только первую цифру
+	[ -r "$PROC/sys/net/netfilter/nf_conntrack_count" ] && ctn=$(cat "$PROC/sys/net/netfilter/nf_conntrack_count" 2>/dev/null)
+	[ -r "$PROC/sys/net/netfilter/nf_conntrack_max" ] && ctm=$(cat "$PROC/sys/net/netfilter/nf_conntrack_max" 2>/dev/null)
+	case "$ctn" in ''|*[!0-9]*) ctn=0 ;; esac
+	case "$ctm" in ''|*[!0-9]*) ctm=0 ;; esac
+	fp=/overlay; [ -d /overlay ] || fp=/
+	fl=$(df -kP "$fp" 2>/dev/null | awk 'END { if (NR > 1 && $2 > 0) print int($3 * 100 / $2); else print 0 }')
+
+	# история пишется только когда часы синхронизированы и после первого замера
+	if [ "$now" -gt 1700000000 ] && [ "$tick" -gt 1 ]; then
+		printf '%s %s %s %s %s %s %s %s %s %s\n' "$now" "$cpu" "$mem" "$temp" "$rx" "$tx" "$gwms" "$netms" "$loss" "$ctn" >> "$DIR/hist.fine"
+		do_devices
+		wtick=$((wtick + 1))
+		if [ "$WIFI_HIST" = 1 ] && [ $((wtick % 4)) = 1 ]; then do_wifi; fi
+		if [ "$SPEED_HOURS" -gt 0 ] 2>/dev/null && [ "$netms" != -1 ] && [ $((now - last_speed)) -ge $((SPEED_HOURS * 3600)) ] && [ "$rx" -lt 400000 ] 2>/dev/null; then
+			last_speed=$now
+			[ -x /usr/libexec/nightfall-speed ] && /usr/libexec/nightfall-speed start >/dev/null 2>&1
+		fi
+
+		# предупреждения
+		ti=${temp%.*}; [ "$ti" -ge 0 ] 2>/dev/null || ti=0
+		c=0; [ "$ti" -ge "$TEMP_WARN" ] && [ "$ti" -lt "$TEMP_CRIT" ] && c=1
+		alert temp warn $((60 / STEP + 1)) $c "Процессор перегрет: ${temp} °C (порог $TEMP_WARN °C)"
+		c=0; [ "$ti" -ge "$TEMP_CRIT" ] && c=1
+		alert tempc crit 2 $c "Критическая температура процессора: ${temp} °C"
+		c=0; [ "$mem" -gt $((100 - MEM_MIN_PCT)) ] && c=1
+		alert mem warn $((120 / STEP)) $c "Мало свободной памяти: занято ${mem}%"
+		c=0; [ "$fl" -ge "$FLASH_MAX_PCT" ] && c=1
+		alert flash warn 2 $c "Флеш-память почти заполнена: ${fl}%"
+		c=0; [ "$ctm" -gt 0 ] && [ $((100 * ctn / ctm)) -ge "$CT_MAX_PCT" ] && c=1
+		alert ct warn 2 $c "Таблица соединений заполнена на $((100 * ctn / ${ctm:-1}))%"
+		c=0; [ "$cpu" -ge "$CPU_MAX_PCT" ] && c=1
+		alert cpu warn $((CPU_MINUTES * 60 / STEP)) $c "Процессор загружен на ${cpu}% дольше ${CPU_MINUTES} мин"
+		if [ -n "$PING_TARGET" ]; then
+			c=0; [ "$netms" = -1 ] && c=1
+			if [ "$gwms" = -1 ] && [ -n "$gw" ]; then wt="Нет связи со шлюзом $gw"; else wt="Нет доступа в интернет"; fi
+			alert wan crit 3 $c "$wt"
+		fi
+
+		# раз в 5 минут: сводная точка за неделю, обрезка, сохранение
+		if [ $((tick % AGG)) = 0 ]; then
+			tail -n "$AGG" "$DIR/hist.fine" | awk '{ for (i = 2; i <= 10; i++) if ($i >= 0) { s[i] += $i; c[i]++ } last = $1 }
+				END { printf "%d", last; for (i = 2; i <= 10; i++) printf " %s", (c[i] ? sprintf("%.1f", s[i] / c[i]) : -1); print "" }' >> "$DIR/hist.coarse"
+			for f in "hist.fine 400" "hist.coarse 2016" "events.log 300" "wifi.fine 8000" "wifi.ev 400" "speed.log 400"; do
+				[ -f "$DIR/${f% *}" ] || continue
+				set -- $f
+				if [ "$(wc -l < "$DIR/$1")" -gt "$2" ]; then tail -n "$2" "$DIR/$1" > "$DIR/$1.tmp" && mv "$DIR/$1.tmp" "$DIR/$1"; fi
+			done
+			write_info
+			[ $((tick % (AGG * 12 * PERSIST_HOURS))) = 0 ] && persist
+		fi
+	fi
+	[ "$tick" = 1 ] && { write_info; event info "Сборщик истории запущен"; }
+
+	loops=$((loops + 1))
+	[ "$LOOPS" -gt 0 ] && [ "$loops" -ge "$LOOPS" ] && break
+	sleep "$STEP" & wait $!
+done

@@ -1,0 +1,104 @@
+#!/bin/sh
+# Nightfall history: отдаёт данные сборщика (nightfall-collector) одним JSON-объектом.
+#   nightfall-history series fine|coarse   — графики + события + предупреждения
+#   nightfall-history devices              — трафик по устройствам
+#   nightfall-history alerts               — активные предупреждения и последняя точка
+DIR=${NF_DIR:-/tmp/nightfall}
+
+info_json() {
+	printf '{'
+	[ -r "$DIR/info" ] && awk '{ i = index($0, "="); if (i < 2) next; v = substr($0, i + 1); gsub(/["\\]/, "", v)
+		printf "%s\"%s\":\"%s\"", (n++ ? "," : ""), substr($0, 1, i - 1), v }' "$DIR/info"
+	printf '}'
+}
+
+rows_json() {   # rows_json FILE LIMIT
+	printf '['
+	[ -r "$1" ] && tail -n "$2" "$1" | awk '{ printf "%s[", (n++ ? "," : ""); for (i = 1; i <= NF; i++) printf "%s%s", (i > 1 ? "," : ""), ($i ~ /^-?[0-9]+(\.[0-9]+)?$/ ? $i : "\"" $i "\""); printf "]" }'
+	printf ']'
+}
+
+events_json() {
+	printf '['
+	[ -r "$DIR/events.log" ] && tail -n 80 "$DIR/events.log" | awk -F'|' 'NF >= 3 { printf "%s[%s,\"%s\",\"%s\"]", (n++ ? "," : ""), $1, $2, $3 }'
+	printf ']'
+}
+
+active_json() {
+	printf '['
+	[ -r "$DIR/alerts.active" ] && awk -F'|' 'NF >= 4 { printf "%s[\"%s\",%s,\"%s\",\"%s\"]", (n++ ? "," : ""), $1, $2, $3, $4 }' "$DIR/alerts.active"
+	printf ']'
+}
+
+devs_json() {   # devs_json FILE [skip-first-line]
+	printf '['
+	[ -r "$1" ] && awk -v skip="$2" 'NR == 1 && skip { next } NF >= 3 { printf "%s[\"%s\",%s,%s]", (n++ ? "," : ""), $1, $2, $3 }' "$1"
+	printf ']'
+}
+
+journal_json() {
+	f=${NF_JOURNAL:-/etc/nightfall-journal.log}
+	printf '['
+	[ -r "$f" ] && tail -n 120 "$f" | awk -F'|' 'NF >= 4 { printf "%s[%s,\"%s\",%s,\"%s\"]", (n++ ? "," : ""), $1, $2, $3 + 0, $4 }'
+	printf ']'
+}
+
+pairs_json() {  # pairs_json FILE NCOLS_AFTER_TS: строки «ip proto port down up» -> массивы
+	printf '['
+	[ -r "$1" ] && awk -v skip=1 'NR == 1 { next } NF >= 4 { printf "%s[", (n++ ? "," : ""); for (i = 1; i <= NF; i++) printf "%s\"%s\"", (i > 1 ? "," : ""), $i; printf "]" }' "$1"
+	printf ']'
+}
+
+now=$(date +%s)
+case "$1" in
+series)
+	if [ "$2" = coarse ]; then f=hist.coarse; lim=2016; else f=hist.fine; lim=240; fi
+	printf '{"now":%s,"range":"%s","rows":' "$now" "${2:-fine}"
+	rows_json "$DIR/$f" "$lim"
+	printf ',"events":'; events_json
+	printf ',"active":'; active_json
+	printf ',"info":'; info_json
+	printf '}\n' ;;
+devices)
+	ts=0; [ -r "$DIR/dev.rate" ] && read -r ts < "$DIR/dev.rate"
+	printf '{"now":%s,"ts":%s,"rate":' "$now" "${ts:-0}"
+	devs_json "$DIR/dev.rate" 1
+	printf ',"day":'; devs_json "$DIR/dev.day"
+	printf ',"yday":'; devs_json "$DIR/dev.yday"
+	printf ',"info":'; info_json
+	printf '}\n' ;;
+channel)
+	ts=0; [ -r "$DIR/svc.rate" ] && read -r ts < "$DIR/svc.rate"
+	printf '{"now":%s,"ts":%s,"svc":' "$now" "${ts:-0}"
+	pairs_json "$DIR/svc.rate"
+	printf ',"dst":'; pairs_json "$DIR/dst.rate"
+	printf ',"router_ips":"%s"}\n' "$(sed -n 's/^router_ips=//p' "$DIR/info" 2>/dev/null | head -n 1)" ;;
+journal)
+	printf '{"now":%s,"rows":' "$now"; journal_json
+	up=0; read -r up _ < /proc/uptime; up=${up%.*}
+	printf ',"up":%s,"info":' "${up:-0}"; info_json
+	printf '}\n' ;;
+speed)
+	running=false
+	[ -f "$DIR/speed.lock" ] && p=$(cat "$DIR/speed.lock" 2>/dev/null) && [ -n "$p" ] && [ -d "/proc/$p" ] && running=true
+	printf '{"now":%s,"running":%s,"rows":' "$now" "$running"
+	rows_json "$DIR/speed.log" 300
+	printf ',"info":'; info_json
+	printf '}\n' ;;
+wifi)
+	printf '{"now":%s,"rows":' "$now"
+	[ -r "$DIR/wifi.fine" ] && awk -v mac="$2" 'BEGIN { printf "[" } mac == "" || $2 == mac { printf "%s[%s,\"%s\",%s,\"%s\"]", (n++ ? "," : ""), $1, $2, $3, $4 } END { printf "]" }' "$DIR/wifi.fine" || printf '[]'
+	printf ',"events":'
+	if [ -r "$DIR/wifi.ev" ]; then tail -n 200 "$DIR/wifi.ev" | awk -v mac="$2" 'BEGIN { printf "[" } mac == "" || $2 == mac { printf "%s[%s,\"%s\",\"%s\",\"%s\"]", (n++ ? "," : ""), $1, $2, $3, $4 } END { printf "]" }'; else printf '[]'; fi
+	printf ',"info":'; info_json
+	printf '}\n' ;;
+alerts)
+	printf '{"now":%s,"active":' "$now"
+	active_json
+	printf ',"last":'; rows_json "$DIR/hist.fine" 1
+	printf ',"info":'; info_json
+	printf '}\n' ;;
+*)
+	echo "usage: nightfall-history series fine|coarse | devices | channel | journal | speed | wifi [MAC] | alerts" >&2
+	exit 1 ;;
+esac

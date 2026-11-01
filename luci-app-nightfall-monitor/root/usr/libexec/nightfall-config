@@ -1,0 +1,103 @@
+#!/bin/sh
+# Nightfall config: чтение и безопасная запись настроек сборщика (/etc/nightfall-monitor.conf).
+#   nightfall-config get                    — текущие значения и значения по умолчанию (JSON)
+#   nightfall-config set KEY=VAL [KEY=VAL…] — проверить, записать и перезапустить сборщик
+#   nightfall-config reset                  — вернуть настройки по умолчанию
+CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
+DEF=${NF_DEF:-/usr/share/nightfall/nightfall-monitor.conf.default}
+KEYS="TEMP_WARN TEMP_CRIT MEM_MIN_PCT FLASH_MAX_PCT CT_MAX_PCT CPU_MAX_PCT CPU_MINUTES PING_TARGET PING_TARGET2 PERSIST_DIR PERSIST_HOURS JOURNAL WIFI_HIST SPEED_HOURS SPEED_URL"
+
+val() {     # val FILE KEY
+	[ -r "$1" ] && sed -n "s/^$2=\"\{0,1\}\([^ #\"]*\).*/\1/p" "$1" | head -n 1
+}
+
+json_obj() {    # json_obj FILE [FALLBACK_FILE]: ключ, которого нет в FILE, берётся из FALLBACK_FILE
+	printf '{'
+	n=0
+	for k in $KEYS; do
+		if [ -r "$1" ] && grep -q "^$k=" "$1"; then v=$(val "$1" "$k"); else v=$(val "${2:-$1}" "$k"); fi
+		[ "$n" -gt 0 ] && printf ','
+		printf '"%s":"%s"' "$k" "$v"
+		n=$((n + 1))
+	done
+	printf '}'
+}
+
+fail() { printf '{"ok":false,"error":"%s"}\n' "$1"; exit 0; }
+
+restart() { [ -n "$NF_NORESTART" ] || { /etc/init.d/nightfall-collector restart >/dev/null 2>&1 & }; }
+
+range() {   # range KEY VAL MIN MAX
+	case "$2" in ''|*[!0-9]*) fail "$1: нужно число" ;; esac
+	[ "$2" -ge "$3" ] && [ "$2" -le "$4" ] || fail "$1: допустимо от $3 до $4"
+}
+
+PREFS=${NF_PREFS:-/etc/nightfall-prefs.json}
+case "$1" in
+prefs-set)
+	v=$2
+	[ -n "$v" ] && [ ${#v} -le 8192 ] || fail "настройки темы пустые или слишком большие"
+	case "$v" in '{'*'}') ;; *) fail "ожидался JSON-объект" ;; esac
+	case "$v" in *'<'*|*'`'*|*'$('*) fail "недопустимые символы" ;; esac
+	if command -v jsonfilter >/dev/null 2>&1; then [ -n "$(jsonfilter -s "$v" -e '@.t' 2>/dev/null)" ] || fail "некорректный JSON"; fi
+	printf '%s\n' "$v" > "$PREFS.tmp" && mv "$PREFS.tmp" "$PREFS" || fail "не удалось записать настройки темы"
+	printf '{"ok":true}\n' ;;
+get)
+	printf '{"values":'; json_obj "$CONF" "$DEF"
+	printf ',"defaults":'; json_obj "$DEF"
+	printf '}\n' ;;
+set)
+	shift
+	[ $# -gt 0 ] || fail "нет параметров"
+	for kv in "$@"; do
+		k=${kv%%=*}; v=${kv#*=}
+		case " $KEYS " in *" $k "*) ;; *) fail "неизвестный параметр: $k" ;; esac
+		case "$k" in
+		TEMP_WARN) range "$k" "$v" 40 120 ;;
+		TEMP_CRIT) range "$k" "$v" 50 130 ;;
+		MEM_MIN_PCT) range "$k" "$v" 1 90 ;;
+		FLASH_MAX_PCT|CT_MAX_PCT|CPU_MAX_PCT) range "$k" "$v" 10 100 ;;
+		CPU_MINUTES) range "$k" "$v" 1 60 ;;
+		PING_TARGET|PING_TARGET2)
+			case "$v" in ''|*[!A-Za-z0-9._:-]*) [ -z "$v" ] || fail "$k: недопустимые символы" ;; esac
+			[ ${#v} -le 64 ] || fail "$k: слишком длинное значение" ;;
+		PERSIST_HOURS) range "$k" "$v" 1 24 ;;
+		JOURNAL|WIFI_HIST) case "$v" in 0|1) ;; *) fail "$k: допустимо 0 или 1" ;; esac ;;
+		SPEED_HOURS) range "$k" "$v" 0 168 ;;
+		SPEED_URL)
+			case "$v" in http://*|https://*) ;; *) fail "SPEED_URL: нужен адрес http:// или https://" ;; esac
+			case "$v" in *[!A-Za-z0-9._~:/?=%+-]*) fail "SPEED_URL: недопустимые символы (разрешены буквы, цифры и . _ ~ : / ? = % + -)" ;; esac
+			[ ${#v} -le 200 ] || fail "SPEED_URL: слишком длинный адрес" ;;
+		PERSIST_DIR)
+			if [ -n "$v" ]; then
+				case "$v" in /*) ;; *) fail "PERSIST_DIR: нужен абсолютный путь" ;; esac
+				case "$v" in *[!A-Za-z0-9._/-]*|*..*) fail "PERSIST_DIR: недопустимые символы" ;; esac
+				case "$v" in /etc|/etc/*|/root|/root/*|/overlay|/overlay/*|/rom|/rom/*) fail "PERSIST_DIR: не используйте встроенную флеш-память" ;; esac
+				[ ${#v} -le 100 ] || fail "PERSIST_DIR: слишком длинный путь"
+			fi ;;
+		esac
+		eval "new_$k=\$v"
+	done
+	[ -f "$CONF" ] || cp "$DEF" "$CONF" 2>/dev/null || : > "$CONF"
+	tw=${new_TEMP_WARN:-$(val "$CONF" TEMP_WARN)}; tc=${new_TEMP_CRIT:-$(val "$CONF" TEMP_CRIT)}
+	[ -z "$tw" ] || [ -z "$tc" ] || [ "$tw" -lt "$tc" ] || fail "TEMP_WARN должен быть меньше TEMP_CRIT"
+	cp "$CONF" "$CONF.tmp" || fail "не удалось записать конфигурацию"
+	for kv in "$@"; do
+		k=${kv%%=*}; v=${kv#*=}
+		if grep -q "^$k=" "$CONF.tmp"; then
+			sed "s|^$k=[^ #]*|$k=$v|" "$CONF.tmp" > "$CONF.tmp2" && mv "$CONF.tmp2" "$CONF.tmp"
+		else
+			printf '%s=%s\n' "$k" "$v" >> "$CONF.tmp"
+		fi
+	done
+	mv "$CONF.tmp" "$CONF" || fail "не удалось записать конфигурацию"
+	restart
+	printf '{"ok":true}\n' ;;
+reset)
+	cp "$DEF" "$CONF" || fail "не удалось записать конфигурацию"
+	restart
+	printf '{"ok":true}\n' ;;
+*)
+	echo "usage: nightfall-config get | set KEY=VAL… | reset" >&2
+	exit 1 ;;
+esac

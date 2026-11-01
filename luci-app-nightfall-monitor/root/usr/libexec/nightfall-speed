@@ -1,0 +1,50 @@
+#!/bin/sh
+# Nightfall speed: замер скорости загрузки самим роутером (без участия браузера).
+#   nightfall-speed start   — запустить замер в фоне (если он ещё не идёт)
+#   nightfall-speed run     — выполнить замер и записать результат (для фона)
+# Результат: строка «время Мбит/с байт секунд фон_КБ/с статус» в /tmp/nightfall/speed.log
+DIR=${NF_DIR:-/tmp/nightfall}
+CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
+SPEED_URL=https://speed.cloudflare.com/__down?bytes=25000000
+SPEED_SECS=${NF_SPEED_SECS:-12}
+[ -r "$CONF" ] && . "$CONF"
+mkdir -p "$DIR" 2>/dev/null
+TMO=""; command -v timeout >/dev/null 2>&1 && TMO="timeout $SPEED_SECS"
+LOCK="$DIR/speed.lock"
+
+running() { [ -f "$LOCK" ] && p=$(cat "$LOCK" 2>/dev/null) && [ -n "$p" ] && [ -d "/proc/$p" ]; }
+
+case "$1" in
+start)
+	if running; then printf '{"ok":true,"running":true}\n'; exit 0; fi
+	( sh "$0" run >/dev/null 2>&1 & )
+	printf '{"ok":true,"running":true}\n' ;;
+run)
+	running && exit 0
+	echo $$ > "$LOCK"
+	trap 'rm -f "$LOCK"' EXIT INT TERM
+	case "$SPEED_URL" in http://*|https://*) ;; *) exit 1 ;; esac
+	wdev=$(sed -n 's/^wan_dev=//p' "$DIR/info" 2>/dev/null | head -n 1)
+	rx0=""; [ -n "$wdev" ] && rx0=$(awk -v d="$wdev" '{ gsub(/:/, " ") } $1 == d { print $2 }' /proc/net/dev)
+	t0=$(awk '{ print $1 }' /proc/uptime)
+	if command -v uclient-fetch >/dev/null 2>&1; then
+		bytes=$($TMO uclient-fetch -q -T 8 -O - "$SPEED_URL" 2>/dev/null | wc -c)
+	elif command -v curl >/dev/null 2>&1; then
+		bytes=$($TMO curl -s -m "$SPEED_SECS" "$SPEED_URL" 2>/dev/null | wc -c)
+	else
+		bytes=$($TMO wget -q -O - "$SPEED_URL" 2>/dev/null | wc -c)
+	fi
+	t1=$(awk '{ print $1 }' /proc/uptime)
+	rx1=""; [ -n "$wdev" ] && rx1=$(awk -v d="$wdev" '{ gsub(/:/, " ") } $1 == d { print $2 }' /proc/net/dev)
+	now=$(date +%s)
+	awk -v ts="$now" -v b="${bytes:-0}" -v a="$t0" -v z="$t1" -v r0="${rx0:-0}" -v r1="${rx1:-0}" 'BEGIN {
+		secs = z - a; if (secs < 0.1) secs = 0.1
+		mbps = b * 8 / secs / 1000000
+		bg = (r1 - r0 - b) / secs / 1024; if (bg < 0 || r0 == 0) bg = 0
+		st = (b >= 200000 && secs >= 1) ? "ok" : "fail"
+		printf "%s %.2f %d %.1f %.0f %s\n", ts, mbps, b, secs, bg, st
+	}' >> "$DIR/speed.log"
+	;;
+*)
+	echo "usage: nightfall-speed start | run" >&2; exit 1 ;;
+esac

@@ -1,0 +1,103 @@
+#!/bin/sh
+# Nightfall monitor: prints system statistics as a single JSON object.
+# usage: nightfall-stats [full]
+#   fast mode: counters only (cpu, memory, temperatures, network, flash)
+#   full mode: additionally per-process data and conntrack summary
+
+full="$1"
+CT="${NIGHTFALL_CT:-/proc/net/nf_conntrack}"
+
+clean() { printf '%s' "$1" | tr -c 'A-Za-z0-9_.:+@/-' '_'; }
+
+df_pair() {
+	df -kP "$1" 2>/dev/null | awk 'END { if (NR > 1) printf "[%s,%s]", $2, $3; else printf "null" }'
+}
+
+read -r up _ < /proc/uptime
+printf '{"up":%s' "${up:-0}"
+
+printf ',"load":['
+awk '{ printf "%s,%s,%s", $1, $2, $3 }' /proc/loadavg
+printf ']'
+
+printf ',"cpu":['
+awk '/^cpu/ { printf "%s[%s,%s,%s,%s,%s,%s,%s,%s]", (n++ ? "," : ""), $2+0, $3+0, $4+0, $5+0, $6+0, $7+0, $8+0, $9+0 }' /proc/stat
+printf ']'
+
+awk '
+	/^MemTotal:/ { t = $2 } /^MemFree:/ { f = $2 } /^MemAvailable:/ { a = $2 }
+	/^Buffers:/ { b = $2 } /^Cached:/ { c = $2 } /^Shmem:/ { s = $2 }
+	/^SReclaimable:/ { r = $2 } /^SwapTotal:/ { st = $2 } /^SwapFree:/ { sf = $2 }
+	END {
+		if (a == "") a = f + b + c
+		printf ",\"mem\":{\"total\":%d,\"free\":%d,\"avail\":%d,\"buffers\":%d,\"cached\":%d,\"shmem\":%d,\"sreclaim\":%d,\"swap\":%d,\"swapfree\":%d}",
+			t, f, a, b, c, s, r, st, sf
+	}' /proc/meminfo
+
+if [ -d /overlay ]; then printf ',"flash":%s' "$(df_pair /overlay)"; else printf ',"flash":%s' "$(df_pair /)"; fi
+printf ',"tmp":%s' "$(df_pair /tmp)"
+
+printf ',"temps":['
+sep=""
+for z in /sys/class/thermal/thermal_zone*; do
+	[ -r "$z/temp" ] || continue
+	t=""; n="zone"
+	read -r t < "$z/temp" 2>/dev/null || continue
+	read -r n < "$z/type" 2>/dev/null
+	printf '%s["%s",%s]' "$sep" "$(clean "$n")" "${t:-0}"; sep=","
+done
+for h in /sys/class/hwmon/hwmon*; do
+	[ -r "$h/temp1_input" ] || continue
+	t=""; n="hwmon"
+	read -r t < "$h/temp1_input" 2>/dev/null || continue
+	read -r n < "$h/name" 2>/dev/null
+	printf '%s["%s",%s]' "$sep" "$(clean "$n")" "${t:-0}"; sep=","
+done
+printf ']'
+
+printf ',"net":['
+awk 'NR > 2 { gsub(/:/, " "); if ($1 == "lo") next
+	printf "%s[\"%s\",%s,%s,%s,%s,%s,%s,%s,%s]", (n++ ? "," : ""), $1, $2, $3, $4, $5, $10, $11, $12, $13 }' /proc/net/dev
+printf ']'
+
+cc=0; cm=0
+# через cat: BusyBox read читает по байту, а sysctl при этом отдаёт только первую цифру
+[ -r /proc/sys/net/netfilter/nf_conntrack_count ] && cc=$(cat /proc/sys/net/netfilter/nf_conntrack_count 2>/dev/null)
+[ -r /proc/sys/net/netfilter/nf_conntrack_max ] && cm=$(cat /proc/sys/net/netfilter/nf_conntrack_max 2>/dev/null)
+case "$cc" in ''|*[!0-9]*) cc=0 ;; esac
+case "$cm" in ''|*[!0-9]*) cm=0 ;; esac
+printf ',"ct":[%s,%s]' "${cc:-0}" "${cm:-0}"
+
+if [ -n "$full" ]; then
+	printf ',"procs":['
+	{ echo "@@STAT"; cat /proc/[0-9]*/stat 2>/dev/null; echo "@@STATUS"; cat /proc/[0-9]*/status 2>/dev/null; } | awk '
+		/^@@STAT$/ { mode = 1; next }
+		/^@@STATUS$/ { mode = 2; next }
+		mode == 1 { pid = $1; sub(/^.*\) /, ""); tk[pid] = $12 + $13 }
+		mode == 2 && /^Name:/ { cn = $2; gsub(/[^A-Za-z0-9_.+:@-]/, "_", cn) }
+		mode == 2 && /^Pid:/ { cp = $2; nm[cp] = cn }
+		mode == 2 && /^VmRSS:/ { rs[cp] = $2 }
+		END {
+			for (p in nm) if (rs[p] > 0 || tk[p] > 0)
+				printf "%s[%d,\"%s\",%d,%d]", (n++ ? "," : ""), p, nm[p], rs[p] + 0, tk[p] + 0
+		}'
+	printf ']'
+
+	if [ -r "$CT" ]; then
+		head -n 30000 "$CT" 2>/dev/null | awk '
+			{ if ($3 == "tcp") t++; else if ($3 == "udp") u++; else o++
+			  for (i = 4; i <= NF; i++) if ($i ~ /^src=/) { c[substr($i, 5)]++; break } }
+			END {
+				printf ",\"ctp\":[%d,%d,%d],\"cth\":[", t, u, o
+				for (k = 0; k < 8; k++) {
+					best = ""; bc = 0
+					for (h in c) if (c[h] > bc) { bc = c[h]; best = h }
+					if (best == "") break
+					printf "%s[\"%s\",%d]", (k ? "," : ""), best, bc
+					delete c[best]
+				}
+				printf "]"
+			}'
+	fi
+fi
+printf '}\n'

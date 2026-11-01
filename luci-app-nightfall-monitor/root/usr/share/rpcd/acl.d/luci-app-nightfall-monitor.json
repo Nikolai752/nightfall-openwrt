@@ -1,0 +1,70 @@
+{
+	"luci-app-nightfall-monitor": {
+		"description": "Grant access to the Nightfall resource monitor",
+		"read": {
+			"file": {
+				"/usr/libexec/nightfall-stats": [
+					"exec"
+				],
+				"/usr/libexec/nightfall-history": [
+					"exec"
+				],
+				"/usr/libexec/nightfall-config": [
+					"exec"
+				]
+			},
+			"ubus": {
+				"system": [
+					"board"
+				],
+				"network.interface": [
+					"dump"
+				],
+				"luci-rpc": [
+					"getHostHints"
+				],
+				"network.wireless": [
+					"status"
+				],
+				"iwinfo": [
+					"assoclist",
+					"devices",
+					"info"
+				],
+				"luci": [
+					"getInitList"
+				],
+				"service": [
+					"list"
+				]
+			}
+		},
+		"write": {
+			"file": {
+				"/sbin/wifi": [
+					"exec"
+				],
+				"/etc/init.d/network": [
+					"exec"
+				],
+				"/usr/bin/etherwake": [
+					"exec"
+				],
+				"/usr/libexec/nightfall-config": [
+					"exec"
+				],
+				"/usr/libexec/nightfall-speed": [
+					"exec"
+				]
+			},
+			"ubus": {
+				"system": [
+					"reboot"
+				],
+				"luci": [
+					"setInitAction"
+				]
+			}
+		}
+	}
+}

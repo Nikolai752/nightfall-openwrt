@@ -1,0 +1,17 @@
+name: Release
+# При публикации тега вида v1.2.3 собирает nightfall-root.tar.gz и прикладывает к релизу.
+on:
+  push:
+    tags: [ 'v*' ]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh build-release.sh
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/nightfall-root.tar.gz
+          generate_release_notes: true

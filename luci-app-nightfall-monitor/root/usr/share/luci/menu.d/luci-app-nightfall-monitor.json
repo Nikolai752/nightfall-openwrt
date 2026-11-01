@@ -1,0 +1,13 @@
+{
+	"admin/status/nightfall-monitor": {
+		"title": "Монитор ресурсов",
+		"order": 2,
+		"action": {
+			"type": "view",
+			"path": "nightfall/monitor"
+		},
+		"depends": {
+			"acl": [ "luci-app-nightfall-monitor" ]
+		}
+	}
+}

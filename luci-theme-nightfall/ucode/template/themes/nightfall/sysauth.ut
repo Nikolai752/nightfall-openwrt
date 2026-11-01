@@ -1,0 +1,92 @@
+{#
+ Copyright 2022 Jo-Philipp Wich <jo@mein.io>
+ Licensed to the public under the Apache License 2.0.
+
+ Nightfall: экран входа. Сводка о роутере (связь, время работы, прошивка)
+ показывается только клиентам из локальной сети (частные адреса), чтобы
+ не отдавать её через интернет, если веб-интерфейс открыт снаружи.
+-#}
+
+{% include('header', { blank_page: true }) %}
+
+<section hidden>
+	<form method="post" class="cbi-map">
+		<div class="cbi-section">
+			<div class="cbi-section-node">
+				<div class="cbi-value">
+					<label class="cbi-value-title" for="luci_username">{{ _('Username') }}</label>
+					<div class="cbi-value-field">
+						<input name="luci_username" id="luci_username" type="text" autocomplete="username" value="{{ entityencode(duser, true) }}">
+					</div>
+				</div>
+				<div class="cbi-value">
+					<label class="cbi-value-title" for="luci_password">{{ _('Password') }}</label>
+					<div class="cbi-value-field">
+						<input name="luci_password" id="luci_password" type="password" autocomplete="current-password">
+					</div>
+				</div>
+			</div>
+		</div>
+	</form>
+
+	<hr>
+
+	{% if (fuser): %}
+	<div class="alert-message error" role="alert">
+		{{ _('Invalid username and/or password! Please try again.') }}
+	</div>
+	{% endif %}
+
+	<button class="btn cbi-button-positive important">{{ _('Log in') }}</button>
+</section>
+
+{%
+	import { readfile } from 'fs';
+
+	const nfb = ubus.call('system', 'board');
+	const raddr = replace(http.getenv('REMOTE_ADDR') ?? '', /^::ffff:/i, '');
+	const nflocal = match(raddr, /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|127\.|169\.254\.|f[cd][0-9a-f][0-9a-f]:|fe80:|::1$)/i) != null;
+
+	let nfnet = '', nfms = '', nfup = '', nfrel = '';
+
+	if (nflocal) {
+		nfup = ubus.call('system', 'info')?.uptime ?? '';
+		nfrel = nfb?.release?.version ?? '';
+		nfnet = 'none';
+
+		try {
+			const lines = split(trim(readfile('/tmp/nightfall/hist.fine') ?? ''), '\n');
+			const f = split(lines[length(lines) - 1] ?? '', ' ');
+
+			if (length(f) >= 8 && time() - int(f[0]) < 120) {
+				if (int(f[7]) >= 0) {
+					nfnet = 'up';
+					nfms = int(f[7]);
+				}
+				else {
+					nfnet = 'down';
+				}
+			}
+		}
+		catch (e) {
+			nfnet = 'none';
+		}
+	}
+%}
+<div id="view"
+	data-host="{{ entityencode(nfb?.hostname ?? '', true) }}"
+	data-model="{{ entityencode(nfb?.model ?? '', true) }}"
+	data-local="{{ nflocal ? '1' : '0' }}"
+	data-net="{{ nfnet }}"
+	data-ms="{{ nfms }}"
+	data-up="{{ nfup }}"
+	data-rel="{{ entityencode(nfrel, true) }}">
+	<div class="spinning">{{ _('Loading view…') }}</div>
+	<script>
+		L.require('ui').then(function(ui) {
+			ui.instantiateView('nightfall.login');
+		});
+	</script>
+</div>
+
+{% include('footer', { blank_page: true }) %}

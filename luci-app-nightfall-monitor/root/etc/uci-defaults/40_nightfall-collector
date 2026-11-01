@@ -1,0 +1,6 @@
+#!/bin/sh
+# Включает фоновый сборщик истории для «Монитора ресурсов».
+/etc/init.d/nightfall-collector enable 2>/dev/null
+/etc/init.d/nightfall-collector restart 2>/dev/null
+[ -f /etc/nightfall-monitor.conf ] || cp /usr/share/nightfall/nightfall-monitor.conf.default /etc/nightfall-monitor.conf 2>/dev/null
+exit 0
