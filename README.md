@@ -37,8 +37,9 @@
 
 ## Поддержать проект
 
-Если тема пригодилась, можно угостить автора чаем:
-<a href="https://pay.cloudtips.ru/p/7e7fa6da"><img src="docs/donate.png" width="200" alt="Поддержать через CloudTips"></a>
+Если тема пригодилась, можно угостить автора чаем. Это добровольно и ни на что не влияет.
+
+[![Поддержать через CloudTips](docs/donate.png)](https://pay.cloudtips.ru/p/7e7fa6da)
 
 ## Установка
 
