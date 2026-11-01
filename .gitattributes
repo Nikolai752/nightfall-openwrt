@@ -1,0 +1,9 @@
+* text=auto
+*.sh text eol=lf
+*.ut text eol=lf
+*.json text eol=lf
+nightfall-collector text eol=lf
+nightfall-config text eol=lf
+nightfall-history text eol=lf
+nightfall-speed text eol=lf
+nightfall-stats text eol=lf
