@@ -890,6 +890,12 @@
 			h('div', { 'class': 'nf-pop-sec' }, look),
 			h('label', { 'class': 'nf-pop-row' }, [ h('span', { text: 'Анимации' }), h('span', { 'class': 'cbi-checkbox' }, [ refs.motion ]) ]),
 			more, ov,
+			h('div', { 'class': 'nf-pop-io' }, [
+				h('button', { type: 'button', text: 'Сохранить в файл', onclick: exportPrefs }),
+				h('button', { type: 'button', text: 'Загрузить из файла', onclick: function () { refs.file.click(); } }),
+				refs.file = h('input', { type: 'file', accept: 'application/json,.json', hidden: true, onchange: function (ev) { importPrefs(ev.target.files && ev.target.files[0]); ev.target.value = ''; } })
+			]),
+			refs.ioNote = h('div', { 'class': 'nf-pop-ionote', role: 'status' }),
 			h('button', { type: 'button', 'class': 'nf-pop-reset', text: 'Сбросить', onclick: function () {
 				prefs = Object.assign({}, DEFAULTS); save(); applyAll(); refreshPanel();
 			} })
@@ -898,6 +904,57 @@
 		pop.addEventListener('input', function (ev) { if (ev.target.type === 'range') paintRange(ev.target); });
 		document.body.appendChild(pop);
 		refreshPanel();
+	}
+
+	/* ---------- экспорт и импорт настроек вида одним файлом ---------- */
+	function ioNote(text, bad) {
+		if (!refs.ioNote) return;
+		refs.ioNote.textContent = text; refs.ioNote.classList.toggle('bad', !!bad);
+		window.clearTimeout(ioNote.t); ioNote.t = window.setTimeout(function () { refs.ioNote.textContent = ''; }, 6000);
+	}
+	function exportPrefs() {
+		var out = {};
+		Object.keys(DEFAULTS).forEach(function (k) { out[k] = prefs[k]; });
+		var blob = new Blob([ JSON.stringify({ app: 'nightfall', v: 1, prefs: out }, null, 2) ], { type: 'application/json' });
+		var a = h('a', { href: URL.createObjectURL(blob), download: 'nightfall-settings.json' });
+		a.addEventListener('click', function (ev) { ev.stopPropagation(); });   /* иначе панель решит, что кликнули снаружи, и закроется */
+		document.body.appendChild(a); a.click();
+		window.setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+		ioNote('Файл nightfall-settings.json сохранён.');
+	}
+	/* из файла берём только известные ключи с тем же типом значения, цвета и время проверяем по шаблону */
+	function cleanPrefs(src) {
+		var out = {}, n = 0;
+		Object.keys(DEFAULTS).forEach(function (k) {
+			if (!Object.prototype.hasOwnProperty.call(src, k)) return;
+			var v = src[k], d = DEFAULTS[k];
+			if (typeof v !== typeof d) return;
+			if (typeof v === 'string') {
+				if (v.length > 32) return;
+				if (k === 'accent' && v !== '' && !/^#[0-9a-fA-F]{6}$/.test(v)) return;
+				if ((k === 'nightFrom' || k === 'dayFrom') && !/^\d\d:\d\d$/.test(v)) return;
+				if (k !== 'accent' && k !== 'nightFrom' && k !== 'dayFrom' && !/^[A-Za-z0-9_-]*$/.test(v)) return;
+			}
+			if (typeof v === 'number' && (!isFinite(v) || v < 0 || v > 1000)) return;
+			out[k] = v; n++;
+		});
+		return n ? out : null;
+	}
+	function importPrefs(file) {
+		if (!file) return;
+		if (file.size > 65536) { ioNote('Файл слишком большой для файла настроек.', true); return; }
+		var rd = new FileReader();
+		rd.onload = function () {
+			var d = null;
+			try { d = JSON.parse(String(rd.result)); } catch (e) { /* ниже сообщим */ }
+			var src = d && typeof d === 'object' ? (d.prefs || d.p || d) : null;
+			var clean = src && typeof src === 'object' ? cleanPrefs(src) : null;
+			if (!clean) { ioNote('Это не файл настроек Nightfall.', true); return; }
+			prefs = Object.assign({}, DEFAULTS, clean); save(); applyAll(); refreshPanel();
+			ioNote('Настройки загружены.');
+		};
+		rd.onerror = function () { ioNote('Не удалось прочитать файл.', true); };
+		rd.readAsText(file);
 	}
 
 	function paintRange(el) {
