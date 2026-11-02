@@ -11,8 +11,8 @@
 ![Обзор](docs/overview.png)
 
 <p>
-  <img src="docs/mobile.png" width="320" alt="Мобильный вид: Обзор">
-  <img src="docs/mobile1.png" width="320" alt="Мобильный вид: Монитор ресурсов">
+  <img src="docs/mobile.png" style="width: 300px; height: 600px; object-fit: cover; border-radius: 8px;" alt="Мобильный вид: Монитор ресурсов">
+  <img src="docs/mobile1.png" style="width: 300px; height: 600px; object-fit: cover; border-radius: 8px;" alt="Мобильный вид: Обзор">
 </p>
 
 ## Возможности
