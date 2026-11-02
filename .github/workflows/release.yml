@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: sh build-release.sh
+      - run: VERSION="${GITHUB_REF_NAME}" sh build-release.sh
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/nightfall-root.tar.gz

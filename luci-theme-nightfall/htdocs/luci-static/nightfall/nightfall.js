@@ -12,7 +12,7 @@
 	var DEFAULTS = { mode: 'auto', accent: '', motion: true, bg: 'mica', bgScale: 100,
 		density: 'normal', font: 'md', radius: 'md', glass: 'on', loginClock: true, loginInfo: true, loginBg: 'mica', ovLive: true, ovBadges: true,
 		style: '', preset: 'win11', navMini: false, schedule: false, nightFrom: '20:00', dayFrom: '07:00', netBar: true, constLogin: true, constApp: false, constKind: 'net',
-		ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, ovTop: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
+		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, ovTop: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
 
 	var PRESETS = [
 		[ 'win11', 'Windows 11', { style: '', accent: '', bg: 'mica', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
@@ -88,7 +88,7 @@
 	}
 	document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') pushNow(); });
 	window.addEventListener('pagehide', pushNow);
-	window.addEventListener('load', function () { window.setTimeout(pull, 200); });
+	window.addEventListener('load', function () { window.setTimeout(pull, 200); window.setTimeout(loadVer, 600); });
 
 	var prefs = load();
 	var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : { matches: false };
@@ -896,6 +896,16 @@
 				refs.file = h('input', { type: 'file', accept: 'application/json,.json', hidden: true, onchange: function (ev) { importPrefs(ev.target.files && ev.target.files[0]); ev.target.value = ''; } })
 			]),
 			refs.ioNote = h('div', { 'class': 'nf-pop-ionote', role: 'status' }),
+			h('div', { 'class': 'nf-pop-sec nf-pop-about' }, [
+				h('div', { 'class': 'nf-pop-l', text: 'О теме' }),
+				refs.ver = h('div', { 'class': 'nf-ver' }),
+				h('label', { 'class': 'nf-pop-row' }, [ h('span', { text: 'Проверять обновления раз в неделю' }), h('span', { 'class': 'cbi-checkbox' }, [ refs.upd = h('input', { type: 'checkbox', onchange: function (ev) { set('updCheck', ev.target.checked); } }) ]) ]),
+				h('div', { 'class': 'nf-pop-io' }, [
+					h('button', { type: 'button', text: 'Проверить сейчас', onclick: function () { checkUpdate(true); } }),
+					h('a', { 'class': 'nf-pop-btn', href: 'https://github.com/' + REPO + '/releases', target: '_blank', rel: 'noopener', text: 'Страница релизов' })
+				]),
+				refs.updNote = h('div', { 'class': 'nf-pop-ionote', role: 'status' })
+			]),
 			h('button', { type: 'button', 'class': 'nf-pop-reset', text: 'Сбросить', onclick: function () {
 				prefs = Object.assign({}, DEFAULTS); save(); applyAll(); refreshPanel();
 			} })
@@ -957,6 +967,46 @@
 		rd.readAsText(file);
 	}
 
+	/* ---------- версия темы и проверка обновлений ----------
+	 * Версия лежит в version.json рядом с темой (её пишет сборка релиза). Раз в неделю браузер (не роутер) спрашивает у GitHub,
+	 * какой релиз последний, и сравнивает номера. Ставить ничего не будет: только подсказка. Отключается в панели. */
+	var REPO = 'Nikolai752/nightfall-openwrt', UKEY = 'nightfall-upd-v', verInfo = null;
+	function vnum(s) { return String(s || '').replace(/^v/i, '').split('.').map(function (n) { return parseInt(n, 10) || 0; }); }
+	function isNewer(a, b) {   /* b новее a? */
+		var x = vnum(a), y = vnum(b);
+		for (var i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (y[i] || 0) > (x[i] || 0); }
+		return false;
+	}
+	function updCache() { try { return JSON.parse(window.localStorage.getItem(UKEY) || 'null'); } catch (e) { return null; } }
+	function updAvail() { var c = updCache(); return verInfo && c && c.tag && isNewer(verInfo.version, c.tag) ? c.tag : ''; }
+	function paintVer() {
+		var tag = updAvail();
+		if (refs.ver) refs.ver.textContent = verInfo ? 'Nightfall v' + verInfo.version + (verInfo.build ? ' · сборка ' + verInfo.build : '') : 'Версия не определена (файл version.json не найден)';
+		if (refs.updNote && tag) { refs.updNote.textContent = 'Доступна ' + tag + '. Установка вручную, как обычно (install-update.sh).'; refs.updNote.classList.remove('bad'); }
+		document.querySelectorAll('.nf-pers-main').forEach(function (b) { b.classList.toggle('nf-has-upd', !!tag); });
+	}
+	function loadVer() {
+		if (!window.fetch) return;
+		window.fetch(BASE + 'version.json?' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+			verInfo = d && typeof d.version === 'string' ? d : null; paintVer();
+			var c = updCache();
+			if (verInfo && prefs.updCheck && !document.body.classList.contains('nf-blank') && (!c || Date.now() - c.t > 7 * 864e5)) window.setTimeout(function () { checkUpdate(false); }, 4000);
+		}).catch(function () { /* без версии просто не показываем */ });
+	}
+	function checkUpdate(manual) {
+		if (!window.fetch) return;
+		if (manual && refs.updNote) { refs.updNote.textContent = 'Проверяю…'; refs.updNote.classList.remove('bad'); }
+		window.fetch('https://api.github.com/repos/' + REPO + '/releases/latest', { headers: { Accept: 'application/vnd.github+json' }, cache: 'no-store' })
+			.then(function (r) { if (!r.ok) throw new Error('http'); return r.json(); })
+			.then(function (d) {
+				if (!d || typeof d.tag_name !== 'string' || !/^v?\d+(\.\d+){0,2}$/.test(d.tag_name)) throw new Error('tag');
+				try { window.localStorage.setItem(UKEY, JSON.stringify({ tag: d.tag_name, t: Date.now() })); } catch (e) { /* ignore */ }
+				paintVer();
+				if (manual && refs.updNote && !updAvail()) { refs.updNote.textContent = 'Установлена последняя версия (' + d.tag_name + ').'; refs.updNote.classList.remove('bad'); }
+			})
+			.catch(function () { if (manual && refs.updNote) { refs.updNote.textContent = 'Не удалось связаться с GitHub. Попробуйте позже.'; refs.updNote.classList.add('bad'); } });
+	}
+
 	function paintRange(el) {
 		var lo = +el.min || 0, hi = +el.max || 100, p = hi > lo ? (el.value - lo) / (hi - lo) * 100 : 0;
 		el.style.setProperty('--p', p + '%');
@@ -982,6 +1032,8 @@
 		});
 		Object.keys(refs.preset).forEach(function (k) { refs.preset[k].setAttribute('aria-pressed', String(prefs.preset === k)); });
 		refs.schedule.checked = !!prefs.schedule;
+		if (refs.upd) refs.upd.checked = prefs.updCheck !== false;
+		paintVer();
 		refs.nightFrom.value = prefs.nightFrom || '20:00';
 		refs.dayFrom.value = prefs.dayFrom || '07:00';
 		pop.querySelector('.nf-pop-times').toggleAttribute('data-on', !!prefs.schedule);

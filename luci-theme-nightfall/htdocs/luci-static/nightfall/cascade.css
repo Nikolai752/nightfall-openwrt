@@ -4793,3 +4793,12 @@ html[data-darkmode="false"] select option, html[data-darkmode="false"] select op
 .nf-pop .nf-pop-ionote:empty { display: none; }
 @media (max-width: 899px) { .nf-pop .nf-pop-io button { height: 44px; border-radius: 12px; } }
 .nf-pop .nf-pop-io input[type="file"] { display: none !important; }
+
+/* v20261102c: «О теме» и подсказка об обновлении */
+.nf-pop .nf-ver { font-size: calc(13px * var(--nf-fsz, 1)); color: var(--nf-text); margin: 2px 0 6px; }
+.nf-pop .nf-pop-about { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--nf-stroke); }
+.nf-pop .nf-pop-io a.nf-pop-btn { height: 36px; padding: 0 8px; display: flex; align-items: center; justify-content: center; text-align: center; white-space: nowrap; text-decoration: none; background: var(--nf-ctrl); color: var(--nf-text); border: 1px solid var(--nf-stroke); border-bottom-color: var(--nf-stroke-strong); border-radius: 4px; font-size: calc(13px * var(--nf-fsz, 1)); }
+.nf-pop .nf-pop-io a.nf-pop-btn:hover { background: var(--nf-ctrl-hover); }
+@media (max-width: 899px) { .nf-pop .nf-pop-io a.nf-pop-btn { height: 44px; border-radius: 12px; } }
+.nf-pers-main.nf-has-upd { position: relative; }
+.nf-pers-main.nf-has-upd::after { content: ""; position: absolute; top: 4px; right: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--nf-accent, #0067c0); box-shadow: 0 0 0 2px var(--nf-card, #fff); }

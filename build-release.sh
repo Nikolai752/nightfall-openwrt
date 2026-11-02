@@ -17,6 +17,9 @@ ln -s nightfall "$STAGE/www/luci-static/nightfall-dark"
 ln -s nightfall "$STAGE/usr/share/ucode/luci/template/themes/nightfall-light"
 ln -s nightfall "$STAGE/usr/share/ucode/luci/template/themes/nightfall-dark"
 ln -s /etc/nightfall-prefs.json "$STAGE/www/luci-static/nightfall/prefs.json"
+# версия темы для страницы «О теме»: из тега релиза (VERSION=v1.0.4), сборка = сегодняшняя дата
+V=${VERSION#v}
+[ -n "$V" ] && printf '{ "version": "%s", "build": "%s" }\n' "$V" "$(date -u +%Y%m%d)" > "$STAGE/www/luci-static/nightfall/version.json"
 # права на исполнение (в git на Windows они теряются)
 chmod 755 "$STAGE"/usr/libexec/nightfall-* "$STAGE"/etc/init.d/nightfall-collector "$STAGE"/etc/uci-defaults/* 2>/dev/null || true
 mkdir -p "$OUT"
