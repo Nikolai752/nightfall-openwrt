@@ -4759,3 +4759,27 @@ html[data-darkmode="false"] select option, html[data-darkmode="false"] select op
 .nf-pop-times .nf-time::-webkit-datetime-edit { flex: none; text-align: center; }
 /* v20261101q: подписи кнопок монитора не переносятся */
 .nfm-btn, .nfm button { white-space: nowrap; width: auto; min-width: max-content; }
+
+/* ======== v20261102a: страницы LuCI на телефоне ======== */
+@media (max-width: 899px) {
+	/* карточки интерфейсов не шире экрана, кнопки переносятся */
+	html .ifacebox { width: 100% !important; max-width: 100%; min-width: 0; box-sizing: border-box; margin-left: 0; margin-right: 0; }
+	html .ifacebox-body { overflow-wrap: anywhere; }
+	html .ifacebox .cbi-button-row, html .ifacebox-body > div:last-child:has(> .cbi-button) { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+	html .ifacebox .cbi-button { width: 100%; margin: 0; }
+	/* списки значений (DNS, домены): поле на всю ширину, «+» — отдельная кнопка справа */
+	html .cbi-dynlist > .add-item { gap: 6px; align-items: stretch; }
+	html .cbi-dynlist > .add-item > input { flex: 1 1 0; min-width: 0; box-sizing: border-box; }
+	html .cbi-dynlist > .add-item > button, html .cbi-dynlist > .add-item > .cbi-button-add { flex: 0 0 44px; width: 44px; min-width: 44px; padding: 0; display: flex; align-items: center; justify-content: center; }
+	/* панель фильтра и кнопок на странице «Пакеты» */
+	html .controls { display: grid; gap: 10px; }
+	html .controls > div { display: grid; gap: 8px; margin: 0; }
+	html .controls > div > label { display: block; }
+	html .controls .cbi-button, html .controls button, html .controls input[type="text"] { width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: center; text-align: center; margin: 0; }
+	html .controls input[type="text"] { display: block; text-align: left; }
+	/* нижняя панель плотнее закрывает контент под собой */
+	html[data-nf-style="glass"] .cbi-page-actions { background: color-mix(in srgb, var(--nf-flyout, var(--nf-card, #fff)) 90%, transparent) !important; }
+	/* длинные значения не раздвигают страницу */
+	html #maincontent { overflow-wrap: anywhere; }
+	html #maincontent textarea, html #maincontent pre { max-width: 100%; box-sizing: border-box; }
+}
