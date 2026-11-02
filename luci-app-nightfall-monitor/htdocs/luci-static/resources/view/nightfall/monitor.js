@@ -400,6 +400,8 @@ const CSS = `
 .nfm-card-title { margin: 0 0 12px; padding: 0 0 0 10px; border: 0; font-size: 14px; font-weight: 600; line-height: 1.3; display: flex; align-items: center; gap: 8px; position: relative; }
 .nfm-card-title::before { content: ''; position: absolute; left: 0; top: 2px; bottom: 2px; width: 3px; border-radius: 3px; background: var(--nfm-accent); }
 .nfm-card-title .nfm-spacer { flex: 1; }
+.nfm-card-title { flex-wrap: wrap; row-gap: 8px; }
+.nfm-card-title > button, .nfm-card-title > select, .nfm-card-title > .cbi-button { flex: none; white-space: nowrap; max-width: 100%; }
 .nfm-legend { display: inline-flex; flex-wrap: wrap; gap: 4px 14px; font-weight: 400; font-size: 12px; color: var(--nfm-dim); }
 .nfm-leg { display: inline-flex; align-items: center; gap: 6px; }
 .nfm-dot { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
@@ -462,17 +464,6 @@ const CSS = `
   .nfm-card-title { flex-wrap: wrap; row-gap: 8px; }
   .nfm-card-title > .nfm-spacer { flex: 0 0 100%; height: 0; margin: 0; }
   .nfm-card-title > .nfm-note-s, .nfm-card-title > .nfm-legend { flex: 1 0 100%; }
-}
-.nfm-spd-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: flex-end; flex: 0 1 auto; min-width: 0; }
-.nfm-spd-ctl .nfm-sel { flex: 0 1 auto; min-width: 0; max-width: 100%; text-overflow: ellipsis; }
-.nfm-spd-ctl .nfm-btn { flex: none; white-space: nowrap; }
-.nfm-sel option { background-color: #fcfcfc; color: #1b1b1b; }
-[data-darkmode="true"] .nfm-sel option { background-color: #2b2b2b; color: #f3f3f3; }
-.nfm-sel option:checked { background-color: var(--nfm-accent); color: #fff; }
-@media (max-width: 640px) {
-  .nfm-card-title > .nfm-spd-ctl { flex: 1 0 100%; display: grid; grid-template-columns: 1fr 1fr; justify-content: stretch; }
-  .nfm-card-title > .nfm-spd-ctl .nfm-sel:first-child { grid-column: 1 / -1; }
-  .nfm-card-title > .nfm-spd-ctl .nfm-btn { grid-column: 1 / -1; }
 }
 .nfm-cfg-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
 .nfm-cfg-g { border: 1px solid var(--nfm-border); border-radius: var(--nfm-r); background: var(--nfm-card2); padding: 12px 14px 14px; min-width: 0; }
@@ -817,7 +808,7 @@ return view.extend({
 			]),
 			E('div', { class: 'nfm-grid' }, [ card('Журнал перезагрузок и обрывов связи', E('div', {}, [ jrnTiles, jrnBox ])) ]),
 			E('div', { class: 'nfm-grid nfm-g21' }, [
-				card([ 'Скорость интернета (замеры роутера)', E('span', { class: 'nfm-spacer' }), E('div', { class: 'nfm-spd-ctl' }, [ spdSrc, spdSel, spdBtn ]) ], E('div', {}, [ spdTiles, spdChart.el, spdList, spdNote ])),
+				card([ 'Скорость интернета (замеры роутера)', E('span', { class: 'nfm-spacer' }), spdSrc, spdSel, spdBtn ], E('div', {}, [ spdTiles, spdChart.el, spdList, spdNote ])),
 				card('Хранение истории и износ флеш-памяти', flashBox)
 			]),
 			E('div', { class: 'nfm-grid' }, [ cfgCard ])

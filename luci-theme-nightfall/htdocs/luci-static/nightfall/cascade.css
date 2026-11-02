@@ -4717,39 +4717,45 @@ html[data-nf-style="glass"] .modal:not(.login) {
 }
 html[data-nf-style="glass"] .modal:not(.login) > .button-row { background: transparent !important; }
 
-/* ======== v20261102a: замер скорости, панель сохранения и время в персонализации (телефон) ======== */
-/* выпадающий список: плотный фон и читаемый текст вместо «слившегося» */
-.nfm-sel option { background-color: #fcfcfc; color: #1b1b1b; }
-[data-darkmode="true"] .nfm-sel option { background-color: #2b2b2b; color: #f3f3f3; }
-
-/* поля времени в «Персонализации»: цифры по центру */
-.nf-time, input[type="time"].nf-time {
-	-webkit-appearance: none; appearance: none;
-	display: inline-flex; align-items: center; justify-content: center;
-	width: 104px; height: 40px; min-height: 40px; padding: 0 8px; box-sizing: border-box;
-	text-align: center; line-height: 1; font-variant-numeric: tabular-nums;
-}
-.nf-time::-webkit-date-and-time-value { text-align: center; margin: 0; min-height: 0; }
-.nf-time::-webkit-datetime-edit { padding: 0; text-align: center; }
-.nf-time::-webkit-datetime-edit-fields-wrapper { padding: 0; display: flex; justify-content: center; align-items: center; }
-.nf-time::-webkit-calendar-picker-indicator { display: none; }
-
-/* панель сохранения на телефоне: сверху «Сохранить и применить», снизу «Сохранить» и «Сброс» */
+/* ======== v20261101p: списки выбора, нижняя панель, время по центру ======== */
+/* выпадающий список выбора рисует система: цвета берём из её же палитры, чтобы текст не сливался с фоном */
+select, select option, select optgroup { color-scheme: inherit; }
+select option, select optgroup { background-color: Canvas; color: CanvasText; }
+html[data-darkmode="true"] select option, html[data-darkmode="true"] select optgroup { background-color: #2b2b2b; color: #f3f3f3; }
+html[data-darkmode="false"] select option, html[data-darkmode="false"] select optgroup { background-color: #ffffff; color: #1b1b1b; }
+.nf-time { display: inline-flex; align-items: center; justify-content: center; text-align: center; line-height: 1; -webkit-appearance: none; appearance: none; }
+.nf-time::-webkit-date-and-time-value { text-align: center; margin: 0; min-height: 1.2em; }
+.nf-time::-webkit-datetime-edit { padding: 0; }
 @media (max-width: 899px) {
-	html body .cbi-page-actions {
-		display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: stretch;
-		padding: 10px; margin-left: 0; margin-right: 0; text-align: center; float: none;
-	}
-	html body .cbi-page-actions > * { float: none !important; margin: 0 !important; width: 100%; min-width: 0; box-sizing: border-box; }
-	html body .cbi-page-actions > .cbi-dropdown,
-	html body .cbi-page-actions > .cbi-button-apply,
-	html body .cbi-page-actions > .cbi-button-primary { grid-column: 1 / -1; order: -1; }
-	html body .cbi-page-actions > .cbi-button-negative,
-	html body .cbi-page-actions > .secondary-action,
-	html body .cbi-page-actions > form { grid-column: 1 / -1; }
-	html body .cbi-page-actions > .cbi-button-save { grid-column: 1; order: 1; }
-	html body .cbi-page-actions > .cbi-button-reset { grid-column: 2; order: 2; }
-	html body .cbi-page-actions .cbi-button, html body .cbi-page-actions button { flex: none; min-height: 46px; padding-left: 8px; padding-right: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	html body .cbi-page-actions > .cbi-dropdown { display: flex !important; align-items: center; justify-content: center; min-height: 48px; padding: 0 8px; }
-	html body .cbi-page-actions .cbi-dropdown > ul > li:first-child { white-space: nowrap; font-weight: 600; }
+	.nf-time { height: 44px; width: 104px; padding: 0 8px; font-size: 16px; }
+	/* нижняя панель страницы: главная кнопка на всю ширину, две вторичные в ряд, всё по центру */
+	html .cbi-page-actions { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px; align-items: stretch; padding: 10px 12px; justify-items: stretch; }
+	html .cbi-page-actions > * { float: none !important; margin: 0 !important; width: 100%; }
+	html .cbi-page-actions > .cbi-dropdown, html .cbi-page-actions > .cbi-button-apply, html .cbi-page-actions > .cbi-button-primary { grid-column: 1 / -1; }
+	html .cbi-page-actions > .cbi-button-save:only-of-type, html .cbi-page-actions > .cbi-button-reset:only-of-type { grid-column: 1 / -1; }
+	html .cbi-page-actions .cbi-button, html .cbi-page-actions button { display: flex; align-items: center; justify-content: center; text-align: center; width: 100%; padding: 0 12px; }
+	html .cbi-page-actions .cbi-dropdown { display: block; padding: 0; }
+	html .cbi-page-actions .cbi-dropdown > ul { display: block; width: 100%; margin: 0; padding: 0; }
+	html .cbi-page-actions .cbi-dropdown > ul > li:first-child { padding: 0 12px; min-height: 44px; }
 }
+
+/* v20261101p: на телефоне окно настроек — поверх всего, кнопки «Закрыть/Сохранить» всегда видны */
+@media (max-width: 899px) {
+	body.modal-overlay-active #nf-tabbar, body.modal-overlay-active #nf-sheet { display: none !important; }
+	#modal_overlay { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+	html .modal:not(.login) { overflow: visible; width: calc(100% - 20px); margin: 16px auto calc(16px + env(safe-area-inset-bottom, 0px)); }
+	html .modal:not(.login) > .button-row, html[data-nf-style="glass"] .modal:not(.login) > .button-row {
+		position: sticky; bottom: 0; z-index: 6; margin-top: 16px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+		border-radius: 0 0 var(--nf-radius, 12px) var(--nf-radius, 12px);
+		background: color-mix(in srgb, var(--nf-flyout, var(--nf-card, #fff)) 97%, transparent) !important;
+		-webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+		display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px;
+	}
+	html .modal:not(.login) > .button-row > button { width: 100%; min-height: 44px; display: flex; align-items: center; justify-content: center; text-align: center; margin: 0 !important; }
+}
+/* v20261101p: время по расписанию — две строки «подпись — поле», цифры по центру */
+.nf-pop-times[data-on] { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 12px; }
+.nf-pop-times .nf-time { justify-self: end; width: 112px; text-align: center; }
+.nf-pop-times .nf-time::-webkit-datetime-edit { flex: none; text-align: center; }
+/* v20261101q: подписи кнопок монитора не переносятся */
+.nfm-btn, .nfm button { white-space: nowrap; width: auto; min-width: max-content; }
