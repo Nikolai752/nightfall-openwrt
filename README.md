@@ -2,6 +2,10 @@
 
 **Русский** | [English](README.en.md)
 
+[![Latest Release](https://img.shields.io/github/v/release/Nikolai752/nightfall-openwrt?style=flat-square&color=0078d4&label=release)](https://github.com/Nikolai752/nightfall-openwrt/releases)
+[![OpenWrt 25.12](https://img.shields.io/badge/OpenWrt-25.12-00a3b5?style=flat-square&logo=openwrt)](https://openwrt.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](https://opensource.org/licenses/MIT)
+
 Тема для LuCI в стиле Windows 11 и Liquid Glass плюс страница **«Монитор ресурсов»** с историей, графиками и учётом трафика по устройствам. Для **OpenWrt 25.12**, без дополнительных пакетов.
 
 ## Скриншоты
