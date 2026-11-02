@@ -4783,3 +4783,13 @@ html[data-darkmode="false"] select option, html[data-darkmode="false"] select op
 	html #maincontent { overflow-wrap: anywhere; }
 	html #maincontent textarea, html #maincontent pre { max-width: 100%; box-sizing: border-box; }
 }
+
+/* v20261102b: экспорт и импорт настроек вида */
+.nf-pop .nf-pop-io { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
+.nf-pop .nf-pop-io button { height: 36px; padding: 0 8px; display: flex; align-items: center; justify-content: center; text-align: center; white-space: nowrap; background: var(--nf-ctrl); color: var(--nf-text); border: 1px solid var(--nf-stroke); border-bottom-color: var(--nf-stroke-strong); border-radius: 4px; cursor: pointer; font: inherit; font-size: calc(13px * var(--nf-fsz, 1)); }
+.nf-pop .nf-pop-io button:hover { background: var(--nf-ctrl-hover); }
+.nf-pop .nf-pop-ionote { min-height: 0; margin-top: 8px; font-size: calc(12.5px * var(--nf-fsz, 1)); color: var(--nf-text-dim); text-align: center; }
+.nf-pop .nf-pop-ionote.bad { color: #d13438; }
+.nf-pop .nf-pop-ionote:empty { display: none; }
+@media (max-width: 899px) { .nf-pop .nf-pop-io button { height: 44px; border-radius: 12px; } }
+.nf-pop .nf-pop-io input[type="file"] { display: none !important; }
