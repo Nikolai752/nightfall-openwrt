@@ -12,7 +12,10 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 
 ![Overview](docs/overview.png)
 
-<img src="docs/mobile.png" width="320" alt="Mobile view">
+<p>
+  <img src="docs/mobile.png" width="320" alt="Mobile view: Overview">
+  <img src="docs/mobile1.png" width="320" alt="Mobile view: Resource Monitor">
+</p>
 
 ## Features
 

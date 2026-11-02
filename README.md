@@ -10,7 +10,10 @@
 
 ![Обзор](docs/overview.png)
 
-<img src="docs/mobile.png" width="320" alt="Мобильный вид">
+<p>
+  <img src="docs/mobile.png" width="320" alt="Мобильный вид: Обзор">
+  <img src="docs/mobile1.png" width="320" alt="Мобильный вид: Монитор ресурсов">
+</p>
 
 ## Возможности
 
