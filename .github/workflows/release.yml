@@ -15,3 +15,13 @@ jobs:
         with:
           files: dist/nightfall-root.tar.gz
           generate_release_notes: true
+      # номер последнего релиза для проверки обновлений в теме (читается из репозитория, у raw нет лимита запросов)
+      - name: Записать номер релиза в latest.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout -B main origin/main
+          printf '{ "version": "%s" }\n' "${GITHUB_REF_NAME#v}" > latest.json
+          git add latest.json
+          git diff --cached --quiet || { git commit -m "latest.json: ${GITHUB_REF_NAME}"; git push origin main; }

@@ -982,7 +982,7 @@
 	function paintVer() {
 		var tag = updAvail();
 		if (refs.ver) refs.ver.textContent = verInfo ? 'Nightfall v' + verInfo.version + (verInfo.build ? ' · сборка ' + verInfo.build : '') : 'Версия не определена (файл version.json не найден)';
-		if (refs.updNote && tag) { refs.updNote.textContent = 'Доступна ' + tag + '. Установка вручную, как обычно (install-update.sh).'; refs.updNote.classList.remove('bad'); }
+		if (refs.updNote && tag) { refs.updNote.textContent = 'Доступна ' + (/^v/i.test(tag) ? tag : 'v' + tag) + '. Установка вручную, как обычно (install-update.sh).'; refs.updNote.classList.remove('bad'); }
 		document.querySelectorAll('.nf-pers-main').forEach(function (b) { b.classList.toggle('nf-has-upd', !!tag); });
 	}
 	function loadVer() {
@@ -993,18 +993,29 @@
 			if (verInfo && prefs.updCheck && !document.body.classList.contains('nf-blank') && (!c || Date.now() - c.t > 7 * 864e5)) window.setTimeout(function () { checkUpdate(false); }, 4000);
 		}).catch(function () { /* без версии просто не показываем */ });
 	}
+	/* Номер последнего релиза берём сначала из latest.json в репозитории (raw.githubusercontent.com, лимитов нет;
+	 * файл обновляет сборка релиза), а если не вышло — из API GitHub (у него лимит 60 запросов в час на адрес). */
+	function getLatestTag() {
+		function ok(t) { return typeof t === 'string' && /^v?\d+(\.\d+){0,2}$/.test(t) ? t : ''; }
+		return window.fetch('https://raw.githubusercontent.com/' + REPO + '/main/latest.json?' + Math.floor(Date.now() / 300000), { cache: 'no-store' })
+			.then(function (r) { if (!r.ok) throw new Error('raw'); return r.json(); })
+			.then(function (d) { var t = ok(d && d.version); if (!t) throw new Error('raw-tag'); return t; })
+			.catch(function () {
+				return window.fetch('https://api.github.com/repos/' + REPO + '/releases/latest', { headers: { Accept: 'application/vnd.github+json' }, cache: 'no-store' })
+					.then(function (r) { if (!r.ok) throw new Error('api'); return r.json(); })
+					.then(function (d) { var t = ok(d && d.tag_name); if (!t) throw new Error('api-tag'); return t; });
+			});
+	}
 	function checkUpdate(manual) {
 		if (!window.fetch) return;
 		if (manual && refs.updNote) { refs.updNote.textContent = 'Проверяю…'; refs.updNote.classList.remove('bad'); }
-		window.fetch('https://api.github.com/repos/' + REPO + '/releases/latest', { headers: { Accept: 'application/vnd.github+json' }, cache: 'no-store' })
-			.then(function (r) { if (!r.ok) throw new Error('http'); return r.json(); })
-			.then(function (d) {
-				if (!d || typeof d.tag_name !== 'string' || !/^v?\d+(\.\d+){0,2}$/.test(d.tag_name)) throw new Error('tag');
-				try { window.localStorage.setItem(UKEY, JSON.stringify({ tag: d.tag_name, t: Date.now() })); } catch (e) { /* ignore */ }
-				paintVer();
-				if (manual && refs.updNote && !updAvail()) { refs.updNote.textContent = 'Установлена последняя версия (' + d.tag_name + ').'; refs.updNote.classList.remove('bad'); }
-			})
-			.catch(function () { if (manual && refs.updNote) { refs.updNote.textContent = 'Не удалось связаться с GitHub. Попробуйте позже.'; refs.updNote.classList.add('bad'); } });
+		getLatestTag().then(function (tag) {
+			try { window.localStorage.setItem(UKEY, JSON.stringify({ tag: tag, t: Date.now() })); } catch (e) { /* ignore */ }
+			paintVer();
+			if (manual && refs.updNote && !updAvail()) { refs.updNote.textContent = 'Установлена последняя версия (' + (/^v/i.test(tag) ? tag : 'v' + tag) + ').'; refs.updNote.classList.remove('bad'); }
+		}).catch(function () {
+			if (manual && refs.updNote) { refs.updNote.textContent = 'Не удалось проверить: GitHub не ответил или исчерпан лимит запросов. Попробуйте позже.'; refs.updNote.classList.add('bad'); }
+		});
 	}
 
 	function paintRange(el) {
