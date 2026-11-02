@@ -31,9 +31,11 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 - Cards can be dragged, pinned and hidden.
 
 **Resource Monitor** (Status → Resource Monitor)
+- Tabs: Overview, Network, Programs, Services, History.
 - CPU, temperature, memory, flash storage, per-core load, memory by process.
-- "Network" tab: interface speeds, connections, per-device traffic for today and yesterday.
+- "Network" tab: interface speeds, connections, per-device traffic for today and yesterday, Wi-Fi clients with a signal-level chart when you tap a row.
 - "History" tab: charts for 1 hour, 24 hours and 7 days, connection quality, a log of outages and reboots.
+- "Services" tab: router service status with start, stop and restart. Services enabled at boot but not running are marked red. Key services (network, web server, SSH, firewall) cannot be stopped from here, so you do not lose access.
 - Internet speed test run by the router itself: Cloudflare, Yandex Mirror, Hetzner, OVH or a custom URL, manual and scheduled.
 - Alerts even when the page is closed: overheating, low memory, full flash, sustained high load, lost internet.
 
@@ -111,8 +113,8 @@ If you installed the theme on another router, please tell us in [Issues](https:/
 ## Making a release
 
 ```sh
-git tag v1.0.1
-git push origin v1.0.1
+git tag v1.0.2
+git push origin v1.0.2
 ```
 GitHub Actions builds `nightfall-root.tar.gz` and attaches it to the release.
 
