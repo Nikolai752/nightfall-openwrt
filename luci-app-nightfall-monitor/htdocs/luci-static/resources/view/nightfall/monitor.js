@@ -500,7 +500,7 @@ const CSS = `
 .nfm-alert b { font-weight: 600; } .nfm-alert small { display: block; color: var(--nfm-dim); font-size: 12px; }
 .nfm-hint { padding: 9px 14px; border-radius: 6px; background: var(--nfm-card2); border: 1px solid var(--nfm-border); color: var(--nfm-dim); font-size: 12.5px; margin: 0 0 12px; line-height: 1.45; }
 .nfm-hint code { font-size: 12px; }
-.nfm-mini { height: 4px; margin-top: 6px; }
+.nfm-bar-sm { height: 4px; margin-top: 6px; }
 .nfm-evlist { max-height: 360px; overflow: auto; }
 .nfm-ev-i { display: grid; grid-template-columns: 8px 118px minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 7px 0; font-size: 13px;
   border-bottom: 1px solid color-mix(in srgb, var(--nfm-border) 60%, transparent); }
@@ -1138,7 +1138,7 @@ return view.extend({
 				const sub = r.k === 'v6' || r.k === 'router' ? '' : ((h.ipaddrs || [])[0] || r.ip);
 				return E('tr', {}, [
 					E('td', {}, [ label, sub && sub !== label ? E('span', { class: 'nfm-chip' }, sub) : '',
-						E('div', { class: 'nfm-bar nfm-mini' }, E('div', { class: 'nfm-bar-fill c-down', style: `width:${100 * (r.dd + r.du) / mx}%` })) ]),
+						E('div', { class: 'nfm-bar nfm-bar-sm' }, E('div', { class: 'nfm-bar-fill c-down', style: `width:${100 * (r.dd + r.du) / mx}%` })) ]),
 					E('td', { class: 'r' }, rateText(r.rd)), E('td', { class: 'r' }, rateText(r.ru)),
 					E('td', { class: 'r' }, fmtBytes(r.dd)), E('td', { class: 'r' }, fmtBytes(r.du)) ]);
 			}) : [ E('tr', {}, E('td', { colspan: 5, class: 'nfm-empty' }, 'Пока нет данных: учёт начинается после запуска сборщика, цифры накапливаются в течение дня.')) ]));
@@ -1266,7 +1266,7 @@ return view.extend({
 				const mx = rows.length ? rows[0].d + rows[0].u : 1;
 				return E('div', {}, [ E('h4', {}, what), E('div', { class: 'nfm-lst' }, rows.length ? rows.map(r => E('div', { class: 'nfm-li' }, [
 					E('span', { class: 'nm' }, r.k), E('span', { class: 'v' }, '↓ ' + rateText(r.d)), E('span', { class: 'v' }, '↑ ' + rateText(r.u)),
-					E('div', { class: 'nfm-bar nfm-mini bar' }, E('div', { class: 'nfm-bar-fill c-down', style: `width:${100 * (r.d + r.u) / mx}%` })) ]))
+					E('div', { class: 'nfm-bar nfm-bar-sm bar' }, E('div', { class: 'nfm-bar-fill c-down', style: `width:${100 * (r.d + r.u) / mx}%` })) ]))
 					: [ E('div', { class: 'nfm-empty' }, 'Сейчас нет заметного трафика') ]) ]);
 			};
 			chanBox.replaceChildren(list(svc, 'По службам и портам'), list(dst, 'По адресам в интернете'));

@@ -3491,26 +3491,27 @@ header .nav li.active > a, header .nav .dropdown-menu li.active > a, header .nav
 
 /* ======== Fluent v2: page layout for stock LuCI views ======== */
 
-/* Status → Overview: masonry columns (no gaps under short cards); wide tables span the full width */
+/* Status → Overview only (scoped by body[data-page]): masonry columns (no gaps under short cards); wide tables span the full width.
+   Other LuCI apps (e.g. luci-app-zapret2) also render #view > .cbi-section.fade-in and must stay single-column. */
 .cbi-section { min-width: 0; max-width: 100%; }
 @media (min-width: 1000px) {
-	#view:has(> .cbi-section.fade-in) {
+	body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) {
 		display: block;
 		columns: 2;
 		column-gap: 16px;
 	}
-	#view:has(> .cbi-section.fade-in) > .cbi-section {
+	body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .cbi-section {
 		margin: 0 0 16px;
 		break-inside: avoid;
 		-webkit-column-break-inside: avoid;
 		display: block;
 	}
 	/* DHCP leases, Wi-Fi clients, etc.: tables with 5+ columns need the whole row */
-	#view:has(> .cbi-section.fade-in) > .cbi-section:has(.table .th:nth-child(5)) {
+	body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .cbi-section:has(.table .th:nth-child(5)) {
 		column-span: all;
 	}
-	#view:has(> .cbi-section.fade-in) > .cbi-title,
-	#view:has(> .cbi-section.fade-in) > h2 { column-span: all; }
+	body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .cbi-title,
+	body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > h2 { column-span: all; }
 }
 /* anything still too wide scrolls inside its card instead of spilling out */
 #view > .cbi-section.fade-in { overflow-x: auto; }
@@ -3890,12 +3891,12 @@ img[src*="/icons/signal-"] { width: 24px; height: 24px; }
 
 /* Обзор: плотная раскладка без пустот (строки по 8px, высоту карточек считает nightfall-overview.js) */
 @media (min-width: 1000px) {
-	#view:has(> .cbi-section.fade-in) { display: grid; columns: auto; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-rows: 8px; column-gap: 16px; row-gap: 0; align-items: start; }
-	#view:has(> .cbi-section.fade-in) > .cbi-section,
-	#view:has(> .cbi-section.fade-in) > .nf-live { margin: 0; align-self: start; min-width: 0; }
-	#view:has(> .cbi-section.fade-in) > :not(.cbi-section):not(.nf-live),
-	#view:has(> .cbi-section.fade-in) > .nf-live,
-	#view:has(> .cbi-section.fade-in) > .cbi-section:has(.table .th:nth-child(5)) { grid-column: 1 / -1; }
+	body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) { display: grid; columns: auto; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-rows: 8px; column-gap: 16px; row-gap: 0; align-items: start; }
+	body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .cbi-section,
+	body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .nf-live { margin: 0; align-self: start; min-width: 0; }
+	body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > :not(.cbi-section):not(.nf-live),
+	body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .nf-live,
+	body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .cbi-section:has(.table .th:nth-child(5)) { grid-column: 1 / -1; }
 }
 
 /* ======== sign-in: всё по центру — часы, дата и окно входа ======== */
