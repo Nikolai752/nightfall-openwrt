@@ -500,7 +500,7 @@ const CSS = `
 .nfm-alert b { font-weight: 600; } .nfm-alert small { display: block; color: var(--nfm-dim); font-size: 12px; }
 .nfm-hint { padding: 9px 14px; border-radius: 6px; background: var(--nfm-card2); border: 1px solid var(--nfm-border); color: var(--nfm-dim); font-size: 12.5px; margin: 0 0 12px; line-height: 1.45; }
 .nfm-hint code { font-size: 12px; }
-.nfm-mini { height: 4px; margin-top: 6px; }
+.nfm-bar.nfm-mini { height: 4px; margin-top: 6px; padding: 0; border: 0; cursor: default; }
 .nfm-evlist { max-height: 360px; overflow: auto; }
 .nfm-ev-i { display: grid; grid-template-columns: 8px 118px minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 7px 0; font-size: 13px;
   border-bottom: 1px solid color-mix(in srgb, var(--nfm-border) 60%, transparent); }
@@ -1404,8 +1404,8 @@ return view.extend({
 			const run = sv.run || {};
 			const all = Object.keys(sv.init).map(n => {
 				const inst = run[n] && run[n].instances ? Object.values(run[n].instances) : null;
-				const known = !!run[n];
-				const up = !!(inst && inst.some(i => i.running));
+				const known = !!(inst && inst.length);
+				const up = !!(inst && inst.some(i => i.running || i.exit_code === 0));
 				return { n, en: !!sv.init[n].enabled, known, up, idx: sv.init[n].index };
 			}).filter(x => !q || x.n.toLowerCase().includes(q) || (SVC_INFO[x.n] || '').toLowerCase().includes(q));
 			const bad = x => x.en && x.known && !x.up;

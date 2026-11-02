@@ -4802,3 +4802,8 @@ html[data-darkmode="false"] select option, html[data-darkmode="false"] select op
 @media (max-width: 899px) { .nf-pop .nf-pop-io a.nf-pop-btn { height: 44px; border-radius: 12px; } }
 .nf-pers-main.nf-has-upd { position: relative; }
 .nf-pers-main.nf-has-upd::after { content: ""; position: absolute; top: 4px; right: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--nf-accent, #0067c0); box-shadow: 0 0 0 2px var(--nf-card, #fff); }
+
+/* Overview card grid only on Status > Overview: other LuCI apps (e.g. luci-app-zapret2) also render
+   #view > .cbi-section.fade-in and were split into two columns */
+body:not([data-page="admin-status-overview"]):not([data-page="admin"]):not([data-page="admin-status"]) #view:has(> .cbi-section.fade-in) { display: block !important; columns: auto !important; }
+body:not([data-page="admin-status-overview"]):not([data-page="admin"]):not([data-page="admin-status"]) #view:has(> .cbi-section.fade-in) > .cbi-section { margin: 0 0 16px !important; grid-row-end: auto !important; }

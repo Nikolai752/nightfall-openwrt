@@ -1094,6 +1094,15 @@ return baseclass.extend({
 
 		const run = () => {
 			timer = null;
+			/* OpenWrt 24.10: status/index.js renders a bare <h3> instead of <div class="cbi-title"><h3>; wrap it */
+			Array.from(view.children).forEach(c => {
+				const h = c.classList.contains('cbi-section') && c.querySelector(':scope > h3');
+				if (!h) return;
+				const t = document.createElement('div');
+				t.className = 'cbi-title';
+				c.insertBefore(t, h);
+				t.appendChild(h);
+			});
 			if (DRAG || !cardsOf(view).length) return;
 
 			if (!ready) {
