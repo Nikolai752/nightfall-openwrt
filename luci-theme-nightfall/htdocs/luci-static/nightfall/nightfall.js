@@ -728,6 +728,12 @@
 
 	document.addEventListener('DOMContentLoaded', syncConst);
 
+	/* Entrance animations are for the first paint only. LuCI re-creates whole blocks on every
+	   poll (status pages every 5 s), and replaying the fade/rise each time made the panel twitch. */
+	document.addEventListener('DOMContentLoaded', function () {
+		window.setTimeout(function () { root.setAttribute('data-nf-settled', '1'); }, 2500);
+	});
+
 	var FONT = { sm: .92, md: 1, lg: 1.1 };
 	function pick(v, list, def) { return list.indexOf(v) >= 0 ? v : def; }
 

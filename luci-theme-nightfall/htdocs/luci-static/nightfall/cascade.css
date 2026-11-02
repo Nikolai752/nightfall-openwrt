@@ -3391,11 +3391,11 @@ header .nav .dropdown-menu li.active > a { background: var(--nf-hover-strong, va
 @keyframes nf-slide { from { opacity: 0; transform: translateX(-8px); } }
 
 html:not([data-nf-motion="off"]) #maincontent { animation: nf-fade .25s ease both; }
-html:not([data-nf-motion="off"]) .cbi-section, html:not([data-nf-motion="off"]) fieldset.cbi-section,
-html:not([data-nf-motion="off"]) .nfm-card, html:not([data-nf-motion="off"]) .cbi-page-actions { animation: nf-rise .38s cubic-bezier(.2, .7, .2, 1) both; }
-html:not([data-nf-motion="off"]) .cbi-section:nth-of-type(2), html:not([data-nf-motion="off"]) .nfm-grid > .nfm-card:nth-child(2) { animation-delay: .04s; }
-html:not([data-nf-motion="off"]) .cbi-section:nth-of-type(3), html:not([data-nf-motion="off"]) .nfm-grid > .nfm-card:nth-child(3) { animation-delay: .08s; }
-html:not([data-nf-motion="off"]) .cbi-section:nth-of-type(n+4), html:not([data-nf-motion="off"]) .nfm-grid > .nfm-card:nth-child(4) { animation-delay: .12s; }
+html:not([data-nf-motion="off"]):not([data-nf-settled]) .cbi-section, html:not([data-nf-motion="off"]):not([data-nf-settled]) fieldset.cbi-section,
+html:not([data-nf-motion="off"]):not([data-nf-settled]) .nfm-card, html:not([data-nf-motion="off"]):not([data-nf-settled]) .cbi-page-actions { animation: nf-rise .38s cubic-bezier(.2, .7, .2, 1) both; }
+html:not([data-nf-motion="off"]):not([data-nf-settled]) .cbi-section:nth-of-type(2), html:not([data-nf-motion="off"]):not([data-nf-settled]) .nfm-grid > .nfm-card:nth-child(2) { animation-delay: .04s; }
+html:not([data-nf-motion="off"]):not([data-nf-settled]) .cbi-section:nth-of-type(3), html:not([data-nf-motion="off"]):not([data-nf-settled]) .nfm-grid > .nfm-card:nth-child(3) { animation-delay: .08s; }
+html:not([data-nf-motion="off"]):not([data-nf-settled]) .cbi-section:nth-of-type(n+4), html:not([data-nf-motion="off"]):not([data-nf-settled]) .nfm-grid > .nfm-card:nth-child(4) { animation-delay: .12s; }
 html:not([data-nf-motion="off"]) header .nav li.open > .dropdown-menu { animation: nf-drop .18s ease both; }
 html:not([data-nf-motion="off"]) header .nav li.open > .dropdown-menu > li { animation: nf-slide .2s ease both; }
 html:not([data-nf-motion="off"]) header .nav li.open > .dropdown-menu > li:nth-child(2) { animation-delay: .02s; }
@@ -3404,7 +3404,7 @@ html:not([data-nf-motion="off"]) header .nav li.open > .dropdown-menu > li:nth-c
 html:not([data-nf-motion="off"]) .modal { animation: nf-pop .22s cubic-bezier(.2, .8, .2, 1) both; }
 html:not([data-nf-motion="off"]) .nf-pop.open { animation: nf-pop .18s ease both; }
 html:not([data-nf-motion="off"]) .tabs > li.active::after, html:not([data-nf-motion="off"]) .cbi-tabmenu > li.cbi-tab::after { animation: nf-fade .25s ease both; }
-html:not([data-nf-motion="off"]) .nfm > div:not([hidden]):not(.nfm-top) { animation: nf-fade .22s ease both; }
+html:not([data-nf-motion="off"]):not([data-nf-settled]) .nfm > div:not([hidden]):not(.nfm-top) { animation: nf-fade .22s ease both; }
 html:not([data-nf-motion="off"]) .alert-message { animation: nf-drop .25s ease both; }
 html[data-nf-motion="off"] *, html[data-nf-motion="off"] *::before, html[data-nf-motion="off"] *::after { animation: none !important; transition: none !important; }
 
@@ -4023,7 +4023,8 @@ html[data-nf-glass="off"][data-nf-style="glass"] .cbi-section, html[data-nf-glas
 .nf-tile-k > span:first-child { overflow: visible; white-space: normal; }
 .nf-tile-s { white-space: normal; overflow: visible; }
 .nf-tile-v { font-size: clamp(17px, 2vw, 22px); }
-html[data-nf-style="glass"] .cbi-tabmenu, html[data-nf-style="glass"] .cbi-tabmenu li { background: transparent !important; box-shadow: none !important; -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-nf-style="glass"] .cbi-tabmenu { background: transparent !important; box-shadow: none !important; -webkit-backdrop-filter: none; backdrop-filter: none; }
+@media (min-width: 900px) { html[data-nf-style="glass"] .cbi-tabmenu li { background: transparent !important; box-shadow: none !important; -webkit-backdrop-filter: none; backdrop-filter: none; } }
 html[data-nf-style="glass"] .modal.login .cbi-map, html[data-nf-style="glass"] .modal.login .cbi-section, html[data-nf-style="glass"] .modal.login .cbi-value { background: transparent !important; border: 0 !important; box-shadow: none !important; -webkit-backdrop-filter: none; backdrop-filter: none; }
 html[data-nf-style="glass"] .zonebadge { border-radius: 999px; padding: 3px 12px; }
 html[data-nf-style="glass"] .cbi-section .cbi-section:has(> .zonebadge), html[data-nf-style="glass"] .cbi-section > div > .zonebadge { box-shadow: none; }
@@ -4468,7 +4469,8 @@ html[data-nf-style="glass"] .cbi-tooltip, html[data-nf-style="glass"] .ifacebadg
 
 /* ======== Монитор ресурсов: тот же вид, что у Обзора ======== */
 html .nfm .nfm-top h2 { font-size: calc(28px * var(--nf-fsz, 1)); font-weight: 600; letter-spacing: -.01em; }
-html .nfm .nfm-card { border-radius: var(--nf-radius, 8px); padding: 18px 20px; animation: nf-rise .38s cubic-bezier(.2, .7, .2, 1) both; }
+html .nfm .nfm-card { border-radius: var(--nf-radius, 8px); padding: 18px 20px; }
+html:not([data-nf-settled]) .nfm .nfm-card { animation: nf-rise .38s cubic-bezier(.2, .7, .2, 1) both; }
 html .nfm .nfm-grid > .nfm-card:nth-child(2), html .nfm .nfm-grid > *:nth-child(2) .nfm-card { animation-delay: .05s; }
 html .nfm .nfm-grid > .nfm-card:nth-child(n+3) { animation-delay: .1s; }
 html[data-nf-motion="off"] .nfm .nfm-card { animation: none; }
@@ -4803,3 +4805,40 @@ html[data-darkmode="false"] select option, html[data-darkmode="false"] select op
 @media (max-width: 899px) { .nf-pop .nf-pop-io a.nf-pop-btn { height: 44px; border-radius: 12px; } }
 .nf-pers-main.nf-has-upd { position: relative; }
 .nf-pers-main.nf-has-upd::after { content: ""; position: absolute; top: 4px; right: 4px; width: 9px; height: 9px; border-radius: 50%; background: var(--nf-accent, #0067c0); box-shadow: 0 0 0 2px var(--nf-card, #fff); }
+
+/* ======== v20261102e: мобильные правки ======== */
+@media (max-width: 899px) {
+	/* окно настроек темы целиком над нижней панелью: видны «Проверить сейчас», «Страница релизов», «Сбросить» */
+	body.nf-has-tabbar .nf-pop {
+		bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+		max-height: calc(100vh - 176px - env(safe-area-inset-bottom, 0px));
+		max-height: calc(100dvh - 176px - env(safe-area-inset-bottom, 0px));
+		overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+		padding-bottom: 20px;
+	}
+
+	/* заголовки вкладок: «таблетки» в стиле темы вместо плоской белой полосы */
+	html .tabs, html .cbi-tabmenu {
+		display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; padding: 0;
+		background: none !important; border: 0; box-shadow: none;
+	}
+	html .tabs > li, html .cbi-tabmenu > li {
+		flex: 0 1 auto; max-width: 100%; height: auto; margin: 0; padding: 0;
+		border: 1px solid var(--nf-stroke); border-radius: 999px;
+		background: color-mix(in srgb, var(--nf-text) 6%, transparent);
+		color: var(--nf-text-dim); font-weight: 500;
+		transition: background-color .15s, color .15s, border-color .15s;
+	}
+	html .tabs > li > a, html .cbi-tabmenu > li > a {
+		min-height: 38px; padding: 0 14px; line-height: 1.2; border-radius: 999px; white-space: nowrap;
+	}
+	html .tabs > li:not(.active):hover, html .cbi-tabmenu > li.cbi-tab-disabled:hover {
+		background: var(--nf-hover); color: var(--nf-text);
+	}
+	html .tabs > li.active, html .cbi-tabmenu > li.cbi-tab {
+		background: color-mix(in srgb, var(--nf-accent) 16%, transparent);
+		border-color: color-mix(in srgb, var(--nf-accent) 48%, transparent);
+		color: var(--nf-accent); font-weight: 600;
+	}
+	html .tabs > li.active::after, html .cbi-tabmenu > li.cbi-tab::after { display: none; }
+}

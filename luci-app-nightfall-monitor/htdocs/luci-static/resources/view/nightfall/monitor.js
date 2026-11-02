@@ -136,7 +136,7 @@ const XCSS = `
 .nfm-wd .ax { fill: var(--nfm-dim); font-size: 8px; }
 .nfm-flash { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
 .nfm-warn { color: #e5484d; font-weight: 600; }
-@media (max-width: 640px) { .nfm-mini, .nfm-btn, .nfm-act, .nfm-tab { min-height: 40px; } .nfm-jr { grid-template-columns: 22px minmax(0, 1fr) auto; } .nfm-jr time { grid-column: 2 / -1; } .nfm-svc { grid-template-columns: 12px minmax(0, 1fr); } .nfm-svc .ac { grid-column: 1 / -1; justify-content: flex-start; } }
+@media (max-width: 640px) { .nfm-mini, .nfm-btn, .nfm-act, .nfm-tab { min-height: 40px; } .nfm-jr { grid-template-columns: 22px minmax(0, 1fr) auto; align-items: start; row-gap: 2px; } .nfm-jr .ic { grid-column: 1; grid-row: 1; } .nfm-jr time { grid-column: 2 / -1; grid-row: 1; } .nfm-jr > span:not(.ic) { grid-column: 2; grid-row: 2; min-width: 0; overflow-wrap: anywhere; } .nfm-jr b { grid-column: 3; grid-row: 2; } .nfm-svc { grid-template-columns: 12px minmax(0, 1fr); } .nfm-svc .ac { grid-column: 1 / -1; justify-content: flex-start; } }
 `;
 
 function SVG(tag, attrs, children) {
