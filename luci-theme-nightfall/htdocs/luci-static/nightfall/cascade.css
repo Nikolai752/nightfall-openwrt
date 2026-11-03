@@ -4843,7 +4843,7 @@ html[data-darkmode="false"] select option, html[data-darkmode="false"] select op
 	html .tabs > li.active::after, html .cbi-tabmenu > li.cbi-tab::after { display: none; }
 }
 
-/* ======== v20261103b: без дёрганий при опросе, таблица Wi-Fi клиентов, длинные значения на телефоне ======== */
+/* ======== v20261103c: без дёрганий при опросе, таблица Wi-Fi клиентов, длинные значения на телефоне ======== */
 /* собственная анимация LuCI (.fade-in) тоже проигрывалась заново при каждом обновлении блока */
 html[data-nf-settled] .fade-in { animation: none; }
 
@@ -4858,7 +4858,7 @@ html[data-nf-settled] .fade-in { animation: none; }
 	html .table.cbi-section-table .td.cbi-section-table-cell:not(:has(input, select, textarea, button, .cbi-dropdown, .cbi-checkbox)) { white-space: normal; }
 }
 
-/* v20261103b: окна обновления из интерфейса (доступна версия, прогресс, установлено, что нового) */
+/* v20261103c: окна обновления из интерфейса (доступна версия, прогресс, установлено, что нового) */
 .nf-upd-modal { position: fixed; inset: 0; z-index: 10050; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, .45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .nf-upd-box { width: min(460px, 100%); max-height: 86vh; overflow-y: auto; box-sizing: border-box; padding: 22px 22px 18px; border-radius: 12px; background: var(--nf-card, #fff); color: var(--nf-text, #1b1b1b); border: 1px solid var(--nf-stroke, rgba(0, 0, 0, .12)); box-shadow: 0 24px 64px rgba(0, 0, 0, .35); }
 .nf-upd-box.wide { width: min(560px, 100%); }
@@ -4878,3 +4878,36 @@ html[data-nf-settled] .fade-in { animation: none; }
 .nf-upd-btns button.nf-upd-go { background: var(--nf-accent, #0067c0); border-color: transparent; color: #fff; }
 @media (max-width: 899px) { .nf-upd-btns button { min-height: 44px; border-radius: 12px; flex: 1; } .nf-upd-box { padding: 18px 16px 14px; } }
 html.nf-upd-open { overflow: hidden; }
+
+/* ======== v20261103c: компактная нижняя панель «Применить / Сохранить / Сброс» на телефонах ======== */
+/* Размеры считаются от ширины и высоты экрана, поэтому панель аккуратна и на маленьком SE/mini, и на Pro Max, и на Android с любым масштабом. */
+@media (max-width: 899px) {
+	html .cbi-page-actions {
+		--nf-abh: clamp(34px, 9.4vw, 42px);
+		display: flex !important; flex-wrap: nowrap; align-items: stretch; gap: clamp(5px, 1.6vw, 8px);
+		padding: clamp(6px, 1.8vw, 9px) clamp(8px, 2.4vw, 12px);
+	}
+	html .cbi-page-actions > * { flex: 1 1 0; width: auto; min-width: 0; }
+	html .cbi-page-actions > .cbi-dropdown, html .cbi-page-actions > .cbi-button-apply, html .cbi-page-actions > .cbi-button-primary { flex: 1.8 1 0; grid-column: auto; }
+	html .cbi-page-actions .cbi-button, html .cbi-page-actions button, html .cbi-page-actions .cbi-dropdown {
+		min-height: var(--nf-abh) !important; height: var(--nf-abh); box-sizing: border-box;
+		padding: 0 clamp(6px, 2vw, 12px); font-size: clamp(12.5px, 3.5vw, 15px); line-height: 1.1;
+		white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+	}
+	html .cbi-page-actions .cbi-dropdown > ul > li:first-child { min-height: var(--nf-abh); padding: 0 clamp(6px, 2vw, 12px); font-size: inherit; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+/* очень узкие экраны: подписи чуть короче по месту */
+@media (max-width: 340px) {
+	html .cbi-page-actions { gap: 4px; padding: 6px; }
+	html .cbi-page-actions .cbi-button, html .cbi-page-actions button { padding: 0 4px; font-size: 12px; }
+}
+/* телефон в горизонтальном положении: панель не должна закрывать пол-экрана, она встаёт в конец страницы */
+@media (max-width: 899px) and (max-height: 520px) {
+	html .cbi-page-actions { position: static; margin-top: 12px; box-shadow: none; }
+}
+@media (max-width: 899px) {
+	/* длинная подпись «Сохранить и применить» переносится на две строки, а не обрезается */
+	html .cbi-page-actions > .cbi-dropdown, html .cbi-page-actions > .cbi-button-apply, html .cbi-page-actions > .cbi-button-primary,
+	html .cbi-page-actions .cbi-dropdown > ul > li:first-child { white-space: normal; text-overflow: clip; line-height: 1.1; overflow-wrap: normal; word-break: normal; hyphens: none; }
+	html .cbi-page-actions > .cbi-dropdown > ul { height: 100%; display: flex !important; }
+}
