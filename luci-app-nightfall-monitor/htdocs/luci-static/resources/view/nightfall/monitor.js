@@ -31,6 +31,7 @@ const callWifi = rpc.declare({ object: 'network.wireless', method: 'status' });
 const callAssoc = rpc.declare({ object: 'iwinfo', method: 'assoclist', params: [ 'device', 'mac' ], expect: { results: [] } });
 const callReboot = rpc.declare({ object: 'system', method: 'reboot' });
 const SPEEDBIN = '/usr/libexec/nightfall-speed';
+const NOTIFYBIN = '/usr/libexec/nightfall-notify';
 const callInitList = rpc.declare({ object: 'luci', method: 'getInitList', params: [ 'name' ], expect: { '': {} } });
 const callInitAction = rpc.declare({ object: 'luci', method: 'setInitAction', params: [ 'name', 'action' ], expect: { result: false } });
 const callServiceList = rpc.declare({ object: 'service', method: 'list', params: [ 'name' ], expect: { '': {} } });
@@ -741,20 +742,43 @@ return view.extend({
 			[ 'PING_TARGET', 'Проверка интернета: адрес 1', '', 'text' ], [ 'PING_TARGET2', 'Проверка интернета: адрес 2', '', 'text' ],
 			[ 'PERSIST_DIR', 'Папка для сохранения истории', '', 'text', '— только в памяти —' ],
 			[ 'PERSIST_HOURS', 'Сохранять историю на накопитель', 'ч' ], [ 'JOURNAL', 'Журнал обрывов и перезагрузок (0/1)', '' ], [ 'WIFI_HIST', 'История сигнала Wi-Fi (0/1)', '' ],
-			[ 'SPEED_URL', 'Файл для замера скорости', '', 'text' ], [ 'SPEED_STREAMS', 'Потоков при замере скорости (1–8)', '' ]
+			[ 'SPEED_URL', 'Файл для замера скорости', '', 'text' ], [ 'SPEED_STREAMS', 'Потоков при замере скорости (1–8)', '' ],
+			[ 'NEWDEV', 'Сообщать о новых устройствах (0/1)', '' ],
+			[ 'TG', 'Отправлять уведомления в Telegram (0/1)', '' ], [ 'TG_ALERTS', 'Слать предупреждения и перезагрузки (0/1)', '' ],
+			[ 'TG_TOKEN', 'Токен бота (от @BotFather)', '', 'password', 'не задан' ], [ 'TG_CHAT', 'Chat id', '', 'text', 'число, определяется кнопкой' ],
+			[ 'TG_PROXY', 'Прокси для Telegram (если он закрыт)', '', 'text', 'например socks5h://127.0.0.1:1080' ]
 		];
 		const cfgInputs = {};
 		const cfgMsg = E('span', { class: 'nfm-note-s' });
+		/* Telegram: сначала сохраняем введённое, потом просим роутер определить chat id или отправить проверочное сообщение */
+		const tgMsg = E('div', { class: 'nfm-note-s', style: 'margin-top:6px' });
+		const tgRun = cmd => {
+			tgMsg.textContent = 'Выполняю…';
+			const save = [ 'set' ].concat([ 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY' ].map(k => k + '=' + cfgInputs[k].value.trim()));
+			return callCfg(save).then(r => {
+				if (!(r && r.ok)) { tgMsg.textContent = 'Не сохранено: ' + ((r && r.error) || 'нет ответа'); return null; }
+				return fs.exec(NOTIFYBIN, [ cmd ]).then(res => { try { return JSON.parse(res.stdout); } catch (e) { return { ok: false, error: 'нет ответа от роутера' }; } }).catch(() => ({ ok: false, error: 'нет прав: выйдите и войдите снова' }));
+			});
+		};
+		const tgTools = E('div', { style: 'margin-top:10px' }, [
+			E('div', { class: 'nfm-note-s' }, 'Как настроить: 1) в Telegram найдите @BotFather, создайте бота командой /newbot и вставьте токен выше; 2) откройте своего бота и нажмите Start; 3) нажмите «Определить chat id», затем «Отправить проверку»; 4) включите «Отправлять уведомления» (1) и сохраните.'),
+			E('div', { class: 'nfm-actions', style: 'margin:8px 0 0' }, [
+				E('button', { class: 'nfm-act', click: () => tgRun('chatid').then(r => { if (!r) return; if (r.ok) { cfgInputs.TG_CHAT.value = r.chat; callCfg([ 'set', 'TG_CHAT=' + r.chat ]); tgMsg.textContent = 'Chat id найден: ' + r.chat; } else tgMsg.textContent = r.error; }) }, 'Определить chat id'),
+				E('button', { class: 'nfm-act', click: () => tgRun('test').then(r => { if (r) tgMsg.textContent = r.ok ? 'Сообщение отправлено, проверьте Telegram.' : 'Не отправлено: ' + r.error; }) }, 'Отправить проверку') ]),
+			tgMsg ]);
 		const cfgCard = card('Настройки предупреждений', E('div', {}, [
 			E('div', { class: 'nfm-cfg-groups' }, [
 				[ 'Температура и память', [ 'TEMP_WARN', 'TEMP_CRIT', 'MEM_MIN_PCT', 'FLASH_MAX_PCT' ] ],
 				[ 'Процессор и соединения', [ 'CPU_MAX_PCT', 'CPU_MINUTES', 'CT_MAX_PCT' ] ],
 				[ 'Проверка интернета', [ 'PING_TARGET', 'PING_TARGET2' ] ],
 				[ 'Хранение истории', [ 'PERSIST_DIR', 'PERSIST_HOURS', 'JOURNAL', 'WIFI_HIST' ] ],
-				[ 'Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ] ]
-			].map(([ title, keys ]) => E('section', { class: 'nfm-cfg-g' }, [ E('h4', {}, title),
+				[ 'Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ] ],
+				[ 'Новые устройства', [ 'NEWDEV' ] ],
+				[ 'Уведомления в Telegram', [ 'TG', 'TG_ALERTS', 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY' ], tgTools ]
+			].map(([ title, keys, extra ]) => E('section', { class: 'nfm-cfg-g' }, [ E('h4', {}, title),
 				E('div', { class: 'nfm-cfg' }, keys.map(k => CFG_FIELDS.find(f => f[0] === k)).filter(Boolean).map(([ k, l, u, type, ph ]) => E('label', { class: 'nfm-cfg-i' }, [ l,
-					E('span', { class: 'nfm-cfg-f' }, [ cfgInputs[k] = E('input', { class: 'nfm-in', type: type || 'number', placeholder: ph || '' }), u ? E('em', {}, u) : '' ]) ]))) ]))),
+					E('span', { class: 'nfm-cfg-f' }, [ cfgInputs[k] = E('input', { class: 'nfm-in', type: type || 'number', placeholder: ph || '' }), u ? E('em', {}, u) : '' ]) ]))),
+				extra || '' ]))),
 			E('div', { class: 'nfm-actions', style: 'margin:14px 0 0;align-items:center' }, [
 				E('button', { class: 'nfm-act', click: () => saveCfg() }, 'Сохранить и применить'),
 				E('button', { class: 'nfm-act', click: () => (S.cfg ? Promise.resolve(S.cfg) : callCfg([ 'get' ]).then(c => (S.cfg = c))).then(c => fillCfg(c && c.defaults)) }, 'Значения по умолчанию'),

@@ -54,6 +54,10 @@ The "Traffic by application" card on the Overview page shows how much YouTube, T
 
 Limits: traffic through a VPN or encrypted DNS (DoH/DoT) cannot be classified, and with Flow Offloading enabled the counters may be too low.
 
+### Telegram notifications and new devices
+
+The monitor can message you in Telegram when the internet goes down or comes back, on overheating, low memory, a reboot, and when an unknown device appears on the network (it also lands in the event feed). Set it up in Resource monitor → History → Settings → "Telegram notifications": create a bot with @BotFather, paste the token, open the bot and press Start, then "Detect chat id" and "Send test". If Telegram is blocked, set a proxy (for example `socks5h://127.0.0.1:1080`). Requires curl (`apk add curl`). At most 30 messages per hour. Known devices are kept in `/etc/nightfall-known.list`; phones using a random Wi-Fi address may look new.
+
 ## Support the project
 
 If you find the theme useful, you can buy the author a cup of tea. It is voluntary and changes nothing.
