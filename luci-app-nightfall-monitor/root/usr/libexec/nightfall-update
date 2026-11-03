@@ -1,0 +1,137 @@
+#!/bin/sh
+# Nightfall: обновление темы прямо из интерфейса.
+#   nightfall-update start    запускает обновление в фоне и сразу возвращается
+#   nightfall-update status   печатает JSON с состоянием: {"state":"...","pct":N,"msg":"..."}
+#   nightfall-update run      само обновление (его запускает start)
+#
+# Порядок: скачать архив и файл контрольной суммы (.sha256) -> сверить sha256 ->
+# сохранить копию заменяемых файлов -> распаковать -> перезагрузить rpcd.
+# При любой ошибке после начала установки файлы возвращаются из копии.
+#
+# Для тестов: NF_ROOT (корень вместо /), NF_TMP, NF_BASE (откуда качать), NF_NORELOAD=1.
+
+ROOT=${NF_ROOT:-}
+TMP=${NF_TMP:-/tmp}
+REPO="Nikolai752/nightfall-openwrt"
+BASE=${NF_BASE:-https://github.com/$REPO/releases/latest/download}
+ST="$TMP/nightfall-update.status"
+LOCK="$TMP/nightfall-update.lock"
+WORK="$TMP/nightfall-update"
+VERF="$ROOT/www/luci-static/nightfall/version.json"
+
+state() { # state pct msg
+	printf '{"state":"%s","pct":%s,"msg":"%s"}\n' "$1" "$2" "$3" > "$ST.new" && mv "$ST.new" "$ST"
+}
+
+version() {
+	sed -n 's/.*"version"[^"]*"\([^"]*\)".*/\1/p' "$VERF" 2>/dev/null | head -n1
+}
+
+fetch() { # url out
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL --retry 2 --connect-timeout 15 --max-time 300 -o "$2" "$1"
+	elif command -v uclient-fetch >/dev/null 2>&1; then
+		uclient-fetch -q -O "$2" "$1"
+	else
+		return 127
+	fi
+}
+
+rollback() {
+	if [ -f "$WORK/backup.tar.gz" ]; then
+		# сначала удаляем файлы, которых до обновления не было, затем возвращаем старые
+		[ -f "$WORK/added.list" ] && while IFS= read -r f; do rm -f "$ROOT/$f"; done < "$WORK/added.list"
+		tar -xzf "$WORK/backup.tar.gz" -C "${ROOT:-/}" 2>/dev/null
+	fi
+}
+
+fail() { # msg [rollback]
+	[ -n "$2" ] && { rollback; state rolledback 100 "$1 Изменения отменены, прежняя версия возвращена."; } || state error 100 "$1"
+	rmdir "$LOCK" 2>/dev/null
+	exit 1
+}
+
+case "$1" in
+status)
+	if [ -f "$ST" ]; then cat "$ST"; else printf '{"state":"idle","pct":0,"msg":""}\n'; fi
+	;;
+
+start)
+	if [ -d "$LOCK" ] && [ -f "$ST" ] && ! grep -q '"state":"\(done\|error\|rolledback\)"' "$ST"; then
+		# уже идёт; если запись старше 10 минут, считаем её зависшей
+		if [ -z "$(find "$ST" -mmin +10 2>/dev/null)" ]; then
+			cat "$ST"; exit 0
+		fi
+		rmdir "$LOCK" 2>/dev/null
+	fi
+	state starting 1 "Запуск"
+	# setsid и закрытые потоки: процесс переживает вызов из rpcd
+	if command -v setsid >/dev/null 2>&1; then
+		setsid sh "$0" run </dev/null >/dev/null 2>&1 &
+	else
+		sh "$0" run </dev/null >/dev/null 2>&1 &
+	fi
+	cat "$ST"
+	;;
+
+run)
+	mkdir "$LOCK" 2>/dev/null || exit 0
+	rm -rf "$WORK"; mkdir -p "$WORK" || fail "Не удалось создать рабочую папку."
+	OLD=$(version)
+
+	command -v curl >/dev/null 2>&1 || command -v uclient-fetch >/dev/null 2>&1 \
+		|| fail "Не найден curl. Установите его командой: apk add curl"
+
+	state downloading 10 "Скачиваю архив"
+	fetch "$BASE/nightfall-root.tar.gz" "$WORK/new.tar.gz" || fail "Не удалось скачать архив. Проверьте подключение к интернету."
+	state downloading 40 "Скачиваю контрольную сумму"
+	fetch "$BASE/nightfall-root.tar.gz.sha256" "$WORK/new.sha256" || fail "У релиза нет файла контрольной суммы, обновление остановлено."
+
+	state verifying 55 "Проверяю контрольную сумму"
+	WANT=$(sed -n '1s/[[:space:]].*//p' "$WORK/new.sha256" | tr 'A-F' 'a-f')
+	GOT=$(sha256sum "$WORK/new.tar.gz" | sed 's/[[:space:]].*//')
+	[ -n "$WANT" ] && [ "$WANT" = "$GOT" ] || fail "Контрольная сумма не совпала, архив не установлен."
+
+	tar -tzf "$WORK/new.tar.gz" > "$WORK/all.list" 2>/dev/null || fail "Архив повреждён."
+	grep -q 'luci-static/nightfall/' "$WORK/all.list" || fail "В архиве нет файлов темы Nightfall."
+	grep -q 'luci-static/nightfall/version.json' "$WORK/all.list" || fail "В архиве нет файла версии."
+	# в архиве только относительные пути без выхода из корня
+	grep -q '^/\|\.\./' "$WORK/all.list" && fail "В архиве недопустимые пути."
+
+	state installing 65 "Сохраняю копию текущих файлов"
+	sed 's|^\./||; /\/$/d; /^$/d' "$WORK/all.list" > "$WORK/files.list"
+	: > "$WORK/exist.list"; : > "$WORK/added.list"
+	while IFS= read -r f; do
+		if [ -e "$ROOT/$f" ] || [ -L "$ROOT/$f" ]; then echo "$f" >> "$WORK/exist.list"; else echo "$f" >> "$WORK/added.list"; fi
+	done < "$WORK/files.list"
+	if [ -s "$WORK/exist.list" ]; then
+		tar -czf "$WORK/backup.tar.gz" -C "${ROOT:-/}" -T "$WORK/exist.list" 2>/dev/null || fail "Не удалось сохранить копию текущих файлов."
+	fi
+
+	state installing 75 "Устанавливаю"
+	tar -xzf "$WORK/new.tar.gz" -C "${ROOT:-/}" || fail "Ошибка распаковки." rollback
+	[ -f "$VERF" ] || fail "После установки не найдена версия темы." rollback
+
+	chmod 755 "$ROOT"/usr/libexec/nightfall-* "$ROOT"/etc/init.d/nightfall-collector 2>/dev/null
+	for f in "$ROOT/etc/uci-defaults/30_luci-theme-nightfall" "$ROOT/etc/uci-defaults/40_nightfall-collector"; do
+		[ -f "$f" ] && { sh "$f" >/dev/null 2>&1; rm -f "$f"; }
+	done
+	rm -f "$ROOT/www/luci-static/resources/view/nightfall/sysauth.js"
+	rm -rf "$TMP"/luci-indexcache* "$TMP"/luci-modulecache 2>/dev/null
+
+	NEW=$(version)
+	rm -rf "$WORK"
+	rmdir "$LOCK" 2>/dev/null
+	# сначала итог, потом перезагрузка rpcd (она обновляет права доступа)
+	state done 100 "Установлено: ${OLD:-?} -> ${NEW:-?}"
+	if [ -z "$NF_NORELOAD" ]; then
+		/etc/init.d/nightfall-collector restart >/dev/null 2>&1
+		/etc/init.d/rpcd reload >/dev/null 2>&1 || /etc/init.d/rpcd restart >/dev/null 2>&1
+	fi
+	;;
+
+*)
+	echo "Использование: $0 start|status|run" >&2
+	exit 1
+	;;
+esac

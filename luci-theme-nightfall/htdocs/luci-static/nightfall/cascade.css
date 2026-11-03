@@ -4843,7 +4843,7 @@ html[data-darkmode="false"] select option, html[data-darkmode="false"] select op
 	html .tabs > li.active::after, html .cbi-tabmenu > li.cbi-tab::after { display: none; }
 }
 
-/* ======== v20261103a: без дёрганий при опросе, таблица Wi-Fi клиентов, длинные значения на телефоне ======== */
+/* ======== v20261103b: без дёрганий при опросе, таблица Wi-Fi клиентов, длинные значения на телефоне ======== */
 /* собственная анимация LuCI (.fade-in) тоже проигрывалась заново при каждом обновлении блока */
 html[data-nf-settled] .fade-in { animation: none; }
 
@@ -4857,3 +4857,24 @@ html[data-nf-settled] .fade-in { animation: none; }
 	html .table .td, html .table .th { min-width: 0; overflow-wrap: anywhere; }
 	html .table.cbi-section-table .td.cbi-section-table-cell:not(:has(input, select, textarea, button, .cbi-dropdown, .cbi-checkbox)) { white-space: normal; }
 }
+
+/* v20261103b: окна обновления из интерфейса (доступна версия, прогресс, установлено, что нового) */
+.nf-upd-modal { position: fixed; inset: 0; z-index: 10050; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, .45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.nf-upd-box { width: min(460px, 100%); max-height: 86vh; overflow-y: auto; box-sizing: border-box; padding: 22px 22px 18px; border-radius: 12px; background: var(--nf-card, #fff); color: var(--nf-text, #1b1b1b); border: 1px solid var(--nf-stroke, rgba(0, 0, 0, .12)); box-shadow: 0 24px 64px rgba(0, 0, 0, .35); }
+.nf-upd-box.wide { width: min(560px, 100%); }
+.nf-upd-box h4 { margin: 0 0 12px; font-size: calc(18px * var(--nf-fsz, 1)); font-weight: 600; }
+.nf-upd-msg { margin: 0 0 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.nf-upd-msg.bad { color: #d13438; }
+.nf-upd-note { margin: 12px 0 0; font-size: calc(12.5px * var(--nf-fsz, 1)); color: var(--nf-text-dim, #666); }
+.nf-upd-bar { height: 8px; border-radius: 4px; overflow: hidden; background: var(--nf-ctrl, rgba(0, 0, 0, .08)); margin: 6px 0 12px; }
+.nf-upd-bar i { display: block; height: 100%; width: 0; border-radius: 4px; background: var(--nf-accent, #0067c0); transition: width .5s ease; }
+.nf-upd-log { margin: 0 0 14px; max-height: 38vh; overflow-y: auto; font-size: calc(13.5px * var(--nf-fsz, 1)); }
+.nf-upd-log h5 { margin: 10px 0 4px; font-size: calc(14px * var(--nf-fsz, 1)); font-weight: 600; }
+.nf-upd-log h6 { margin: 8px 0 2px; font-size: calc(13px * var(--nf-fsz, 1)); color: var(--nf-text-dim, #666); }
+.nf-upd-log ul { margin: 0 0 4px; padding-left: 20px; }
+.nf-upd-log li, .nf-upd-log p { margin: 2px 0; line-height: 1.4; overflow-wrap: anywhere; }
+.nf-upd-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.nf-upd-btns button { min-height: 36px; padding: 0 16px; border-radius: 4px; font: inherit; cursor: pointer; background: var(--nf-ctrl, #f3f3f3); color: var(--nf-text, #1b1b1b); border: 1px solid var(--nf-stroke, rgba(0, 0, 0, .12)); }
+.nf-upd-btns button.nf-upd-go { background: var(--nf-accent, #0067c0); border-color: transparent; color: #fff; }
+@media (max-width: 899px) { .nf-upd-btns button { min-height: 44px; border-radius: 12px; flex: 1; } .nf-upd-box { padding: 18px 16px 14px; } }
+html.nf-upd-open { overflow: hidden; }

@@ -13,7 +13,9 @@ jobs:
       - run: VERSION="${GITHUB_REF_NAME}" sh build-release.sh
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/nightfall-root.tar.gz
+          files: |
+            dist/nightfall-root.tar.gz
+            dist/nightfall-root.tar.gz.sha256
           generate_release_notes: true
       # номер последнего релиза для проверки обновлений в теме (читается из репозитория, у raw нет лимита запросов)
       - name: Записать номер релиза в latest.json

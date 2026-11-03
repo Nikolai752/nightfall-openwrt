@@ -11,6 +11,9 @@
 				],
 				"/usr/libexec/nightfall-config": [
 					"exec"
+				],
+				"/usr/libexec/nightfall-update": [
+					"exec"
 				]
 			},
 			"ubus": {
@@ -54,6 +57,9 @@
 					"exec"
 				],
 				"/usr/libexec/nightfall-speed": [
+					"exec"
+				],
+				"/usr/libexec/nightfall-update": [
 					"exec"
 				]
 			},
