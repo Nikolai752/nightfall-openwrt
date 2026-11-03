@@ -741,7 +741,7 @@ return view.extend({
 			[ 'PING_TARGET', 'Проверка интернета: адрес 1', '', 'text' ], [ 'PING_TARGET2', 'Проверка интернета: адрес 2', '', 'text' ],
 			[ 'PERSIST_DIR', 'Папка для сохранения истории', '', 'text', '— только в памяти —' ],
 			[ 'PERSIST_HOURS', 'Сохранять историю на накопитель', 'ч' ], [ 'JOURNAL', 'Журнал обрывов и перезагрузок (0/1)', '' ], [ 'WIFI_HIST', 'История сигнала Wi-Fi (0/1)', '' ],
-			[ 'SPEED_URL', 'Файл для замера скорости', '', 'text' ]
+			[ 'SPEED_URL', 'Файл для замера скорости', '', 'text' ], [ 'SPEED_STREAMS', 'Потоков при замере скорости (1–8)', '' ]
 		];
 		const cfgInputs = {};
 		const cfgMsg = E('span', { class: 'nfm-note-s' });
@@ -751,7 +751,7 @@ return view.extend({
 				[ 'Процессор и соединения', [ 'CPU_MAX_PCT', 'CPU_MINUTES', 'CT_MAX_PCT' ] ],
 				[ 'Проверка интернета', [ 'PING_TARGET', 'PING_TARGET2' ] ],
 				[ 'Хранение истории', [ 'PERSIST_DIR', 'PERSIST_HOURS', 'JOURNAL', 'WIFI_HIST' ] ],
-				[ 'Замер скорости', [ 'SPEED_URL' ] ]
+				[ 'Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ] ]
 			].map(([ title, keys ]) => E('section', { class: 'nfm-cfg-g' }, [ E('h4', {}, title),
 				E('div', { class: 'nfm-cfg' }, keys.map(k => CFG_FIELDS.find(f => f[0] === k)).filter(Boolean).map(([ k, l, u, type, ph ]) => E('label', { class: 'nfm-cfg-i' }, [ l,
 					E('span', { class: 'nfm-cfg-f' }, [ cfgInputs[k] = E('input', { class: 'nfm-in', type: type || 'number', placeholder: ph || '' }), u ? E('em', {}, u) : '' ]) ]))) ]))),
@@ -774,10 +774,10 @@ return view.extend({
 			callCfg([ 'set', 'SPEED_HOURS=' + ev.target.value ]).then(r => { if (!(r && r.ok)) ui.addNotification(null, E('p', {}, 'Не сохранено: ' + ((r && r.error) || 'нет ответа')), 'danger'); S.at.spd = 0; }); } },
 			[ [ '0', 'Автозамер выключен' ], [ '1', 'Каждый час' ], [ '3', 'Каждые 3 часа' ], [ '6', 'Каждые 6 часов' ], [ '12', 'Каждые 12 часов' ], [ '24', 'Раз в сутки' ] ].map(([ v, l ]) => E('option', { value: v }, l)));
 		const SPEED_PRESETS = [
-			[ 'https://speed.cloudflare.com/__down?bytes=25000000', 'Cloudflare (25 МБ)' ],
+			[ 'https://speed.cloudflare.com/__down?bytes=25000000', 'Cloudflare (25 МБ на поток)' ],
 			[ 'https://mirror.yandex.ru/ubuntu/ls-lR.gz', 'Яндекс.Зеркало (Россия)' ],
-			[ 'https://speed.hetzner.de/100MB.bin', 'Hetzner (Германия, 100 МБ)' ],
-			[ 'https://proof.ovh.net/files/100Mb.dat', 'OVH (Франция, 100 МБ)' ] ];
+			[ 'https://speed.hetzner.de/100MB.bin', 'Hetzner (Германия, 100 МБ на поток)' ],
+			[ 'https://proof.ovh.net/files/100Mb.dat', 'OVH (Франция, 100 МБ на поток)' ] ];
 		const spdSrc = E('select', { class: 'nfm-sel', title: 'Откуда качать тестовый файл', change: ev => {
 			if (!ev.target.value) { ui.addNotification(null, E('p', {}, 'Свой адрес впишите в поле «Файл для замера скорости» в настройках ниже.'), 'info'); return; }
 			callCfg([ 'set', 'SPEED_URL=' + ev.target.value ]).then(r => {
@@ -1362,7 +1362,7 @@ return view.extend({
 				E('span', { class: 'nm' }, [ fmtTs(r[0]), r[5] !== 'ok' ? E('small', {}, 'не удалось скачать файл') : (+r[4] > 300 ? E('small', {}, 'в это время шёл другой трафик') : '') ]),
 				E('span', { class: 'v' }, r[5] === 'ok' ? nf1.format(+r[1]) + ' Мбит/с' : '–'), E('span', { class: 'v' }, r[5] === 'ok' ? fmtBytes(+r[2]) : '') ]))
 				: [ E('div', { class: 'nfm-empty' }, 'Замеров ещё не было. Нажмите «Измерить сейчас».') ]));
-			spdNote.textContent = 'Роутер скачивает тестовый файл (до 25 МБ) и считает скорость сам, без браузера. Это скорость загрузки до выбранного сервера; адрес меняется в настройках ниже. Если в это время идёт другой трафик, результат занижен.';
+			spdNote.textContent = 'Роутер скачивает тестовый файл в несколько потоков (каждый поток качает весь файл; по умолчанию 4, число меняется параметром SPEED_STREAMS в /etc/nightfall-monitor.conf) и считает скорость сам, без браузера. Это скорость загрузки до выбранного сервера; адрес меняется в настройках ниже. Если в это время идёт другой трафик, результат занижен.';
 		}
 
 		/* ---------- хранение истории и износ флеш-памяти ---------- */

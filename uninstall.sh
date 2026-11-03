@@ -25,7 +25,7 @@ if [ "$1" = "--purge" ]; then
 	       /usr/share/ucode/luci/template/themes/nightfall-dark /usr/libexec/nightfall-stats \
 	       /usr/libexec/nightfall-history /usr/libexec/nightfall-collector /usr/libexec/nightfall-config /usr/libexec/nightfall-speed /etc/init.d/nightfall-collector \
 	       /usr/share/nightfall /tmp/nightfall \
-	       /usr/share/luci/menu.d/luci-app-nightfall-monitor.json /usr/share/rpcd/acl.d/luci-app-nightfall-monitor.json
+	       /usr/share/luci/menu.d/luci-app-nightfall-monitor.json /usr/share/luci/menu.d/luci-theme-nightfall.json /usr/share/rpcd/acl.d/luci-app-nightfall-monitor.json
 	# /etc/nightfall-monitor.conf и /etc/nightfall-prefs.json оставлены: там ваши настройки (удалите вручную, если не нужны)
 	uci -q delete luci.themes.Nightfall
 	uci -q delete luci.themes.NightfallDark
