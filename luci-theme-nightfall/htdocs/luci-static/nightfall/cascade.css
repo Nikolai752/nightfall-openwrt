@@ -4842,3 +4842,18 @@ html[data-darkmode="false"] select option, html[data-darkmode="false"] select op
 	}
 	html .tabs > li.active::after, html .cbi-tabmenu > li.cbi-tab::after { display: none; }
 }
+
+/* ======== v20261102f: без дёрганий при опросе, таблица Wi-Fi клиентов, длинные значения на телефоне ======== */
+/* собственная анимация LuCI (.fade-in) тоже проигрывалась заново при каждом обновлении блока */
+html[data-nf-settled] .fade-in { animation: none; }
+
+/* список Wi-Fi клиентов: MAC-адрес и сигнал не переносятся по символам (раньше MAC разваливался на 4 строки) */
+#view .assoclist .td:nth-of-type(2), #view .assoclist .th:nth-of-type(2),
+#view .assoclist .td:nth-of-type(4), #view .assoclist .th:nth-of-type(4) { white-space: nowrap; overflow-wrap: normal !important; word-break: normal !important; font-variant-numeric: tabular-nums; }
+
+/* телефон: длинная строка без пробелов (IPv6-адрес, имя хоста) в текстовой ячейке таблицы переносится, а не растягивает страницу.
+   Ячейки с полями, списками и кнопками не трогаем: им нужен прежний nowrap. */
+@media (max-width: 899px) {
+	html .table .td, html .table .th { min-width: 0; overflow-wrap: anywhere; }
+	html .table.cbi-section-table .td.cbi-section-table-cell:not(:has(input, select, textarea, button, .cbi-dropdown, .cbi-checkbox)) { white-space: normal; }
+}

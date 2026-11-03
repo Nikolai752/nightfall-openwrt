@@ -453,8 +453,9 @@
 			}
 		});
 	}
-	var hintTimer = 0;
-	function scheduleHints() { if (hintTimer) return; hintTimer = window.setTimeout(function () { hintTimer = 0; addHints(); }, 300); }
+	/* Вызываем сразу из MutationObserver (до отрисовки кадра): LuCI пересоздаёт таблицы при каждом опросе,
+	   и значок «?», добавленный позже по таймеру, каждый раз сдвигал заголовки и дёргал страницу. */
+	function scheduleHints() { addHints(); }
 	document.addEventListener('DOMContentLoaded', function () {
 		scheduleHints();
 		new MutationObserver(scheduleHints).observe(document.body, { childList: true, subtree: true });
@@ -491,8 +492,8 @@
 			if (grip) t.insertBefore(ic, grip.nextSibling); else t.insertBefore(ic, t.firstChild);
 		});
 	}
-	var icTimer = 0;
-	function scheduleIcons() { if (icTimer) return; icTimer = window.setTimeout(function () { icTimer = 0; addIcons(); }, 200); }
+	/* то же для иконок в заголовках карточек: без задержки, чтобы заголовок не подпрыгивал после опроса */
+	function scheduleIcons() { addIcons(); }
 
 	/* ---- the active menu item is a pill that glides to the item under the cursor and back ---- */
 	function initPill() {

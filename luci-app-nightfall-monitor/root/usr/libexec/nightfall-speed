@@ -3,16 +3,28 @@
 #   nightfall-speed start   — запустить замер в фоне (если он ещё не идёт)
 #   nightfall-speed run     — выполнить замер и записать результат (для фона)
 # Результат: строка «время Мбит/с байт секунд фон_КБ/с статус» в /tmp/nightfall/speed.log
+# Файл качается в несколько потоков сразу (SPEED_STREAMS, по умолчанию 4): один поток не загружает быстрый
+# канал, а замер короче секунды раньше ошибочно считался неудачным.
 DIR=${NF_DIR:-/tmp/nightfall}
 CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
 SPEED_URL=https://speed.cloudflare.com/__down?bytes=25000000
 SPEED_SECS=${NF_SPEED_SECS:-12}
+SPEED_STREAMS=${NF_SPEED_STREAMS:-4}
 [ -r "$CONF" ] && . "$CONF"
+case "$SPEED_STREAMS" in ''|*[!0-9]*) SPEED_STREAMS=4 ;; esac
+[ "$SPEED_STREAMS" -ge 1 ] && [ "$SPEED_STREAMS" -le 8 ] || SPEED_STREAMS=4
 mkdir -p "$DIR" 2>/dev/null
 TMO=""; command -v timeout >/dev/null 2>&1 && TMO="timeout $SPEED_SECS"
 LOCK="$DIR/speed.lock"
 
 running() { [ -f "$LOCK" ] && p=$(cat "$LOCK" 2>/dev/null) && [ -n "$p" ] && [ -d "/proc/$p" ]; }
+
+# один поток: печатает число скачанных байт
+fetch_one() {
+	if command -v uclient-fetch >/dev/null 2>&1; then $TMO uclient-fetch -q -T 8 -O - "$SPEED_URL" 2>/dev/null | wc -c
+	elif command -v curl >/dev/null 2>&1; then $TMO curl -s -m "$SPEED_SECS" "$SPEED_URL" 2>/dev/null | wc -c
+	else $TMO wget -q -O - "$SPEED_URL" 2>/dev/null | wc -c; fi
+}
 
 case "$1" in
 start)
@@ -22,26 +34,28 @@ start)
 run)
 	running && exit 0
 	echo $$ > "$LOCK"
-	trap 'rm -f "$LOCK"' EXIT INT TERM
+	TMPD="$DIR/speed.tmp.$$"
+	trap 'rm -rf "$LOCK" "$TMPD"' EXIT INT TERM
 	case "$SPEED_URL" in http://*|https://*) ;; *) exit 1 ;; esac
 	wdev=$(sed -n 's/^wan_dev=//p' "$DIR/info" 2>/dev/null | head -n 1)
 	rx0=""; [ -n "$wdev" ] && rx0=$(awk -v d="$wdev" '{ gsub(/:/, " ") } $1 == d { print $2 }' /proc/net/dev)
+	rm -rf "$TMPD"; mkdir -p "$TMPD" || exit 1
 	t0=$(awk '{ print $1 }' /proc/uptime)
-	if command -v uclient-fetch >/dev/null 2>&1; then
-		bytes=$($TMO uclient-fetch -q -T 8 -O - "$SPEED_URL" 2>/dev/null | wc -c)
-	elif command -v curl >/dev/null 2>&1; then
-		bytes=$($TMO curl -s -m "$SPEED_SECS" "$SPEED_URL" 2>/dev/null | wc -c)
-	else
-		bytes=$($TMO wget -q -O - "$SPEED_URL" 2>/dev/null | wc -c)
-	fi
+	i=0
+	while [ "$i" -lt "$SPEED_STREAMS" ]; do
+		( b=$(fetch_one); echo "${b:-0}" > "$TMPD/$i" ) &
+		i=$((i + 1))
+	done
+	wait
 	t1=$(awk '{ print $1 }' /proc/uptime)
+	bytes=$(cat "$TMPD"/* 2>/dev/null | awk '{ s += $1 } END { printf "%d", s }')
 	rx1=""; [ -n "$wdev" ] && rx1=$(awk -v d="$wdev" '{ gsub(/:/, " ") } $1 == d { print $2 }' /proc/net/dev)
 	now=$(date +%s)
 	awk -v ts="$now" -v b="${bytes:-0}" -v a="$t0" -v z="$t1" -v r0="${rx0:-0}" -v r1="${rx1:-0}" 'BEGIN {
 		secs = z - a; if (secs < 0.1) secs = 0.1
 		mbps = b * 8 / secs / 1000000
 		bg = (r1 - r0 - b) / secs / 1024; if (bg < 0 || r0 == 0) bg = 0
-		st = (b >= 200000 && secs >= 1) ? "ok" : "fail"
+		st = (b >= 200000) ? "ok" : "fail"
 		printf "%s %.2f %d %.1f %.0f %s\n", ts, mbps, b, secs, bg, st
 	}' >> "$DIR/speed.log"
 	;;
