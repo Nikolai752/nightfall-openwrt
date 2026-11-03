@@ -3494,7 +3494,7 @@ header .nav li.active > a, header .nav .dropdown-menu li.active > a, header .nav
 /* Status → Overview only (scoped by body[data-page]): masonry columns (no gaps under short cards); wide tables span the full width.
    Other LuCI apps (e.g. luci-app-zapret2) also render #view > .cbi-section.fade-in and must stay single-column. */
 .cbi-section { min-width: 0; max-width: 100%; }
-@media (min-width: 1000px) {
+@media (min-width: 900px) {
 	body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) {
 		display: block;
 		columns: 2;
@@ -3890,7 +3890,7 @@ img[src*="/icons/signal-"] { width: 24px; height: 24px; }
 .nf-dragging { opacity: .45; }
 
 /* Обзор: плотная раскладка без пустот (строки по 8px, высоту карточек считает nightfall-overview.js) */
-@media (min-width: 1000px) {
+@media (min-width: 900px) {
 	body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) { display: grid; columns: auto; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-rows: 8px; column-gap: 16px; row-gap: 0; align-items: start; }
 	body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .cbi-section,
 	body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .nf-live { margin: 0; align-self: start; min-width: 0; }
@@ -4256,7 +4256,7 @@ html[data-nf-ov-size="sm"] .nf-tile { padding: 8px 10px; }
 html[data-nf-ov-size="lg"] #view > .cbi-section.fade-in { padding: 22px 24px 12px; }
 html[data-nf-ov-size="lg"] #view > .cbi-section.fade-in .table .td, html[data-nf-ov-size="lg"] #view > .cbi-section.fade-in .table .th { padding-top: 12px; padding-bottom: 12px; font-size: calc(14.5px * var(--nf-fsz, 1)); }
 html[data-nf-ov-size="lg"] .nf-tile { padding: 16px 18px; }
-@media (min-width: 1000px) { html[data-nf-ov-size="lg"] #view:has(> .cbi-section.fade-in) { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 900px) { html[data-nf-ov-size="lg"] #view:has(> .cbi-section.fade-in) { grid-template-columns: minmax(0, 1fr); } }
 
 /* ======== тон, размытие и прозрачность стекла ======== */
 html[data-nf-style="glass"] { --nf-gblur: 28px; --nf-gtint: 1; }
@@ -4843,7 +4843,7 @@ html[data-darkmode="false"] select option, html[data-darkmode="false"] select op
 	html .tabs > li.active::after, html .cbi-tabmenu > li.cbi-tab::after { display: none; }
 }
 
-/* ======== v20261102f: без дёрганий при опросе, таблица Wi-Fi клиентов, длинные значения на телефоне ======== */
+/* ======== v20261103a: без дёрганий при опросе, таблица Wi-Fi клиентов, длинные значения на телефоне ======== */
 /* собственная анимация LuCI (.fade-in) тоже проигрывалась заново при каждом обновлении блока */
 html[data-nf-settled] .fade-in { animation: none; }
 
