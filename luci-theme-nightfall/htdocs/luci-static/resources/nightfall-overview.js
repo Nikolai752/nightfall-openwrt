@@ -13,6 +13,7 @@
 
 const STATS = '/usr/libexec/nightfall-stats';
 const HIST = '/usr/libexec/nightfall-history';
+const APPSBIN = '/usr/libexec/nightfall-apps';
 const ORDER_KEY = 'nightfall-overview-order-v1';
 const WIN = 600;            /* seconds shown in mini graphs */
 const EVERY = 3000;         /* ms between samples */
@@ -36,7 +37,7 @@ const nf2 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2, minimumFr
 
 /* card priority: lower goes first; unknown cards keep their order after the known ones */
 const PRIORITY = [
-	/Интернет|Internet/i, /^(Сеть|Network)$/i, /порт|Port/i, /Беспровод|Wireless|Wi-?Fi/i, /Топ клиентов/i,
+	/Интернет|Internet/i, /^(Сеть|Network)$/i, /порт|Port/i, /Беспровод|Wireless|Wi-?Fi/i, /Топ клиентов/i, /Трафик по приложениям/i,
 	/Состояние роутера/, /сейчас$/, /Лента событий/, /Быстрые действия/,
 	/^(Система|System)$/i, /Температур|Temperature/i, /Память|Memory/i, /Хранилищ|Storage/i, /DHCP|Аренд/i, /DSL/i
 ];
@@ -871,6 +872,118 @@ function topCard() {
 	return { el, contains: n => el.contains(n), start() { load(); timer = window.setInterval(load, 8000); } };
 }
 
+/* ---------- traffic by application (YouTube, Telegram…) ---------- */
+
+const APP_COLORS = { 'YouTube': '#ff3b30', 'Telegram': '#2aabee', 'WhatsApp': '#25d366', 'Instagram': '#e1306c', 'Facebook': '#1877f2', 'TikTok': '#25c8c8',
+	'Netflix': '#e50914', 'Twitch': '#9146ff', 'Spotify': '#1db954', 'Discord': '#5865f2', 'Zoom': '#2d8cff', 'Steam': '#66c0f4', 'ВКонтакте': '#0077ff',
+	'Яндекс': '#fc3f1d', 'Google': '#4285f4', 'Apple': '#a2aaad', 'Microsoft': '#00a4ef', 'Amazon': '#ff9900', 'X (Twitter)': '#8899a6', 'Cloudflare': '#f38020' };
+const PERIODS = [ [ 'day', 'Сегодня', 1 ], [ 'week', '7 дней', 7 ], [ 'month', '30 дней', 30 ] ];
+
+function ymd(d) { return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); }
+
+/* суммы по приложениям за период: today — строки «ip, приложение, вниз, вверх», hist — то же с датой первой колонкой */
+function sumApps(data, days, ip) {
+	const tot = {};
+	const add = (a, d, u) => { const t = tot[a] || (tot[a] = [ 0, 0 ]); t[0] += d; t[1] += u; };
+	for (const [ i, a, d, u ] of data.day || []) if (!ip || i === ip) add(a, d, u);
+	if (days > 1) {
+		const t = String(data.today || '');
+		const base = /^\d{8}$/.test(t) ? new Date(+t.slice(0, 4), +t.slice(4, 6) - 1, +t.slice(6, 8)) : new Date();
+		base.setDate(base.getDate() - (days - 1));
+		const from = ymd(base);
+		for (const [ dt, i, a, d, u ] of data.hist || []) if (+dt >= from && (!ip || i === ip)) add(a, d, u);
+	}
+	return tot;
+}
+
+function appsCard() {
+	const body = E('div', { class: 'nf-apps-b' }, E('div', { class: 'nf-empty' }, 'Собираю данные…'));
+	const el = xcard('nf-apps', 'Трафик по приложениям', body);
+	let names = null, timer = null, data = null, period = 'day', dev = '', busy = false;
+
+	const run = cmd => fs.exec(APPSBIN, [ cmd ]).then(r => { try { return JSON.parse(r.stdout); } catch (e) { return null; } });
+
+	function label(ip) {
+		for (const mac in names || {}) {
+			const n = names[mac];
+			if ((n.ipaddrs || []).concat(n.ip6addrs || []).some(x => normIp(x) === normIp(ip)))
+				return loadNames()[nameKey(mac)] || n.name || ip;
+		}
+		return ip;
+	}
+
+	function toggle(cmd, ask) {
+		if (busy || (ask && !window.confirm(ask))) return;
+		busy = true;
+		body.replaceChildren(E('div', { class: 'nf-empty' }, cmd === 'enable' ? 'Включаю…' : 'Выключаю…'));
+		run(cmd).then(r => {
+			busy = false;
+			if (!r || !r.ok) { body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Не получилось'), E('span', {}, (r && r.error) || 'Нет ответа от роутера. Выйдите и войдите снова (права обновляются при входе).') ])); return; }
+			window.setTimeout(load, cmd === 'enable' ? 2500 : 500);
+		}).catch(() => { busy = false; load(); });
+	}
+
+	function render() {
+		if (EDITING || busy) return;
+		if (!data || typeof data.enabled === 'undefined') {
+			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Нет данных'), E('span', {}, 'Сборщик статистики не запущен или не обновлён до версии с учётом приложений.') ]));
+			return;
+		}
+		if (!data.enabled) {
+			body.replaceChildren(E('div', { class: 'nf-apps-off' }, [
+				E('b', {}, 'Сколько трафика у YouTube, Telegram и других'),
+				E('span', {}, 'Роутер сопоставит адреса соединений с именами сайтов из DNS-запросов и покажет, кто сколько скачал. Для этого будет включён журнал DNS в dnsmasq: он пишется в память роутера (не на диск) и обрезается до 1 МБ. Выключить можно здесь же.'),
+				E('button', { type: 'button', class: 'cbi-button cbi-button-action', click: () => toggle('enable', 'Включить учёт трафика по приложениям?\n\nБудет включён журнал DNS в dnsmasq (в памяти роутера) и dnsmasq перезапустится на пару секунд.') }, 'Включить учёт')
+			]));
+			return;
+		}
+		const p = PERIODS.find(x => x[0] === period) || PERIODS[0];
+		const ips = {};
+		for (const r of (data.day || [])) ips[r[0]] = 1;
+		for (const r of (data.hist || [])) ips[r[1]] = 1;
+		const sel = E('select', { class: 'nf-apps-dev', 'aria-label': 'Устройство', change: ev => { dev = ev.target.value; render(); } },
+			[ E('option', { value: '' }, 'Все устройства') ].concat(Object.keys(ips).sort().map(ip => E('option', { value: ip }, label(ip) + (label(ip) === ip ? '' : ' · ' + ip)))));
+		sel.value = dev && ips[dev] ? dev : '';
+		if (sel.value !== dev) dev = sel.value;
+		const seg = E('div', { class: 'nf-apps-seg', role: 'group', 'aria-label': 'Период' }, PERIODS.map(x =>
+			E('button', { type: 'button', 'aria-pressed': String(x[0] === period), click: () => { period = x[0]; render(); } }, x[1])));
+
+		const tot = sumApps(data, p[2], dev);
+		const rows = Object.keys(tot).map(a => ({ a, d: tot[a][0], u: tot[a][1], t: tot[a][0] + tot[a][1] })).filter(r => r.t > 0).sort((x, y) => (x.a === 'Прочее') - (y.a === 'Прочее') || y.t - x.t);
+		const sum = rows.reduce((n, r) => n + r.t, 0);
+		const list = rows.slice(0, 9);
+		const content = [];
+		if (!list.length) {
+			content.push(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Пока пусто'), E('span', {}, data.dnsmap > 0 ? 'Данных за этот период ещё нет.' : 'Журнал DNS пока пуст. Подождите несколько минут, пока устройства сделают запросы. Если ничего не появляется, проверьте, что устройства используют DNS роутера (а не DoH/DoT в браузере или телефоне).') ]));
+		}
+		else {
+			const mx = Math.max(1, ...list.map(r => r.t));
+			list.forEach(r => content.push(E('div', { class: 'nf-apps-r', style: '--c:' + (APP_COLORS[r.a] || 'var(--nf-text-dim)') }, [
+				E('div', { class: 'nf-apps-n' }, [ E('i'), E('b', {}, r.a) ]),
+				E('div', { class: 'nf-top-bar' }, E('i', { style: 'width:' + Math.max(2, Math.round(r.t / mx * 100)) + '%' })),
+				E('div', { class: 'nf-apps-v' }, [ E('b', {}, fmtBytes(r.t)), E('span', {}, '↓ ' + fmtBytes(r.d) + ' · ↑ ' + fmtBytes(r.u)) ]),
+				E('div', { class: 'nf-apps-p' }, sum ? nf0.format(r.t / sum * 100) + '%' : '')
+			])));
+		}
+		body.replaceChildren(E('div', { class: 'nf-apps-bar' }, [ seg, sel ]), ...content,
+			E('div', { class: 'nf-apps-f' }, [
+				E('span', {}, 'Всего ' + fmtBytes(sum) + '. Данные приблизительные: трафик через VPN и шифрованный DNS определить нельзя.'),
+				E('button', { type: 'button', class: 'nf-link', click: () => toggle('disable', 'Выключить учёт трафика по приложениям?\n\nЖурнал DNS в dnsmasq будет возвращён к прежним настройкам.') }, 'Выключить учёт')
+			]));
+	}
+
+	function load() {
+		if (idle(el) || busy || EDITING) return;
+		Promise.all([ fs.exec(HIST, [ 'apps' ]), names ? null : L.resolveDefault(callHints(), {}) ]).then(r => {
+			if (r[1]) names = r[1];
+			try { data = JSON.parse(r[0].stdout); } catch (e) { data = null; }
+			render();
+		}).catch(() => { data = null; render(); });
+	}
+
+	return { el, contains: n => el.contains(n), start() { load(); timer = window.setInterval(load, 15000); } };
+}
+
 /* ---------- extra cards ---------- */
 
 function xcard(cls, title, body) {
@@ -1115,7 +1228,7 @@ return baseclass.extend({
 				sortCards(view, loadOrder());
 				view.insertBefore(strip.el, cardsOf(view)[0]);
 				strip.start();
-				extras = [ healthCard(), wifiCard(), eventsCard(), quickCard(), topCard() ];
+				extras = [ healthCard(), wifiCard(), eventsCard(), quickCard(), topCard(), appsCard() ];
 				extras.forEach(x => { view.appendChild(x.el); x.start(); });
 			}
 			else {

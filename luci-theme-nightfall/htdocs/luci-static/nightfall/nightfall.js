@@ -12,7 +12,7 @@
 	var DEFAULTS = { mode: 'auto', accent: '', motion: true, bg: 'mica', bgScale: 100,
 		density: 'normal', font: 'md', radius: 'md', glass: 'on', loginClock: true, loginInfo: true, loginBg: 'mica', ovLive: true, ovBadges: true,
 		style: '', preset: 'win11', navMini: false, schedule: false, nightFrom: '20:00', dayFrom: '07:00', netBar: true, constLogin: true, constApp: false, constKind: 'net',
-		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, ovTop: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
+		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, ovTop: true, ovApps: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
 
 	var PRESETS = [
 		[ 'win11', 'Windows 11', { style: '', accent: '', bg: 'mica', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
@@ -752,7 +752,7 @@
 		root.setAttribute('data-nf-ov-live', on(prefs.ovLive));
 		root.setAttribute('data-nf-ov-badges', on(prefs.ovBadges));
 		root.setAttribute('data-nf-ov-size', pick(prefs.ovSize, [ 'sm', 'md', 'lg' ], 'md'));
-		[ 'Top', 'Wifi', 'Events', 'Health', 'Quick' ].forEach(function (k) { root.setAttribute('data-nf-ov-' + k.toLowerCase(), on(prefs['ov' + k])); });
+		[ 'Top', 'Apps', 'Wifi', 'Events', 'Health', 'Quick' ].forEach(function (k) { root.setAttribute('data-nf-ov-' + k.toLowerCase(), on(prefs['ov' + k])); });
 		root.setAttribute('data-nf-hints', on(prefs.hints));
 		root.setAttribute('data-nf-gtone', pick(prefs.glassTone, [ 'auto', 'light', 'dark' ], 'auto'));
 		root.style.setProperty('--nf-gblur', Math.max(0, Math.min(60, +prefs.glassBlur || 0)) + 'px');
@@ -878,7 +878,7 @@
 		var ov = h('div', { 'class': 'nf-pop-sec' }, [
 			h('div', { 'class': 'nf-pop-l', text: 'Обзор' }),
 			sw('ovLive', 'Полоса «Сейчас»'), sw('ovBadges', 'Цветные метки'),
-			sw('ovTop', 'Топ клиентов'), sw('ovWifi', 'Wi‑Fi сейчас'), sw('ovHealth', 'Состояние роутера'), sw('ovEvents', 'Лента событий'), sw('ovQuick', 'Быстрые действия')
+			sw('ovTop', 'Топ клиентов'), sw('ovApps', 'Трафик по приложениям'), sw('ovWifi', 'Wi‑Fi сейчас'), sw('ovHealth', 'Состояние роутера'), sw('ovEvents', 'Лента событий'), sw('ovQuick', 'Быстрые действия')
 		].concat(seg2('ovSize', 'Размер карточек', [ [ 'sm', 'Компактные' ], [ 'md', 'Обычные' ], [ 'lg', 'Крупные' ] ], true)).concat([
 			h('div', { 'class': 'nf-pop-l', text: 'Интерфейс' }), sw('navMini', 'Свёрнутое меню (значки)'), sw('constApp', 'Анимация на фоне страниц'), sw('netBar', 'Полоса состояния интернета'), sw('hints', 'Подсказки по терминам'), refs.install,
 			h('div', { 'class': 'nf-pop-note', text: 'Приложение: в Chrome и Edge установка работает по HTTPS, на iPhone — «Поделиться → На экран Домой».' })
@@ -1183,7 +1183,7 @@
 		refs.nightFrom.value = prefs.nightFrom || '20:00';
 		refs.dayFrom.value = prefs.dayFrom || '07:00';
 		pop.querySelector('.nf-pop-times').toggleAttribute('data-on', !!prefs.schedule);
-		[ 'loginClock', 'loginInfo', 'ovLive', 'ovBadges', 'navMini', 'netBar', 'constLogin', 'constApp', 'hints', 'ovTop', 'ovWifi', 'ovEvents', 'ovHealth', 'ovQuick' ].forEach(function (k) { refs[k].checked = k === 'constApp' ? !!prefs[k] : prefs[k] !== false; });
+		[ 'loginClock', 'loginInfo', 'ovLive', 'ovBadges', 'navMini', 'netBar', 'constLogin', 'constApp', 'hints', 'ovTop', 'ovApps', 'ovWifi', 'ovEvents', 'ovHealth', 'ovQuick' ].forEach(function (k) { refs[k].checked = k === 'constApp' ? !!prefs[k] : prefs[k] !== false; });
 		refs.motion.checked = !!prefs.motion;
 		refs.gblur.value = String(prefs.glassBlur == null ? 28 : prefs.glassBlur);
 		refs.galpha.value = String(prefs.glassAlpha || 100);

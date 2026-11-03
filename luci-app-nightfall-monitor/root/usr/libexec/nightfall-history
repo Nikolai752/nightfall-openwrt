@@ -3,6 +3,7 @@
 #   nightfall-history series fine|coarse   — графики + события + предупреждения
 #   nightfall-history devices              — трафик по устройствам
 #   nightfall-history alerts               — активные предупреждения и последняя точка
+#   nightfall-history apps                 — трафик по приложениям: сегодня и за прошлые сутки
 DIR=${NF_DIR:-/tmp/nightfall}
 
 info_json() {
@@ -73,6 +74,14 @@ channel)
 	pairs_json "$DIR/svc.rate"
 	printf ',"dst":'; pairs_json "$DIR/dst.rate"
 	printf ',"router_ips":"%s"}\n' "$(sed -n 's/^router_ips=//p' "$DIR/info" 2>/dev/null | head -n 1)" ;;
+apps)
+	en=$(sed -n 's/^APPS=\([01]\).*/\1/p' "${NF_CONF:-/etc/nightfall-monitor.conf}" 2>/dev/null | head -n 1)
+	dm=0; [ -r "$DIR/dns.map" ] && dm=$(wc -l < "$DIR/dns.map" | tr -d ' ')
+	printf '{"now":%s,"enabled":%s,"dnsmap":%s,"today":"%s","day":[' "$now" "${en:-0}" "${dm:-0}" "$(cat "$DIR/day.date" 2>/dev/null)"
+	[ -r "$DIR/apps.day" ] && awk -F'|' 'NF >= 4 { gsub(/["\\]/, "", $2); printf "%s[\"%s\",\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3, $4 }' "$DIR/apps.day"
+	printf '],"hist":['
+	[ -r "$DIR/apps.hist" ] && awk -F'|' 'NF >= 5 { gsub(/["\\]/, "", $3); printf "%s[\"%s\",\"%s\",\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3, $4, $5 }' "$DIR/apps.hist"
+	printf ']}\n' ;;
 journal)
 	printf '{"now":%s,"rows":' "$now"; journal_json
 	up=0; read -r up _ < /proc/uptime; up=${up%.*}
@@ -99,6 +108,6 @@ alerts)
 	printf ',"info":'; info_json
 	printf '}\n' ;;
 *)
-	echo "usage: nightfall-history series fine|coarse | devices | channel | journal | speed | wifi [MAC] | alerts" >&2
+	echo "usage: nightfall-history series fine|coarse | devices | apps | channel | journal | speed | wifi [MAC] | alerts" >&2
 	exit 1 ;;
 esac
