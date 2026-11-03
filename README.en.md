@@ -78,7 +78,7 @@ Use the same one-line command as for installation, or run `install-update.sh` ma
 
 ### Updating from the interface
 
-When a new version is released, the theme shows a "New version available" dialog. Press "Update": the router downloads the release, verifies its sha256 checksum and installs it; on any error the files are restored from a backup. Afterwards the session restarts and, once you sign in, the changes from `CHANGELOG.md` are shown.
+When a new version is released, the theme shows a "New version available" dialog. Press "Update": the router downloads the release, verifies its sha256 checksum and installs it; on any error the files are restored from a backup. Since v1.0.11 releases are also signed with a usign key: the router checks the signature against `/etc/nightfall-release.pub` and refuses an archive with a bad signature. Afterwards the session restarts and, once you sign in, the changes from `CHANGELOG.md` are shown.
 
 The router needs **curl** to download the release. If it is missing, install it: `apk add curl` (OpenWrt 25.12) or `opkg install curl` (older releases).
 

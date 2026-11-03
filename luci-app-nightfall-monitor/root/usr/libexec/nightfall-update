@@ -5,6 +5,7 @@
 #   nightfall-update run      само обновление (его запускает start)
 #
 # Порядок: скачать архив и файл контрольной суммы (.sha256) -> сверить sha256 ->
+# проверить подпись usign (если на роутере есть открытый ключ /etc/nightfall-release.pub) ->
 # сохранить копию заменяемых файлов -> распаковать -> перезагрузить rpcd.
 # При любой ошибке после начала установки файлы возвращаются из копии.
 #
@@ -18,6 +19,7 @@ ST="$TMP/nightfall-update.status"
 LOCK="$TMP/nightfall-update.lock"
 WORK="$TMP/nightfall-update"
 VERF="$ROOT/www/luci-static/nightfall/version.json"
+PUB="$ROOT/etc/nightfall-release.pub"
 
 state() { # state pct msg
 	printf '{"state":"%s","pct":%s,"msg":"%s"}\n' "$1" "$2" "$3" > "$ST.new" && mv "$ST.new" "$ST"
@@ -91,6 +93,14 @@ run)
 	WANT=$(sed -n '1s/[[:space:]].*//p' "$WORK/new.sha256" | tr 'A-F' 'a-f')
 	GOT=$(sha256sum "$WORK/new.tar.gz" | sed 's/[[:space:]].*//')
 	[ -n "$WANT" ] && [ "$WANT" = "$GOT" ] || fail "Контрольная сумма не совпала, архив не установлен."
+
+	# подпись: если открытый ключ уже установлен, релиз без верной подписи не ставим
+	if [ -f "$PUB" ]; then
+		command -v usign >/dev/null 2>&1 || fail "Не найден usign, подпись релиза проверить нечем."
+		state verifying 58 "Проверяю подпись"
+		fetch "$BASE/nightfall-root.tar.gz.sig" "$WORK/new.sig" || fail "У релиза нет подписи, обновление остановлено."
+		usign -V -m "$WORK/new.tar.gz" -p "$PUB" -x "$WORK/new.sig" >/dev/null 2>&1 || fail "Подпись релиза не подходит, архив не установлен."
+	fi
 
 	tar -tzf "$WORK/new.tar.gz" > "$WORK/all.list" 2>/dev/null || fail "Архив повреждён."
 	grep -q 'luci-static/nightfall/' "$WORK/all.list" || fail "В архиве нет файлов темы Nightfall."
