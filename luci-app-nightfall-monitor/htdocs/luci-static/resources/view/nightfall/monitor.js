@@ -757,7 +757,7 @@ return view.extend({
 			const save = [ 'set' ].concat([ 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY' ].map(k => k + '=' + cfgInputs[k].value.trim()));
 			return callCfg(save).then(r => {
 				if (!(r && r.ok)) { tgMsg.textContent = 'Не сохранено: ' + ((r && r.error) || 'нет ответа'); return null; }
-				return fs.exec(NOTIFYBIN, [ cmd ]).then(res => { try { return JSON.parse(res.stdout); } catch (e) { return { ok: false, error: 'нет ответа от роутера' }; } }).catch(() => ({ ok: false, error: 'нет прав: выйдите и войдите снова' }));
+				return fs.exec(NOTIFYBIN, [ cmd ]).then(res => { try { return JSON.parse(res.stdout); } catch (e) { return { ok: false, error: 'нет ответа от роутера' }; } }).catch(() => ({ ok: false, error: 'нет прав на запуск (выйдите из LuCI и войдите снова; права обновляются при входе) или не найден /usr/libexec/nightfall-notify' }));
 			});
 		};
 		const tgTools = E('div', { style: 'margin-top:10px' }, [
