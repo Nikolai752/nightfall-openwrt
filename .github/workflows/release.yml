@@ -11,11 +11,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: VERSION="${GITHUB_REF_NAME}" sh build-release.sh
+      # подпись usign (тем же инструментом, что проверяет роутер); секретный ключ хранится в Secrets
+      - name: Подписать архив
+        env:
+          SIGN_KEY: ${{ secrets.NIGHTFALL_SIGN_KEY }}
+        run: |
+          [ -n "$SIGN_KEY" ] || { echo "::error::Нет секрета NIGHTFALL_SIGN_KEY, релиз без подписи не выпускаю"; exit 1; }
+          sudo apt-get install -y cmake >/dev/null
+          git clone --depth 1 https://github.com/openwrt/usign.git /tmp/usign
+          cmake -S /tmp/usign -B /tmp/usign/b >/dev/null && make -C /tmp/usign/b >/dev/null
+          umask 077; printf '%s\n' "$SIGN_KEY" > /tmp/nf.key
+          /tmp/usign/b/usign -S -m dist/nightfall-root.tar.gz -s /tmp/nf.key -x dist/nightfall-root.tar.gz.sig
+          rm -f /tmp/nf.key
+          # проверка открытым ключом из репозитория
+          /tmp/usign/b/usign -V -m dist/nightfall-root.tar.gz -p luci-theme-nightfall/root/etc/nightfall-release.pub -x dist/nightfall-root.tar.gz.sig
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/nightfall-root.tar.gz
             dist/nightfall-root.tar.gz.sha256
+            dist/nightfall-root.tar.gz.sig
           generate_release_notes: true
       # номер последнего релиза для проверки обновлений в теме (читается из репозитория, у raw нет лимита запросов)
       - name: Записать номер релиза в latest.json
