@@ -989,13 +989,13 @@
 	function paintVer() {
 		var tag = updAvail();
 		if (refs.ver) refs.ver.textContent = verInfo ? 'Nightfall v' + verInfo.version + (verInfo.build ? ' · сборка ' + verInfo.build : '') : 'Версия не определена (файл version.json не найден)';
-		if (refs.updNote && tag) { refs.updNote.textContent = 'Доступна ' + (/^v/i.test(tag) ? tag : 'v' + tag) + '. Установка вручную, как обычно (install-update.sh).'; refs.updNote.classList.remove('bad'); }
+		if (refs.updNote && tag) { refs.updNote.textContent = 'Доступна ' + fullTag(tag) + '. '; refs.updNote.classList.remove('bad'); refs.updNote.appendChild(h('a', { href: '#', text: 'Обновить', onclick: function (ev) { ev.preventDefault(); offerUpdate(true); } })); }
 		document.querySelectorAll('.nf-pers-main').forEach(function (b) { b.classList.toggle('nf-has-upd', !!tag); });
 	}
 	function loadVer() {
 		if (!window.fetch) return;
 		window.fetch(BASE + 'version.json?' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
-			verInfo = d && typeof d.version === 'string' ? d : null; paintVer();
+			verInfo = d && typeof d.version === 'string' ? d : null; paintVer(); checkWhatsNew(); offerUpdate(false);
 			var c = updCache();
 			if (verInfo && prefs.updCheck && !document.body.classList.contains('nf-blank') && (!c || Date.now() - c.t > 7 * 864e5)) window.setTimeout(function () { checkUpdate(false); }, 4000);
 		}).catch(function () { /* без версии просто не показываем */ });
@@ -1018,11 +1018,139 @@
 		if (manual && refs.updNote) { refs.updNote.textContent = 'Проверяю…'; refs.updNote.classList.remove('bad'); }
 		getLatestTag().then(function (tag) {
 			try { window.localStorage.setItem(UKEY, JSON.stringify({ tag: tag, t: Date.now() })); } catch (e) { /* ignore */ }
-			paintVer();
+			paintVer(); offerUpdate(false);
 			if (manual && refs.updNote && !updAvail()) { refs.updNote.textContent = 'Установлена последняя версия (' + (/^v/i.test(tag) ? tag : 'v' + tag) + ').'; refs.updNote.classList.remove('bad'); }
 		}).catch(function () {
 			if (manual && refs.updNote) { refs.updNote.textContent = 'Не удалось проверить: GitHub не ответил или исчерпан лимит запросов. Попробуйте позже.'; refs.updNote.classList.add('bad'); }
 		});
+	}
+
+	/* ---------- обновление из интерфейса ----------
+	 * Окно «Доступна новая версия» -> роутер сам скачивает релиз и ставит его (/usr/libexec/nightfall-update,
+	 * проверка sha256, откат при ошибке) -> окно «Установлено» и выход из сессии (права обновляются при входе) ->
+	 * после входа окно «Что нового» из CHANGELOG.md. Для скачивания на роутере нужен curl (apk add curl). */
+	var SKIPKEY = 'nightfall-upd-skip', SEENKEY = 'nightfall-seen-ver', updModal = null, updBusy = false;
+	function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+	function lsSet(k, v) { try { if (v === null) window.localStorage.removeItem(k); else window.localStorage.setItem(k, v); } catch (e) { /* ignore */ } }
+	function fullTag(t) { return /^v/i.test(t) ? t : 'v' + t; }
+	function updExec(arg) {
+		var env = sid();
+		if (!env || !window.fetch) return Promise.reject(new Error('nosession'));
+		return window.fetch(env.ubuspath || '/ubus/', { method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'call', params: [ env.sessionid, 'file', 'exec', { command: '/usr/libexec/nightfall-update', params: [ arg ] } ] }) })
+			.then(function (r) { if (!r.ok) throw new Error('http'); return r.json(); })
+			.then(function (d) {
+				var res = d && d.result;
+				if (!res || res[0] !== 0 || !res[1]) throw new Error('denied');
+				try { return JSON.parse(res[1].stdout || ''); } catch (e) { throw new Error('parse'); }
+			});
+	}
+	function closeUpd() { if (updModal) { updModal.remove(); updModal = null; } document.documentElement.classList.remove('nf-upd-open'); }
+	function openUpd(title, kids, wide) {
+		closeUpd();
+		var box = h('div', { 'class': 'nf-upd-box' + (wide ? ' wide' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, [ h('h4', { text: title }) ].concat(kids));
+		updModal = h('div', { 'class': 'nf-upd-modal' }, [ box ]);
+		document.body.appendChild(updModal);
+		document.documentElement.classList.add('nf-upd-open');
+		return box;
+	}
+	/* CHANGELOG.md: разделы «## v1.0.9 ...», внутри пункты «- ...» и подзаголовки «### ...» */
+	function parseChangelog(md) {
+		var out = [], cur = null;
+		String(md || '').split(/\r?\n/).forEach(function (ln) {
+			var m = /^##\s+v?(\d+(?:\.\d+){0,2})\b\s*(.*)$/.exec(ln);
+			if (m) { cur = { v: m[1], t: m[2].replace(/^[\-–—·:\s]+/, ''), lines: [] }; out.push(cur); }
+			else if (cur && ln.trim()) cur.lines.push(ln.trim());
+		});
+		return out;
+	}
+	function renderChanges(sections) {
+		var wrap = h('div', { 'class': 'nf-upd-log' });
+		sections.forEach(function (s) {
+			wrap.appendChild(h('h5', { text: 'v' + s.v + (s.t ? ' · ' + s.t : '') }));
+			var ul = null;
+			s.lines.forEach(function (ln) {
+				if (/^[-*]\s+/.test(ln)) { if (!ul) { ul = h('ul'); wrap.appendChild(ul); } ul.appendChild(h('li', { text: ln.replace(/^[-*]\s+/, '') })); }
+				else { ul = null; wrap.appendChild(h(/^###/.test(ln) ? 'h6' : 'p', { text: ln.replace(/^#+\s*/, '') })); }
+			});
+		});
+		return wrap;
+	}
+	function loadChangelog(url) {
+		return window.fetch(url, { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error('nolog'); return r.text(); }).then(parseChangelog);
+	}
+	/* после входа: если версия изменилась, показываем, что нового */
+	function checkWhatsNew() {
+		if (!verInfo || document.body.classList.contains('nf-blank') || !window.fetch) return;
+		var seen = lsGet(SEENKEY), cur = verInfo.version;
+		if (seen === cur) return;
+		lsSet(SEENKEY, cur);
+		if (!seen || !isNewer(seen, cur)) return;       /* первый запуск или откат на старую: молча */
+		loadChangelog(BASE + 'CHANGELOG.md?' + Date.now()).then(function (all) {
+			var list = all.filter(function (s) { return isNewer(seen, s.v) && !isNewer(cur, s.v); }).slice(0, 4);
+			if (!list.length) return;
+			openUpd('Nightfall обновлён до v' + cur, [ renderChanges(list), h('div', { 'class': 'nf-upd-btns' }, [ h('button', { type: 'button', 'class': 'nf-upd-go', text: 'Понятно', onclick: closeUpd }) ]) ], true);
+		}).catch(function () { /* нет файла — без окна */ });
+	}
+	function restartSession() {
+		var env = window.L && window.L.env;
+		lsSet(SKIPKEY, null);
+		window.location.href = ((env && env.scriptname) || '/cgi-bin/luci') + '/admin/logout';
+	}
+	function runUpdate(tag) {
+		if (updBusy) return;
+		updBusy = true;
+		var bar = h('i'), msg = h('p', { 'class': 'nf-upd-msg', text: 'Запуск…' });
+		openUpd('Обновление Nightfall', [ h('div', { 'class': 'nf-upd-bar' }, [ bar ]), msg, h('p', { 'class': 'nf-upd-note', text: 'Не закрывайте страницу и не выключайте роутер.' }) ]);
+		var errs = 0, t0 = Date.now(), lastPct = 0;
+		function finish(ok, text, canRestart) {
+			updBusy = false;
+			var btns = [];
+			if (canRestart) { lsSet(SEENKEY, verInfo ? verInfo.version : null); btns.push(h('button', { type: 'button', 'class': 'nf-upd-go', text: 'Перезапустить сессию', onclick: restartSession })); }
+			else btns.push(h('button', { type: 'button', 'class': 'nf-upd-go', text: 'Закрыть', onclick: closeUpd }));
+			openUpd(ok ? 'Всё установилось' : 'Обновление не выполнено', [ h('p', { 'class': 'nf-upd-msg' + (ok ? '' : ' bad'), text: text }), h('div', { 'class': 'nf-upd-btns' }, btns) ]);
+			if (canRestart) window.setTimeout(function () { if (updModal) restartSession(); }, 4000);
+		}
+		function poll() {
+			updExec('status').then(function (s) {
+				errs = 0;
+				if (s.state === 'done') return finish(true, (s.msg || 'Установлено.') + ' Сейчас сессия перезапустится, войдите снова, чтобы применились все изменения.', true);
+				if (s.state === 'error' || s.state === 'rolledback') return finish(false, s.msg || 'Неизвестная ошибка.', false);
+				if (s.state === 'idle' && Date.now() - t0 > 15000) return finish(false, 'Обновление не запустилось.', false);
+				lastPct = Math.max(lastPct, +s.pct || 0);
+				bar.style.width = lastPct + '%'; msg.textContent = s.msg || '…';
+				window.setTimeout(poll, 1500);
+			}).catch(function () {
+				/* во время перезагрузки rpcd ответа может не быть: если установка уже шла, считаем её завершённой */
+				errs++;
+				if (errs >= 4 && lastPct >= 65) return finish(true, 'Обновление, судя по всему, установлено (роутер перезапустил службу). Войдите снова.', true);
+				if (errs >= 8) return finish(false, 'Нет ответа от роутера. Обновите страницу и проверьте версию.', false);
+				window.setTimeout(poll, 2000);
+			});
+		}
+		lsSet(SEENKEY, verInfo ? verInfo.version : null);
+		updExec('start').then(function () { window.setTimeout(poll, 1200); }).catch(function (e) {
+			finish(false, e && e.message === 'denied' ? 'Нет прав на запуск обновления. Выйдите и войдите снова, затем повторите; если не помогло, обновите вручную (install-update.sh).' : 'Не удалось запустить обновление.', false);
+		});
+	}
+	function offerUpdate(force) {
+		var tag = updAvail();
+		if (!tag || updBusy || document.body.classList.contains('nf-blank') || !sid()) return;
+		if (!force && lsGet(SKIPKEY) === tag) return;
+		var log = h('div');
+		var box = openUpd('Доступна новая версия', [
+			h('p', { 'class': 'nf-upd-msg', text: 'Nightfall ' + fullTag(tag) + (verInfo ? ' (сейчас v' + verInfo.version + ')' : '') + '. Роутер сам скачает и установит обновление, после чего потребуется войти заново.' }),
+			log,
+			h('div', { 'class': 'nf-upd-btns' }, [
+				h('button', { type: 'button', text: 'Позже', onclick: function () { lsSet(SKIPKEY, tag); closeUpd(); } }),
+				h('button', { type: 'button', 'class': 'nf-upd-go', text: 'Обновить', onclick: function () { runUpdate(tag); } })
+			])
+		]);
+		/* «Что нового» в новой версии берём из CHANGELOG.md репозитория (если доступен) */
+		loadChangelog('https://raw.githubusercontent.com/' + REPO + '/main/CHANGELOG.md?' + Math.floor(Date.now() / 300000)).then(function (all) {
+			var list = all.filter(function (s) { return verInfo && isNewer(verInfo.version, s.v) && !isNewer(tag, s.v); }).slice(0, 3);
+			if (list.length && updModal === box.parentNode) log.appendChild(renderChanges(list));
+		}).catch(function () { /* без списка изменений */ });
 	}
 
 	function paintRange(el) {
