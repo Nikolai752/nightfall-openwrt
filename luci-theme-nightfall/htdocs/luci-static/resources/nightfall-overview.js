@@ -720,32 +720,44 @@ function signalLevel(dbm) {
 	return [ 'bad', 'Плохой' ];
 }
 
+/* Идемпотентно: вызывается синхронно из MutationObserver (до отрисовки кадра),
+   поэтому «сырой» текст LuCI («нет соединения», «1 GbE») ни разу не попадает на экран. */
 function enhanceBadges(view) {
 	/* Wi-Fi clients: signal strength */
-	view.querySelectorAll('.ifacebadge[data-signal]:not([data-nf-q])').forEach(b => {
-		const dbm = parseInt(b.getAttribute('data-signal'), 10);
-		b.setAttribute('data-nf-q', '1');
+	view.querySelectorAll('.ifacebadge[data-signal]').forEach(b => {
+		const raw = b.getAttribute('data-signal');
+		const have = b.querySelector(':scope > .nf-badge');
+		if (have && b.getAttribute('data-nf-q') === raw) return;
+		const dbm = parseInt(raw, 10);
+		b.setAttribute('data-nf-q', raw);
 		if (!isFinite(dbm)) return;
 		const [ kind, text ] = signalLevel(dbm);
-		b.appendChild(badge(kind, text));
+		if (have) { have.className = 'nf-badge ' + kind; if (have.textContent !== text) have.textContent = text; }
+		else b.appendChild(badge(kind, text));
 	});
 
 	/* port boxes: link state next to the speed */
-	view.querySelectorAll('.ifacebox:not([data-nf-port])').forEach(box => {
+	view.querySelectorAll('.ifacebox').forEach(box => {
 		const img = box.querySelector('.ifacebox-body > img[src*="port_"], .ifacebox-body > img[src*="/pse_"]');
 		if (!img) return;
 		const up = /_up\.svg/.test(img.getAttribute('src'));
+		const state = up ? 'up' : 'down';
+		if (box.getAttribute('data-nf-port') !== state) box.setAttribute('data-nf-port', state);
 		const body = img.parentNode, node = body.lastChild;
-		box.setAttribute('data-nf-port', up ? 'up' : 'down');
 		if (!node || node === img || node.nodeName === 'BR') return;
 		if (node.nodeType === 3) {
-			let txt = node.data.trim();
+			const raw = node.data.trim();
+			if (!raw) return;
+			let txt = raw;
 			if (!up && /соедин|no link|not connected|disconnected|нет/i.test(txt)) txt = 'нет связи';
 			const bd = badge(up ? 'ok' : 'off', txt);
-			bd.title = node.data.trim();
+			bd.title = raw;
 			body.replaceChild(bd, node);
 		}
-		else { node.classList.add('nf-badge', up ? 'ok' : 'off'); }
+		else if (!node.classList.contains('nf-badge') || !node.classList.contains(up ? 'ok' : 'off')) {
+			node.classList.remove('ok', 'off');
+			node.classList.add('nf-badge', up ? 'ok' : 'off');
+		}
 	});
 }
 
@@ -1123,7 +1135,11 @@ return baseclass.extend({
 			if (timer || (muts && muts.every(m => (strip && strip.el.contains(m.target)) || extras.some(x => x.contains(m.target)) || (m.target === view && DRAG)))) return;
 			timer = window.setTimeout(run, 250);
 		};
-		new MutationObserver(schedule).observe(view, { childList: true, subtree: true });
+		new MutationObserver(muts => {
+			const own = muts.every(m => (strip && strip.el.contains(m.target)) || extras.some(x => x.contains(m.target)) || (m.target === view && DRAG));
+			if (!own) enhanceBadges(view);
+			schedule(muts);
+		}).observe(view, { childList: true, subtree: true, characterData: true });
 		schedule();
 	}
 });
