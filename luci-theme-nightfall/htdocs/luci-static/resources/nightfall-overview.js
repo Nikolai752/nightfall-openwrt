@@ -881,10 +881,20 @@ const PERIODS = [ [ 'day', 'Сегодня', 1 ], [ 'week', '7 дней', 7 ], [
 
 function ymd(d) { return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); }
 
-/* суммы по приложениям за период: today — строки «ip, приложение, вниз, вверх», hist — то же с датой первой колонкой */
+/* суммы по приложениям за период: today — строки «ip, приложение, вниз, вверх», hist — то же с датой первой колонкой.
+   «Прочее · домен» сворачивается в «Прочее», а домены уходят в подробности (other). */
 function sumApps(data, days, ip) {
-	const tot = {};
-	const add = (a, d, u) => { const t = tot[a] || (tot[a] = [ 0, 0 ]); t[0] += d; t[1] += u; };
+	const tot = {}, other = {};
+	const add = (a, d, u) => {
+		const m = /^Прочее(?: · (.+))?$/.exec(a);
+		if (m) {
+			const t = other[m[1] || ''] || (other[m[1] || ''] = [ 0, 0 ]);
+			t[0] += d; t[1] += u;
+			a = 'Прочее';
+		}
+		const t = tot[a] || (tot[a] = [ 0, 0 ]);
+		t[0] += d; t[1] += u;
+	};
 	for (const [ i, a, d, u ] of data.day || []) if (!ip || i === ip) add(a, d, u);
 	if (days > 1) {
 		const t = String(data.today || '');
@@ -893,7 +903,7 @@ function sumApps(data, days, ip) {
 		const from = ymd(base);
 		for (const [ dt, i, a, d, u ] of data.hist || []) if (+dt >= from && (!ip || i === ip)) add(a, d, u);
 	}
-	return tot;
+	return { tot, other };
 }
 
 function appsCard() {
@@ -948,7 +958,7 @@ function appsCard() {
 		const seg = E('div', { class: 'nf-apps-seg', role: 'group', 'aria-label': 'Период' }, PERIODS.map(x =>
 			E('button', { type: 'button', 'aria-pressed': String(x[0] === period), click: () => { period = x[0]; render(); } }, x[1])));
 
-		const tot = sumApps(data, p[2], dev);
+		const { tot, other } = sumApps(data, p[2], dev);
 		const rows = Object.keys(tot).map(a => ({ a, d: tot[a][0], u: tot[a][1], t: tot[a][0] + tot[a][1] })).filter(r => r.t > 0).sort((x, y) => (x.a === 'Прочее') - (y.a === 'Прочее') || y.t - x.t);
 		const sum = rows.reduce((n, r) => n + r.t, 0);
 		const list = rows.slice(0, 9);
@@ -958,12 +968,19 @@ function appsCard() {
 		}
 		else {
 			const mx = Math.max(1, ...list.map(r => r.t));
-			list.forEach(r => content.push(E('div', { class: 'nf-apps-r', style: '--c:' + (APP_COLORS[r.a] || 'var(--nf-text-dim)') }, [
-				E('div', { class: 'nf-apps-n' }, [ E('i'), E('b', {}, r.a) ]),
-				E('div', { class: 'nf-top-bar' }, E('i', { style: 'width:' + Math.max(2, Math.round(r.t / mx * 100)) + '%' })),
-				E('div', { class: 'nf-apps-v' }, [ E('b', {}, fmtBytes(r.t)), E('span', {}, '↓ ' + fmtBytes(r.d) + ' · ↑ ' + fmtBytes(r.u)) ]),
-				E('div', { class: 'nf-apps-p' }, sum ? nf0.format(r.t / sum * 100) + '%' : '')
-			])));
+			list.forEach(r => {
+				content.push(E('div', { class: 'nf-apps-r', style: '--c:' + (APP_COLORS[r.a] || 'var(--nf-text-dim)') }, [
+					E('div', { class: 'nf-apps-n' }, [ E('i'), E('b', {}, r.a) ]),
+					E('div', { class: 'nf-top-bar' }, E('i', { style: 'width:' + Math.max(2, Math.round(r.t / mx * 100)) + '%' })),
+					E('div', { class: 'nf-apps-v' }, [ E('b', {}, fmtBytes(r.t)), E('span', {}, '↓ ' + fmtBytes(r.d) + ' · ↑ ' + fmtBytes(r.u)) ]),
+					E('div', { class: 'nf-apps-p' }, sum ? nf0.format(r.t / sum * 100) + '%' : '')
+				]));
+				/* из чего состоит «Прочее»: самые тяжёлые домены (по ним можно добавить правило в /etc/nightfall-apps.list) */
+				if (r.a === 'Прочее') {
+					const top = Object.keys(other).map(k => ({ k: k || 'прямые адреса без имени', t: other[k][0] + other[k][1] })).filter(x => x.t > 0).sort((x, y) => y.t - x.t).slice(0, 6);
+					if (top.length) content.push(E('div', { class: 'nf-apps-sub' }, [ E('span', {}, 'Крупнее всего:') ].concat(top.map(x => E('span', { class: 'nf-apps-chip', title: x.k }, [ x.k + ' ', E('b', {}, fmtBytes(x.t)) ])))));
+				}
+			});
 		}
 		body.replaceChildren(E('div', { class: 'nf-apps-bar' }, [ seg, sel ]), ...content,
 			E('div', { class: 'nf-apps-f' }, [

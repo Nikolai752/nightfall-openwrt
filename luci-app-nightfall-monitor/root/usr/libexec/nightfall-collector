@@ -180,6 +180,14 @@ do_dns() {
 			n = tolower(n)
 			while (1) { if (n in dom) return dom[n]; p = index(n, "."); if (!p) return ""; n = substr(n, p + 1) }
 		}
+		# «основное» имя для неопознанных адресов: последние две части (example.com), для co.uk/com.ru и т. п. три
+		function sld(n,   p, k, i) {
+			n = tolower(n); gsub(/[^a-z0-9.-]/, "", n); sub(/\.$/, "", n)
+			k = split(n, p, ".")
+			if (k <= 2) return n
+			if (length(p[k]) == 2 && p[k - 1] ~ /^(co|com|net|org|gov|edu|ac)$/) return p[k - 2] "." p[k - 1] "." p[k]
+			return p[k - 1] "." p[k]
+		}
 		BEGIN { load(urules); load(rules) }
 		{
 			k = 0
@@ -191,6 +199,7 @@ do_dns() {
 			if (v == "<CNAME>") { chain = 1; next }
 			if (v !~ /^[0-9a-fA-F.:]+$/) next
 			a = ""; if (chain) a = cls(cur); if (a == "") a = cls(name)   # youtube.com -> CNAME на адреса Google: выигрывает исходное имя запроса
+			if (a == "") { a = sld(chain ? cur : name); if (a != "" && a ~ /\./) a = "Прочее · " a; else a = "" }
 			if (a != "") print tolower(v) "|" a >> map
 		}'
 		n=$(wc -l < "$DIR/dns.map" 2>/dev/null | tr -d ' ')

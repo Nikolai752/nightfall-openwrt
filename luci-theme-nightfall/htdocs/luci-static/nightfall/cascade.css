@@ -4843,7 +4843,7 @@ html[data-darkmode="false"] select option, html[data-darkmode="false"] select op
 	html .tabs > li.active::after, html .cbi-tabmenu > li.cbi-tab::after { display: none; }
 }
 
-/* ======== v20261103e: без дёрганий при опросе, таблица Wi-Fi клиентов, длинные значения на телефоне ======== */
+/* ======== v20261103f: без дёрганий при опросе, таблица Wi-Fi клиентов, длинные значения на телефоне ======== */
 /* собственная анимация LuCI (.fade-in) тоже проигрывалась заново при каждом обновлении блока */
 html[data-nf-settled] .fade-in { animation: none; }
 
@@ -4858,7 +4858,7 @@ html[data-nf-settled] .fade-in { animation: none; }
 	html .table.cbi-section-table .td.cbi-section-table-cell:not(:has(input, select, textarea, button, .cbi-dropdown, .cbi-checkbox)) { white-space: normal; }
 }
 
-/* v20261103e: окна обновления из интерфейса (доступна версия, прогресс, установлено, что нового) */
+/* v20261103f: окна обновления из интерфейса (доступна версия, прогресс, установлено, что нового) */
 .nf-upd-modal { position: fixed; inset: 0; z-index: 10050; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, .45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .nf-upd-box { width: min(460px, 100%); max-height: 86vh; overflow-y: auto; box-sizing: border-box; padding: 22px 22px 18px; border-radius: 12px; background: var(--nf-card, #fff); color: var(--nf-text, #1b1b1b); border: 1px solid var(--nf-stroke, rgba(0, 0, 0, .12)); box-shadow: 0 24px 64px rgba(0, 0, 0, .35); }
 .nf-upd-box.wide { width: min(560px, 100%); }
@@ -4879,7 +4879,7 @@ html[data-nf-settled] .fade-in { animation: none; }
 @media (max-width: 899px) { .nf-upd-btns button { min-height: 44px; border-radius: 12px; flex: 1; } .nf-upd-box { padding: 18px 16px 14px; } }
 html.nf-upd-open { overflow: hidden; }
 
-/* ======== v20261103e: компактная нижняя панель «Применить / Сохранить / Сброс» на телефонах ======== */
+/* ======== v20261103f: компактная нижняя панель «Применить / Сохранить / Сброс» на телефонах ======== */
 /* Размеры считаются от ширины и высоты экрана, поэтому панель аккуратна и на маленьком SE/mini, и на Pro Max, и на Android с любым масштабом. */
 @media (max-width: 899px) {
 	html .cbi-page-actions {
@@ -4912,7 +4912,7 @@ html.nf-upd-open { overflow: hidden; }
 	html .cbi-page-actions > .cbi-dropdown > ul { height: 100%; display: flex !important; }
 }
 
-/* ======== v20261103e: карточка «Трафик по приложениям» ======== */
+/* ======== v20261103f: карточка «Трафик по приложениям» ======== */
 html[data-nf-ov-apps="off"] .nf-apps { display: none !important; }
 .nf-apps-b { display: flex; flex-direction: column; padding-bottom: 10px; }
 .nf-apps-bar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; padding: 2px 0 10px; }
@@ -4937,3 +4937,8 @@ html[data-nf-ov-apps="off"] .nf-apps { display: none !important; }
 	.nf-apps-r .nf-top-bar { grid-column: 1 / -1; order: 4; }
 	.nf-apps-dev { flex: 1 1 100%; }
 }
+
+/* ======== v20261103f: из чего состоит «Прочее» ======== */
+.nf-apps-sub { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 0 0 10px; color: var(--nf-text-dim); font-size: calc(12px * var(--nf-fsz, 1)); }
+.nf-apps-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 9px; border-radius: 999px; background: color-mix(in srgb, var(--nf-text) 8%, transparent); color: var(--nf-text); }
+.nf-apps-chip b { font-weight: 600; margin-left: 2px; }
