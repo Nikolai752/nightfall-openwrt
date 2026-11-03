@@ -746,7 +746,8 @@ return view.extend({
 			[ 'NEWDEV', 'Сообщать о новых устройствах (0/1)', '' ],
 			[ 'TG', 'Отправлять уведомления в Telegram (0/1)', '' ], [ 'TG_ALERTS', 'Слать предупреждения и перезагрузки (0/1)', '' ],
 			[ 'TG_TOKEN', 'Токен бота (от @BotFather)', '', 'password', 'не задан' ], [ 'TG_CHAT', 'Chat id', '', 'text', 'число, определяется кнопкой' ],
-			[ 'TG_PROXY', 'Прокси для Telegram (если он закрыт)', '', 'text', 'например socks5h://127.0.0.1:1080' ]
+			[ 'TG_PROXY', 'Прокси для Telegram (если он закрыт)', '', 'text', 'например socks5h://127.0.0.1:1080' ],
+			[ 'TG_IFACE', 'Или интерфейс VPN для Telegram', '', 'text', 'например wg0' ]
 		];
 		const cfgInputs = {};
 		const cfgMsg = E('span', { class: 'nfm-note-s' });
@@ -754,7 +755,7 @@ return view.extend({
 		const tgMsg = E('div', { class: 'nfm-note-s', style: 'margin-top:6px' });
 		const tgRun = cmd => {
 			tgMsg.textContent = 'Выполняю…';
-			const save = [ 'set' ].concat([ 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY' ].map(k => k + '=' + cfgInputs[k].value.trim()));
+			const save = [ 'set' ].concat([ 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY', 'TG_IFACE' ].map(k => k + '=' + cfgInputs[k].value.trim()));
 			return callCfg(save).then(r => {
 				if (!(r && r.ok)) { tgMsg.textContent = 'Не сохранено: ' + ((r && r.error) || 'нет ответа'); return null; }
 				return fs.exec(NOTIFYBIN, [ cmd ]).then(res => { try { return JSON.parse(res.stdout); } catch (e) { return { ok: false, error: 'нет ответа от роутера' }; } }).catch(() => ({ ok: false, error: 'нет прав на запуск (выйдите из LuCI и войдите снова; права обновляются при входе) или не найден /usr/libexec/nightfall-notify' }));
@@ -774,7 +775,7 @@ return view.extend({
 				[ 'Хранение истории', [ 'PERSIST_DIR', 'PERSIST_HOURS', 'JOURNAL', 'WIFI_HIST' ] ],
 				[ 'Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ] ],
 				[ 'Новые устройства', [ 'NEWDEV' ] ],
-				[ 'Уведомления в Telegram', [ 'TG', 'TG_ALERTS', 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY' ], tgTools ]
+				[ 'Уведомления в Telegram', [ 'TG', 'TG_ALERTS', 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY', 'TG_IFACE' ], tgTools ]
 			].map(([ title, keys, extra ]) => E('section', { class: 'nfm-cfg-g' }, [ E('h4', {}, title),
 				E('div', { class: 'nfm-cfg' }, keys.map(k => CFG_FIELDS.find(f => f[0] === k)).filter(Boolean).map(([ k, l, u, type, ph ]) => E('label', { class: 'nfm-cfg-i' }, [ l,
 					E('span', { class: 'nfm-cfg-f' }, [ cfgInputs[k] = E('input', { class: 'nfm-in', type: type || 'number', placeholder: ph || '' }), u ? E('em', {}, u) : '' ]) ]))),

@@ -3,7 +3,7 @@
 #   nightfall-notify send ТЕКСТ   — отправить сообщение (только если TG=1)
 #   nightfall-notify test         — отправить проверочное сообщение (JSON-ответ для интерфейса)
 #   nightfall-notify chatid       — найти chat id по последнему сообщению боту (JSON-ответ)
-# Настройки читаются из /etc/nightfall-monitor.conf: TG, TG_TOKEN, TG_CHAT, TG_PROXY (например socks5h://127.0.0.1:1080).
+# Настройки читаются из /etc/nightfall-monitor.conf: TG, TG_TOKEN, TG_CHAT, TG_PROXY (например socks5h://127.0.0.1:1080), TG_IFACE (интерфейс VPN, например wg0: запросы пойдут через него).
 # Не более 30 сообщений в час, чтобы при сбое не завалить чат.
 # Для тестов: NF_CONF, NF_DIR, NF_CURL (команда вместо curl).
 CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
@@ -12,7 +12,7 @@ CURL=${NF_CURL:-curl}
 HOST=$(cat /proc/sys/kernel/hostname 2>/dev/null || echo router)
 
 cfg() { [ -r "$CONF" ] && sed -n "s/^$1=\"\{0,1\}\([^ #\"]*\).*/\1/p" "$CONF" | head -n 1; }
-TG=$(cfg TG); TOKEN=$(cfg TG_TOKEN); CHAT=$(cfg TG_CHAT); PROXY=$(cfg TG_PROXY)
+TG=$(cfg TG); TOKEN=$(cfg TG_TOKEN); CHAT=$(cfg TG_CHAT); PROXY=$(cfg TG_PROXY); IFACE=$(cfg TG_IFACE)
 
 fail() { printf '{"ok":false,"error":"%s"}\n' "$1"; exit 1; }
 
@@ -20,7 +20,7 @@ fail() { printf '{"ok":false,"error":"%s"}\n' "$1"; exit 1; }
 api() {
 	m=$1; shift
 	command -v "$CURL" >/dev/null 2>&1 || { echo '{"ok":false,"description":"не найден curl (apk add curl)"}'; return 0; }
-	printf 'url = "https://api.telegram.org/bot%s/%s"\n' "$TOKEN" "$m" | "$CURL" -sS -m 25 ${PROXY:+-x "$PROXY"} -K - "$@" 2>&1
+	printf 'url = "https://api.telegram.org/bot%s/%s"\n' "$TOKEN" "$m" | "$CURL" -sS -m 25 ${PROXY:+-x "$PROXY"} ${IFACE:+--interface "$IFACE"} -K - "$@" 2>&1
 }
 
 explain() {  # разбор ответа Telegram: печатает текст ошибки
