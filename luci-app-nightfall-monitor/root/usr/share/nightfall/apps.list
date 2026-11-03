@@ -1,0 +1,24 @@
+# Nightfall: правила для учёта трафика по приложениям.
+# Формат:  Название|домены через пробел|префиксы IP через пробел (необязательно)
+# Домен совпадает с самим именем и со всеми его поддоменами. Префикс IP нужен для сервисов, которые ходят без DNS-запроса (Telegram).
+# Свои правила можно добавить в /etc/nightfall-apps.list (тот же формат): они проверяются первыми.
+YouTube|youtube.com youtu.be googlevideo.com ytimg.com ggpht.com youtube-nocookie.com yt3.ggpht.com youtubei.googleapis.com|
+Telegram|telegram.org t.me telegram.me telegra.ph tdesktop.com telesco.pe cdn-telegram.org|91.108. 149.154.160. 149.154.161. 149.154.162. 149.154.163. 149.154.164. 149.154.165. 149.154.166. 149.154.167. 149.154.168. 149.154.169. 149.154.170. 149.154.171. 2001:b28:f23d: 2001:b28:f23f: 2001:67c:4e8:
+WhatsApp|whatsapp.com whatsapp.net wa.me|
+Instagram|instagram.com cdninstagram.com|
+Facebook|facebook.com fbcdn.net fb.com fbsbx.com facebook.net messenger.com|
+TikTok|tiktok.com tiktokcdn.com tiktokv.com musical.ly byteoversea.com ibytedtos.com|
+Netflix|netflix.com nflxvideo.net nflximg.net nflxext.com nflxso.net|
+Twitch|twitch.tv ttvnw.net jtvnw.net|
+Spotify|spotify.com scdn.co spotifycdn.com|
+Discord|discord.com discordapp.com discordapp.net discord.gg discord.media|
+Zoom|zoom.us zoom.com zoomgov.com|
+Steam|steampowered.com steamcontent.com steamstatic.com steamcdn-a.akamaihd.net valvesoftware.com|
+ВКонтакте|vk.com vk.ru vkuseraudio.net userapi.com vkuservideo.net mycdn.me vk-cdn.net|
+Яндекс|yandex.ru yandex.net yandex.com ya.ru yastatic.net yandexcloud.net kinopoisk.ru|
+Google|google.com googleapis.com gstatic.com googleusercontent.com gvt1.com gvt2.com google.ru|
+Apple|apple.com icloud.com mzstatic.com cdn-apple.com apple-dns.net|
+Microsoft|microsoft.com windowsupdate.com live.com office.com office365.com msftconnecttest.com azureedge.net bing.com|
+Amazon|amazon.com amazonaws.com primevideo.com media-amazon.com|
+X (Twitter)|twitter.com twimg.com x.com t.co|
+Cloudflare|cloudflare.com cloudflare-dns.com|

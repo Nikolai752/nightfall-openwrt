@@ -5,7 +5,7 @@
 #   nightfall-config reset                  — вернуть настройки по умолчанию
 CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
 DEF=${NF_DEF:-/usr/share/nightfall/nightfall-monitor.conf.default}
-KEYS="TEMP_WARN TEMP_CRIT MEM_MIN_PCT FLASH_MAX_PCT CT_MAX_PCT CPU_MAX_PCT CPU_MINUTES PING_TARGET PING_TARGET2 PERSIST_DIR PERSIST_HOURS JOURNAL WIFI_HIST SPEED_HOURS SPEED_URL SPEED_STREAMS"
+KEYS="TEMP_WARN TEMP_CRIT MEM_MIN_PCT FLASH_MAX_PCT CT_MAX_PCT CPU_MAX_PCT CPU_MINUTES PING_TARGET PING_TARGET2 PERSIST_DIR PERSIST_HOURS JOURNAL WIFI_HIST SPEED_HOURS SPEED_URL SPEED_STREAMS APPS"
 
 val() {     # val FILE KEY
 	[ -r "$1" ] && sed -n "s/^$2=\"\{0,1\}\([^ #\"]*\).*/\1/p" "$1" | head -n 1
@@ -62,7 +62,7 @@ set)
 			case "$v" in ''|*[!A-Za-z0-9._:-]*) [ -z "$v" ] || fail "$k: недопустимые символы" ;; esac
 			[ ${#v} -le 64 ] || fail "$k: слишком длинное значение" ;;
 		PERSIST_HOURS) range "$k" "$v" 1 24 ;;
-		JOURNAL|WIFI_HIST) case "$v" in 0|1) ;; *) fail "$k: допустимо 0 или 1" ;; esac ;;
+		JOURNAL|WIFI_HIST|APPS) case "$v" in 0|1) ;; *) fail "$k: допустимо 0 или 1" ;; esac ;;
 		SPEED_HOURS) range "$k" "$v" 0 168 ;;
 		SPEED_STREAMS) range "$k" "$v" 1 8 ;;
 		SPEED_URL)

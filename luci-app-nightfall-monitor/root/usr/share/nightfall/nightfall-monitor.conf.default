@@ -37,3 +37,7 @@ WIFI_HIST=1
 SPEED_HOURS=0
 SPEED_URL=https://speed.cloudflare.com/__down?bytes=25000000
 SPEED_STREAMS=4
+
+# --- трафик по приложениям (YouTube, Telegram и т. д.) ---
+# 1 = включено. Включать лучше кнопкой в карточке «Трафик по приложениям» на странице «Обзор»: она заодно включит журнал DNS в dnsmasq.
+APPS=0

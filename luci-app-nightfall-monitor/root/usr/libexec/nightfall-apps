@@ -1,0 +1,61 @@
+#!/bin/sh
+# Nightfall: учёт трафика по приложениям. Управляет журналом DNS в dnsmasq и настройкой сборщика.
+#   nightfall-apps status    — JSON: включено ли, есть ли журнал DNS и данные
+#   nightfall-apps enable    — включить журнал DNS (/tmp/nightfall-dns.log), счётчики conntrack и сбор
+#   nightfall-apps disable   — вернуть настройки dnsmasq как были и выключить сбор
+#   nightfall-apps clear     — удалить накопленные данные по приложениям
+# Журнал DNS нужен, чтобы понять, какой сервис за каким адресом: имена запросов сопоставляются с адресами соединений.
+# Для тестов: NF_UCI (команда uci), NF_DIR, NF_PREV, NF_CONF, NF_NORESTART=1, NF_DNSLOG.
+DIR=${NF_DIR:-/tmp/nightfall}
+UCI=${NF_UCI:-uci}
+PREV=${NF_PREV:-/etc/nightfall-apps.prev}
+CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
+DNSLOG=${NF_DNSLOG:-/tmp/nightfall-dns.log}
+SYSCTL=${NF_SYSCTL:-/etc/sysctl.d/99-nightfall-acct.conf}
+CFG=${NF_CONFIG_TOOL:-/usr/libexec/nightfall-config}
+
+fail() { printf '{"ok":false,"error":"%s"}\n' "$1"; exit 0; }
+restart_dns() { [ -n "$NF_NORESTART" ] || { /etc/init.d/dnsmasq restart >/dev/null 2>&1 & }; }
+conf_apps() { sed -n 's/^APPS=\([01]\).*/\1/p' "$CONF" 2>/dev/null | head -n 1; }
+
+case "$1" in
+status)
+	en=$(conf_apps); [ "$en" = 1 ] || en=0
+	lq=$($UCI -q get dhcp.@dnsmasq[0].logqueries 2>/dev/null); lf=$($UCI -q get dhcp.@dnsmasq[0].logfacility 2>/dev/null)
+	dl=0; [ -r "$DNSLOG" ] && dl=$(wc -c < "$DNSLOG" | tr -d ' ')
+	dm=0; [ -r "$DIR/dns.map" ] && dm=$(wc -l < "$DIR/dns.map" | tr -d ' ')
+	acct=$(cat /proc/sys/net/netfilter/nf_conntrack_acct 2>/dev/null)
+	printf '{"ok":true,"enabled":%s,"logqueries":"%s","logfacility":"%s","dnslog":%s,"dnsmap":%s,"acct":"%s"}\n' "$en" "$lq" "$lf" "${dl:-0}" "${dm:-0}" "${acct:-}" ;;
+enable)
+	command -v "$UCI" >/dev/null 2>&1 || fail "не найден uci"
+	if [ ! -f "$PREV" ]; then
+		{ echo "logqueries=$($UCI -q get dhcp.@dnsmasq[0].logqueries 2>/dev/null)"; echo "logfacility=$($UCI -q get dhcp.@dnsmasq[0].logfacility 2>/dev/null)"; } > "$PREV" || fail "не удалось сохранить прежние настройки"
+	fi
+	$UCI -q get dhcp.@dnsmasq[0] >/dev/null 2>&1 || fail "в настройках нет dnsmasq"
+	$UCI set dhcp.@dnsmasq[0].logqueries=1 && $UCI set dhcp.@dnsmasq[0].logfacility="$DNSLOG" && $UCI commit dhcp || fail "не удалось изменить настройки dnsmasq"
+	mkdir -p "$(dirname "$SYSCTL")" 2>/dev/null && echo "net.netfilter.nf_conntrack_acct=1" > "$SYSCTL"
+	[ -w /proc/sys/net/netfilter/nf_conntrack_acct ] && echo 1 > /proc/sys/net/netfilter/nf_conntrack_acct
+	"$CFG" set APPS=1 >/dev/null 2>&1 || fail "не удалось включить сбор"
+	restart_dns
+	printf '{"ok":true}\n' ;;
+disable)
+	if [ -f "$PREV" ]; then
+		pl=$(sed -n 's/^logqueries=//p' "$PREV" | head -n 1); pf=$(sed -n 's/^logfacility=//p' "$PREV" | head -n 1)
+		if [ -n "$pl" ]; then $UCI set dhcp.@dnsmasq[0].logqueries="$pl"; else $UCI -q delete dhcp.@dnsmasq[0].logqueries; fi
+		if [ -n "$pf" ]; then $UCI set dhcp.@dnsmasq[0].logfacility="$pf"; else $UCI -q delete dhcp.@dnsmasq[0].logfacility; fi
+		$UCI commit dhcp
+		rm -f "$PREV"
+	else
+		$UCI -q delete dhcp.@dnsmasq[0].logqueries; $UCI -q delete dhcp.@dnsmasq[0].logfacility; $UCI commit dhcp
+	fi
+	"$CFG" set APPS=0 >/dev/null 2>&1
+	restart_dns
+	rm -f "$DNSLOG" "$DIR/dns.map" "$DIR/dns.off"
+	printf '{"ok":true}\n' ;;
+clear)
+	rm -f "$DIR/apps.day" "$DIR/apps.hist" "$DIR/dns.map"
+	printf '{"ok":true}\n' ;;
+*)
+	echo "usage: nightfall-apps status|enable|disable|clear" >&2
+	exit 1 ;;
+esac

@@ -48,6 +48,12 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 
 History is kept in RAM (`/tmp`); nothing is written to flash. To keep history across reboots, point it at a folder on a USB drive or SD card.
 
+### Traffic by application
+
+The "Traffic by application" card on the Overview page shows how much YouTube, Telegram, Netflix and other services downloaded (today, 7 and 30 days, in total or per device). It is switched on with the button in the card: the theme enables the dnsmasq DNS log (`/tmp/nightfall-dns.log`, in RAM, up to 1 MB) and conntrack counters, and the router matches connection addresses to names from DNS queries. Switching it off restores the previous dnsmasq settings. Add your own rules to `/etc/nightfall-apps.list` as `Name|domains separated by spaces|IP prefixes`.
+
+Limits: traffic through a VPN or encrypted DNS (DoH/DoT) cannot be classified, and with Flow Offloading enabled the counters may be too low.
+
 ## Support the project
 
 If you find the theme useful, you can buy the author a cup of tea. It is voluntary and changes nothing.
