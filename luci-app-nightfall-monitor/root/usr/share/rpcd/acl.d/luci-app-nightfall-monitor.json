@@ -17,6 +17,9 @@
 				],
 				"/usr/libexec/nightfall-apps": [
 					"exec"
+				],
+				"/usr/libexec/nightfall-notify": [
+					"exec"
 				]
 			},
 			"ubus": {
