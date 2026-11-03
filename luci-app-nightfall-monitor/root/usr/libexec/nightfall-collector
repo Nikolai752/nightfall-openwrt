@@ -19,7 +19,10 @@ CT=${NF_CT:-$PROC/net/nf_conntrack}
 TEMP_WARN=80; TEMP_CRIT=90; MEM_MIN_PCT=10; FLASH_MAX_PCT=90; CT_MAX_PCT=80
 CPU_MAX_PCT=90; CPU_MINUTES=3
 PING_TARGET=1.1.1.1; PING_TARGET2=77.88.8.8
-PERSIST_DIR=; PERSIST_HOURS=6; JOURNAL=1; WIFI_HIST=1; SPEED_HOURS=0; APPS=0
+PERSIST_DIR=; PERSIST_HOURS=6; JOURNAL=1; WIFI_HIST=1; SPEED_HOURS=0; APPS=0; NEWDEV=1; TG=0; TG_ALERTS=1
+NOTIFY=${NF_NOTIFY:-/usr/libexec/nightfall-notify}
+KNOWN=${NF_KNOWN:-/etc/nightfall-known.list}
+LEASES=${NF_LEASES:-/tmp/dhcp.leases}
 DNSLOG=${NF_DNSLOG:-/tmp/nightfall-dns.log}
 RULES=${NF_RULES:-/usr/share/nightfall/apps.list}
 RULES_USER=${NF_RULES_USER:-/etc/nightfall-apps.list}
@@ -44,8 +47,20 @@ HOST=$(cat "$PROC/sys/kernel/hostname" 2>/dev/null || echo router)
 # ---------- события и предупреждения ----------
 clean() { printf '%s' "$1" | tr -d '"\\|' | tr '\n' ' '; }
 
-event() {   # event LEVEL TEXT
+tgsend() {  # tgsend ТЕКСТ: в фоне, чтобы сбой сети не тормозил сборщик
+	[ "$TG" = 1 ] && [ -x "$NOTIFY" ] || return 0
+	"$NOTIFY" send "$1" >/dev/null 2>&1 &
+}
+
+event() {   # event LEVEL TEXT [quiet]
 	printf '%s|%s|%s\n' "$now" "$1" "$(clean "$2")" >> "$DIR/events.log"
+	[ "$3" = quiet ] && return 0
+	[ "$TG_ALERTS" = 1 ] || return 0
+	case "$1" in
+		warn) tgsend "⚠️ $(clean "$2")" ;;
+		bad) tgsend "🔴 $(clean "$2")" ;;
+		ok) tgsend "✅ $(clean "$2")" ;;
+	esac
 }
 
 fmt_dur() {
@@ -109,6 +124,40 @@ ping_ms() {     # ping_ms HOST -> миллисекунды или -1
 	[ -n "$1" ] || { echo -1; return; }
 	r=$(ping -c 1 -W 1 "$1" 2>/dev/null | awk -F'time=' '/time=/ { split($2, a, " "); print a[1]; exit }')
 	[ -n "$r" ] && echo "$r" || echo -1
+}
+
+# ---------- новые устройства ----------
+# Источник: ARP-таблица (проводные и Wi-Fi) и аренды DHCP. Первый запуск только запоминает то, что уже есть.
+do_newdev() {
+	[ "$NEWDEV" = 1 ] || return 0
+	[ -r "$PROC/net/arp" ] || return 0
+	seed=0; [ -f "$KNOWN" ] || seed=1
+	awk -v known="$KNOWN" -v leases="$LEASES" -v seed="$seed" -v out="$DIR/newdev.out" -v wan="$wdev" '
+		BEGIN {
+			while ((getline l < known) > 0) { split(l, a, "|"); k[a[1]] = 1 }
+			close(known)
+			while ((getline l < leases) > 0) { split(l, a, " "); m = tolower(a[2]); nm[m] = (a[4] == "*" ? "" : a[4]); ip[m] = a[3]; ls[m] = 1 }
+			close(leases)
+		}
+		NR > 1 && $3 == "0x2" && $4 != "00:00:00:00:00:00" && $6 != wan {
+			m = tolower($4); ip[m] = $1
+			if (!(m in k)) { k[m] = 1; print m "|" nm[m] "|" ip[m] > out; n++ }
+		}
+		END {
+			# арендованные, но сейчас не видимые адреса тоже считаем знакомыми (иначе после включения «новыми» станут свои выключенные устройства)
+			for (m in ls) if (!(m in k)) { k[m] = 1; print m "|" nm[m] "|" ip[m] > out }
+		}' "$PROC/net/arp"
+	[ -s "$DIR/newdev.out" ] || { rm -f "$DIR/newdev.out"; [ "$seed" = 1 ] && : > "$KNOWN"; return 0; }
+	while IFS='|' read -r m nm ipa; do
+		printf '%s|%s|%s\n' "$m" "$nm" "$now" >> "$KNOWN"
+		[ "$seed" = 1 ] && continue
+		h=$(printf '%s' "$m" | cut -c2)
+		priv=""; case "$h" in 2|6|a|e|A|E) priv=" (частный адрес Wi-Fi, у телефона он может меняться)" ;; esac
+		txt="Новое устройство в сети: ${nm:-без имени}, $ipa, $m$priv"
+		event warn "$txt" quiet
+		tgsend "🆕 $(clean "$txt"). Если это ваше устройство, больше это сообщение не повторится."
+	done < "$DIR/newdev.out"
+	rm -f "$DIR/newdev.out"
 }
 
 # журнал DNS dnsmasq -> dns.map («адрес приложение»): по именам из ответов определяем, какому сервису принадлежит адрес
@@ -440,6 +489,7 @@ while :; do
 		if [ "$lastts" -gt 1700000000 ] && [ "$bt" -gt "$lastts" ]; then gap_note="; данных не было $(fmt_dur $((bt - lastts)))"; fi
 		if ! tail -n 5 "$JOURNAL_FILE" 2>/dev/null | awk -F'|' -v bt="$bt" '$2 == "boot" { d = bt - $1; if (d < 0) d = -d; if (d < 180) f = 1 } END { exit !f }'; then
 			jwrite "$bt" boot 0 "Роутер загружен${gap_note}"
+			[ "$TG_ALERTS" = 1 ] && tgsend "🔄 Роутер загружен${gap_note}"
 		fi
 	fi
 
@@ -458,6 +508,7 @@ while :; do
 		printf '%s %s %s %s %s %s %s %s %s %s\n' "$now" "$cpu" "$mem" "$temp" "$rx" "$tx" "$gwms" "$netms" "$loss" "$ctn" >> "$DIR/hist.fine"
 		do_dns
 		do_devices
+		do_newdev
 		wtick=$((wtick + 1))
 		if [ "$WIFI_HIST" = 1 ] && [ $((wtick % 4)) = 1 ]; then do_wifi; fi
 		if [ "$SPEED_HOURS" -gt 0 ] 2>/dev/null && [ "$netms" != -1 ] && [ $((now - last_speed)) -ge $((SPEED_HOURS * 3600)) ] && [ "$rx" -lt 400000 ] 2>/dev/null; then
