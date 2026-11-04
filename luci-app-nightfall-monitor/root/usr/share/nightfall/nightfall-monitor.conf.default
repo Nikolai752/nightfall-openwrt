@@ -52,6 +52,8 @@ NEWDEV=1
 # укажите прокси, например socks5h://127.0.0.1:1080 (нужен curl: apk add curl).
 TG=0
 TG_ALERTS=1
+# Команды боту: /status /clients /traffic /apps /speed /help. Отвечает только владельцу (TG_CHAT).
+TG_BOT=1
 TG_TOKEN=
 TG_CHAT=
 TG_PROXY=
