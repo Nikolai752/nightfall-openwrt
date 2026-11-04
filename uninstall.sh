@@ -16,6 +16,7 @@ uci commit luci
 # 2. по желанию — удалить файлы
 if [ "$1" = "--purge" ]; then
 	# вернуть настройки dnsmasq, если включали учёт трафика по приложениям
+	nft delete table inet nightfall 2>/dev/null || true
 	[ -x /usr/libexec/nightfall-apps ] && /usr/libexec/nightfall-apps disable >/dev/null 2>&1 || true
 	if [ -x /etc/init.d/nightfall-collector ]; then
 		/etc/init.d/nightfall-collector stop 2>/dev/null || true
@@ -25,7 +26,7 @@ if [ "$1" = "--purge" ]; then
 	       /www/luci-static/resources/menu-nightfall.js /www/luci-static/resources/view/nightfall \
 	       /usr/share/ucode/luci/template/themes/nightfall /usr/share/ucode/luci/template/themes/nightfall-light \
 	       /usr/share/ucode/luci/template/themes/nightfall-dark /usr/libexec/nightfall-stats \
-	       /usr/libexec/nightfall-history /usr/libexec/nightfall-collector /usr/libexec/nightfall-config /usr/libexec/nightfall-speed /usr/libexec/nightfall-update /usr/libexec/nightfall-apps /usr/libexec/nightfall-notify /usr/libexec/nightfall-bot /etc/nightfall-known.list /etc/nightfall-release.pub /etc/nightfall-apps.prev /etc/init.d/nightfall-collector \
+	       /usr/libexec/nightfall-history /usr/libexec/nightfall-collector /usr/libexec/nightfall-config /usr/libexec/nightfall-speed /usr/libexec/nightfall-update /usr/libexec/nightfall-apps /usr/libexec/nightfall-notify /usr/libexec/nightfall-bot /usr/libexec/nightfall-block /etc/nightfall-block.list /etc/nightfall-known.list /etc/nightfall-release.pub /etc/nightfall-apps.prev /etc/init.d/nightfall-collector \
 	       /usr/share/nightfall /tmp/nightfall \
 	       /usr/share/luci/menu.d/luci-app-nightfall-monitor.json /usr/share/luci/menu.d/luci-theme-nightfall.json /usr/share/rpcd/acl.d/luci-app-nightfall-monitor.json
 	# /etc/nightfall-monitor.conf и /etc/nightfall-prefs.json оставлены: там ваши настройки (удалите вручную, если не нужны)

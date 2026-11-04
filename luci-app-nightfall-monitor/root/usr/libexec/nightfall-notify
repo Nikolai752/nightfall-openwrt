@@ -30,9 +30,13 @@ explain() {  # разбор ответа Telegram: печатает текст �
 	printf '%s' "$d"
 }
 
-post() {  # post ТЕКСТ -> 0 если доставлено; ответ в $RESP
+post() {  # post ТЕКСТ [КНОПКИ_JSON] -> 0 если доставлено; ответ в $RESP
 	t=$(mktemp 2>/dev/null || echo "$DIR/tg.msg"); printf '%s' "$1" > "$t"
-	RESP=$(api sendMessage --data-urlencode "chat_id=$CHAT" --data-urlencode "text@$t")
+	if [ -n "$2" ]; then
+		RESP=$(api sendMessage --data-urlencode "chat_id=$CHAT" --data-urlencode "text@$t" --data-urlencode "reply_markup=$2")
+	else
+		RESP=$(api sendMessage --data-urlencode "chat_id=$CHAT" --data-urlencode "text@$t")
+	fi
 	rm -f "$t"
 	case "$RESP" in *'"ok":true'*) return 0 ;; esac
 	return 1
@@ -66,9 +70,9 @@ chatid)
 raw)       # raw МЕТОД [аргументы curl]: служебный вызов API для nightfall-bot
 	[ -n "$TOKEN" ] || exit 1
 	m=$2; shift 2; api "$m" "$@" ;;
-reply)     # reply ТЕКСТ: ответ в чат без лимита и без приставки (для команд бота)
+reply)     # reply ТЕКСТ [КНОПКИ_JSON]: ответ в чат без лимита и без приставки (для бота)
 	[ -n "$TOKEN" ] && [ -n "$CHAT" ] || exit 1
-	post "$2" ;;
+	post "$2" "$3" ;;
 *)
 	echo "usage: nightfall-notify send TEXT | test | chatid" >&2
 	exit 1 ;;

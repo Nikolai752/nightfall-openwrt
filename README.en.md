@@ -50,7 +50,10 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 - How much YouTube, Telegram, Netflix, Google, Yandex and other services downloaded: today, 7 and 30 days, in total or per device. Details below.
 
 **Telegram notifications and bot**
-- Messages about lost and restored internet, overheating, low memory, reboots and new devices; bot commands `/status`, `/clients`, `/traffic`, `/apps`, `/speed`. Details below.
+- Messages about lost and restored internet, overheating, low memory, reboots and new devices; a button-driven bot (status, clients, traffic, device blocking, reboot) and a daily report. Details below.
+
+**Internet access**
+- A card on the Overview page and bot buttons: cut a device off the internet manually or on a schedule (for example a child's tablet from 23:00 to 07:00).
 
 **Updating from the interface**
 - A "New version available" dialog, one-click install with sha256 and signature checks, rollback on error, release notes after sign-in. See "Updating".
@@ -75,7 +78,13 @@ The monitor can message you in Telegram when the internet goes down or comes bac
 3. Press "Detect chat id", then "Send test".
 4. Turn on "Send notifications" and save.
 
-**Bot commands** (answered to the owner only, i.e. your chat id): `/status` (internet, load, temperature, memory), `/clients` (who is online), `/traffic` (per-device traffic today), `/apps` (traffic by application), `/speed` (last speed test), `/help`. The command menu appears in Telegram by itself. Turn it off with `TG_BOT=0`.
+**Button bot** (answered to the owner only, i.e. your chat id). Send the bot `/menu` and buttons appear under the message: Status, Clients, Traffic, Apps, Speed, Block and Reboot. The commands `/status`, `/clients`, `/traffic`, `/apps`, `/speed`, `/block`, `/reboot`, `/report` work too. Turn it off with `TG_BOT=0`.
+
+**Device blocking.** The "Block" button lists devices (🟢 online, 🔴 blocked, ⏰ has a schedule); tapping one cuts it off the internet or restores it. The "Internet access" card on the Overview page does the same and also sets a daily "from … to …" schedule (may cross midnight). Only internet forwarding is blocked, by MAC address (a separate nft table `inet nightfall`); the router and the LAN stay reachable. Phones with a random Wi-Fi address are better blocked in the phone's own settings. The list lives in `/etc/nightfall-block.list`.
+
+**Reboot** from the bot asks for confirmation with a button.
+
+**Daily report.** Set "Daily report, time" in the settings (for example `21:00`): at that time you get the day's traffic, top devices and applications, warnings and peak temperature. Empty = off.
 
 Requires **curl** (`apk add curl`). If `api.telegram.org` is blocked, set a "Telegram proxy" (for example `socks5h://127.0.0.1:1080`) or a "VPN interface" (for example `wg0`) and Telegram requests will go through it. Known devices are kept in `/etc/nightfall-known.list`; phones using a random Wi-Fi address may look new. The bot token is stored in `/etc/nightfall-monitor.conf` (mode 600) and is never shown in the interface.
 

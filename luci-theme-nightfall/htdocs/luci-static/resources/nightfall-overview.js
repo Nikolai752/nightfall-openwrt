@@ -37,7 +37,7 @@ const nf2 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2, minimumFr
 
 /* card priority: lower goes first; unknown cards keep their order after the known ones */
 const PRIORITY = [
-	/Интернет|Internet/i, /^(Сеть|Network)$/i, /порт|Port/i, /Беспровод|Wireless|Wi-?Fi/i, /Топ клиентов/i, /Трафик по приложениям/i,
+	/Интернет|Internet/i, /^(Сеть|Network)$/i, /порт|Port/i, /Беспровод|Wireless|Wi-?Fi/i, /Топ клиентов/i, /Трафик по приложениям/i, /Доступ в интернет/,
 	/Состояние роутера/, /сейчас$/, /Лента событий/, /Быстрые действия/,
 	/^(Система|System)$/i, /Температур|Temperature/i, /Память|Memory/i, /Хранилищ|Storage/i, /DHCP|Аренд/i, /DSL/i
 ];
@@ -1001,6 +1001,75 @@ function appsCard() {
 	return { el, contains: n => el.contains(n), start() { load(); timer = window.setInterval(load, 15000); } };
 }
 
+/* ---------- «Доступ в интернет»: отключение устройств вручную и по расписанию ---------- */
+
+const BLOCKBIN = '/usr/libexec/nightfall-block';
+
+function blockCard() {
+	const body = E('div', { class: 'nf-blk-b' }, E('div', { class: 'nf-empty' }, 'Собираю данные…'));
+	const el = xcard('nf-block', 'Доступ в интернет', body);
+	let timer = null, devs = null, busy = false, open = null, note = '';
+
+	const run = args => fs.exec(BLOCKBIN, args).then(r => { try { return JSON.parse(r.stdout); } catch (e) { return null; } });
+
+	function act(args, okNote) {
+		if (busy) return;
+		busy = true;
+		run(args).then(r => {
+			busy = false;
+			note = r && r.ok ? okNote : ((r && r.error) || 'Нет ответа от роутера. Выйдите и войдите в LuCI снова (права обновляются при входе).');
+			open = r && r.ok ? null : open;
+			load(true);
+		}).catch(() => { busy = false; note = 'Не получилось выполнить команду.'; load(true); });
+	}
+
+	function sched(d) {
+		const from = E('input', { type: 'time', value: d.from || '23:00', 'aria-label': 'Отключать с' });
+		const to = E('input', { type: 'time', value: d.to || '07:00', 'aria-label': 'Включать в' });
+		return E('div', { class: 'nf-blk-sched' }, [
+			E('span', {}, 'Отключать каждый день с'), from, E('span', {}, 'до'), to,
+			E('button', { type: 'button', class: 'cbi-button cbi-button-action', click: () => act([ 'sched', d.mac, from.value, to.value, d.name || '' ], 'Расписание сохранено.') }, 'Сохранить'),
+			d.from ? E('button', { type: 'button', class: 'cbi-button', click: () => act([ 'sched', d.mac, 'off' ], 'Расписание убрано.') }, 'Убрать') : ''
+		]);
+	}
+
+	function render() {
+		if (EDITING || busy) return;
+		if (!devs) {
+			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Нет данных'), E('span', {}, 'Не удалось получить список устройств. Если вы только что обновили тему, выйдите и войдите в LuCI снова.') ]));
+			return;
+		}
+		const rows = devs.slice().sort((a, b) => (b.manual - a.manual) || ((b.from ? 1 : 0) - (a.from ? 1 : 0)) || (b.online - a.online) || (a.name || a.ip || a.mac).localeCompare(b.name || b.ip || b.mac)).slice(0, 30);
+		const list = rows.map(d => {
+			const nm = d.name || d.ip || d.mac;
+			const st = d.manual ? E('span', { class: 'nf-blk-st bad' }, 'отключено')
+				: d.from ? E('span', { class: 'nf-blk-st' }, '⏰ ' + d.from + '–' + d.to)
+				: E('span', { class: 'nf-blk-st ' + (d.online ? 'ok' : '') }, d.online ? 'в сети' : 'не в сети');
+			const line = E('div', { class: 'nf-blk-r' + (d.manual ? ' off' : '') }, [
+				E('div', { class: 'nf-blk-n' }, [ E('b', {}, nm), E('span', {}, (d.ip ? d.ip + ' · ' : '') + d.mac) ]),
+				st,
+				E('div', { class: 'nf-blk-a' }, [
+					E('button', { type: 'button', class: 'cbi-button ' + (d.manual ? 'cbi-button-action' : 'cbi-button-remove'),
+						click: () => act([ d.manual ? 'unblock' : 'block', d.mac, nm ], d.manual ? nm + ': интернет возвращён.' : nm + ': интернет отключён.') }, d.manual ? 'Вернуть' : 'Отключить'),
+					E('button', { type: 'button', class: 'cbi-button', 'aria-expanded': String(open === d.mac), click: () => { open = open === d.mac ? null : d.mac; render(); } }, '⏰')
+				])
+			]);
+			return open === d.mac ? E('div', { class: 'nf-blk-g' }, [ line, sched(d) ]) : line;
+		});
+		body.replaceChildren(
+			note ? E('div', { class: 'nf-blk-note' }, note) : '',
+			...(list.length ? list : [ E('div', { class: 'nf-empty' }, 'Устройств не видно.') ]),
+			E('div', { class: 'nf-apps-f' }, E('span', {}, 'Устройству отключается выход в интернет (по MAC-адресу). Роутер и локальная сеть остаются доступными, поэтому вернуть доступ можно всегда. Устройства со «случайным» Wi-Fi адресом лучше отключить в настройках самого телефона. То же можно делать кнопками в Telegram-боте.')));
+	}
+
+	function load(force) {
+		if (!force && (idle(el) || busy || EDITING || open)) return;
+		run([ 'list' ]).then(r => { devs = r && r.ok ? r.devices : null; render(); }).catch(() => { devs = null; render(); });
+	}
+
+	return { el, contains: n => el.contains(n), start() { load(true); timer = window.setInterval(load, 20000); } };
+}
+
 /* ---------- extra cards ---------- */
 
 function xcard(cls, title, body) {
@@ -1245,7 +1314,7 @@ return baseclass.extend({
 				sortCards(view, loadOrder());
 				view.insertBefore(strip.el, cardsOf(view)[0]);
 				strip.start();
-				extras = [ healthCard(), wifiCard(), eventsCard(), quickCard(), topCard(), appsCard() ];
+				extras = [ healthCard(), wifiCard(), eventsCard(), quickCard(), topCard(), appsCard(), blockCard() ];
 				extras.forEach(x => { view.appendChild(x.el); x.start(); });
 			}
 			else {
