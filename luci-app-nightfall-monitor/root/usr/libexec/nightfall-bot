@@ -222,6 +222,7 @@ if [ "$1" = report ]; then reply() { printf '%s\n' "$1"; }; cmd_report; exit 0; 
 # меню команд в Telegram (кнопка «Меню» у бота)
 "$NOTIFY" raw setMyCommands -d 'commands=[{"command":"menu","description":"Меню с кнопками"},{"command":"status","description":"Состояние роутера"},{"command":"clients","description":"Кто в сети"},{"command":"traffic","description":"Трафик устройств"},{"command":"apps","description":"Трафик по приложениям"},{"command":"block","description":"Блокировка устройств"},{"command":"report","description":"Отчёт за сутки"},{"command":"reboot","description":"Перезагрузить роутер"}]' >/dev/null 2>&1
 
+date +%s > "$DIR/bot.start"; rm -f "$DIR/bot.err"
 # накопившиеся за время простоя команды пропускаем
 off=0
 r=$("$NOTIFY" raw getUpdates -d offset=-1 2>/dev/null)
@@ -248,6 +249,7 @@ while :; do
 		done < "$DIR/bot.upd" ;;
 	*)
 		fails=$((fails + 1)); d=$((fails * 10)); [ "$d" -le 120 ] || d=120
+		printf '%s %s\n' "$(date +%s)" "$(printf '%s' "$r" | head -c 300 | tr -d '\n')" > "$DIR/bot.err"   # последняя ошибка: смотреть командой cat /tmp/nightfall/bot.err
 		[ -n "$NF_NOSLEEP" ] || sleep "$d" ;;
 	esac
 	[ -n "$NF_ONCE" ] && break
