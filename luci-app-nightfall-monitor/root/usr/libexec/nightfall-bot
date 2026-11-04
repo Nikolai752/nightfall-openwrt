@@ -200,7 +200,7 @@ handle() {  # handle ТЕКСТ
 
 # разбор ответа getUpdates: строки «update_id|chat_id|id_нажатия|данные_кнопки|текст»
 parse() {
-	sed 's/{"update_id":/\n&/g' | awk '
+	tr '\n' ' ' | sed 's/{"update_id":/\n&/g' | awk '
 		/^\{"update_id":/ {
 			id = $0; sub(/^\{"update_id":/, "", id); sub(/[^0-9].*/, "", id)
 			chat = ""; if (match($0, /"chat":\{"id":-?[0-9]+/)) chat = substr($0, RSTART + 13, RLENGTH - 13)
