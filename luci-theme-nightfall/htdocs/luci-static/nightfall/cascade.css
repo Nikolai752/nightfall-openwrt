@@ -4965,3 +4965,46 @@ html[data-nf-ov-block="off"] .nf-block { display: none !important; }
 	.nf-blk-st { grid-column: 1; grid-row: 2; }
 	.nf-blk-a { grid-column: 2; grid-row: 1 / span 2; }
 }
+.nf-blk-sched input[type="number"] { width: 6em; }
+.nf-blk-log { display: flex; flex-direction: column; gap: 4px; padding: 6px 0 10px; border-top: 1px solid var(--nf-stroke); font-size: calc(13px * var(--nf-fsz, 1)); }
+.nf-blk-log > div { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.nf-blk-log span { color: var(--nf-text-dim); }
+.nf-blk-log .bad { color: var(--nf-bad, #ff6b6b); }
+.nf-blk-log .ok { color: var(--nf-ok, #3ecf8e); }
+.nf-blk-log i { color: var(--nf-text-dim); font-style: normal; }
+
+/* ======== v20261104a: фон входа по времени суток, плавное появление графиков, размеры карточек ======== */
+:root[data-nf-login-bg="tod"][data-nf-tod] body.nf-blank { background: var(--tod-bg, linear-gradient(180deg, #2b3a67, #101828)); }
+html[data-nf-login-bg="tod"][data-nf-tod="dawn"] body.nf-blank { --tod-bg: linear-gradient(180deg, #ffd6a5 0%, #ffb3c1 38%, #9ec5ff 100%); --tod-glow: #fff3b0; }
+html[data-nf-login-bg="tod"][data-nf-tod="day"] body.nf-blank { --tod-bg: linear-gradient(180deg, #5ab2ff 0%, #9bd4ff 55%, #e2f3ff 100%); --tod-glow: #fff7c2; }
+html[data-nf-login-bg="tod"][data-nf-tod="dusk"] body.nf-blank { --tod-bg: linear-gradient(180deg, #3a2a6a 0%, #c2507c 52%, #ffb36b 100%); --tod-glow: #ffd8a8; }
+html[data-nf-login-bg="tod"][data-nf-tod="night"] body.nf-blank { --tod-bg: radial-gradient(900px 600px at 80% 12%, #2d3b78 0%, transparent 60%), linear-gradient(180deg, #0b1230 0%, #131a3f 60%, #1b2350 100%); --tod-glow: #dfe6ff; }
+html[data-nf-login-bg="tod"] body.nf-blank::before { content: ""; position: fixed; z-index: -1; pointer-events: none; width: 220px; height: 220px; left: auto; right: 12%; top: 9%; border-radius: 50%;
+	background: radial-gradient(circle, var(--tod-glow, #fff) 0 28%, transparent 70%); opacity: .75; filter: blur(2px); animation: nf-tod-float 24s ease-in-out infinite alternate; }
+html[data-nf-login-bg="tod"][data-nf-tod="night"] body.nf-blank::before { width: 90px; height: 90px; background: radial-gradient(circle at 35% 35%, #fff 0 55%, #cdd6ff 70%, transparent 72%); opacity: .9; filter: none; box-shadow: 0 0 60px 18px rgba(200, 212, 255, .35); }
+html[data-nf-login-bg="tod"][data-nf-tod="night"] body.nf-blank::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .8;
+	background-image: radial-gradient(1.5px 1.5px at 12% 22%, #fff, transparent), radial-gradient(1.5px 1.5px at 33% 68%, #fff, transparent), radial-gradient(1px 1px at 55% 14%, #fff, transparent), radial-gradient(1.5px 1.5px at 71% 46%, #fff, transparent), radial-gradient(1px 1px at 88% 78%, #fff, transparent), radial-gradient(1px 1px at 22% 88%, #fff, transparent), radial-gradient(1.5px 1.5px at 94% 30%, #fff, transparent);
+	animation: nf-tod-twinkle 6s ease-in-out infinite alternate; }
+@keyframes nf-tod-float { from { transform: translate(0, 0); } to { transform: translate(-6vw, 4vh); } }
+@keyframes nf-tod-twinkle { from { opacity: .45; } to { opacity: .9; } }
+html[data-nf-motion="off"][data-nf-login-bg="tod"] body.nf-blank::before, html[data-nf-motion="off"][data-nf-login-bg="tod"] body.nf-blank::after { animation: none !important; }
+html[data-nf-login-bg="tod"][data-nf-tod="day"] .nf-lock, html[data-nf-login-bg="tod"][data-nf-tod="day"] .nf-stats { color: #10243f; text-shadow: none; }
+html[data-nf-login-bg="tod"][data-nf-tod="dawn"] .nf-lock, html[data-nf-login-bg="tod"][data-nf-tod="dawn"] .nf-stats { color: #3a2340; text-shadow: none; }
+
+/* графики и столбцы плавно «вырастают» при первом показе */
+@keyframes nf-grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes nf-reveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+html:not([data-nf-motion="off"]) .nf-top-bar i { transform-origin: left center; animation: nf-grow-x .7s cubic-bezier(.2, .7, .2, 1) both; }
+html:not([data-nf-motion="off"]) .nf-spark path { animation: nf-reveal .9s cubic-bezier(.3, .6, .2, 1) both; }
+
+/* размер карточки на «Обзоре»: обычная, широкая (на всю ширину), свёрнутая (только заголовок) */
+.nf-size { width: 24px; height: 24px; padding: 0; margin-left: 2px; border: 0; border-radius: 6px; background: transparent; box-shadow: none; cursor: pointer; opacity: 0; transition: opacity .15s, background-color .15s; color: var(--nf-text-dim); font: inherit; font-size: calc(14px * var(--nf-fsz, 1)); line-height: 1; }
+.nf-size::before { content: "▢"; }
+.nf-size[data-s="wide"]::before { content: "⇔"; }
+.nf-size[data-s="min"]::before { content: "▁"; }
+.cbi-title:hover .nf-size, .nf-size:focus-visible, .nf-size:not([data-s=""]) { opacity: 1; }
+.nf-size:hover { background: var(--nf-hover); }
+@media (hover: none) { .nf-size { opacity: .6; } }
+@media (min-width: 900px) { body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .cbi-section.nf-wide { grid-column: 1 / -1; } }
+.cbi-section.nf-min > :not(.cbi-title) { display: none !important; }
+.cbi-section.nf-min { padding-bottom: 6px; }

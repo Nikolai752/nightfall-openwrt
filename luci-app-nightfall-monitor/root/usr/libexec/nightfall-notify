@@ -53,7 +53,7 @@ send)
 	[ "${cnt:-0}" -lt 30 ] || exit 0
 	echo "$now" >> "$rf"
 	# сразу после загрузки сеть может быть ещё не готова: до трёх попыток
-	for try in 1 2 3; do post "$HOST: $2" && exit 0; [ -n "$NF_NOSLEEP" ] || sleep 20; done
+	for try in 1 2 3; do post "$HOST: $2" "$3" && exit 0; [ -n "$NF_NOSLEEP" ] || sleep 20; done
 	exit 1 ;;
 test)
 	[ -n "$TOKEN" ] || fail "не указан токен бота"
@@ -73,7 +73,29 @@ raw)       # raw МЕТОД [аргументы curl]: служебный выз
 reply)     # reply ТЕКСТ [КНОПКИ_JSON]: ответ в чат без лимита и без приставки (для бота)
 	[ -n "$TOKEN" ] && [ -n "$CHAT" ] || exit 1
 	post "$2" "$3" ;;
+edit)      # edit ID_СООБЩЕНИЯ ТЕКСТ [КНОПКИ_JSON]: заменить текст и кнопки существующего сообщения (быстрее и без россыпи сообщений)
+	[ -n "$TOKEN" ] && [ -n "$CHAT" ] || exit 1
+	t=$(mktemp 2>/dev/null || echo "$DIR/tg.msg"); printf '%s' "$3" > "$t"
+	if [ -n "$4" ]; then RESP=$(api editMessageText --data-urlencode "chat_id=$CHAT" -d "message_id=$2" --data-urlencode "text@$t" --data-urlencode "reply_markup=$4")
+	else RESP=$(api editMessageText --data-urlencode "chat_id=$CHAT" -d "message_id=$2" --data-urlencode "text@$t" --data-urlencode 'reply_markup={"inline_keyboard":[]}'); fi
+	rm -f "$t"
+	case "$RESP" in *'"ok":true'*|*'not modified'*) exit 0 ;; esac
+	post "$3" "$4" ;;                     # старое сообщение не изменить: пришлём новое
+backup)    # backup: отправить в чат архив настроек Nightfall (без токена бота)
+	[ -n "$TOKEN" ] || fail "не указан токен бота"
+	[ -n "$CHAT" ] || fail "не указан chat id"
+	w=$(mktemp -d 2>/dev/null || { mkdir -p "$DIR/bk" && echo "$DIR/bk"; })
+	mkdir -p "$w/etc"
+	for f in nightfall-monitor.conf nightfall-prefs.json nightfall-block.list nightfall-block.log nightfall-known.list nightfall-apps.list nightfall-journal.log; do
+		[ -r "/etc/$f" ] && cp "/etc/$f" "$w/etc/$f"
+	done
+	[ -f "$w/etc/nightfall-monitor.conf" ] && sed -i 's/^TG_TOKEN=.*/TG_TOKEN=/' "$w/etc/nightfall-monitor.conf"
+	n="nightfall-backup-$HOST-$(date +%Y%m%d).tar.gz"
+	tar -czf "$w/$n" -C "$w" etc 2>/dev/null || { rm -rf "$w"; fail "не удалось создать архив (нужен tar)"; }
+	RESP=$(api sendDocument -F "chat_id=$CHAT" -F "document=@$w/$n;filename=$n" -F "caption=Резервная копия настроек Nightfall. Токен бота в неё не входит. Восстановление: tar -xzf $n -C /, затем снова укажите токен и перезапустите службу.")
+	rm -rf "$w"
+	case "$RESP" in *'"ok":true'*) printf '{"ok":true}\n' ;; *) fail "$(explain "$RESP")" ;; esac ;;
 *)
-	echo "usage: nightfall-notify send TEXT | test | chatid" >&2
+	echo "usage: nightfall-notify send TEXT [KB] | test | chatid | backup" >&2
 	exit 1 ;;
 esac

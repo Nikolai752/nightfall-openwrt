@@ -9,7 +9,7 @@
 
 	var KEY = 'nightfall-prefs-v1';
 	var root = document.documentElement;
-	var DEFAULTS = { mode: 'auto', accent: '', motion: true, bg: 'mica', bgScale: 100,
+	var DEFAULTS = { mode: 'auto', accent: '', motion: true, liteAuto: true, bg: 'mica', bgScale: 100,
 		density: 'normal', font: 'md', radius: 'md', glass: 'on', loginClock: true, loginInfo: true, loginBg: 'mica', ovLive: true, ovBadges: true,
 		style: '', preset: 'win11', navMini: false, schedule: false, nightFrom: '20:00', dayFrom: '07:00', netBar: true, constLogin: true, constApp: false, constKind: 'net',
 		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, ovTop: true, ovApps: true, ovBlock: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
@@ -210,8 +210,19 @@
 		applyAccent();
 	}
 
+	/* слабое устройство: мало памяти или ядер; тогда анимации выключаются сами (можно отключить это в «Персонализации») */
+	function weakDevice() {
+		try { return (navigator.deviceMemory && navigator.deviceMemory <= 2) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2); } catch (e) { return false; }
+	}
+
+	/* часть суток для фона входа: утро 5–10, день 10–17, вечер 17–21, ночь 21–5 */
+	function todPart() {
+		var hr = new Date().getHours();
+		return hr >= 5 && hr < 10 ? 'dawn' : hr >= 10 && hr < 17 ? 'day' : hr >= 17 && hr < 21 ? 'dusk' : 'night';
+	}
+
 	function applyMotion() {
-		var off = !prefs.motion || mqMotion.matches;
+		var off = !prefs.motion || mqMotion.matches || (prefs.liteAuto !== false && weakDevice());
 
 		if (off) root.setAttribute('data-nf-motion', 'off');
 		else root.removeAttribute('data-nf-motion');
@@ -748,7 +759,8 @@
 		root.setAttribute('data-nf-glass', g);
 		root.setAttribute('data-nf-login-clock', on(prefs.loginClock));
 		root.setAttribute('data-nf-login-info', on(prefs.loginInfo));
-		root.setAttribute('data-nf-login-bg', pick(prefs.loginBg, [ 'mica', 'flat', 'aurora', 'waves' ], 'mica'));
+		root.setAttribute('data-nf-login-bg', pick(prefs.loginBg, [ 'mica', 'flat', 'aurora', 'waves', 'tod' ], 'mica'));
+		root.setAttribute('data-nf-tod', todPart());
 		root.setAttribute('data-nf-ov-live', on(prefs.ovLive));
 		root.setAttribute('data-nf-ov-badges', on(prefs.ovBadges));
 		root.setAttribute('data-nf-ov-size', pick(prefs.ovSize, [ 'sm', 'md', 'lg' ], 'md'));
@@ -874,7 +886,7 @@
 		var more = h('div', { 'class': 'nf-pop-sec' }, [
 			h('div', { 'class': 'nf-pop-l', text: 'Экран входа' }),
 			sw('loginClock', 'Часы и дата'), sw('loginInfo', 'Сводка о роутере'), sw('constLogin', 'Анимированный фон')
-		].concat(seg2('constKind', 'Вид анимации', [ [ 'net', 'Созвездия' ], [ 'fire', 'Светлячки' ], [ 'bubbles', 'Пузыри' ], [ 'snow', 'Снег' ], [ 'meteors', 'Звёзды' ] ], true)).concat(seg2('loginBg', 'Фон входа', [ [ 'mica', 'Как у темы' ], [ 'flat', 'Однотонный' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ] ], true)));
+		].concat(seg2('constKind', 'Вид анимации', [ [ 'net', 'Созвездия' ], [ 'fire', 'Светлячки' ], [ 'bubbles', 'Пузыри' ], [ 'snow', 'Снег' ], [ 'meteors', 'Звёзды' ] ], true)).concat(seg2('loginBg', 'Фон входа', [ [ 'mica', 'Как у темы' ], [ 'flat', 'Однотонный' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'tod', 'По времени суток' ] ], true)));
 		var ov = h('div', { 'class': 'nf-pop-sec' }, [
 			h('div', { 'class': 'nf-pop-l', text: 'Обзор' }),
 			sw('ovLive', 'Полоса «Сейчас»'), sw('ovBadges', 'Цветные метки'),
@@ -885,6 +897,7 @@
 		]));
 
 		refs.motion = h('input', { type: 'checkbox', onchange: function (ev) { set('motion', ev.target.checked); } });
+		refs.liteAuto = h('input', { type: 'checkbox', onchange: function (ev) { set('liteAuto', ev.target.checked); } });
 
 		pop = h('div', { 'class': 'nf-pop', role: 'dialog', 'aria-label': 'Персонализация' }, [
 			h('div', { 'class': 'nf-pop-h', text: 'Персонализация' }),
@@ -896,6 +909,7 @@
 			h('label', { 'class': 'nf-pop-c' }, [ h('span', { text: 'Свой цвет' }), refs.color ]),
 			h('div', { 'class': 'nf-pop-sec' }, look),
 			h('label', { 'class': 'nf-pop-row' }, [ h('span', { text: 'Анимации' }), h('span', { 'class': 'cbi-checkbox' }, [ refs.motion ]) ]),
+			h('label', { 'class': 'nf-pop-row' }, [ h('span', { text: 'Выключать анимации на слабых телефонах' }), h('span', { 'class': 'cbi-checkbox' }, [ refs.liteAuto ]) ]),
 			more, ov,
 			h('div', { 'class': 'nf-pop-io' }, [
 				h('button', { type: 'button', text: 'Сохранить в файл', onclick: exportPrefs }),
@@ -1185,6 +1199,7 @@
 		pop.querySelector('.nf-pop-times').toggleAttribute('data-on', !!prefs.schedule);
 		[ 'loginClock', 'loginInfo', 'ovLive', 'ovBadges', 'navMini', 'netBar', 'constLogin', 'constApp', 'hints', 'ovTop', 'ovApps', 'ovBlock', 'ovWifi', 'ovEvents', 'ovHealth', 'ovQuick' ].forEach(function (k) { refs[k].checked = k === 'constApp' ? !!prefs[k] : prefs[k] !== false; });
 		refs.motion.checked = !!prefs.motion;
+		refs.liteAuto.checked = prefs.liteAuto !== false;
 		refs.gblur.value = String(prefs.glassBlur == null ? 28 : prefs.glassBlur);
 		refs.galpha.value = String(prefs.glassAlpha || 100);
 		refs.gblur.disabled = refs.galpha.disabled = prefs.style !== 'glass';

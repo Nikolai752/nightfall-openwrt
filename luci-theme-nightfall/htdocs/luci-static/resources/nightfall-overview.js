@@ -15,6 +15,7 @@ const STATS = '/usr/libexec/nightfall-stats';
 const HIST = '/usr/libexec/nightfall-history';
 const APPSBIN = '/usr/libexec/nightfall-apps';
 const ORDER_KEY = 'nightfall-overview-order-v1';
+const SIZE_KEY = 'nightfall-overview-size-v1';
 const WIN = 600;            /* seconds shown in mini graphs */
 const EVERY = 3000;         /* ms between samples */
 const ALERTS_EVERY = 5;     /* ping / alerts every N samples */
@@ -634,6 +635,28 @@ const ICONS = [
 ];
 const iconFor = title => (ICONS.find(x => x[0].test(title)) || [ 0, 'generic' ])[1];
 
+/* размер карточки: '' (обычная) → wide → min; запоминается по названию карточки */
+let SIZE_MEM = null;
+function loadSizes() {
+	try { const v = JSON.parse(window.localStorage.getItem(SIZE_KEY) || 'null'); return v && typeof v === 'object' ? v : (SIZE_MEM || {}); }
+	catch (e) { return SIZE_MEM || {}; }
+}
+function saveSizes(m) {
+	SIZE_MEM = m;
+	try { window.localStorage.setItem(SIZE_KEY, JSON.stringify(m)); } catch (e) { /* private mode */ }
+}
+function syncSizes(view, relayoutNow) {
+	const m = loadSizes();
+	cardsOf(view).forEach(sec => {
+		const t = titleOf(sec), v = m[t] || '';
+		sec.classList.toggle('nf-wide', v === 'wide');
+		sec.classList.toggle('nf-min', v === 'min');
+		const b = sec.querySelector(':scope > .cbi-title .nf-size');
+		if (b) { b.setAttribute('data-s', v); b.title = v === 'wide' ? 'Широкая. Нажмите, чтобы свернуть' : v === 'min' ? 'Свёрнута. Нажмите, чтобы вернуть обычный размер' : 'Обычный размер. Нажмите, чтобы растянуть на всю ширину'; }
+	});
+	if (relayoutNow) window.dispatchEvent(new Event('resize'));
+}
+
 function syncPins(view) {
 	const pins = loadPins();
 	cardsOf(view).forEach(sec => {
@@ -670,7 +693,16 @@ function decorateCards(view) {
 			syncPins(view);
 			flip(cardsOf(view), () => sortCards(view, loadOrder()));
 		});
-		h3.replaceChild(E('span', { class: 'nf-ttl' }, [ grip, E('i', { class: 'nf-ci', 'data-i': iconFor(title), 'aria-hidden': 'true' }), title, pin ]), tn);
+		const size = E('button', { type: 'button', class: 'nf-size', 'data-s': '', 'aria-label': 'Размер карточки «' + title + '»' });
+		size.addEventListener('click', ev => {
+			ev.preventDefault(); ev.stopPropagation();
+			const m = Object.assign({}, loadSizes()), cur = m[title] || '';
+			const nx = cur === '' ? 'wide' : cur === 'wide' ? 'min' : '';
+			if (nx) m[title] = nx; else delete m[title];
+			saveSizes(m);
+			syncSizes(view, true);
+		});
+		h3.replaceChild(E('span', { class: 'nf-ttl' }, [ grip, E('i', { class: 'nf-ci', 'data-i': iconFor(title), 'aria-hidden': 'true' }), title, pin, size ]), tn);
 
 		const hb = h3.querySelector(':scope > .label[data-indicator], :scope > .cbi-button, :scope > button');
 		if (hb) {
@@ -1008,7 +1040,7 @@ const BLOCKBIN = '/usr/libexec/nightfall-block';
 function blockCard() {
 	const body = E('div', { class: 'nf-blk-b' }, E('div', { class: 'nf-empty' }, 'Собираю данные…'));
 	const el = xcard('nf-block', 'Доступ в интернет', body);
-	let timer = null, devs = null, busy = false, open = null, note = '';
+	let timer = null, devs = null, busy = false, open = null, note = '', logOn = false, logRows = null;
 
 	const run = args => fs.exec(BLOCKBIN, args).then(r => { try { return JSON.parse(r.stdout); } catch (e) { return null; } });
 
@@ -1033,33 +1065,48 @@ function blockCard() {
 		]);
 	}
 
+	function quotaRow(d) {
+		const gb = E('input', { type: 'number', min: '0.1', step: '0.1', value: d.quota ? String(Math.round(d.quota / 102.4) / 10) : '', placeholder: 'ГБ', 'aria-label': 'Лимит в сутки, ГБ' });
+		return E('div', { class: 'nf-blk-sched' }, [
+			E('span', {}, 'Лимит трафика в сутки'), gb, E('span', {}, 'ГБ'),
+			E('button', { type: 'button', class: 'cbi-button cbi-button-action', click: () => {
+				const v = parseFloat(String(gb.value).replace(',', '.'));
+				if (!(v > 0)) { note = 'Введите лимит в гигабайтах, например 5.'; render(); return; }
+				act([ 'quota', d.mac, String(Math.round(v * 1024)), d.name || '' ], 'Лимит задан: интернет отключится до конца суток, когда устройство скачает ' + v + ' ГБ.');
+			} }, 'Задать'),
+			d.quota ? E('button', { type: 'button', class: 'cbi-button', click: () => act([ 'quota', d.mac, 'off' ], 'Лимит убран.') }, 'Убрать') : ''
+		]);
+	}
+
 	function render() {
 		if (EDITING || busy) return;
 		if (!devs) {
 			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Нет данных'), E('span', {}, 'Не удалось получить список устройств. Если вы только что обновили тему, выйдите и войдите в LuCI снова.') ]));
 			return;
 		}
-		const rows = devs.slice().sort((a, b) => (b.manual - a.manual) || ((b.from ? 1 : 0) - (a.from ? 1 : 0)) || (b.online - a.online) || (a.name || a.ip || a.mac).localeCompare(b.name || b.ip || b.mac)).slice(0, 30);
+		const rows = devs.slice().sort((a, b) => ((b.active ? 1 : 0) - (a.active ? 1 : 0)) || ((b.from || b.quota ? 1 : 0) - (a.from || a.quota ? 1 : 0)) || (b.online - a.online) || (a.name || a.ip || a.mac).localeCompare(b.name || b.ip || b.mac)).slice(0, 30);
 		const list = rows.map(d => {
 			const nm = d.name || d.ip || d.mac;
-			const st = d.manual ? E('span', { class: 'nf-blk-st bad' }, 'отключено')
-				: d.from ? E('span', { class: 'nf-blk-st' }, '⏰ ' + d.from + '–' + d.to)
-				: E('span', { class: 'nf-blk-st ' + (d.online ? 'ok' : '') }, d.online ? 'в сети' : 'не в сети');
-			const line = E('div', { class: 'nf-blk-r' + (d.manual ? ' off' : '') }, [
+			const q = d.quota ? ' · 📉 ' + fmtBytes(d.used) + ' из ' + fmtBytes(d.quota * 1048576) : '';
+			const st = d.active ? E('span', { class: 'nf-blk-st bad' }, (d.reason === 'quota' ? 'лимит исчерпан' : d.reason === 'sched' ? 'по расписанию' : 'отключено') + q)
+				: E('span', { class: 'nf-blk-st ' + (d.online && !d.from && !d.quota ? 'ok' : '') }, (d.from ? '⏰ ' + d.from + '–' + d.to + (d.snoozed ? ' (пропуск до завтра)' : '') + ' · ' : '') + (d.online ? 'в сети' : 'не в сети') + q);
+			const line = E('div', { class: 'nf-blk-r' + (d.active ? ' off' : '') }, [
 				E('div', { class: 'nf-blk-n' }, [ E('b', {}, nm), E('span', {}, (d.ip ? d.ip + ' · ' : '') + d.mac) ]),
 				st,
 				E('div', { class: 'nf-blk-a' }, [
-					E('button', { type: 'button', class: 'cbi-button ' + (d.manual ? 'cbi-button-action' : 'cbi-button-remove'),
-						click: () => act([ d.manual ? 'unblock' : 'block', d.mac, nm ], d.manual ? nm + ': интернет возвращён.' : nm + ': интернет отключён.') }, d.manual ? 'Вернуть' : 'Отключить'),
+					E('button', { type: 'button', class: 'cbi-button ' + (d.active ? 'cbi-button-action' : 'cbi-button-remove'),
+						click: () => act([ d.active ? 'unblock' : 'block', d.mac, nm ], d.active ? nm + ': интернет возвращён.' : nm + ': интернет отключён.') }, d.active ? 'Вернуть' : 'Отключить'),
 					E('button', { type: 'button', class: 'cbi-button', 'aria-expanded': String(open === d.mac), click: () => { open = open === d.mac ? null : d.mac; render(); } }, '⏰')
 				])
 			]);
-			return open === d.mac ? E('div', { class: 'nf-blk-g' }, [ line, sched(d) ]) : line;
+			return open === d.mac ? E('div', { class: 'nf-blk-g' }, [ line, sched(d), quotaRow(d) ]) : line;
 		});
 		body.replaceChildren(
 			note ? E('div', { class: 'nf-blk-note' }, note) : '',
 			...(list.length ? list : [ E('div', { class: 'nf-empty' }, 'Устройств не видно.') ]),
-			E('div', { class: 'nf-apps-f' }, E('span', {}, 'Устройству отключается выход в интернет (по MAC-адресу). Роутер и локальная сеть остаются доступными, поэтому вернуть доступ можно всегда. Устройства со «случайным» Wi-Fi адресом лучше отключить в настройках самого телефона. То же можно делать кнопками в Telegram-боте.')));
+			logOn ? E('div', { class: 'nf-blk-log' }, (logRows && logRows.length ? logRows.map(r => E('div', {}, [ E('span', {}, new Date(r[0] * 1000).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })), E('b', {}, r[2] || r[1]), E('span', { class: r[3] === 'on' ? 'bad' : 'ok' }, r[3] === 'on' ? 'отключён' : 'возвращён'), E('i', {}, r[4]) ])) : [ E('div', { class: 'nf-empty' }, 'Записей пока нет.') ])) : '',
+			E('div', { class: 'nf-apps-f' }, [ E('span', {}, 'Устройству отключается выход в интернет (по MAC-адресу). Роутер и локальная сеть остаются доступными, поэтому вернуть доступ можно всегда. Устройства со «случайным» Wi-Fi адресом лучше отключить в настройках самого телефона. То же можно делать кнопками в Telegram-боте.'),
+				E('button', { type: 'button', class: 'nf-link', click: () => { logOn = !logOn; if (logOn) run([ 'log' ]).then(r => { logRows = r && r.ok ? r.log : []; render(); }); else render(); } }, logOn ? 'Скрыть журнал' : 'Журнал блокировок') ]));
 	}
 
 	function load(force) {
@@ -1326,6 +1373,7 @@ return baseclass.extend({
 
 			decorateCards(view);
 			syncPins(view);
+			syncSizes(view);
 			enhanceBadges(view);
 			relayout();
 		};

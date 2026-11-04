@@ -5,16 +5,23 @@
 #   nightfall-block unblock MAC             — вернуть интернет
 #   nightfall-block sched MAC ЧЧ:ММ ЧЧ:ММ   — отключать каждый день с … до … (можно через полночь)
 #   nightfall-block sched MAC off           — убрать расписание
+#   nightfall-block quota MAC МБ|off        — лимит трафика в сутки: при превышении интернет отключается до конца суток
+#   nightfall-block log                     — журнал блокировок (JSON)
 #   nightfall-block apply                   — применить правила брандмауэра (вызывается сборщиком и при загрузке)
 # Правила живут в отдельной таблице nft «inet nightfall» (брандмауэр fw4 её не трогает): отбрасываются пакеты, идущие
 # от устройства в сеть (forward). Доступ к самому роутеру и локальной сети не ограничивается, поэтому разблокировать можно всегда.
-# Список хранится в /etc/nightfall-block.list: «mac|имя|вручную(0/1)|с|до».
-# Для тестов: NF_BLOCK (файл списка), NF_NFT (команда nft), NF_PROC, NF_LEASES, NF_NOW (время ЧЧММ), NF_DIR.
+# Список хранится в /etc/nightfall-block.list: «mac|имя|вручную(0/1)|с|до|лимит МБ|пропуск на день ГГГГММДД».
+# Журнал (последние 200 записей) — /etc/nightfall-block.log: «время|mac|имя|on/off|причина».
+# Для тестов: NF_BLOCK (файл списка), NF_BLOCKLOG, NF_NOTIFY, NF_TODAY (ГГГГММДД), NF_BY (кто запросил: bot/ui), NF_NFT (команда nft), NF_PROC, NF_LEASES, NF_NOW (время ЧЧММ), NF_DIR.
 LIST=${NF_BLOCK:-/etc/nightfall-block.list}
 NFT=${NF_NFT:-nft}
 PROC=${NF_PROC:-/proc}
 LEASES=${NF_LEASES:-/tmp/dhcp.leases}
 DIR=${NF_DIR:-/tmp/nightfall}
+LOGF=${NF_BLOCKLOG:-/etc/nightfall-block.log}
+NOTIFY=${NF_NOTIFY:-/usr/libexec/nightfall-notify}
+STATE=$DIR/block.state
+DAYF=$DIR/dev.day
 
 fail() { printf '{"ok":false,"error":"%s"}\n' "$1"; exit 0; }
 
@@ -27,37 +34,94 @@ own_macs() {   # свои MAC-адреса роутера: их блокиров
 	for f in /sys/class/net/*/address; do [ -r "$f" ] && cat "$f"; done 2>/dev/null
 }
 
-# запись в список: set_row MAC ИМЯ ВРУЧНУЮ С ДО  (пустая строка с/до — расписания нет)
+today() { [ -n "$NF_TODAY" ] && echo "$NF_TODAY" || date +%Y%m%d; }
+
+# запись в список: set_row MAC ИМЯ ВРУЧНУЮ С ДО ЛИМИТ ПРОПУСК (строка нужна, если есть блокировка, расписание или лимит)
 set_row() {
 	m=$(lower "$1")
 	touch "$LIST" 2>/dev/null || fail "не удалось записать список"
 	grep -v "^$m|" "$LIST" > "$LIST.tmp" 2>/dev/null
-	if [ "$3" = 1 ] || [ -n "$4" ]; then printf '%s|%s|%s|%s|%s\n' "$m" "$2" "$3" "$4" "$5" >> "$LIST.tmp"; fi
+	if [ "$3" = 1 ] || [ -n "$4" ] || [ -n "$6" ]; then printf '%s|%s|%s|%s|%s|%s|%s\n' "$m" "$2" "$3" "$4" "$5" "$6" "$7" >> "$LIST.tmp"; fi
 	mv "$LIST.tmp" "$LIST" 2>/dev/null || fail "не удалось записать список"
 }
 
 row() { grep "^$(lower "$1")|" "$LIST" 2>/dev/null | head -n 1; }
 
+# разобрать строку списка в R_NAME R_MAN R_F R_T R_Q R_SN
+load_row() {
+	r=$(row "$1")
+	R_NAME=$(printf '%s' "$r" | cut -d'|' -f2); R_MAN=$(printf '%s' "$r" | cut -d'|' -f3); R_F=$(printf '%s' "$r" | cut -d'|' -f4)
+	R_T=$(printf '%s' "$r" | cut -d'|' -f5); R_Q=$(printf '%s' "$r" | cut -d'|' -f6); R_SN=$(printf '%s' "$r" | cut -d'|' -f7)
+	[ -n "$R_MAN" ] || R_MAN=0
+}
+
 now_hm() { [ -n "$NF_NOW" ] && echo "$NF_NOW" || date +%H%M; }
 
-# действует ли сейчас блокировка строки: вручную или попадает в окно расписания
-active() {  # active ВРУЧНУЮ С ДО
-	[ "$1" = 1 ] && return 0
-	[ -n "$2" ] && [ -n "$3" ] || return 1
-	n=$(now_hm); f=$(printf '%s' "$2" | tr -d ':'); t=$(printf '%s' "$3" | tr -d ':')
+# попадает ли сейчас время в окно расписания
+in_window() {  # in_window С ДО
+	[ -n "$1" ] && [ -n "$2" ] || return 1
+	n=$(now_hm); f=$(printf '%s' "$1" | tr -d ':'); t=$(printf '%s' "$2" | tr -d ':')
 	n=$(printf '%s' "$n" | sed 's/^0*//'); f=$(printf '%s' "$f" | sed 's/^0*//'); t=$(printf '%s' "$t" | sed 's/^0*//')
 	n=${n:-0}; f=${f:-0}; t=${t:-0}
 	if [ "$f" -le "$t" ]; then [ "$n" -ge "$f" ] && [ "$n" -lt "$t" ]; else [ "$n" -ge "$f" ] || [ "$n" -lt "$t" ]; fi
 }
 
+# трафик устройства за сегодня (байт): по IP из ARP и dev.day
+used_of() {
+	ipa=$(awk -v m="$1" 'NR > 1 && tolower($4) == m { print $1; exit }' "$PROC/net/arp" 2>/dev/null)
+	[ -n "$ipa" ] && [ -r "$DAYF" ] || { echo 0; return; }
+	awk -v ip="$ipa" '$1 == ip { s += $2 + $3 } END { printf "%d", s }' "$DAYF"
+}
+
+# причина, по которой интернет отключён сейчас: manual, quota, sched или пусто
+calc_reason() {  # calc_reason MAC ВРУЧНУЮ С ДО ЛИМИТ ПРОПУСК
+	[ "$2" = 1 ] && { echo manual; return; }
+	[ "$6" = "$(today)" ] && return 0
+	if [ -n "$5" ] && [ "$5" -gt 0 ] 2>/dev/null; then
+		u=$(used_of "$1"); [ "${u:-0}" -ge $(($5 * 1048576)) ] && { echo quota; return; }
+	fi
+	in_window "$3" "$4" && echo sched
+	return 0
+}
+
+logev() {  # logev MAC ИМЯ on|off ПРИЧИНА
+	t=$(date +%s)
+	printf '%s|%s|%s|%s|%s\n' "$t" "$1" "$2" "$3" "$4" >> "$LOGF" 2>/dev/null
+	[ "$(wc -l < "$LOGF" 2>/dev/null)" -le 240 ] 2>/dev/null || { tail -n 200 "$LOGF" > "$LOGF.tmp" && mv "$LOGF.tmp" "$LOGF"; }
+}
+
 apply() {
-	macs=""
+	macs=""; new=""
 	if [ -s "$LIST" ]; then
-		while IFS='|' read -r m nm man f t; do
+		while IFS='|' read -r m nm man f t q sn; do
 			[ -n "$m" ] || continue
-			active "$man" "$f" "$t" && macs="${macs:+$macs, }$m"
+			rs=$(calc_reason "$m" "$man" "$f" "$t" "$q" "$sn")
+			[ -n "$rs" ] || continue
+			macs="${macs:+$macs, }$m"
+			new="$new$m|$rs|$nm
+"
 		done < "$LIST"
 	fi
+	# журнал: фиксируем только изменения (после перезагрузки состояние неизвестно, тогда просто запоминаем)
+	if [ -f "$STATE" ]; then
+		printf '%s' "$new" | while IFS='|' read -r m rs nm; do
+			[ -n "$m" ] || continue
+			grep -q "^$m|" "$STATE" && continue
+			case "$rs" in manual) why="вручную (${NF_BY:-интерфейс})" ;; quota) why="лимит трафика" ;; *) why="расписание" ;; esac
+			logev "$m" "$nm" on "$why"
+			if [ "$rs" = quota ] && [ -x "$NOTIFY" ]; then
+				k=$(printf '%s' "$m" | tr -d ':')
+				"$NOTIFY" send "🚫 ${nm:-$m}: достиг суточного лимита, интернет отключён до конца суток." "{\"inline_keyboard\":[[{\"text\":\"↩️ Вернуть на сегодня\",\"callback_data\":\"ub:$k\"}]]}" >/dev/null 2>&1 &
+			fi
+		done
+		while IFS='|' read -r m rs nm; do
+			[ -n "$m" ] || continue
+			printf '%s' "$new" | grep -q "^$m|" && continue
+			case "$rs" in manual) why="вручную (${NF_BY:-интерфейс})" ;; quota) why="новые сутки или возвращён" ;; *) why="расписание закончилось или возвращён" ;; esac
+			logev "$m" "$nm" off "$why"
+		done < "$STATE"
+	fi
+	mkdir -p "$DIR" 2>/dev/null; printf '%s' "$new" > "$STATE"
 	if [ -z "$macs" ]; then
 		$NFT delete table inet nightfall 2>/dev/null
 		return 0
@@ -69,51 +133,80 @@ apply() {
 case "$1" in
 list)
 	# устройства: ARP (кто в сети сейчас) + аренды DHCP (имена, давно не видимые) + уже заблокированные
-	{ [ -s "$LIST" ] && awk -F'|' '{ print "B", $1, $3, ($4 == "" ? "-" : $4), ($5 == "" ? "-" : $5), $2 }' "$LIST"
+	{ [ -s "$LIST" ] && awk -F'|' '{ print "B", $1, ($3 == "" ? 0 : $3), ($4 == "" ? "-" : $4), ($5 == "" ? "-" : $5), ($6 == "" ? "-" : $6), ($7 == "" ? "-" : $7), $2 }' "$LIST"
 	  [ -r "$LEASES" ] && awk '{ print "L", tolower($2), $3, ($4 == "*" ? "" : $4) }' "$LEASES"
 	  [ -r "$PROC/net/arp" ] && awk 'NR > 1 && $3 == "0x2" && $4 != "00:00:00:00:00:00" { print "A", tolower($4), $1, $6 }' "$PROC/net/arp"
 	} 2>/dev/null | awk -v own="$(own_macs | tr '\n' ' ')" -v wan="$(sed -n 's/^wan_dev=//p' "$DIR/info" 2>/dev/null | head -n 1)" '
-		function esc(s) { gsub(/["\\]/, "", s); return s }
+		function esc(s) { gsub(/["\\|]/, "", s); return s }
 		BEGIN { n = split(tolower(own), o, " "); for (i = 1; i <= n; i++) mine[o[i]] = 1 }
-		$1 == "B" { m = $2; man[m] = $3; sf[m] = ($4 == "-" ? "" : $4); st[m] = ($5 == "-" ? "" : $5); x = ""; for (i = 6; i <= NF; i++) x = x (i > 6 ? " " : "") $i; bn[m] = x; seen[m] = 1 }
+		$1 == "B" { m = $2; man[m] = $3; sf[m] = ($4 == "-" ? "" : $4); st[m] = ($5 == "-" ? "" : $5); qq[m] = ($6 == "-" ? "" : $6); sn[m] = ($7 == "-" ? "" : $7); x = ""; for (i = 8; i <= NF; i++) x = x (i > 8 ? " " : "") $i; bn[m] = x; seen[m] = 1 }
 		$1 == "L" { m = $2; ip[m] = $3; nm[m] = $4; seen[m] = 1 }
 		$1 == "A" { m = $2; if ($4 == wan) next; ip[m] = $3; on[m] = 1; seen[m] = 1 }
 		END {
-			printf "{\"ok\":true,\"devices\":["
 			for (m in seen) {
 				if (m in mine) continue
 				name = (nm[m] != "" ? nm[m] : bn[m])
-				printf "%s{\"mac\":\"%s\",\"ip\":\"%s\",\"name\":\"%s\",\"online\":%s,\"manual\":%s,\"from\":\"%s\",\"to\":\"%s\"}", (c++ ? "," : ""), m, esc(ip[m]), esc(name), (m in on ? "true" : "false"), (man[m] == 1 ? "true" : "false"), sf[m], st[m]
+				printf "%s|%s|%s|%d|%d|%s|%s|%s|%s\n", m, esc(ip[m]), esc(name), (m in on ? 1 : 0), man[m] + 0, sf[m], st[m], qq[m], sn[m]
 			}
-			printf "]}\n"
-		}' ;;
+		}' | {
+		printf '{"ok":true,"devices":['
+		c=0
+		while IFS='|' read -r m ipa nm on man f t q sn; do
+			rs=$(calc_reason "$m" "$man" "$f" "$t" "$q" "$sn")
+			[ -n "$q" ] && u=$(used_of "$m") || u=0
+			[ "$on" = 1 ] && on=true || on=false
+			[ "$man" = 1 ] && man=true || man=false
+			[ "$c" = 0 ] || printf ','
+			c=1
+			printf '{"mac":"%s","ip":"%s","name":"%s","online":%s,"manual":%s,"from":"%s","to":"%s","quota":%s,"used":%s,"active":%s,"reason":"%s","snoozed":%s}' "$m" "$ipa" "$nm" "$on" "$man" "$f" "$t" "${q:-0}" "${u:-0}" "$([ -n "$rs" ] && echo true || echo false)" "$rs" "$([ "$sn" = "$(today)" ] && echo true || echo false)"
+		done
+		printf ']}\n'
+	} ;;
 block)
 	mac_ok "$2" || fail "неверный MAC-адрес"
 	m=$(lower "$2")
 	own_macs | tr 'A-Z' 'a-z' | grep -qx "$m" && fail "это адрес самого роутера"
-	r=$(row "$m"); f=$(printf '%s' "$r" | cut -d'|' -f4); t=$(printf '%s' "$r" | cut -d'|' -f5)
-	oldn=$(printf '%s' "$r" | cut -d'|' -f2); nn=$(clean "${3:-$oldn}")
-	set_row "$m" "$nn" 1 "$f" "$t"; apply; printf '{"ok":true}\n' ;;
+	load_row "$m"; nn=$(clean "${3:-$R_NAME}")
+	set_row "$m" "$nn" 1 "$R_F" "$R_T" "$R_Q" ""; apply; printf '{"ok":true}\n' ;;
 unblock)
 	mac_ok "$2" || fail "неверный MAC-адрес"
-	m=$(lower "$2"); r=$(row "$m")
-	f=$(printf '%s' "$r" | cut -d'|' -f4); t=$(printf '%s' "$r" | cut -d'|' -f5); nn=$(printf '%s' "$r" | cut -d'|' -f2)
-	set_row "$m" "$nn" 0 "$f" "$t"; apply; printf '{"ok":true}\n' ;;
+	m=$(lower "$2"); load_row "$m"
+	# если интернет отключён лимитом или расписанием, «вернуть» пропускает их до конца суток
+	rs=$(calc_reason "$m" 0 "$R_F" "$R_T" "$R_Q" "$R_SN"); sn=$R_SN; [ -n "$rs" ] && sn=$(today)
+	set_row "$m" "$R_NAME" 0 "$R_F" "$R_T" "$R_Q" "$sn"; apply; printf '{"ok":true}\n' ;;
 sched)
 	mac_ok "$2" || fail "неверный MAC-адрес"
-	m=$(lower "$2"); r=$(row "$m")
-	man=$(printf '%s' "$r" | cut -d'|' -f3); nn=$(printf '%s' "$r" | cut -d'|' -f2); [ -n "$man" ] || man=0
-	if [ "$3" = off ]; then set_row "$m" "$nn" "$man" "" ""
+	m=$(lower "$2"); load_row "$m"
+	if [ "$3" = off ]; then set_row "$m" "$R_NAME" "$R_MAN" "" "" "$R_Q" "$R_SN"
 	else
 		time_ok "$3" && time_ok "$4" || fail "время нужно в формате ЧЧ:ММ"
 		[ "$3" != "$4" ] || fail "начало и конец не должны совпадать"
 		own_macs | tr 'A-Z' 'a-z' | grep -qx "$m" && fail "это адрес самого роутера"
-		set_row "$m" "$(clean "${5:-$nn}")" "$man" "$3" "$4"
+		set_row "$m" "$(clean "${5:-$R_NAME}")" "$R_MAN" "$3" "$4" "$R_Q" "$R_SN"
 	fi
 	apply; printf '{"ok":true}\n' ;;
+quota)
+	mac_ok "$2" || fail "неверный MAC-адрес"
+	m=$(lower "$2"); load_row "$m"
+	if [ "$3" = off ]; then set_row "$m" "$R_NAME" "$R_MAN" "$R_F" "$R_T" "" ""
+	else
+		case "$3" in ''|*[!0-9]*) fail "лимит нужен числом мегабайт" ;; esac
+		[ "$3" -ge 1 ] && [ "$3" -le 1000000 ] || fail "лимит от 1 до 1000000 МБ"
+		own_macs | tr 'A-Z' 'a-z' | grep -qx "$m" && fail "это адрес самого роутера"
+		set_row "$m" "$(clean "${4:-$R_NAME}")" "$R_MAN" "$R_F" "$R_T" "$3" ""
+	fi
+	apply; printf '{"ok":true}\n' ;;
+log)
+	if [ "$2" = plain ]; then   # текст для бота: «время|имя|on/off|причина», новые сверху
+		[ -r "$LOGF" ] && tail -n 12 "$LOGF" | awk -F'|' 'NF >= 5 { l[++n] = $1 "|" ($3 != "" ? $3 : $2) "|" $4 "|" $5 } END { for (i = n; i >= 1; i--) print l[i] }'
+		exit 0
+	fi
+	printf '{"ok":true,"log":['
+	[ -r "$LOGF" ] && tail -n 30 "$LOGF" | awk -F'|' 'NF >= 5 { gsub(/["\\]/, "", $3); gsub(/["\\]/, "", $5); l[++n] = sprintf("[%s,\"%s\",\"%s\",\"%s\",\"%s\"]", $1, $2, $3, $4, $5) } END { for (i = n; i >= 1; i--) printf "%s%s", (i < n ? "," : ""), l[i] }'
+	printf ']}\n' ;;
 apply)
 	apply ;;
 *)
-	echo "usage: nightfall-block list | block MAC [NAME] | unblock MAC | sched MAC HH:MM HH:MM|off | apply" >&2
+	echo "usage: nightfall-block list | block MAC [NAME] | unblock MAC | sched MAC HH:MM HH:MM|off | quota MAC MB|off | log | apply" >&2
 	exit 1 ;;
 esac
