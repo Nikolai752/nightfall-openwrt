@@ -52,9 +52,9 @@ BOTBIN=${NF_BOTBIN:-/usr/libexec/nightfall-bot}
 BLOCKLIST=${NF_BLOCK:-/etc/nightfall-block.list}
 REPORT_MARK="$DIR/report.sent"
 
-tgsend() {  # tgsend ТЕКСТ: в фоне, чтобы сбой сети не тормозил сборщик
+tgsend() {  # tgsend ТЕКСТ [КНОПКИ_JSON]: в фоне, чтобы сбой сети не тормозил сборщик
 	[ "$TG" = 1 ] && [ -x "$NOTIFY" ] || return 0
-	"$NOTIFY" send "$1" >/dev/null 2>&1 &
+	"$NOTIFY" send "$1" "$2" >/dev/null 2>&1 &
 }
 
 event() {   # event LEVEL TEXT [quiet]
@@ -160,7 +160,8 @@ do_newdev() {
 		priv=""; case "$h" in 2|6|a|e|A|E) priv=" (частный адрес Wi-Fi, у телефона он может меняться)" ;; esac
 		txt="Новое устройство в сети: ${nm:-без имени}, $ipa, $m$priv"
 		event warn "$txt" quiet
-		tgsend "🆕 $(clean "$txt"). Если это ваше устройство, больше это сообщение не повторится."
+		k=$(printf '%s' "$m" | tr -d ':')
+		tgsend "🆕 $(clean "$txt"). Если это ваше устройство, больше это сообщение не повторится." "{\"inline_keyboard\":[[{\"text\":\"✅ Это моё\",\"callback_data\":\"ok:$k\"},{\"text\":\"🚫 Заблокировать\",\"callback_data\":\"bk:$k\"}]]}"
 	done < "$DIR/newdev.out"
 	rm -f "$DIR/newdev.out"
 }

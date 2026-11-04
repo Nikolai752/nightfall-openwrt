@@ -19,9 +19,13 @@ CHAT=$(cfg TG_CHAT)
 HOST=$(cat "$PROC/sys/kernel/hostname" 2>/dev/null || echo router)
 
 # кнопки под сообщением (inline-клавиатура); ответ без явного второго параметра получает главное меню
-KB_MAIN='{"inline_keyboard":[[{"text":"📊 Статус","callback_data":"status"},{"text":"🖥 Клиенты","callback_data":"clients"}],[{"text":"📈 Трафик","callback_data":"traffic"},{"text":"📱 Приложения","callback_data":"apps"}],[{"text":"⚡ Скорость","callback_data":"speed"},{"text":"🚫 Блокировка","callback_data":"block"}],[{"text":"🔄 Перезагрузка","callback_data":"rb"}]]}'
+KB_MAIN='{"inline_keyboard":[[{"text":"📊 Статус","callback_data":"status"},{"text":"🖥 Клиенты","callback_data":"clients"}],[{"text":"📈 Трафик","callback_data":"traffic"},{"text":"📱 Приложения","callback_data":"apps"}],[{"text":"⚡ Скорость","callback_data":"speed"},{"text":"🚫 Блокировка","callback_data":"block"}],[{"text":"💾 Резервная копия","callback_data":"bk"},{"text":"🔄 Перезагрузка","callback_data":"rb"}]]}'
 KB_REBOOT='{"inline_keyboard":[[{"text":"✅ Да, перезагрузить","callback_data":"rb:yes"},{"text":"Отмена","callback_data":"menu"}]]}'
-reply() { "$NOTIFY" reply "$1" "${2-$KB_MAIN}" >/dev/null 2>&1; }
+MID=""   # id сообщения с нажатой кнопкой: если он есть, ответ правит это сообщение, а не шлёт новое
+reply() {
+	if [ -n "$MID" ]; then "$NOTIFY" edit "$MID" "$1" "${2-$KB_MAIN}" >/dev/null 2>&1
+	else "$NOTIFY" reply "$1" "${2-$KB_MAIN}" >/dev/null 2>&1; fi
+}
 
 # ---- форматирование ----
 BYTES='function fb(b,   x) { x = "Б"; if (b >= 1024) { b /= 1024; x = "КБ" } if (b >= 1024) { b /= 1024; x = "МБ" } if (b >= 1024) { b /= 1024; x = "ГБ" } return (x == "Б" ? sprintf("%d %s", b, x) : sprintf("%.1f %s", b, x)) }'
@@ -99,11 +103,11 @@ cmd_block() {  # cmd_block [ПРЕФИКС]
 	rows=$(printf '%s' "$j" | sed 's/},{"mac"/}\n{"mac"/g' | awk '
 		function g(k,   s) { if (match($0, "\"" k "\":\"[^\"]*\"")) return substr($0, RSTART + length(k) + 4, RLENGTH - length(k) - 5); return "" }
 		/"mac":"/ {
-			m = g("mac"); nm = g("name"); ip = g("ip"); on = ($0 ~ /"online":true/); bl = ($0 ~ /"manual":true/); sc = (g("from") != "")
+			m = g("mac"); nm = g("name"); ip = g("ip"); on = ($0 ~ /"online":true/); bl = ($0 ~ /"active":true/); sc = (g("from") != ""); qt = ($0 !~ /"quota":0,/)
 			if (nm == "") nm = ip; if (nm == "") nm = m
-			if (!on && !bl && !sc) next
+			if (!on && !bl && !sc && !qt) next
 			rk = (bl ? 0 : (on ? 1 : 2)); gsub(/:/, "", m)
-			printf "%d|[{\"text\":\"%s%s%s\",\"callback_data\":\"tb:%s\"}]\n", rk, (bl ? "🔴 " : (on ? "🟢 " : "⚪ ")), nm, (sc ? " ⏰" : ""), m
+			printf "%d|[{\"text\":\"%s%s%s\",\"callback_data\":\"tb:%s\"}]\n", rk, (bl ? "🔴 " : (on ? "🟢 " : "⚪ ")), nm, (sc ? " ⏰" : "") (qt ? " 📉" : ""), m
 		}' | sort -t'|' -k1,1n | head -n 14 | cut -d'|' -f2- | paste -sd, -)
 	if [ -z "$rows" ]; then reply "${1:+$1
 
@@ -111,7 +115,7 @@ cmd_block() {  # cmd_block [ПРЕФИКС]
 	reply "${1:+$1
 
 }🚫 Нажмите на устройство, чтобы отключить или вернуть ему интернет.
-🟢 в сети   🔴 отключено   ⏰ есть расписание (задаётся в теме на странице «Обзор»)" "{\"inline_keyboard\":[$rows,[{\"text\":\"« Меню\",\"callback_data\":\"menu\"}]]}"
+🟢 в сети   🔴 отключено   ⏰ расписание   📉 лимит (расписание и лимиты задаются в теме на странице «Обзор»)" "{\"inline_keyboard\":[$rows,[{\"text\":\"📜 Журнал\",\"callback_data\":\"bl\"},{\"text\":\"« Меню\",\"callback_data\":\"menu\"}]]}"
 }
 
 cb_toggle() {  # cb_toggle MAC без двоеточий
@@ -120,10 +124,37 @@ cb_toggle() {  # cb_toggle MAC без двоеточий
 	obj=$("$BLOCK" list 2>/dev/null | sed 's/},{"mac"/}\n{"mac"/g' | grep "\"mac\":\"$mac\"" | head -n 1)
 	nm=$(printf '%s' "$obj" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p'); [ -n "$nm" ] || nm=$(printf '%s' "$obj" | sed -n 's/.*"ip":"\([^"]*\)".*/\1/p'); [ -n "$nm" ] || nm=$mac
 	case "$obj" in
-	*'"manual":true'*) r=$("$BLOCK" unblock "$mac" 2>/dev/null); msg="✅ $nm: интернет возвращён" ;;
-	*) r=$("$BLOCK" block "$mac" "$nm" 2>/dev/null); msg="🔴 $nm: интернет отключён" ;;
+	*'"active":true'*) r=$(NF_BY=бот "$BLOCK" unblock "$mac" 2>/dev/null); msg="✅ $nm: интернет возвращён" ;;
+	*) r=$(NF_BY=бот "$BLOCK" block "$mac" "$nm" 2>/dev/null); msg="🔴 $nm: интернет отключён" ;;
 	esac
 	case "$r" in *'"ok":true'*) cmd_block "$msg" ;; *) cmd_block "Не получилось: $(printf '%s' "$r" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p')" ;; esac
+}
+
+# кнопки под сообщением о новом устройстве
+cb_newdev() {  # cb_newdev ok|bk|ub MAC_без_двоеточий
+	mac=$(printf '%s' "$2" | sed 's/^\(..\)\(..\)\(..\)\(..\)\(..\)\(..\)$/\1:\2:\3:\4:\5:\6/')
+	printf '%s' "$mac" | grep -qE '^([0-9a-f]{2}:){5}[0-9a-f]{2}$' || { reply "Неверный адрес устройства."; return; }
+	kbu="{\"inline_keyboard\":[[{\"text\":\"↩️ Вернуть интернет\",\"callback_data\":\"ub:$2\"}]]}"
+	case "$1" in
+	ok) reply "👍 Устройство $mac отмечено как своё." "" ;;
+	bk) r=$(NF_BY=бот "$BLOCK" block "$mac" 2>/dev/null); case "$r" in *'"ok":true'*) reply "🔴 Устройству $mac отключён интернет." "$kbu" ;; *) reply "Не получилось: $(printf '%s' "$r" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p')" "" ;; esac ;;
+	ub) r=$(NF_BY=бот "$BLOCK" unblock "$mac" 2>/dev/null); case "$r" in *'"ok":true'*) reply "✅ Устройству $mac интернет возвращён." "" ;; *) reply "Не получилось вернуть интернет." "" ;; esac ;;
+	esac
+}
+
+cmd_blocklog() {
+	out=$("$BLOCK" log plain 2>/dev/null | while IFS='|' read -r ts nm ev why; do
+		[ "$ev" = on ] && ev="🔴 отключён" || ev="🟢 возвращён"
+		printf '• %s %s: %s (%s)\n' "$(date -d "@$ts" '+%d.%m %H:%M' 2>/dev/null)" "$nm" "$ev" "$why"
+	done)
+	reply "📜 Журнал блокировок:
+${out:-Записей пока нет.}" '{"inline_keyboard":[[{"text":"« Блокировка","callback_data":"block"},{"text":"« Меню","callback_data":"menu"}]]}'
+}
+
+cmd_backup() {
+	reply "💾 Готовлю резервную копию настроек…" ""
+	r=$("$NOTIFY" backup 2>/dev/null)
+	case "$r" in *'"ok":true'*) reply "💾 Резервная копия отправлена отдельным сообщением с файлом. Токен бота в неё не входит." ;; *) reply "Не получилось отправить копию: $(printf '%s' "$r" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p')" ;; esac
 }
 
 cmd_reboot() { reply "🔄 Перезагрузить $HOST? Интернет пропадёт примерно на 1–2 минуты." "$KB_REBOOT"; }
@@ -182,6 +213,10 @@ run() {  # run КОМАНДА (из текста «/status» или из кно�
 		apps) cmd_apps ;;
 		speed) cmd_speed ;;
 		block) cmd_block ;;
+		bl) cmd_blocklog ;;
+		bk) cmd_backup ;;
+		backup) cmd_backup ;;
+		ok:*|bk:*|ub:*) cb_newdev "${1%%:*}" "${1#*:}" ;;
 		rb|reboot) cmd_reboot ;;
 		rb:yes) do_reboot ;;
 		report) cmd_report ;;
@@ -198,20 +233,21 @@ handle() {  # handle ТЕКСТ
 	esac
 }
 
-# разбор ответа getUpdates: строки «update_id|chat_id|id_нажатия|данные_кнопки|текст»
+# разбор ответа getUpdates: строки «update_id|chat_id|id_нажатия|данные_кнопки|id_сообщения|текст»
 parse() {
 	tr '\n' ' ' | sed 's/{"update_id":/\n&/g' | awk '
 		/^\{"update_id":/ {
 			id = $0; sub(/^\{"update_id":/, "", id); sub(/[^0-9].*/, "", id)
 			chat = ""; if (match($0, /"chat":\{"id":-?[0-9]+/)) chat = substr($0, RSTART + 13, RLENGTH - 13)
-			cb = ""; dt = ""
+			cb = ""; dt = ""; mid = ""
 			if (match($0, /"callback_query":\{"id":"[^"]*"/)) {
 				cb = substr($0, RSTART + 24, RLENGTH - 25)
 				if (match($0, /"data":"[^"]*"/)) dt = substr($0, RSTART + 8, RLENGTH - 9)
+				if (match($0, /"message":\{"message_id":[0-9]+/)) mid = substr($0, RSTART + 24, RLENGTH - 24)
 			}
 			txt = ""
 			if (cb == "" && match($0, /"text":"[^"]*"/)) txt = substr($0, RSTART + 8, RLENGTH - 9)
-			print id "|" chat "|" cb "|" dt "|" txt
+			print id "|" chat "|" cb "|" dt "|" mid "|" txt
 		}'
 }
 
@@ -236,13 +272,13 @@ while :; do
 	*'"ok":true'*)
 		fails=0
 		printf '%s' "$r" | parse > "$DIR/bot.upd"
-		while IFS='|' read -r id chat cb dt txt; do
+		while IFS='|' read -r id chat cb dt mid txt; do
 			[ -n "$id" ] || continue
 			off=$((id + 1))
 			[ "$chat" = "$CHAT" ] || continue          # чужим не отвечаем
 			if [ -n "$cb" ]; then
-				"$NOTIFY" raw answerCallbackQuery -d "callback_query_id=$cb" >/dev/null 2>&1
-				run "$dt"
+				"$NOTIFY" raw answerCallbackQuery -d "callback_query_id=$cb" >/dev/null 2>&1 &   # подтверждение нажатия в фоне, чтобы не задерживать ответ
+				MID=$mid; run "$dt"; MID=""
 			else
 				handle "$txt"
 			fi

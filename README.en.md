@@ -53,7 +53,10 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 - Messages about lost and restored internet, overheating, low memory, reboots and new devices; a button-driven bot (status, clients, traffic, device blocking, reboot) and a daily report. Details below.
 
 **Internet access**
-- A card on the Overview page and bot buttons: cut a device off the internet manually or on a schedule (for example a child's tablet from 23:00 to 07:00).
+- A card on the Overview page and bot buttons: cut a device off the internet manually, on a schedule (for example a child's tablet from 23:00 to 07:00) or by a daily traffic quota. A block log is kept.
+
+**Backup**
+- A button in the bot and in the monitor settings sends an archive of your Nightfall settings to Telegram (the bot token is not included).
 
 **Updating from the interface**
 - A "New version available" dialog, one-click install with sha256 and signature checks, rollback on error, release notes after sign-in. See "Updating".
@@ -81,6 +84,12 @@ The monitor can message you in Telegram when the internet goes down or comes bac
 **Button bot** (answered to the owner only, i.e. your chat id). Send the bot `/menu` and buttons appear under the message: Status, Clients, Traffic, Apps, Speed, Block and Reboot. The commands `/status`, `/clients`, `/traffic`, `/apps`, `/speed`, `/block`, `/reboot`, `/report` work too. Turn it off with `TG_BOT=0`.
 
 **Device blocking.** The "Block" button lists devices (🟢 online, 🔴 blocked, ⏰ has a schedule); tapping one cuts it off the internet or restores it. The "Internet access" card on the Overview page does the same and also sets a daily "from … to …" schedule (may cross midnight). Only internet forwarding is blocked, by MAC address (a separate nft table `inet nightfall`); the router and the LAN stay reachable. Phones with a random Wi-Fi address are better blocked in the phone's own settings. The list lives in `/etc/nightfall-block.list`.
+
+**Quotas and log.** In the "Internet access" card (the ⏰ button on a device) you can set a daily traffic quota: when the device downloads more, its internet is cut until the end of the day and Telegram sends a "Restore for today" button. "Restore" also works for schedules: the rule is skipped until the end of the day. The log shows who was blocked, when and why (`/etc/nightfall-block.log`).
+
+**New device** messages arrive in Telegram with "It's mine" and "Block" buttons.
+
+**Backup.** The "Backup" button sends a file with your settings (`tar -xzf file -C /` to restore; the bot token is not included, enter it again).
 
 **Reboot** from the bot asks for confirmation with a button.
 

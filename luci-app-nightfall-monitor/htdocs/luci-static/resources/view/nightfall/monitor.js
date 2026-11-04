@@ -765,7 +765,8 @@ return view.extend({
 			E('div', { class: 'nfm-note-s' }, 'Как настроить: 1) в Telegram найдите @BotFather, создайте бота командой /newbot и вставьте токен выше; 2) откройте своего бота и нажмите Start; 3) нажмите «Определить chat id», затем «Отправить проверку»; 4) включите «Отправлять уведомления» (1) и сохраните. После этого боту можно писать команды: /status, /clients, /traffic, /apps, /speed, /help (отвечает только вам).'),
 			E('div', { class: 'nfm-actions', style: 'margin:8px 0 0' }, [
 				E('button', { class: 'nfm-act', click: () => tgRun('chatid').then(r => { if (!r) return; if (r.ok) { cfgInputs.TG_CHAT.value = r.chat; callCfg([ 'set', 'TG_CHAT=' + r.chat ]); tgMsg.textContent = 'Chat id найден: ' + r.chat; } else tgMsg.textContent = r.error; }) }, 'Определить chat id'),
-				E('button', { class: 'nfm-act', click: () => tgRun('test').then(r => { if (r) tgMsg.textContent = r.ok ? 'Сообщение отправлено, проверьте Telegram.' : 'Не отправлено: ' + r.error; }) }, 'Отправить проверку') ]),
+				E('button', { class: 'nfm-act', click: () => tgRun('test').then(r => { if (r) tgMsg.textContent = r.ok ? 'Сообщение отправлено, проверьте Telegram.' : 'Не отправлено: ' + r.error; }) }, 'Отправить проверку'),
+				E('button', { class: 'nfm-act', click: () => tgRun('backup').then(r => { if (r) tgMsg.textContent = r.ok ? 'Резервная копия отправлена в Telegram файлом (без токена бота).' : 'Не отправлено: ' + r.error; }) }, 'Резервная копия в Telegram') ]),
 			tgMsg ]);
 		const cfgCard = card('Настройки предупреждений', E('div', {}, [
 			E('div', { class: 'nfm-cfg-groups' }, [
