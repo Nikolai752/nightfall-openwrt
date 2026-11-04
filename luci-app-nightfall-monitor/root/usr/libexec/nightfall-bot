@@ -2,18 +2,26 @@
 # Nightfall bot: команды в Telegram. Работает в фоне (запускает init-скрипт), отвечает только владельцу (TG_CHAT).
 #   /status   состояние роутера     /clients  кто в сети        /traffic  трафик устройств за сегодня
 #   /apps     трафик по приложениям /speed    последний замер   /help     список команд
+#   /menu     меню с кнопками (так бот и работает: все команды доступны кнопками, плюс блокировка устройств и перезагрузка)
+#   nightfall-bot report            — вывести текст ежедневного отчёта (его отправляет сборщик в заданное время)
 # Получение команд: длинный опрос getUpdates (запросы идут туда же, куда и уведомления: прокси или интерфейс VPN).
 # Для тестов: NF_DIR, NF_PROC, NF_LEASES, NF_NOTIFY, NF_ONCE=1 (обработать один ответ и выйти), NF_NOSLEEP.
 DIR=${NF_DIR:-/tmp/nightfall}
 PROC=${NF_PROC:-/proc}
 LEASES=${NF_LEASES:-/tmp/dhcp.leases}
 NOTIFY=${NF_NOTIFY:-/usr/libexec/nightfall-notify}
+BLOCK=${NF_BLOCKBIN:-/usr/libexec/nightfall-block}
+REBOOT=${NF_REBOOT:-reboot}
+DATE_NOW=${NF_DATE_NOW:-}
 CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
 cfg() { [ -r "$CONF" ] && sed -n "s/^$1=\"\{0,1\}\([^ #\"]*\).*/\1/p" "$CONF" | head -n 1; }
 CHAT=$(cfg TG_CHAT)
 HOST=$(cat "$PROC/sys/kernel/hostname" 2>/dev/null || echo router)
 
-reply() { "$NOTIFY" reply "$1" >/dev/null 2>&1; }
+# кнопки под сообщением (inline-клавиатура); ответ без явного второго параметра получает главное меню
+KB_MAIN='{"inline_keyboard":[[{"text":"📊 Статус","callback_data":"status"},{"text":"🖥 Клиенты","callback_data":"clients"}],[{"text":"📈 Трафик","callback_data":"traffic"},{"text":"📱 Приложения","callback_data":"apps"}],[{"text":"⚡ Скорость","callback_data":"speed"},{"text":"🚫 Блокировка","callback_data":"block"}],[{"text":"🔄 Перезагрузка","callback_data":"rb"}]]}'
+KB_REBOOT='{"inline_keyboard":[[{"text":"✅ Да, перезагрузить","callback_data":"rb:yes"},{"text":"Отмена","callback_data":"menu"}]]}'
+reply() { "$NOTIFY" reply "$1" "${2-$KB_MAIN}" >/dev/null 2>&1; }
 
 # ---- форматирование ----
 BYTES='function fb(b,   x) { x = "Б"; if (b >= 1024) { b /= 1024; x = "КБ" } if (b >= 1024) { b /= 1024; x = "МБ" } if (b >= 1024) { b /= 1024; x = "ГБ" } return (x == "Б" ? sprintf("%d %s", b, x) : sprintf("%.1f %s", b, x)) }'
@@ -83,44 +91,136 @@ cmd_speed() {
 	reply "⚡ Последний замер скорости ($when): $(awk -v m="$2" 'BEGIN { printf "%.0f Мбит/с", m }')"
 }
 
+cmd_menu() { reply "Меню $HOST. Выберите действие:"; }
+
+# список устройств с кнопками: нажатие отключает или возвращает интернет устройству
+cmd_block() {  # cmd_block [ПРЕФИКС]
+	j=$("$BLOCK" list 2>/dev/null)
+	rows=$(printf '%s' "$j" | sed 's/},{"mac"/}\n{"mac"/g' | awk '
+		function g(k,   s) { if (match($0, "\"" k "\":\"[^\"]*\"")) return substr($0, RSTART + length(k) + 4, RLENGTH - length(k) - 5); return "" }
+		/"mac":"/ {
+			m = g("mac"); nm = g("name"); ip = g("ip"); on = ($0 ~ /"online":true/); bl = ($0 ~ /"manual":true/); sc = (g("from") != "")
+			if (nm == "") nm = ip; if (nm == "") nm = m
+			if (!on && !bl && !sc) next
+			rk = (bl ? 0 : (on ? 1 : 2)); gsub(/:/, "", m)
+			printf "%d|[{\"text\":\"%s%s%s\",\"callback_data\":\"tb:%s\"}]\n", rk, (bl ? "🔴 " : (on ? "🟢 " : "⚪ ")), nm, (sc ? " ⏰" : ""), m
+		}' | sort -t'|' -k1,1n | head -n 14 | cut -d'|' -f2- | paste -sd, -)
+	if [ -z "$rows" ]; then reply "${1:+$1
+
+}Устройств не видно."; return; fi
+	reply "${1:+$1
+
+}🚫 Нажмите на устройство, чтобы отключить или вернуть ему интернет.
+🟢 в сети   🔴 отключено   ⏰ есть расписание (задаётся в теме на странице «Обзор»)" "{\"inline_keyboard\":[$rows,[{\"text\":\"« Меню\",\"callback_data\":\"menu\"}]]}"
+}
+
+cb_toggle() {  # cb_toggle MAC без двоеточий
+	mac=$(printf '%s' "$1" | sed 's/^\(..\)\(..\)\(..\)\(..\)\(..\)\(..\)$/\1:\2:\3:\4:\5:\6/')
+	printf '%s' "$mac" | grep -qE '^([0-9a-f]{2}:){5}[0-9a-f]{2}$' || { cmd_block "Неверный адрес устройства."; return; }
+	obj=$("$BLOCK" list 2>/dev/null | sed 's/},{"mac"/}\n{"mac"/g' | grep "\"mac\":\"$mac\"" | head -n 1)
+	nm=$(printf '%s' "$obj" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p'); [ -n "$nm" ] || nm=$(printf '%s' "$obj" | sed -n 's/.*"ip":"\([^"]*\)".*/\1/p'); [ -n "$nm" ] || nm=$mac
+	case "$obj" in
+	*'"manual":true'*) r=$("$BLOCK" unblock "$mac" 2>/dev/null); msg="✅ $nm: интернет возвращён" ;;
+	*) r=$("$BLOCK" block "$mac" "$nm" 2>/dev/null); msg="🔴 $nm: интернет отключён" ;;
+	esac
+	case "$r" in *'"ok":true'*) cmd_block "$msg" ;; *) cmd_block "Не получилось: $(printf '%s' "$r" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p')" ;; esac
+}
+
+cmd_reboot() { reply "🔄 Перезагрузить $HOST? Интернет пропадёт примерно на 1–2 минуты." "$KB_REBOOT"; }
+do_reboot() { reply "🔄 Перезагружаю. Вернусь через пару минут." ""; ( sleep 2; $REBOOT ) >/dev/null 2>&1 & }
+
+# ежедневный отчёт: nightfall-bot report печатает текст (отправляет его сборщик в заданное время)
+cmd_report() {
+	now=$(date +%s); since=$((now - 86400))
+	tt=$(awk "$BYTES"'{ d += $2; u += $3 } END { printf "↓ %s, ↑ %s", fb(d), fb(u) }' "$DIR/dev.day" 2>/dev/null)
+	[ -s "$DIR/dev.day" ] || tt="нет данных"
+	devs=$( { names; echo ---; cat "$DIR/dev.day" 2>/dev/null; } | awk "$BYTES"'
+		/^---$/ { f = 1; next }
+		!f { nm[$1] = $2; next }
+		NF >= 3 { n++; if (n > 5) next; printf "• %s: %s\n", ($1 in nm && nm[$1] != "" ? nm[$1] : $1), fb($2 + $3) }')
+	apps=""
+	if [ "$(cfg APPS)" = 1 ] && [ -s "$DIR/apps.day" ]; then
+		apps=$(awk -F'|' "$BYTES"'
+			NF >= 4 { a = $2; if (a ~ /^Прочее/) a = "Прочее"; t[a] += $3 + $4 }
+			END { for (a in t) printf "%d|%s|%s\n", t[a], a, fb(t[a]) }' "$DIR/apps.day" | sort -t'|' -k1,1nr | head -n 5 | awk -F'|' '{ printf "• %s: %s\n", $2, $3 }')
+	fi
+	ev=$(awk -F'|' -v s="$since" '$1 >= s && ($2 == "warn" || $2 == "bad") { print $1 "|" $3 }' "$DIR/events.log" 2>/dev/null)
+	evn=$(printf '%s' "$ev" | grep -c .)
+	evt=""
+	if [ "$evn" -gt 0 ]; then
+		evt=$(printf '%s\n' "$ev" | tail -n 5 | while IFS='|' read -r ts tx; do printf '• %s %s\n' "$(date -d "@$ts" '+%H:%M' 2>/dev/null)" "$tx"; done)
+	fi
+	tmax=$(awk -v s="$since" '$1 >= s && $4 >= 0 { if ($4 > m) m = $4; f = 1 } END { if (f) printf "%d °C", m; else print "н/д" }' "$DIR/hist.coarse" 2>/dev/null)
+	cl=$(awk -v w="$(sed -n 's/^wan_dev=//p' "$DIR/info" 2>/dev/null | head -n 1)" 'NR > 1 && $3 == "0x2" && $6 != w { n++ } END { print n + 0 }' "$PROC/net/arp" 2>/dev/null)
+	up=$(awk '{ print int($1) }' "$PROC/uptime" 2>/dev/null)
+	reply "🗓 Отчёт за сутки · $HOST
+Трафик сегодня: $tt
+${devs:+
+Устройства:
+$devs
+}${apps:+
+Приложения:
+$apps
+}
+$([ "$evn" -gt 0 ] && printf 'Предупреждений за сутки: %s\n%s' "$evn" "$evt" || echo 'Предупреждений за сутки не было ✅')
+Температура (максимум): ${tmax:-н/д}
+Устройств в сети: $cl
+Работает без перезагрузки: $(dur "${up:-0}")"
+}
+
 cmd_help() {
-	reply "Команды $HOST:
-/status — состояние роутера
-/clients — кто в сети
-/traffic — трафик устройств за сегодня
-/apps — трафик по приложениям
-/speed — последний замер скорости
-/help — эта справка"
+	reply "Бот $HOST. Всё управляется кнопками под сообщениями: /menu открывает меню.
+Команды тоже работают: /status /clients /traffic /apps /speed /block /reboot /report"
+}
+
+run() {  # run КОМАНДА (из текста «/status» или из кнопки «status»)
+	case "$1" in
+		start|menu|help) if [ "$1" = help ]; then cmd_help; else cmd_menu; fi ;;
+		status) cmd_status ;;
+		clients) cmd_clients ;;
+		traffic) cmd_traffic ;;
+		apps) cmd_apps ;;
+		speed) cmd_speed ;;
+		block) cmd_block ;;
+		rb|reboot) cmd_reboot ;;
+		rb:yes) do_reboot ;;
+		report) cmd_report ;;
+		tb:*) cb_toggle "${1#tb:}" ;;
+		*) reply "Не знаю такой команды. Откройте /menu." ;;
+	esac
 }
 
 handle() {  # handle ТЕКСТ
 	c=$(printf '%s' "$1" | awk '{ print $1 }' | sed 's/@.*//' | tr 'A-Z' 'a-z')
 	case "$c" in
-		/start|/help) cmd_help ;;
-		/status) cmd_status ;;
-		/clients) cmd_clients ;;
-		/traffic) cmd_traffic ;;
-		/apps) cmd_apps ;;
-		/speed) cmd_speed ;;
-		/*) reply "Не знаю такой команды. /help — список." ;;
+		/*) run "${c#/}" ;;
+		*) cmd_menu ;;
 	esac
 }
 
-# разбор ответа getUpdates: строки «update_id|chat_id|текст»
+# разбор ответа getUpdates: строки «update_id|chat_id|id_нажатия|данные_кнопки|текст»
 parse() {
 	sed 's/{"update_id":/\n&/g' | awk '
 		/^\{"update_id":/ {
 			id = $0; sub(/^\{"update_id":/, "", id); sub(/[^0-9].*/, "", id)
 			chat = ""; if (match($0, /"chat":\{"id":-?[0-9]+/)) chat = substr($0, RSTART + 13, RLENGTH - 13)
-			txt = ""; if (match($0, /"text":"[^"]*"/)) txt = substr($0, RSTART + 8, RLENGTH - 9)
-			print id "|" chat "|" txt
+			cb = ""; dt = ""
+			if (match($0, /"callback_query":\{"id":"[^"]*"/)) {
+				cb = substr($0, RSTART + 24, RLENGTH - 25)
+				if (match($0, /"data":"[^"]*"/)) dt = substr($0, RSTART + 8, RLENGTH - 9)
+			}
+			txt = ""
+			if (cb == "" && match($0, /"text":"[^"]*"/)) txt = substr($0, RSTART + 8, RLENGTH - 9)
+			print id "|" chat "|" cb "|" dt "|" txt
 		}'
 }
+
+if [ "$1" = report ]; then reply() { printf '%s\n' "$1"; }; cmd_report; exit 0; fi
 
 [ -n "$CHAT" ] || { echo "TG_CHAT не задан" >&2; exit 1; }
 
 # меню команд в Telegram (кнопка «Меню» у бота)
-"$NOTIFY" raw setMyCommands -d 'commands=[{"command":"status","description":"Состояние роутера"},{"command":"clients","description":"Кто в сети"},{"command":"traffic","description":"Трафик устройств"},{"command":"apps","description":"Трафик по приложениям"},{"command":"speed","description":"Последний замер скорости"},{"command":"help","description":"Список команд"}]' >/dev/null 2>&1
+"$NOTIFY" raw setMyCommands -d 'commands=[{"command":"menu","description":"Меню с кнопками"},{"command":"status","description":"Состояние роутера"},{"command":"clients","description":"Кто в сети"},{"command":"traffic","description":"Трафик устройств"},{"command":"apps","description":"Трафик по приложениям"},{"command":"block","description":"Блокировка устройств"},{"command":"report","description":"Отчёт за сутки"},{"command":"reboot","description":"Перезагрузить роутер"}]' >/dev/null 2>&1
 
 # накопившиеся за время простоя команды пропускаем
 off=0
@@ -130,16 +230,21 @@ last=$(printf '%s' "$r" | parse | tail -n 1 | cut -d'|' -f1)
 
 fails=0
 while :; do
-	r=$(NF_TMO=45 "$NOTIFY" raw getUpdates -d "offset=$off" -d timeout=30 -d 'allowed_updates=["message"]' 2>/dev/null)
+	r=$(NF_TMO=45 "$NOTIFY" raw getUpdates -d "offset=$off" -d timeout=30 -d 'allowed_updates=["message","callback_query"]' 2>/dev/null)
 	case "$r" in
 	*'"ok":true'*)
 		fails=0
 		printf '%s' "$r" | parse > "$DIR/bot.upd"
-		while IFS='|' read -r id chat txt; do
+		while IFS='|' read -r id chat cb dt txt; do
 			[ -n "$id" ] || continue
 			off=$((id + 1))
 			[ "$chat" = "$CHAT" ] || continue          # чужим не отвечаем
-			handle "$txt"
+			if [ -n "$cb" ]; then
+				"$NOTIFY" raw answerCallbackQuery -d "callback_query_id=$cb" >/dev/null 2>&1
+				run "$dt"
+			else
+				handle "$txt"
+			fi
 		done < "$DIR/bot.upd" ;;
 	*)
 		fails=$((fails + 1)); d=$((fails * 10)); [ "$d" -le 120 ] || d=120

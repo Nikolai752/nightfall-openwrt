@@ -19,7 +19,7 @@ CT=${NF_CT:-$PROC/net/nf_conntrack}
 TEMP_WARN=80; TEMP_CRIT=90; MEM_MIN_PCT=10; FLASH_MAX_PCT=90; CT_MAX_PCT=80
 CPU_MAX_PCT=90; CPU_MINUTES=3
 PING_TARGET=1.1.1.1; PING_TARGET2=77.88.8.8
-PERSIST_DIR=; PERSIST_HOURS=6; JOURNAL=1; WIFI_HIST=1; SPEED_HOURS=0; APPS=0; NEWDEV=1; TG=0; TG_ALERTS=1
+PERSIST_DIR=; PERSIST_HOURS=6; JOURNAL=1; WIFI_HIST=1; SPEED_HOURS=0; APPS=0; NEWDEV=1; TG=0; TG_ALERTS=1; TG_REPORT=
 NOTIFY=${NF_NOTIFY:-/usr/libexec/nightfall-notify}
 KNOWN=${NF_KNOWN:-/etc/nightfall-known.list}
 LEASES=${NF_LEASES:-/tmp/dhcp.leases}
@@ -46,6 +46,11 @@ HOST=$(cat "$PROC/sys/kernel/hostname" 2>/dev/null || echo router)
 
 # ---------- события и предупреждения ----------
 clean() { printf '%s' "$1" | tr -d '"\\|' | tr '\n' ' '; }
+
+BLOCKBIN=${NF_BLOCKBIN:-/usr/libexec/nightfall-block}
+BOTBIN=${NF_BOTBIN:-/usr/libexec/nightfall-bot}
+BLOCKLIST=${NF_BLOCK:-/etc/nightfall-block.list}
+REPORT_MARK="$DIR/report.sent"
 
 tgsend() {  # tgsend ТЕКСТ: в фоне, чтобы сбой сети не тормозил сборщик
 	[ "$TG" = 1 ] && [ -x "$NOTIFY" ] || return 0
@@ -407,6 +412,27 @@ do_wifi() {
 stop() { persist; exit 0; }
 trap stop TERM INT
 
+# блокировка устройств: правила применяются при старте и раз в минуту (расписание), если список не пуст
+do_block() {
+	[ -x "$BLOCKBIN" ] || return 0
+	if [ -s "$BLOCKLIST" ]; then
+		bt=$((bt + 1)); [ "$bt" = 1 ] || [ $((now - blast)) -ge 60 ] || return 0
+		blast=$now; "$BLOCKBIN" apply >/dev/null 2>&1; bhad=1
+	elif [ "$bhad" = 1 ]; then
+		bhad=0; "$BLOCKBIN" apply >/dev/null 2>&1
+	fi
+}
+bt=0; blast=0; bhad=0
+
+# ежедневный отчёт: раз в сутки в заданное время (ЧЧ:ММ), метка последней отправки хранится рядом с данными
+do_report() {
+	[ "$TG" = 1 ] && [ -n "$TG_REPORT" ] && [ -x "$BOTBIN" ] || return 0
+	hm=$(date +%H:%M); [ "$hm" = "$TG_REPORT" ] || return 0
+	td=$(date +%Y-%m-%d); [ "$(cat "$REPORT_MARK" 2>/dev/null)" = "$td" ] && return 0
+	echo "$td" > "$REPORT_MARK"
+	txt=$("$BOTBIN" report 2>/dev/null) && [ -n "$txt" ] && tgsend "$txt"
+}
+
 # ---------- основной цикл ----------
 now=$(date +%s); started=$now
 persist_ok=1
@@ -518,6 +544,8 @@ while :; do
 		do_dns
 		do_devices
 		do_newdev
+		do_block
+		do_report
 		wtick=$((wtick + 1))
 		if [ "$WIFI_HIST" = 1 ] && [ $((wtick % 4)) = 1 ]; then do_wifi; fi
 		if [ "$SPEED_HOURS" -gt 0 ] 2>/dev/null && [ "$netms" != -1 ] && [ $((now - last_speed)) -ge $((SPEED_HOURS * 3600)) ] && [ "$rx" -lt 400000 ] 2>/dev/null; then

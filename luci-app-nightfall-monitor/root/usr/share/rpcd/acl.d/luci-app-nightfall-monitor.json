@@ -20,6 +20,9 @@
 				],
 				"/usr/libexec/nightfall-notify": [
 					"exec"
+				],
+				"/usr/libexec/nightfall-block": [
+					"exec"
 				]
 			},
 			"ubus": {
@@ -72,6 +75,9 @@
 					"exec"
 				],
 				"/usr/libexec/nightfall-notify": [
+					"exec"
+				],
+				"/usr/libexec/nightfall-block": [
 					"exec"
 				]
 			},

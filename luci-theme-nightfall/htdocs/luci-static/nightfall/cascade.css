@@ -4942,3 +4942,26 @@ html[data-nf-ov-apps="off"] .nf-apps { display: none !important; }
 .nf-apps-sub { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 0 0 10px; color: var(--nf-text-dim); font-size: calc(12px * var(--nf-fsz, 1)); }
 .nf-apps-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 9px; border-radius: 999px; background: color-mix(in srgb, var(--nf-text) 8%, transparent); color: var(--nf-text); }
 .nf-apps-chip b { font-weight: 600; margin-left: 2px; }
+
+/* ======== v20261104a: карточка «Доступ в интернет» ======== */
+html[data-nf-ov-block="off"] .nf-block { display: none !important; }
+.nf-blk-r { display: grid; grid-template-columns: minmax(120px, 1.6fr) minmax(90px, 1fr) auto; gap: 6px 14px; align-items: center; padding: 8px 0; border-top: 1px solid var(--nf-stroke); }
+.nf-blk-b > .nf-blk-r:first-child, .nf-blk-g:first-child .nf-blk-r { border-top: 0; }
+.nf-blk-n { display: flex; flex-direction: column; min-width: 0; }
+.nf-blk-n b, .nf-blk-n span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nf-blk-n span { color: var(--nf-text-dim); font-size: calc(12px * var(--nf-fsz, 1)); }
+.nf-blk-st { color: var(--nf-text-dim); font-size: calc(13px * var(--nf-fsz, 1)); }
+.nf-blk-st.ok { color: var(--nf-ok, #3ecf8e); }
+.nf-blk-st.bad { color: var(--nf-bad, #ff6b6b); font-weight: 600; }
+.nf-blk-r.off .nf-blk-n b { text-decoration: line-through; opacity: .7; }
+.nf-blk-a { display: flex; gap: 6px; justify-content: flex-end; }
+.nf-blk-g { border-top: 1px solid var(--nf-stroke); }
+.nf-blk-g .nf-blk-r { border-top: 0; }
+.nf-blk-sched { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 2px 0 12px; color: var(--nf-text-dim); }
+.nf-blk-sched input { width: auto; min-width: 0; }
+.nf-blk-note { padding: 6px 10px; margin-bottom: 6px; border-radius: 8px; background: color-mix(in srgb, var(--nf-text) 8%, transparent); }
+@media (max-width: 640px) {
+	.nf-blk-r { grid-template-columns: 1fr auto; }
+	.nf-blk-st { grid-column: 1; grid-row: 2; }
+	.nf-blk-a { grid-column: 2; grid-row: 1 / span 2; }
+}
