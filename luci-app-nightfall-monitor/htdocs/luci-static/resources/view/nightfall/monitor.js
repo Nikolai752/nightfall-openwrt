@@ -744,7 +744,7 @@ return view.extend({
 			[ 'PERSIST_HOURS', 'Сохранять историю на накопитель', 'ч' ], [ 'JOURNAL', 'Журнал обрывов и перезагрузок (0/1)', '' ], [ 'WIFI_HIST', 'История сигнала Wi-Fi (0/1)', '' ],
 			[ 'SPEED_URL', 'Файл для замера скорости', '', 'text' ], [ 'SPEED_STREAMS', 'Потоков при замере скорости (1–8)', '' ],
 			[ 'NEWDEV', 'Сообщать о новых устройствах (0/1)', '' ],
-			[ 'TG', 'Отправлять уведомления в Telegram (0/1)', '' ], [ 'TG_ALERTS', 'Слать предупреждения и перезагрузки (0/1)', '' ],
+			[ 'TG', 'Отправлять уведомления в Telegram (0/1)', '' ], [ 'TG_ALERTS', 'Слать предупреждения и перезагрузки (0/1)', '' ], [ 'TG_BOT', 'Команды боту: /status, /clients… (0/1)', '' ],
 			[ 'TG_TOKEN', 'Токен бота (от @BotFather)', '', 'password', 'не задан' ], [ 'TG_CHAT', 'Chat id', '', 'text', 'число, определяется кнопкой' ],
 			[ 'TG_PROXY', 'Прокси для Telegram (если он закрыт)', '', 'text', 'например socks5h://127.0.0.1:1080' ],
 			[ 'TG_IFACE', 'Или интерфейс VPN для Telegram', '', 'text', 'например wg0' ]
@@ -762,7 +762,7 @@ return view.extend({
 			});
 		};
 		const tgTools = E('div', { style: 'margin-top:10px' }, [
-			E('div', { class: 'nfm-note-s' }, 'Как настроить: 1) в Telegram найдите @BotFather, создайте бота командой /newbot и вставьте токен выше; 2) откройте своего бота и нажмите Start; 3) нажмите «Определить chat id», затем «Отправить проверку»; 4) включите «Отправлять уведомления» (1) и сохраните.'),
+			E('div', { class: 'nfm-note-s' }, 'Как настроить: 1) в Telegram найдите @BotFather, создайте бота командой /newbot и вставьте токен выше; 2) откройте своего бота и нажмите Start; 3) нажмите «Определить chat id», затем «Отправить проверку»; 4) включите «Отправлять уведомления» (1) и сохраните. После этого боту можно писать команды: /status, /clients, /traffic, /apps, /speed, /help (отвечает только вам).'),
 			E('div', { class: 'nfm-actions', style: 'margin:8px 0 0' }, [
 				E('button', { class: 'nfm-act', click: () => tgRun('chatid').then(r => { if (!r) return; if (r.ok) { cfgInputs.TG_CHAT.value = r.chat; callCfg([ 'set', 'TG_CHAT=' + r.chat ]); tgMsg.textContent = 'Chat id найден: ' + r.chat; } else tgMsg.textContent = r.error; }) }, 'Определить chat id'),
 				E('button', { class: 'nfm-act', click: () => tgRun('test').then(r => { if (r) tgMsg.textContent = r.ok ? 'Сообщение отправлено, проверьте Telegram.' : 'Не отправлено: ' + r.error; }) }, 'Отправить проверку') ]),
@@ -775,7 +775,7 @@ return view.extend({
 				[ 'Хранение истории', [ 'PERSIST_DIR', 'PERSIST_HOURS', 'JOURNAL', 'WIFI_HIST' ] ],
 				[ 'Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ] ],
 				[ 'Новые устройства', [ 'NEWDEV' ] ],
-				[ 'Уведомления в Telegram', [ 'TG', 'TG_ALERTS', 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY', 'TG_IFACE' ], tgTools ]
+				[ 'Уведомления в Telegram', [ 'TG', 'TG_ALERTS', 'TG_BOT', 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY', 'TG_IFACE' ], tgTools ]
 			].map(([ title, keys, extra ]) => E('section', { class: 'nfm-cfg-g' }, [ E('h4', {}, title),
 				E('div', { class: 'nfm-cfg' }, keys.map(k => CFG_FIELDS.find(f => f[0] === k)).filter(Boolean).map(([ k, l, u, type, ph ]) => E('label', { class: 'nfm-cfg-i' }, [ l,
 					E('span', { class: 'nfm-cfg-f' }, [ cfgInputs[k] = E('input', { class: 'nfm-in', type: type || 'number', placeholder: ph || '' }), u ? E('em', {}, u) : '' ]) ]))),

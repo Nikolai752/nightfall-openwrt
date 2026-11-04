@@ -6,7 +6,7 @@
 [![OpenWrt 25.12](https://img.shields.io/badge/OpenWrt-25.12-00a3b5?style=flat-square&logo=openwrt)](https://openwrt.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](https://opensource.org/licenses/MIT)
 
-A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Monitor** page with history, charts and per-device traffic accounting. For **OpenWrt 25.12**, no extra packages required.
+A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Monitor** page with history, charts, traffic accounting by device and by application, Telegram notifications and one-click updates. For **OpenWrt 25.12**; no extra packages are needed (`curl` is required only for updates and Telegram).
 
 > **Language note.** The theme's own interface (personalization panel, Overview widgets, Resource Monitor, login screen, notifications) is currently **in Russian only**. Standard LuCI pages (Network, Firewall, etc.) are still translated by LuCI as usual. Contributions are welcome via [Issues](https://github.com/Nikolai752/nightfall-openwrt/issues).
 
@@ -28,35 +28,56 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 - Light and dark modes, switching automatically by system setting or by schedule.
 - 12 accent colors plus a custom color, backgrounds (Mica, dots, grid, stars, aurora, waves) and animated "constellations".
 - Collapsible menu, page search (`Ctrl+K` or `/`), quick theme toggle button.
-- Mobile layout: bottom section bar, settings shown as cards, a "Save & Apply" bar at the bottom of the screen.
+- Mobile layout: bottom section bar, settings shown as cards, a compact one-row "Apply / Save / Reset" bar that adapts to the phone screen.
 - Lock-screen style login page with a router summary (shown to local-network clients only).
 - Can be added to a phone home screen as an app. Appearance settings are stored on the router and survive switching browsers.
+- A "System → Nightfall: all elements" page with every button, form, table and notification, to check the look quickly on phone and desktop.
 
 **Overview**
 - "Now" strip: internet, WAN traffic, CPU, temperature, memory. Tiles expand into charts for an hour, a day or a week.
-- Router health, Wi-Fi clients and signal level, event feed, top devices by traffic, quick actions.
-- Cards can be dragged, pinned and hidden.
+- Cards: router health, Wi-Fi clients and signal level, event feed, top devices by traffic, **traffic by application**, quick actions. Cards can be dragged, pinned and hidden; on wide screens they use two columns.
 
 **Resource Monitor** (Status → Resource Monitor)
 - Tabs: Overview, Network, Programs, Services, History.
 - CPU, temperature, memory, flash storage, per-core load, memory by process.
 - "Network" tab: interface speeds, connections, per-device traffic for today and yesterday, Wi-Fi clients with a signal-level chart when you tap a row.
-- "History" tab: charts for 1 hour, 24 hours and 7 days, connection quality, a log of outages and reboots.
+- "History" tab: charts for 1 hour, 24 hours and 7 days, connection quality, a log of outages and reboots, alert and notification settings.
 - "Services" tab: router service status with start, stop and restart. Services enabled at boot but not running are marked red. Key services (network, web server, SSH, firewall) cannot be stopped from here, so you do not lose access.
-- Internet speed test run by the router itself: Cloudflare, Yandex Mirror, Hetzner, OVH or a custom URL, manual and scheduled.
-- Alerts even when the page is closed: overheating, low memory, full flash, sustained high load, lost internet.
+- Internet speed test run by the router itself with several streams (enough for fast links): Cloudflare, Yandex Mirror, Hetzner, OVH or a custom URL, manual and scheduled.
+- Alerts even when the page is closed: overheating, low memory, full flash, sustained high load, lost internet, new devices on the network.
 
-History is kept in RAM (`/tmp`); nothing is written to flash. To keep history across reboots, point it at a folder on a USB drive or SD card.
+**Traffic by application**
+- How much YouTube, Telegram, Netflix, Google, Yandex and other services downloaded: today, 7 and 30 days, in total or per device. Details below.
+
+**Telegram notifications and bot**
+- Messages about lost and restored internet, overheating, low memory, reboots and new devices; bot commands `/status`, `/clients`, `/traffic`, `/apps`, `/speed`. Details below.
+
+**Updating from the interface**
+- A "New version available" dialog, one-click install with sha256 and signature checks, rollback on error, release notes after sign-in. See "Updating".
+
+History is kept in RAM (`/tmp`); nothing is written to flash (exceptions: the outage journal, the known-devices list and keys). To keep history across reboots, point it at a folder on a USB drive or SD card.
 
 ### Traffic by application
 
-The "Traffic by application" card on the Overview page shows how much YouTube, Telegram, Netflix and other services downloaded (today, 7 and 30 days, in total or per device). It is switched on with the button in the card: the theme enables the dnsmasq DNS log (`/tmp/nightfall-dns.log`, in RAM, up to 1 MB) and conntrack counters, and the router matches connection addresses to names from DNS queries. Switching it off restores the previous dnsmasq settings. Add your own rules to `/etc/nightfall-apps.list` as `Name|domains separated by spaces|IP prefixes`.
+The "Traffic by application" card on the Overview page shows how much YouTube, Telegram, Netflix and other services downloaded (today, 7 and 30 days, in total or per device). Under "Other" you see the heaviest unrecognised domains.
 
-Limits: traffic through a VPN or encrypted DNS (DoH/DoT) cannot be classified, and with Flow Offloading enabled the counters may be too low.
+It is switched on with the button in the card: the theme enables the dnsmasq DNS log (`/tmp/nightfall-dns.log`, in RAM, up to 1 MB) and conntrack counters, and the router matches connection addresses to names from DNS queries. Switching it off restores the previous dnsmasq settings. Built-in rules live in `/usr/share/nightfall/apps.list`; add your own to `/etc/nightfall-apps.list` as `Name|domains separated by spaces|IP prefixes` (checked first).
 
-### Telegram notifications and new devices
+Limits: traffic through a VPN or encrypted DNS (DoH/DoT) cannot be classified, with Flow Offloading enabled the counters may be too low, and the numbers are approximate.
 
-The monitor can message you in Telegram when the internet goes down or comes back, on overheating, low memory, a reboot, and when an unknown device appears on the network (it also lands in the event feed). Set it up in Resource monitor → History → Settings → "Telegram notifications": create a bot with @BotFather, paste the token, open the bot and press Start, then "Detect chat id" and "Send test". If Telegram is blocked, set a proxy (for example `socks5h://127.0.0.1:1080`). Requires curl (`apk add curl`). At most 30 messages per hour. Known devices are kept in `/etc/nightfall-known.list`; phones using a random Wi-Fi address may look new.
+### Telegram notifications and bot
+
+The monitor can message you in Telegram when the internet goes down or comes back, on overheating, low memory, a reboot, and when an unknown device appears on the network (it also lands in the event feed without Telegram). At most 30 messages per hour.
+
+**Setup:** Resource monitor → History → Settings → "Telegram notifications".
+1. Create a bot with @BotFather (`/newbot`) and paste the token.
+2. Open your bot and press Start.
+3. Press "Detect chat id", then "Send test".
+4. Turn on "Send notifications" and save.
+
+**Bot commands** (answered to the owner only, i.e. your chat id): `/status` (internet, load, temperature, memory), `/clients` (who is online), `/traffic` (per-device traffic today), `/apps` (traffic by application), `/speed` (last speed test), `/help`. The command menu appears in Telegram by itself. Turn it off with `TG_BOT=0`.
+
+Requires **curl** (`apk add curl`). If `api.telegram.org` is blocked, set a "Telegram proxy" (for example `socks5h://127.0.0.1:1080`) or a "VPN interface" (for example `wg0`) and Telegram requests will go through it. Known devices are kept in `/etc/nightfall-known.list`; phones using a random Wi-Fi address may look new. The bot token is stored in `/etc/nightfall-monitor.conf` (mode 600) and is never shown in the interface.
 
 ## Support the project
 
@@ -88,9 +109,9 @@ Use the same one-line command as for installation, or run `install-update.sh` ma
 
 ### Updating from the interface
 
-When a new version is released, the theme shows a "New version available" dialog. Press "Update": the router downloads the release, verifies its sha256 checksum and installs it; on any error the files are restored from a backup. Since v1.0.11 releases are also signed with a usign key: the router checks the signature against `/etc/nightfall-release.pub` and refuses an archive with a bad signature. Afterwards the session restarts and, once you sign in, the changes from `CHANGELOG.md` are shown.
+When a new version is released, the theme shows a "New version available" dialog. Press "Update": the router downloads the release, verifies its sha256 checksum and installs it; on any error the files are restored from a backup. Since v1.0.11 releases are also signed with a usign key: the router checks the signature against `/etc/nightfall-release.pub` and refuses an archive with a bad signature. The first update to a signed version (v1.0.11) goes by sha256 and brings the public key; after that the signature is always required. See [CHANGELOG.md](CHANGELOG.md) for the history. Afterwards the session restarts and, once you sign in, the changes from `CHANGELOG.md` are shown.
 
-The router needs **curl** to download the release. If it is missing, install it: `apk add curl` (OpenWrt 25.12) or `opkg install curl` (older releases).
+The router needs **curl** to download the release (`apk add curl`, or `opkg install curl` on older releases) and `usign` to verify signatures (already present in OpenWrt 25.12).
 
 ## Uninstalling
 
@@ -105,7 +126,7 @@ If LuCI will not open at all: `uci set luci.main.mediaurlbase=/luci-static/boots
 
 - Appearance: the "Personalization" button at the bottom left. Colors and sizes are defined at the top of `cascade.css` (`--nf-accent`, `--nf-bg`, `--nf-radius`).
 - Alerts, internet check addresses and history folder: Monitor → History → "Alert settings", or the file `/etc/nightfall-monitor.conf`.
-- Collector service: `/etc/init.d/nightfall-collector start|stop|restart|enable|disable`. Without it the history and per-device accounting stay empty.
+- Collector service: `/etc/init.d/nightfall-collector start|stop|restart|enable|disable`. Without it the history, traffic accounting and the Telegram bot do not work (the bot is started by the same service).
 - Per-device traffic accounting requires `net.netfilter.nf_conntrack_acct=1`:
   `echo "net.netfilter.nf_conntrack_acct=1" >> /etc/sysctl.conf && sysctl -p`.
   With flow offloading enabled some traffic is not visible, so numbers may be underestimated.
@@ -129,16 +150,15 @@ If you installed the theme on another router, please tell us in [Issues](https:/
 ## Repository layout
 
 - `luci-theme-nightfall/`: the theme (CSS, JS, templates).
-- `luci-app-nightfall-monitor/`: the monitor, history collector, menu and access rights.
+- `luci-app-nightfall-monitor/`: the monitor, history collector, per-application accounting, Telegram bot, updater, menu and access rights.
+- `CHANGELOG.md` — release notes (shown after an update).
 - `install.sh`, `install-update.sh`, `uninstall.sh`: install, update, roll back.
 - `build-release.sh`: builds `dist/nightfall-root.tar.gz`.
 
 ## Making a release
 
-```sh
-git tag v1.0.2
-git push origin v1.0.2
-```
-GitHub Actions builds `nightfall-root.tar.gz` and attaches it to the release.
+Releases are signed with a [usign](https://git.openwrt.org/project/usign.git) key. Create the key once on any router: `usign -G -c "Nightfall release key" -s nf.sec -p nf.pub`, put the contents of `nf.pub` into `luci-theme-nightfall/root/etc/nightfall-release.pub` and the contents of `nf.sec` into the repository secret `NIGHTFALL_SIGN_KEY` (Settings → Secrets and variables → Actions).
+
+Then create a release with a tag like `v1.0.19` (on the Releases page or with `gh release create`). GitHub Actions builds `nightfall-root.tar.gz`, signs it, attaches the `.sha256` and `.sig` files and updates `latest.json`. Remember to add an entry to `CHANGELOG.md`.
 
 The repository contains no symbolic links (`nightfall-light`, `nightfall-dark`, `prefs.json`): `build-release.sh` creates them. To build an `.apk` with the SDK, create them manually.

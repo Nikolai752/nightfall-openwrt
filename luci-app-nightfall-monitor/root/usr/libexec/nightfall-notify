@@ -20,7 +20,7 @@ fail() { printf '{"ok":false,"error":"%s"}\n' "$1"; exit 1; }
 api() {
 	m=$1; shift
 	command -v "$CURL" >/dev/null 2>&1 || { echo '{"ok":false,"description":"не найден curl (apk add curl)"}'; return 0; }
-	printf 'url = "https://api.telegram.org/bot%s/%s"\n' "$TOKEN" "$m" | "$CURL" -sS -m 25 ${PROXY:+-x "$PROXY"} ${IFACE:+--interface "$IFACE"} -K - "$@" 2>&1
+	printf 'url = "https://api.telegram.org/bot%s/%s"\n' "$TOKEN" "$m" | "$CURL" -sS -m "${NF_TMO:-25}" ${PROXY:+-x "$PROXY"} ${IFACE:+--interface "$IFACE"} -K - "$@" 2>&1
 }
 
 explain() {  # разбор ответа Telegram: печатает текст ошибки
@@ -63,6 +63,12 @@ chatid)
 	id=$(printf '%s' "$RESP" | sed -n 's/.*"chat":{"id":\(-\{0,1\}[0-9]\{1,\}\).*/\1/p' | tail -n 1)
 	[ -n "$id" ] || fail "Бот пока ничего не получал. Откройте бота в Telegram, нажмите Start или напишите ему любое сообщение и повторите."
 	printf '{"ok":true,"chat":"%s"}\n' "$id" ;;
+raw)       # raw МЕТОД [аргументы curl]: служебный вызов API для nightfall-bot
+	[ -n "$TOKEN" ] || exit 1
+	m=$2; shift 2; api "$m" "$@" ;;
+reply)     # reply ТЕКСТ: ответ в чат без лимита и без приставки (для команд бота)
+	[ -n "$TOKEN" ] && [ -n "$CHAT" ] || exit 1
+	post "$2" ;;
 *)
 	echo "usage: nightfall-notify send TEXT | test | chatid" >&2
 	exit 1 ;;
