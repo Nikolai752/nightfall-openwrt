@@ -4988,8 +4988,9 @@ html[data-nf-login-bg="tod"][data-nf-tod="night"] body.nf-blank::after { content
 @keyframes nf-tod-float { from { transform: translate(0, 0); } to { transform: translate(-6vw, 4vh); } }
 @keyframes nf-tod-twinkle { from { opacity: .45; } to { opacity: .9; } }
 html[data-nf-motion="off"][data-nf-login-bg="tod"] body.nf-blank::before, html[data-nf-motion="off"][data-nf-login-bg="tod"] body.nf-blank::after { animation: none !important; }
-html[data-nf-login-bg="tod"][data-nf-tod="day"] .nf-lock, html[data-nf-login-bg="tod"][data-nf-tod="day"] .nf-stats { color: #10243f; text-shadow: none; }
-html[data-nf-login-bg="tod"][data-nf-tod="dawn"] .nf-lock, html[data-nf-login-bg="tod"][data-nf-tod="dawn"] .nf-stats { color: #3a2340; text-shadow: none; }
+html[data-nf-login-bg="tod"][data-nf-tod="day"] .nf-lock, html[data-nf-login-bg="tod"][data-nf-tod="day"] .nf-lock span { color: #10243f; text-shadow: none; }
+html[data-nf-login-bg="tod"][data-nf-tod="dawn"] .nf-lock, html[data-nf-login-bg="tod"][data-nf-tod="dawn"] .nf-lock span { color: #3a2340; text-shadow: none; }
+html[data-nf-login-bg="tod"][data-nf-tod="day"] .nf-lock span, html[data-nf-login-bg="tod"][data-nf-tod="dawn"] .nf-lock span { opacity: .75; }
 
 /* графики и столбцы плавно «вырастают» при первом показе */
 @keyframes nf-grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
@@ -5008,3 +5009,28 @@ html:not([data-nf-motion="off"]) .nf-spark path { animation: nf-reveal .9s cubic
 @media (min-width: 900px) { body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .cbi-section.nf-wide { grid-column: 1 / -1; } }
 .cbi-section.nf-min > :not(.cbi-title) { display: none !important; }
 .cbi-section.nf-min { padding-bottom: 6px; }
+
+/* ======== v20261105a: вход, стиль «Стекло»: без лишних панелей за полями ввода ======== */
+html[data-nf-style="glass"] .modal.login form, html[data-nf-style="glass"] .modal.login .cbi-section-node, html[data-nf-style="glass"] .modal.login .cbi-value-field, html[data-nf-style="glass"] .modal.login .nf-row {
+	background: transparent !important; border: 0 !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+html[data-nf-style="glass"] .modal.login .cbi-section, html[data-nf-style="glass"] .modal.login .cbi-map { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+
+/* ======== v20261105b: IP/MAC без переносов, один столбец, своя картинка и выбор карточек на входе ======== */
+#view .td.nf-nw, #view td.nf-nw, #view .td[data-title*="IPv4"], #view .td[data-title*="MAC"] { overflow-wrap: normal !important; word-break: keep-all; white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (min-width: 900px) { html[data-nf-ov-wide="on"] #view:has(> .cbi-section.fade-in) { grid-template-columns: minmax(0, 1fr); } }
+
+html[data-nf-logo="custom"] body.nf-blank .modal.login::before { background: var(--nf-logo) center / contain no-repeat; border-radius: 0; box-shadow: none; width: 88px; height: 88px; margin-left: -44px; top: 20px; }
+html[data-nf-login-bg="tod"][data-nf-tod="night"] .nf-lock, html[data-nf-login-bg="tod"][data-nf-tod="night"] .nf-lock span { color: #eef1ff; }
+html[data-nf-login-bg="tod"][data-nf-tod="night"] .nf-lock span { opacity: .75; }
+.nf-sel { max-width: 58%; height: 30px; padding: 0 8px; border-radius: 6px; font: inherit; font-size: calc(13px * var(--nf-fsz, 1)); }
+.nf-logo-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 2px; }
+.nf-stats[data-n="1"] { grid-template-columns: minmax(0, 1fr); }
+.nf-stats[data-n="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.nf-st { position: relative; overflow: hidden; }
+.nf-st::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--nf-accent); opacity: .75; border-radius: 3px 0 0 3px; }
+.nf-st b { font-variant-numeric: tabular-nums; }
+.nf-st-speed b { letter-spacing: -.2px; }
+.nf-st span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html[data-nf-login-bg="tod"] body.nf-blank .modal.login label.cbi-value-title, html[data-nf-login-bg="tod"] body.nf-blank .modal.login .nf-row label { color: var(--nf-text); opacity: .88; }
+#view .table:has(.nf-nw) .td, #view .table:has(.nf-nw) .th { overflow-wrap: normal !important; white-space: nowrap; }
+#view .table:has(.nf-nw) .td:first-child { width: auto; }

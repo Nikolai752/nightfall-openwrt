@@ -9,7 +9,7 @@
 
 	var KEY = 'nightfall-prefs-v1';
 	var root = document.documentElement;
-	var DEFAULTS = { mode: 'auto', accent: '', motion: true, liteAuto: true, bg: 'mica', bgScale: 100,
+	var DEFAULTS = { mode: 'auto', accent: '', motion: true, liteAuto: true, loginCells: [ 'net', 'up', 'fw' ], loginLogo: false, ovWide: false, bg: 'mica', bgScale: 100,
 		density: 'normal', font: 'md', radius: 'md', glass: 'on', loginClock: true, loginInfo: true, loginBg: 'mica', ovLive: true, ovBadges: true,
 		style: '', preset: 'win11', navMini: false, schedule: false, nightFrom: '20:00', dayFrom: '07:00', netBar: true, constLogin: true, constApp: false, constKind: 'net',
 		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, ovTop: true, ovApps: true, ovBlock: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
@@ -88,7 +88,7 @@
 	}
 	document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') pushNow(); });
 	window.addEventListener('pagehide', pushNow);
-	window.addEventListener('load', function () { window.setTimeout(pull, 200); window.setTimeout(loadVer, 600); });
+	window.addEventListener('load', function () { window.setTimeout(function () { pull(); window.setTimeout(fetchLogo, 700); }, 200); window.setTimeout(loadVer, 600); });
 
 	var prefs = load();
 	var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : { matches: false };
@@ -208,6 +208,59 @@
 			root.setAttribute('data-darkmode', String(isDark()));
 
 		applyAccent();
+	}
+
+	/* ---- своя картинка на экране входа: копия в localStorage (быстро) и на роутере (logo.json, для других браузеров) ---- */
+	var LOGOKEY = 'nightfall-logo-v1';
+	function applyLogo() {
+		var d = null;
+		try { d = window.localStorage.getItem(LOGOKEY); } catch (e) { /* ignore */ }
+		if (prefs.loginLogo && d && /^data:image\/(png|webp|jpeg);base64,[A-Za-z0-9+\/=]+$/.test(d)) {
+			root.style.setProperty('--nf-logo', 'url("' + d + '")');
+			root.setAttribute('data-nf-logo', 'custom');
+		}
+		else {
+			root.style.removeProperty('--nf-logo');
+			root.setAttribute('data-nf-logo', 'default');
+		}
+	}
+	function fetchLogo() {
+		if (!prefs.loginLogo || !window.fetch) return;
+		try { if (window.localStorage.getItem(LOGOKEY)) return; } catch (e) { return; }
+		window.fetch(BASE + 'logo.json?' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+			if (d && typeof d.d === 'string') { try { window.localStorage.setItem(LOGOKEY, d.d); } catch (e) { /* ignore */ } applyLogo(); }
+		}).catch(function () { /* нет картинки на роутере */ });
+	}
+	function routerExec(args) {
+		var env = sid();
+		if (!env || !window.fetch) return Promise.reject(new Error('нет сессии'));
+		return window.fetch(env.ubuspath || '/ubus/', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'call', params: [ env.sessionid, 'file', 'exec', { command: '/usr/libexec/nightfall-config', params: args } ] }) })
+			.then(function (r) { return r.json(); }).then(function (j) {
+				var o = j && j.result && j.result[1] ? j.result[1] : {};
+				var out = {}; try { out = JSON.parse(o.stdout || '{}'); } catch (e) { /* ignore */ }
+				if (!out.ok) throw new Error(out.error || 'роутер не принял картинку (после обновления выйдите и войдите в LuCI снова)');
+			});
+	}
+	function readLogo(file, done) {
+		var img = new Image(), url = window.URL.createObjectURL(file);
+		img.onload = function () {
+			var side = 256, out = '';
+			for (var i = 0; i < 5; i++) {
+				var sc = Math.min(1, side / Math.max(img.width, img.height) );
+				var cv = document.createElement('canvas');
+				cv.width = Math.max(1, Math.round(img.width * sc)); cv.height = Math.max(1, Math.round(img.height * sc));
+				cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+				out = cv.toDataURL('image/webp', .9);
+				if (out.indexOf('data:image/webp') !== 0) out = cv.toDataURL('image/png');
+				if (out.length <= 60000) break;
+				side = Math.round(side * .7);
+			}
+			window.URL.revokeObjectURL(url);
+			done(out.length <= 80000 ? out : null);
+		};
+		img.onerror = function () { window.URL.revokeObjectURL(url); done(null); };
+		img.src = url;
 	}
 
 	/* слабое устройство: мало памяти или ядер; тогда анимации выключаются сами (можно отключить это в «Персонализации») */
@@ -761,6 +814,8 @@
 		root.setAttribute('data-nf-login-info', on(prefs.loginInfo));
 		root.setAttribute('data-nf-login-bg', pick(prefs.loginBg, [ 'mica', 'flat', 'aurora', 'waves', 'tod' ], 'mica'));
 		root.setAttribute('data-nf-tod', todPart());
+		root.setAttribute('data-nf-ov-wide', prefs.ovWide ? 'on' : 'off');
+		applyLogo();
 		root.setAttribute('data-nf-ov-live', on(prefs.ovLive));
 		root.setAttribute('data-nf-ov-badges', on(prefs.ovBadges));
 		root.setAttribute('data-nf-ov-size', pick(prefs.ovSize, [ 'sm', 'md', 'lg' ], 'md'));
@@ -776,7 +831,7 @@
 		root.style.setProperty('--nf-fsz', String(FONT[f]));
 	}
 
-	function applyAll() { applyMode(); applyMotion(); applyBg(); applyLook(); syncConst(); }
+	function applyAll() { applyMode(); applyMotion(); applyBg(); applyLook(); syncConst(); try { document.dispatchEvent(new CustomEvent('nf-prefs')); } catch (e) { /* старый браузер */ } }
 
 	function set(key, value) {
 		prefs[key] = value;
@@ -883,14 +938,53 @@
 			seg2('glassTone', 'Тон стекла', [ [ 'auto', 'Авто' ], [ 'light', 'Светлое' ], [ 'dark', 'Тёмное' ] ]),
 			[ rng('Размытие', refs.gblur, 'px'), rng('Плотность стекла', refs.galpha, '%') ]
 		);
+		/* что показывать в карточках на входе и своя картинка вместо логотипа */
+		var CELL_OPTS = [ [ 'net', 'Интернет (пинг)' ], [ 'speed', 'Скорость сейчас' ], [ 'test', 'Последний замер' ], [ 'up', 'Время работы' ], [ 'fw', 'Прошивка' ], [ 'temp', 'Температура' ], [ 'cpu', 'Процессор' ], [ 'mem', 'Память' ], [ 'clients', 'Устройств в сети' ], [ 'none', '— пусто —' ] ];
+		function loginExtras() {
+			var arr = [ h('div', { 'class': 'nf-pop-l', text: 'Карточки на входе' }) ];
+			refs.cells = [];
+			[ 0, 1, 2 ].forEach(function (i) {
+				var sel = h('select', { 'class': 'nf-sel', 'aria-label': 'Карточка ' + (i + 1), onchange: function (ev) {
+					var c = (Array.isArray(prefs.loginCells) ? prefs.loginCells : [ 'net', 'up', 'fw' ]).slice(); while (c.length < 3) c.push('none');
+					c[i] = ev.target.value; set('loginCells', c);
+				} }, CELL_OPTS.map(function (o) { return h('option', { value: o[0], text: o[1] }); }));
+				refs.cells.push(sel);
+				arr.push(h('label', { 'class': 'nf-pop-row' }, [ h('span', { text: 'Карточка ' + (i + 1) }), sel ]));
+			});
+			refs.logoNote = h('div', { 'class': 'nf-pop-note', text: '' });
+			var file = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/svg+xml,image/gif', hidden: true, onchange: function (ev) {
+				var f = ev.target.files && ev.target.files[0]; ev.target.value = '';
+				if (!f) return;
+				refs.logoNote.textContent = 'Обрабатываю картинку…';
+				readLogo(f, function (d) {
+					if (!d) { refs.logoNote.textContent = 'Не получилось прочитать картинку. Попробуйте PNG или JPG поменьше.'; return; }
+					try { window.localStorage.setItem(LOGOKEY, d); } catch (e) { /* private mode */ }
+					routerExec([ 'logo-set', d ]).then(function () { refs.logoNote.textContent = 'Картинка сохранена и на роутере: она видна на входе в любом браузере.'; })
+						.catch(function (e) { refs.logoNote.textContent = 'Картинка работает в этом браузере. На роутер не сохранена: ' + e.message; });
+					set('loginLogo', true);
+				});
+			} });
+			arr.push(h('div', { 'class': 'nf-pop-l', text: 'Своя картинка на входе' }));
+			arr.push(h('div', { 'class': 'nf-logo-row' }, [
+				h('button', { type: 'button', 'class': 'cbi-button', text: 'Выбрать картинку', onclick: function () { file.click(); } }),
+				h('button', { type: 'button', 'class': 'cbi-button', text: 'Убрать', onclick: function () {
+					try { window.localStorage.removeItem(LOGOKEY); } catch (e) { /* ignore */ }
+					routerExec([ 'logo-set', 'off' ]).catch(function () { /* нечего удалять */ });
+					refs.logoNote.textContent = '';
+					set('loginLogo', false);
+				} }), file ]));
+			arr.push(refs.logoNote);
+			return arr;
+		}
 		var more = h('div', { 'class': 'nf-pop-sec' }, [
 			h('div', { 'class': 'nf-pop-l', text: 'Экран входа' }),
 			sw('loginClock', 'Часы и дата'), sw('loginInfo', 'Сводка о роутере'), sw('constLogin', 'Анимированный фон')
-		].concat(seg2('constKind', 'Вид анимации', [ [ 'net', 'Созвездия' ], [ 'fire', 'Светлячки' ], [ 'bubbles', 'Пузыри' ], [ 'snow', 'Снег' ], [ 'meteors', 'Звёзды' ] ], true)).concat(seg2('loginBg', 'Фон входа', [ [ 'mica', 'Как у темы' ], [ 'flat', 'Однотонный' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'tod', 'По времени суток' ] ], true)));
+		].concat(seg2('constKind', 'Вид анимации', [ [ 'net', 'Созвездия' ], [ 'fire', 'Светлячки' ], [ 'bubbles', 'Пузыри' ], [ 'snow', 'Снег' ], [ 'meteors', 'Звёзды' ] ], true)).concat(seg2('loginBg', 'Фон входа', [ [ 'mica', 'Как у темы' ], [ 'flat', 'Однотонный' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'tod', 'По времени суток' ] ], true)).concat(loginExtras()));
 		var ov = h('div', { 'class': 'nf-pop-sec' }, [
 			h('div', { 'class': 'nf-pop-l', text: 'Обзор' }),
 			sw('ovLive', 'Полоса «Сейчас»'), sw('ovBadges', 'Цветные метки'),
-			sw('ovTop', 'Топ клиентов'), sw('ovApps', 'Трафик по приложениям'), sw('ovBlock', 'Доступ в интернет'), sw('ovWifi', 'Wi‑Fi сейчас'), sw('ovHealth', 'Состояние роутера'), sw('ovEvents', 'Лента событий'), sw('ovQuick', 'Быстрые действия')
+			sw('ovTop', 'Топ клиентов'), sw('ovApps', 'Трафик по приложениям'), sw('ovBlock', 'Доступ в интернет'), sw('ovWifi', 'Wi‑Fi сейчас'), sw('ovHealth', 'Состояние роутера'), sw('ovEvents', 'Лента событий'), sw('ovQuick', 'Быстрые действия'),
+		sw('ovWide', 'Один столбец (карточки на всю ширину)')
 		].concat(seg2('ovSize', 'Размер карточек', [ [ 'sm', 'Компактные' ], [ 'md', 'Обычные' ], [ 'lg', 'Крупные' ] ], true)).concat([
 			h('div', { 'class': 'nf-pop-l', text: 'Интерфейс' }), sw('navMini', 'Свёрнутое меню (значки)'), sw('constApp', 'Анимация на фоне страниц'), sw('netBar', 'Полоса состояния интернета'), sw('hints', 'Подсказки по терминам'), refs.install,
 			h('div', { 'class': 'nf-pop-note', text: 'Приложение: в Chrome и Edge установка работает по HTTPS, на iPhone — «Поделиться → На экран Домой».' })
@@ -1200,6 +1294,9 @@
 		[ 'loginClock', 'loginInfo', 'ovLive', 'ovBadges', 'navMini', 'netBar', 'constLogin', 'constApp', 'hints', 'ovTop', 'ovApps', 'ovBlock', 'ovWifi', 'ovEvents', 'ovHealth', 'ovQuick' ].forEach(function (k) { refs[k].checked = k === 'constApp' ? !!prefs[k] : prefs[k] !== false; });
 		refs.motion.checked = !!prefs.motion;
 		refs.liteAuto.checked = prefs.liteAuto !== false;
+		refs.ovWide.checked = !!prefs.ovWide;
+		var cc = Array.isArray(prefs.loginCells) ? prefs.loginCells : [ 'net', 'up', 'fw' ];
+		refs.cells.forEach(function (sel, i) { sel.value = cc[i] || 'none'; });
 		refs.gblur.value = String(prefs.glassBlur == null ? 28 : prefs.glassBlur);
 		refs.galpha.value = String(prefs.glassAlpha || 100);
 		refs.gblur.disabled = refs.galpha.disabled = prefs.style !== 'glass';

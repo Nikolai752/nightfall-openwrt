@@ -34,7 +34,15 @@ range() {   # range KEY VAL MIN MAX
 }
 
 PREFS=${NF_PREFS:-/etc/nightfall-prefs.json}
+LOGO=${NF_LOGO:-/etc/nightfall-logo.json}
 case "$1" in
+logo-set)   # logo-set data:image/...;base64,... | off — своя картинка на экране входа (раздаётся как logo.json)
+	v=$2
+	if [ "$v" = off ]; then rm -f "$LOGO"; printf '{"ok":true}\n'; exit 0; fi
+	[ -n "$v" ] && [ ${#v} -le 90000 ] || fail "картинка пустая или слишком большая"
+	printf '%s' "$v" | grep -qE '^data:image/(png|webp|jpeg);base64,[A-Za-z0-9+/=]+$' || fail "нужна картинка png, webp или jpeg"
+	printf '{"d":"%s"}\n' "$v" > "$LOGO.tmp" && mv "$LOGO.tmp" "$LOGO" || fail "не удалось записать картинку"
+	printf '{"ok":true}\n' ;;
 prefs-set)
 	v=$2
 	[ -n "$v" ] && [ ${#v} -le 8192 ] || fail "настройки темы пустые или слишком большие"
