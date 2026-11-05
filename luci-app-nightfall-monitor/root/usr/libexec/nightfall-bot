@@ -43,7 +43,9 @@ cmd_status() {
 	set -- $last
 	temp=${4:-}; netms=${8:-}; ts=${1:-0}
 	net="нет данных"
-	if [ -n "$netms" ]; then if [ "$netms" -ge 0 ] 2>/dev/null; then net="есть, ${netms} мс"; else net="НЕТ СВЯЗИ"; fi; fi
+	if [ -n "$netms" ]; then   # пинг в истории дробный (12.3), поэтому сравниваем через awk
+		net=$(awk -v n="$netms" 'BEGIN { if (n + 0 >= 0 && n ~ /^[0-9.]+$/) printf "есть, %.0f мс", n; else print "НЕТ СВЯЗИ" }')
+	fi
 	t="н/д"; [ -n "$temp" ] && [ "$temp" -ge 0 ] 2>/dev/null && t="${temp} °C"
 	rate=$(awk -v rx="${5:-0}" -v tx="${6:-0}" 'BEGIN { printf "↓ %.1f Мбит/с, ↑ %.1f Мбит/с", rx * 8 / 1e6, tx * 8 / 1e6 }')
 	reply "📊 $HOST
