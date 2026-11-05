@@ -5043,3 +5043,34 @@ html[data-nf-login-bg="tod"] body.nf-blank .modal.login label.cbi-value-title, h
 	.nf-pop-h { position: sticky; top: -16px; z-index: 3; margin: -16px -16px 8px; padding: 14px 16px 8px 16px; background: var(--nf-flyout, var(--nf-card)); border-radius: var(--nf-radius) var(--nf-radius) 0 0; }
 	.nf-pop-x { width: 44px; height: 44px; margin: -8px -10px -8px 0; }
 }
+
+/* ======== v20261105d: компактные «Применить / Сохранить / Сброс» на странице Tachyon ======== */
+html body #view > .cbi-page-actions,
+html body #cbi-tachyon ~ .cbi-page-actions {
+	display: flex !important;
+	flex-wrap: nowrap !important;
+	align-items: center !important;
+	justify-content: flex-end !important;
+	gap: 8px !important;
+}
+html body #view > .cbi-page-actions > *,
+html body #cbi-tachyon ~ .cbi-page-actions > * {
+	float: none !important;
+	flex: 0 0 auto !important;
+	width: auto !important;
+	min-width: 0 !important;
+	height: auto !important;
+	min-height: 36px !important;
+	margin: 0 !important;
+	padding: 0 16px !important;
+	font-size: 14px !important;
+	line-height: 1.2 !important;
+}
+html body #view > .cbi-page-actions .cbi-dropdown.btn > ul,
+html body #cbi-tachyon ~ .cbi-page-actions .cbi-dropdown.btn > ul { padding: 0 8px !important; min-height: 0 !important; }
+@media (max-width: 899px) {
+	html body #view > .cbi-page-actions,
+	html body #cbi-tachyon ~ .cbi-page-actions { justify-content: stretch !important; padding: 8px !important; }
+	html body #view > .cbi-page-actions > *,
+	html body #cbi-tachyon ~ .cbi-page-actions > * { flex: 1 1 0 !important; min-height: 38px !important; padding: 0 8px !important; font-size: 13px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
