@@ -16,6 +16,7 @@ const HIST = '/usr/libexec/nightfall-history';
 const APPSBIN = '/usr/libexec/nightfall-apps';
 const ORDER_KEY = 'nightfall-overview-order-v1';
 const SIZE_KEY = 'nightfall-overview-size-v1';
+const HEIGHT_KEY = 'nightfall-overview-h-v1';
 const WIN = 600;            /* seconds shown in mini graphs */
 const EVERY = 3000;         /* ms between samples */
 const ALERTS_EVERY = 5;     /* ping / alerts every N samples */
@@ -68,6 +69,36 @@ function SVG(tag, attrs, children) {
 	return el;
 }
 
+
+/* стиль графиков из настроек темы (Персонализация → Графики): заливка, линия, столбики, ступени; сглаживание */
+function nfPlot(segs, H) {
+	const root = document.documentElement, kind = root.getAttribute('data-nf-chart') || 'area', smooth = root.getAttribute('data-nf-chart-smooth') !== 'off';
+	const f = n => n.toFixed(1);
+	let line = '', area = '';
+	segs.forEach(p => {
+		if (!p.length) return;
+		let d = 'M' + f(p[0][0]) + ' ' + f(p[0][1]);
+		if (kind === 'bars') {   /* столбики: вертикальные штрихи цвета ряда (без заливки) */
+			p.forEach(q => { line += 'M' + f(q[0]) + ' ' + f(q[1]) + 'V' + H; });
+			return;
+		}
+		if (kind === 'step') {
+			for (let i = 1; i < p.length; i++) d += 'L' + f(p[i][0]) + ' ' + f(p[i - 1][1]) + 'L' + f(p[i][0]) + ' ' + f(p[i][1]);
+		}
+		else if (smooth && p.length > 2) {
+			for (let i = 0; i < p.length - 1; i++) {
+				const a = p[Math.max(0, i - 1)], b = p[i], c = p[i + 1], e = p[Math.min(p.length - 1, i + 2)];
+				const y1 = Math.max(0, Math.min(H, b[1] + (c[1] - a[1]) / 6)), y2 = Math.max(0, Math.min(H, c[1] - (e[1] - b[1]) / 6));
+				d += 'C' + f(b[0] + (c[0] - a[0]) / 6) + ' ' + f(y1) + ' ' + f(c[0] - (e[0] - b[0]) / 6) + ' ' + f(y2) + ' ' + f(c[0]) + ' ' + f(c[1]);
+			}
+		}
+		else for (let i = 1; i < p.length; i++) d += 'L' + f(p[i][0]) + ' ' + f(p[i][1]);
+		line += d;
+		if (kind !== 'line') area += d + 'L' + f(p[p.length - 1][0]) + ' ' + H + 'L' + f(p[0][0]) + ' ' + H + 'Z';
+	});
+	return { line, area };
+}
+
 /* time based mini graph; classes[i] is the colour class of series i */
 function spark(classes) {
 	const W = 100, H = 34;
@@ -84,17 +115,14 @@ function spark(classes) {
 			const now = times.length ? times[times.length - 1] : 0, lo = min || 0, span = (max - lo) || 1;
 			parts.forEach((p, i) => {
 				const vals = arrays[i] || [];
-				let d = '', fx = 0, lx = 0;
+				const pts = [];
 				for (let k = 0; k < times.length; k++) {
 					if (vals[k] == null || now - times[k] > WIN) continue;
-					const x = W - (now - times[k]) / WIN * W;
-					const y = H - 2 - Math.max(0, Math.min(1, (vals[k] - lo) / span)) * (H - 4);
-					if (!d) fx = x;
-					lx = x;
-					d += (d ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
+					pts.push([ W - (now - times[k]) / WIN * W, H - 2 - Math.max(0, Math.min(1, (vals[k] - lo) / span)) * (H - 4) ]);
 				}
-				p.line.setAttribute('d', d);
-				p.area.setAttribute('d', d && classes.length === 1 ? `${d}L${lx.toFixed(1)} ${H}L${fx.toFixed(1)} ${H}Z` : '');
+				const pl = nfPlot([ pts ], H);
+				p.line.setAttribute('d', pl.line);
+				p.area.setAttribute('d', classes.length === 1 ? pl.area : '');
 			});
 		}
 	};
@@ -645,6 +673,16 @@ function saveSizes(m) {
 	SIZE_MEM = m;
 	try { window.localStorage.setItem(SIZE_KEY, JSON.stringify(m)); } catch (e) { /* private mode */ }
 }
+/* высота карточки, которую пользователь задал, потянув за уголок (px, по названию карточки) */
+let H_MEM = null;
+function loadHeights() {
+	try { const v = JSON.parse(window.localStorage.getItem(HEIGHT_KEY) || 'null'); return v && typeof v === 'object' ? v : (H_MEM || {}); }
+	catch (e) { return H_MEM || {}; }
+}
+function saveHeights(m) {
+	H_MEM = m;
+	try { window.localStorage.setItem(HEIGHT_KEY, JSON.stringify(m)); } catch (e) { /* private mode */ }
+}
 /* IP и MAC в таблицах (аренда DHCP, Wi‑Fi) не переносим по символам */
 const NW_RE = /^((\d{1,3}\.){3}\d{1,3}|([0-9a-f]{2}[:-]){5}[0-9a-f]{2})$/i;
 function markNoWrap(view) {
@@ -659,6 +697,9 @@ function syncSizes(view, relayoutNow) {
 		const t = titleOf(sec), v = m[t] || '';
 		sec.classList.toggle('nf-wide', v === 'wide');
 		sec.classList.toggle('nf-min', v === 'min');
+		const hh = +loadHeights()[t] || 0;
+		sec.style.minHeight = hh && v !== 'min' ? hh + 'px' : '';
+		sec.classList.toggle('nf-fixh', !!hh && v !== 'min');
 		const b = sec.querySelector(':scope > .cbi-title .nf-size');
 		if (b) { b.setAttribute('data-s', v); b.title = v === 'wide' ? 'Широкая. Нажмите, чтобы свернуть' : v === 'min' ? 'Свёрнута. Нажмите, чтобы вернуть обычный размер' : 'Обычный размер. Нажмите, чтобы растянуть на всю ширину'; }
 	});
@@ -679,7 +720,7 @@ function decorateCards(view) {
 	const persist = () => saveOrder(cardsOf(view).map(titleOf));
 
 	cardsOf(view).forEach(sec => {
-		if (sec.hasAttribute('data-nf-card')) return;
+		if (sec.hasAttribute('data-nf-card')) { if (sec.__nfRs && sec.__nfRs.parentNode !== sec) sec.appendChild(sec.__nfRs); return; }   /* LuCI может пересобрать содержимое: возвращаем уголок на место */
 		sec.setAttribute('data-nf-card', '1');
 
 		const h3 = sec.querySelector(':scope > .cbi-title h3');
@@ -736,6 +777,68 @@ function decorateCards(view) {
 			window.addEventListener('pointermove', probe);
 			window.addEventListener('pointerup', drop);
 			window.addEventListener('pointercancel', drop);
+		});
+
+		/* уголок для растягивания: вправо/влево меняет ширину (одна колонка или вся ширина), вниз/вверх высоту */
+		const rs = E('span', { class: 'nf-rs', role: 'slider', tabindex: '0', 'aria-label': 'Размер карточки «' + title + '»: стрелки меняют ширину и высоту, Delete сбрасывает',
+			title: 'Потяните, чтобы изменить размер. Двойное нажатие сбрасывает.' });
+		sec.appendChild(rs); sec.__nfRs = rs;
+		const setH = (px, save) => {
+			const m = Object.assign({}, loadHeights());
+			if (px) m[title] = Math.round(px); else delete m[title];
+			if (save) saveHeights(m);
+			sec.style.minHeight = px ? Math.round(px) + 'px' : '';
+			sec.classList.toggle('nf-fixh', !!px);
+		};
+		const setW = wide => {
+			const m = Object.assign({}, loadSizes());
+			if (wide) m[title] = 'wide'; else delete m[title];
+			saveSizes(m);
+			syncSizes(view, true);
+		};
+		rs.addEventListener('pointerdown', ev => {
+			if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+			ev.preventDefault(); ev.stopPropagation();
+			const x0 = ev.clientX, y0 = ev.clientY, h0 = sec.getBoundingClientRect().height, wide0 = sec.classList.contains('nf-wide');
+			const multi = window.matchMedia('(min-width: 900px)').matches;
+			rs.setPointerCapture(ev.pointerId);
+			sec.classList.add('nf-resizing');
+			let moved = false;
+			const mv = e => {
+				const dy = e.clientY - y0, dx = e.clientX - x0;
+				if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
+				if (!moved) return;
+				setH(Math.max(90, h0 + dy), false);
+				if (multi) {
+					if (!wide0 && dx > 70) sec.classList.add('nf-wide');
+					else if (wide0 && dx < -70) sec.classList.remove('nf-wide');
+					else sec.classList.toggle('nf-wide', wide0);
+				}
+				window.dispatchEvent(new Event('resize'));
+			};
+			const up = () => {
+				rs.removeEventListener('pointermove', mv); rs.removeEventListener('pointerup', up); rs.removeEventListener('pointercancel', up);
+				sec.classList.remove('nf-resizing');
+				if (!moved) return;   /* простое нажатие ничего не запоминает */
+				const hh = Math.round(sec.getBoundingClientRect().height);
+				saveHeights(Object.assign({}, loadHeights(), { [title]: Math.max(90, hh) }));
+				const m = Object.assign({}, loadSizes());
+				if (sec.classList.contains('nf-wide')) m[title] = 'wide'; else if (m[title] === 'wide') delete m[title];
+				saveSizes(m);
+				syncSizes(view, true);
+			};
+			rs.addEventListener('pointermove', mv); rs.addEventListener('pointerup', up); rs.addEventListener('pointercancel', up);
+		});
+		rs.addEventListener('dblclick', () => { setH(0, true); setW(false); });
+		rs.addEventListener('keydown', ev => {
+			const cur = sec.getBoundingClientRect().height;
+			if (ev.key === 'ArrowRight') setW(true);
+			else if (ev.key === 'ArrowLeft') setW(false);
+			else if (ev.key === 'ArrowDown') setH(cur + 40, true);
+			else if (ev.key === 'ArrowUp') setH(Math.max(90, cur - 40), true);
+			else if (ev.key === 'Delete' || ev.key === 'Backspace' || ev.key === 'Home') { setH(0, true); setW(false); }
+			else return;
+			ev.preventDefault(); window.dispatchEvent(new Event('resize'));
 		});
 
 		grip.addEventListener('keydown', ev => {
@@ -914,6 +1017,26 @@ function topCard() {
 
 /* ---------- traffic by application (YouTube, Telegram…) ---------- */
 
+/* значки приложений: простые линейные символы по типу сервиса (не логотипы компаний) */
+const APP_SHAPES = {
+	play: [ [ 'rect', { x: 3, y: 5, width: 18, height: 14, rx: 4 } ], [ 'path', { d: 'M10 9.5v5l4.5-2.5z' } ] ],
+	chat: [ [ 'path', { d: 'M4 5h16v11H9l-5 4z' } ] ],
+	camera: [ [ 'rect', { x: 3, y: 3, width: 18, height: 18, rx: 5 } ], [ 'circle', { cx: 12, cy: 12, r: 4 } ], [ 'circle', { cx: 17.2, cy: 6.8, r: .6 } ] ],
+	people: [ [ 'circle', { cx: 9, cy: 8, r: 3 } ], [ 'path', { d: 'M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6' } ], [ 'circle', { cx: 17, cy: 9, r: 2.4 } ], [ 'path', { d: 'M16 14.2c2.8.2 5 2.4 5 5.3' } ] ],
+	music: [ [ 'path', { d: 'M9 18V6l10-2v12' } ], [ 'circle', { cx: 6.5, cy: 18, r: 2.5 } ], [ 'circle', { cx: 16.5, cy: 16, r: 2.5 } ] ],
+	video: [ [ 'rect', { x: 3, y: 6, width: 12, height: 12, rx: 2 } ], [ 'path', { d: 'M15 10l6-3v10l-6-3' } ] ],
+	game: [ [ 'rect', { x: 2, y: 8, width: 20, height: 9, rx: 4.5 } ], [ 'path', { d: 'M7 12.5h3M8.5 11v3' } ], [ 'circle', { cx: 15.5, cy: 12, r: .6 } ], [ 'circle', { cx: 17.5, cy: 13.5, r: .6 } ] ],
+	search: [ [ 'circle', { cx: 11, cy: 11, r: 6.5 } ], [ 'path', { d: 'M16 16l5 5' } ] ],
+	cloud: [ [ 'path', { d: 'M7 18a4 4 0 0 1-.6-7.95A6 6 0 0 1 18 9.5 4.3 4.3 0 0 1 17.5 18z' } ] ],
+	apps: [ [ 'rect', { x: 3, y: 3, width: 8, height: 8, rx: 2 } ], [ 'rect', { x: 13, y: 3, width: 8, height: 8, rx: 2 } ], [ 'rect', { x: 3, y: 13, width: 8, height: 8, rx: 2 } ], [ 'rect', { x: 13, y: 13, width: 8, height: 8, rx: 2 } ] ],
+	globe: [ [ 'circle', { cx: 12, cy: 12, r: 9 } ], [ 'path', { d: 'M3 12h18M12 3c2.6 2.4 4 5.4 4 9s-1.4 6.6-4 9c-2.6-2.4-4-5.4-4-9s1.4-6.6 4-9z' } ] ]
+};
+const APP_GLYPH = { 'YouTube': 'play', 'Netflix': 'play', 'Twitch': 'play', 'Telegram': 'chat', 'WhatsApp': 'chat', 'Discord': 'chat', 'ВКонтакте': 'people', 'Facebook': 'people', 'X (Twitter)': 'chat',
+	'Instagram': 'camera', 'TikTok': 'music', 'Spotify': 'music', 'Zoom': 'video', 'Steam': 'game', 'Яндекс': 'search', 'Google': 'search', 'Cloudflare': 'cloud', 'Amazon': 'cloud', 'Apple': 'apps', 'Microsoft': 'apps' };
+function appGlyph(name) {
+	const el = SVG('svg', { viewBox: '0 0 24 24', width: 18, height: 18, class: 'nf-ic', 'aria-hidden': 'true' }, (APP_SHAPES[APP_GLYPH[name] || 'globe']).map(sh => SVG(sh[0], sh[1])));
+	return el;
+}
 const APP_COLORS = { 'YouTube': '#ff3b30', 'Telegram': '#2aabee', 'WhatsApp': '#25d366', 'Instagram': '#e1306c', 'Facebook': '#1877f2', 'TikTok': '#25c8c8',
 	'Netflix': '#e50914', 'Twitch': '#9146ff', 'Spotify': '#1db954', 'Discord': '#5865f2', 'Zoom': '#2d8cff', 'Steam': '#66c0f4', 'ВКонтакте': '#0077ff',
 	'Яндекс': '#fc3f1d', 'Google': '#4285f4', 'Apple': '#a2aaad', 'Microsoft': '#00a4ef', 'Amazon': '#ff9900', 'X (Twitter)': '#8899a6', 'Cloudflare': '#f38020' };
@@ -1010,7 +1133,7 @@ function appsCard() {
 			const mx = Math.max(1, ...list.map(r => r.t));
 			list.forEach(r => {
 				content.push(E('div', { class: 'nf-apps-r', style: '--c:' + (APP_COLORS[r.a] || 'var(--nf-text-dim)') }, [
-					E('div', { class: 'nf-apps-n' }, [ E('i'), E('b', {}, r.a) ]),
+					E('div', { class: 'nf-apps-n' }, [ r.a === 'Прочее' ? E('i') : appGlyph(r.a), E('b', {}, r.a) ]),
 					E('div', { class: 'nf-top-bar' }, E('i', { style: 'width:' + Math.max(2, Math.round(r.t / mx * 100)) + '%' })),
 					E('div', { class: 'nf-apps-v' }, [ E('b', {}, fmtBytes(r.t)), E('span', {}, '↓ ' + fmtBytes(r.d) + ' · ↑ ' + fmtBytes(r.u)) ]),
 					E('div', { class: 'nf-apps-p' }, sum ? nf0.format(r.t / sum * 100) + '%' : '')

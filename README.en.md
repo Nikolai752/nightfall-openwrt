@@ -52,6 +52,8 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 **Telegram notifications and bot**
 - Messages about lost and restored internet, overheating, low memory, reboots and new devices; a button-driven bot (status, clients, traffic, device blocking, reboot) and a daily report. Details below.
 
+**Look.** Windows 11, Liquid Glass and macOS styles, one-tap presets (Night, Aurora, Graphite, Sakura), a **custom theme editor** (colours, corner radius, font, shadows; share a theme as a text code NF1:…), chart styles (area, line, bars, steps, 5 palettes), line icons for devices and apps. Overview cards can be dragged and **resized by their corner**. The login screen offers time-of-day, rain, sunset, animations and **your own photo** (kept on the router in `/etc/nightfall-bg.json`).
+
 **Devices and groups** (Status → Devices)
 - Network map: the router in the middle, devices around it; dashed lines for Wi-Fi, solid for wired; a line comes alive and shows the speed while data flows. Tap a device to open its card.
 - Device card: custom name, icon, group, traffic today and right now, Wi-Fi signal, internet block, schedule and daily quota.

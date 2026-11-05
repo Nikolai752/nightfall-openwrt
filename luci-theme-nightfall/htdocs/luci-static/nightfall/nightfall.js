@@ -12,11 +12,12 @@
 	var DEFAULTS = { mode: 'auto', accent: '', motion: true, liteAuto: true, loginCells: [ 'net', 'up', 'fw' ], loginLogo: false, ovWide: false, bg: 'mica', bgScale: 100,
 		density: 'normal', font: 'md', radius: 'md', glass: 'on', loginClock: true, loginInfo: true, loginBg: 'mica', ovLive: true, ovBadges: true,
 		style: '', preset: 'win11', navMini: false, schedule: false, nightFrom: '20:00', dayFrom: '07:00', netBar: true, constLogin: true, constApp: false, constKind: 'net',
-		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, ovTop: true, ovApps: true, ovBlock: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
+		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, chart: 'area', chartSmooth: true, chartPal: 'accent', cusOn: false, cusBg: '', cusCard: '', cusText: '', cusRadius: 0, cusFont: '', cusShadow: '', loginPhoto: false, ovTop: true, ovApps: true, ovBlock: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
 
 	var PRESETS = [
 		[ 'win11', 'Windows 11', { style: '', accent: '', bg: 'mica', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
 		[ 'glass', 'Liquid Glass', { style: 'glass', accent: '#0a84ff', bg: 'mica', density: 'normal', font: 'md', radius: 'round', glass: 'on', motion: true } ],
+		[ 'macos', 'macOS', { style: 'mac', accent: '#007aff', bg: 'flat', density: 'normal', font: 'md', radius: 'round', glass: 'on', motion: true, cusOn: false } ],
 		[ 'night', 'Ночь', { style: '', mode: 'dark', accent: '#4f6bed', bg: 'stars', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
 		[ 'aurora', 'Аврора', { style: 'glass', mode: 'dark', accent: '#038387', bg: 'aurora', density: 'normal', font: 'md', radius: 'round', glass: 'on', motion: true } ],
 		[ 'graphite', 'Графит', { style: '', mode: 'dark', accent: '#69797e', bg: 'flat', density: 'compact', font: 'md', radius: 'sharp', glass: 'on', motion: true } ],
@@ -92,7 +93,7 @@
 	}
 	document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') pushNow(); });
 	window.addEventListener('pagehide', pushNow);
-	window.addEventListener('load', function () { window.setTimeout(function () { pull(); window.setTimeout(fetchLogo, 700); }, 200); window.setTimeout(loadVer, 600); });
+	window.addEventListener('load', function () { window.setTimeout(function () { pull(); window.setTimeout(fetchLogo, 700); window.setTimeout(fetchPhoto, 900); }, 200); window.setTimeout(loadVer, 600); });
 
 	var prefs = load();
 	var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : { matches: false };
@@ -888,7 +889,7 @@
 		root.setAttribute('data-nf-glass', g);
 		root.setAttribute('data-nf-login-clock', on(prefs.loginClock));
 		root.setAttribute('data-nf-login-info', on(prefs.loginInfo));
-		root.setAttribute('data-nf-login-bg', pick(prefs.loginBg, [ 'mica', 'flat', 'aurora', 'waves', 'tod' ], 'mica'));
+		root.setAttribute('data-nf-login-bg', pick(prefs.loginBg, [ 'mica', 'flat', 'aurora', 'waves', 'tod', 'rain', 'sunset', 'photo' ], 'mica'));
 		root.setAttribute('data-nf-tod', todPart());
 		root.setAttribute('data-nf-ov-wide', prefs.ovWide ? 'on' : 'off');
 		applyLogo();
@@ -900,14 +901,95 @@
 		root.setAttribute('data-nf-gtone', pick(prefs.glassTone, [ 'auto', 'light', 'dark' ], 'auto'));
 		root.style.setProperty('--nf-gblur', Math.max(0, Math.min(60, +prefs.glassBlur || 0)) + 'px');
 		root.style.setProperty('--nf-gk', String(Math.max(30, Math.min(170, +prefs.glassAlpha || 100)) / 100));
-		root.setAttribute('data-nf-style', pick(prefs.style, [ '', 'glass' ], ''));
+		root.setAttribute('data-nf-style', pick(prefs.style, [ '', 'glass', 'mac' ], ''));
+		root.setAttribute('data-nf-chart', pick(prefs.chart, [ 'area', 'line', 'bars', 'step' ], 'area'));
+		root.setAttribute('data-nf-chart-smooth', prefs.chartSmooth === false ? 'off' : 'on');
+		root.setAttribute('data-nf-gpal', pick(prefs.chartPal, [ 'accent', 'vivid', 'mono', 'warm', 'cool' ], 'accent'));
 		root.setAttribute('data-nf-nav', prefs.navMini ? 'mini' : 'full');
 		root.setAttribute('data-nf-netbar', on(prefs.netBar));
 		root.setAttribute('data-nf-const', prefs.constApp ? 'app' : 'login');
 		root.style.setProperty('--nf-fsz', String(FONT[f]));
 	}
 
-	function applyAll() { applyMode(); applyMotion(); applyBg(); applyLook(); syncConst(); try { document.dispatchEvent(new CustomEvent('nf-prefs')); } catch (e) { /* старый браузер */ } }
+
+	/* ---- редактор своей темы: цвета, скругление, шрифт и тени поверх выбранной основы ---- */
+	var CUS_VARS = [ '--nf-bg', '--nf-bg-glow', '--nf-bg-glow2', '--nf-card', '--nf-card-alt', '--nf-flyout', '--nf-header-bg', '--nf-text', '--nf-text-dim', '--nf-stroke', '--nf-stroke-strong',
+		'--nf-hover', '--nf-ctrl', '--nf-ctrl-hover', '--nf-ctrl-active', '--nf-input-bg', '--nf-input-line', '--nf-info-bg', '--background-color-high', '--background-color-medium', '--background-color-low',
+		'--text-color-highest', '--text-color-high', '--text-color-medium', '--text-color-low', '--nf-radius', '--nf-radius-sm', '--nf-radius-in', '--font-sans', '--nf-shadow-card' ];
+	var CUS_FONTS = { system: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+		rounded: 'ui-rounded, "SF Pro Rounded", "Nunito", "Varela Round", system-ui, -apple-system, "Segoe UI", sans-serif',
+		serif: '"Iowan Old Style", "Palatino Linotype", Georgia, "Times New Roman", serif',
+		humanist: '"Gill Sans", "Gill Sans MT", "Trebuchet MS", "Segoe UI", Candara, sans-serif',
+		mono: 'var(--font-mono)' };
+	var CUS_SHADOWS = { none: 'none', soft: '0 2px 10px rgba(0, 0, 0, .08)', deep: '0 10px 30px rgba(0, 0, 0, .22), 0 2px 6px rgba(0, 0, 0, .12)' };
+	function hex6(v) { return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v : ''; }
+	function applyCustom() {
+		var st = root.style;
+		CUS_VARS.forEach(function (n) { st.removeProperty(n); });
+		root.removeAttribute('data-nf-cus');
+		if (!prefs.cusOn) return;
+		var bg = hex6(prefs.cusBg), card = hex6(prefs.cusCard), tx = hex6(prefs.cusText), mix = function (a, pc, b) { return 'color-mix(in srgb, ' + a + ' ' + pc + '%, ' + b + ')'; };
+		if (bg) {
+			st.setProperty('--nf-bg', bg); st.setProperty('--nf-bg-glow', mix('var(--nf-accent)', 14, bg)); st.setProperty('--nf-bg-glow2', mix('var(--nf-accent)', 7, bg));
+			st.setProperty('--nf-header-bg', mix(bg, 78, 'transparent')); st.setProperty('--background-color-medium', bg);
+			if (!card) card = mix('var(--nf-text)', 4, bg);
+		}
+		if (card) {
+			st.setProperty('--nf-card', card); st.setProperty('--nf-flyout', card); st.setProperty('--background-color-high', card);
+			st.setProperty('--nf-card-alt', mix('var(--nf-text)', 4, card)); st.setProperty('--nf-info-bg', mix('var(--nf-text)', 4, card));
+			st.setProperty('--nf-ctrl', mix('var(--nf-text)', 5, card)); st.setProperty('--nf-ctrl-hover', mix('var(--nf-text)', 9, card)); st.setProperty('--nf-ctrl-active', mix('var(--nf-text)', 3, card));
+			st.setProperty('--nf-input-bg', mix('var(--nf-text)', 5, card)); st.setProperty('--background-color-low', mix('var(--nf-text)', 4, card));
+		}
+		if (tx) {
+			var base = card || bg || 'transparent';
+			st.setProperty('--nf-text', tx); st.setProperty('--nf-text-dim', mix(tx, 66, base)); st.setProperty('--nf-stroke', mix(tx, 12, 'transparent'));
+			st.setProperty('--nf-stroke-strong', mix(tx, 24, 'transparent')); st.setProperty('--nf-hover', mix(tx, 7, 'transparent')); st.setProperty('--nf-input-line', mix(tx, 50, 'transparent'));
+			st.setProperty('--text-color-highest', tx); st.setProperty('--text-color-high', tx); st.setProperty('--text-color-medium', mix(tx, 66, base)); st.setProperty('--text-color-low', mix(tx, 40, base));
+		}
+		var r = Math.max(0, Math.min(28, +prefs.cusRadius || 0));
+		if (r) { st.setProperty('--nf-radius', r + 'px'); st.setProperty('--nf-radius-sm', Math.max(2, Math.round(r / 2)) + 'px'); st.setProperty('--nf-radius-in', Math.round(r * .65) + 'px'); root.setAttribute('data-nf-radius', 'md'); }
+		if (CUS_FONTS[prefs.cusFont]) st.setProperty('--font-sans', CUS_FONTS[prefs.cusFont]);
+		if (CUS_SHADOWS[prefs.cusShadow]) st.setProperty('--nf-shadow-card', CUS_SHADOWS[prefs.cusShadow]);
+		root.setAttribute('data-nf-cus', '1');
+	}
+
+	/* ---- своё фото на экране входа: тот же приём, что у логотипа (копия в браузере и на роутере, bg.json) ---- */
+	var PHOTOKEY = 'nightfall-photo-v1';
+	function applyPhoto() {
+		var d = null;
+		try { d = window.localStorage.getItem(PHOTOKEY); } catch (e) { /* ignore */ }
+		if (prefs.loginBg === 'photo' && d && /^data:image\/(webp|jpeg);base64,[A-Za-z0-9+\/=]+$/.test(d)) root.style.setProperty('--nf-photo', 'url("' + d + '")');
+		else root.style.removeProperty('--nf-photo');
+	}
+	function fetchPhoto() {
+		if (prefs.loginBg !== 'photo' || !window.fetch) return;
+		try { if (window.localStorage.getItem(PHOTOKEY)) return; } catch (e) { return; }
+		window.fetch(BASE + 'bg.json?' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+			if (d && typeof d.d === 'string') { try { window.localStorage.setItem(PHOTOKEY, d.d); } catch (e) { /* ignore */ } applyPhoto(); }
+		}).catch(function () { /* нет фото на роутере */ });
+	}
+	function readPhoto(file, done) {
+		var img = new Image(), url = window.URL.createObjectURL(file);
+		img.onload = function () {
+			var side = 1280, q = .7, out = '';
+			for (var i = 0; i < 7; i++) {
+				var sc = Math.min(1, side / Math.max(img.width, img.height));
+				var cv = document.createElement('canvas');
+				cv.width = Math.max(1, Math.round(img.width * sc)); cv.height = Math.max(1, Math.round(img.height * sc));
+				cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+				out = cv.toDataURL('image/webp', q);
+				if (out.indexOf('data:image/webp') !== 0) out = cv.toDataURL('image/jpeg', q);
+				if (out.length <= 100000) break;
+				side = Math.round(side * .8); q = Math.max(.4, q - .06);
+			}
+			window.URL.revokeObjectURL(url);
+			done(out.length <= 110000 ? out : null);
+		};
+		img.onerror = function () { window.URL.revokeObjectURL(url); done(null); };
+		img.src = url;
+	}
+
+	function applyAll() { applyMode(); applyMotion(); applyBg(); applyLook(); applyCustom(); applyPhoto(); syncConst(); try { document.dispatchEvent(new CustomEvent('nf-prefs')); } catch (e) { /* старый браузер */ } }
 
 	function set(key, value) {
 		prefs[key] = value;
@@ -1011,6 +1093,9 @@
 			seg2('font', 'Размер текста', [ [ 'sm', 'Мельче' ], [ 'md', 'Обычный' ], [ 'lg', 'Крупнее' ] ]),
 			seg2('radius', 'Скругление углов', [ [ 'sharp', 'Острые' ], [ 'md', 'Средние' ], [ 'round', 'Круглые' ] ]),
 			seg2('glass', 'Стекло и размытие', [ [ 'on', 'Включено' ], [ 'off', 'Выключено' ] ]),
+			seg2('chart', 'Графики', [ [ 'area', 'Заливка' ], [ 'line', 'Линия' ], [ 'bars', 'Столбики' ], [ 'step', 'Ступени' ] ], true),
+			seg2('chartPal', 'Цвета графиков', [ [ 'accent', 'Акцент' ], [ 'vivid', 'Яркие' ], [ 'mono', 'Моно' ], [ 'warm', 'Тёплые' ], [ 'cool', 'Холодные' ] ], true),
+			[ sw('chartSmooth', 'Сглаживать линии графиков') ],
 			seg2('glassTone', 'Тон стекла', [ [ 'auto', 'Авто' ], [ 'light', 'Светлое' ], [ 'dark', 'Тёмное' ] ]),
 			[ rng('Размытие', refs.gblur, 'px'), rng('Плотность стекла', refs.galpha, '%') ]
 		);
@@ -1050,12 +1135,36 @@
 					set('loginLogo', false);
 				} }), file ]));
 			arr.push(refs.logoNote);
+			/* своё фото на фон входа (выбор «Своё фото» выше) */
+			refs.photoNote = h('div', { 'class': 'nf-pop-note', text: '' });
+			var pfile = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp', hidden: true, onchange: function (ev) {
+				var f = ev.target.files && ev.target.files[0]; ev.target.value = '';
+				if (!f) return;
+				refs.photoNote.textContent = 'Обрабатываю фото…';
+				readPhoto(f, function (d) {
+					if (!d) { refs.photoNote.textContent = 'Не получилось уменьшить фото. Попробуйте другое.'; return; }
+					try { window.localStorage.setItem(PHOTOKEY, d); } catch (e) { /* private mode */ }
+					routerExec([ 'bg-set', d ]).then(function () { refs.photoNote.textContent = 'Фото сохранено и на роутере: оно видно на входе в любом браузере.'; })
+						.catch(function (e) { refs.photoNote.textContent = 'Фото работает в этом браузере. На роутер не сохранено: ' + e.message; });
+					set('loginBg', 'photo');
+				});
+			} });
+			arr.push(h('div', { 'class': 'nf-pop-l', text: 'Своё фото на фоне входа' }));
+			arr.push(h('div', { 'class': 'nf-logo-row' }, [
+				h('button', { type: 'button', 'class': 'cbi-button', text: 'Выбрать фото', onclick: function () { pfile.click(); } }),
+				h('button', { type: 'button', 'class': 'cbi-button', text: 'Убрать', onclick: function () {
+					try { window.localStorage.removeItem(PHOTOKEY); } catch (e) { /* ignore */ }
+					routerExec([ 'bg-set', 'off' ]).catch(function () { /* нечего удалять */ });
+					refs.photoNote.textContent = '';
+					if (prefs.loginBg === 'photo') set('loginBg', 'mica'); else applyPhoto();
+				} }), pfile ]));
+			arr.push(refs.photoNote);
 			return arr;
 		}
 		var more = h('div', { 'class': 'nf-pop-sec' }, [
 			h('div', { 'class': 'nf-pop-l', text: 'Экран входа' }),
 			sw('loginClock', 'Часы и дата'), sw('loginInfo', 'Сводка о роутере'), sw('constLogin', 'Анимированный фон')
-		].concat(seg2('constKind', 'Вид анимации', [ [ 'net', 'Созвездия' ], [ 'fire', 'Светлячки' ], [ 'bubbles', 'Пузыри' ], [ 'snow', 'Снег' ], [ 'meteors', 'Звёзды' ] ], true)).concat(seg2('loginBg', 'Фон входа', [ [ 'mica', 'Как у темы' ], [ 'flat', 'Однотонный' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'tod', 'По времени суток' ] ], true)).concat(loginExtras()));
+		].concat(seg2('constKind', 'Вид анимации', [ [ 'net', 'Созвездия' ], [ 'fire', 'Светлячки' ], [ 'bubbles', 'Пузыри' ], [ 'snow', 'Снег' ], [ 'meteors', 'Звёзды' ] ], true)).concat(seg2('loginBg', 'Фон входа', [ [ 'mica', 'Как у темы' ], [ 'flat', 'Однотонный' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'tod', 'По времени суток' ], [ 'rain', 'Дождь' ], [ 'sunset', 'Закат' ], [ 'photo', 'Своё фото' ] ], true)).concat(loginExtras()));
 		var ov = h('div', { 'class': 'nf-pop-sec' }, [
 			h('div', { 'class': 'nf-pop-l', text: 'Обзор' }),
 			sw('ovLive', 'Полоса «Сейчас»'), sw('ovBadges', 'Цветные метки'),
@@ -1072,6 +1181,7 @@
 		pop = h('div', { 'class': 'nf-pop', role: 'dialog', 'aria-label': 'Персонализация' }, [
 			h('div', { 'class': 'nf-pop-h' }, [ h('span', { text: 'Персонализация' }), h('button', { type: 'button', 'class': 'nf-pop-x', 'aria-label': 'Закрыть', title: 'Закрыть', text: '×', onclick: function () { toggle(false); } }) ]),
 			h('div', { 'class': 'nf-pop-l', text: 'Стиль' }), presets,
+			h('button', { type: 'button', 'class': 'nf-ed-open', text: '🎨 Редактор своей темы', onclick: function () { openEditor(); } }),
 			h('div', { 'class': 'nf-pop-l', text: 'Режим' }), seg, sched,
 			h('div', { 'class': 'nf-pop-l', text: 'Цвет акцента' }), grid,
 				h('div', { 'class': 'nf-pop-l', text: 'Фон' }), bgseg,
@@ -1107,6 +1217,107 @@
 		refreshPanel();
 	}
 
+
+	/* ---------- редактор своей темы ----------
+	 * Окно с цветами, скруглением, шрифтом и тенями. Страница вокруг и есть предпросмотр: всё применяется сразу.
+	 * Тему можно отправить другому текстом-кодом (одна строка) и применить у него. */
+	var ed = null, edRefs = {};
+	var CODE_KEYS = [ 'mode', 'accent', 'style', 'bg', 'bgScale', 'radius', 'density', 'font', 'glass', 'glassTone', 'glassBlur', 'glassAlpha', 'chart', 'chartSmooth', 'chartPal', 'cusOn', 'cusBg', 'cusCard', 'cusText', 'cusRadius', 'cusFont', 'cusShadow' ];
+	function themeCode() {
+		var o = {}; CODE_KEYS.forEach(function (k) { o[k] = prefs[k]; });
+		var js = JSON.stringify(o), b;
+		try { b = window.btoa(unescape(encodeURIComponent(js))); } catch (e) { b = ''; }
+		return 'NF1:' + b;
+	}
+	function applyCode(txt) {
+		var m = /^\s*NF1:([A-Za-z0-9+\/=]+)\s*$/.exec(String(txt || ''));
+		if (!m) return 'Это не код темы Nightfall (он начинается с NF1:).';
+		var src = null;
+		try { src = JSON.parse(decodeURIComponent(escape(window.atob(m[1])))); } catch (e) { return 'Код повреждён.'; }
+		var clean = src && typeof src === 'object' ? cleanPrefs(src) : null;
+		if (!clean) return 'В коде нет настроек темы.';
+		var out = {}; CODE_KEYS.forEach(function (k) { if (Object.prototype.hasOwnProperty.call(clean, k)) out[k] = clean[k]; });
+		Object.assign(prefs, out, { preset: '' }); save(); applyAll(); refreshPanel(); refreshEditor();
+		return '';
+	}
+	function refreshEditor() {
+		if (!ed) return;
+		edRefs.on.checked = !!prefs.cusOn;
+		ed.toggleAttribute('data-off', !prefs.cusOn);
+		[ [ 'cusBg', '#f3f3f3', '#202020' ], [ 'cusCard', '#fcfcfc', '#2b2b2b' ], [ 'cusText', '#1a1a1a', '#ffffff' ] ].forEach(function (c) {
+			edRefs[c[0]].value = hex6(prefs[c[0]]) || (isDark() ? c[2] : c[1]);
+			edRefs[c[0] + 'x'].hidden = !hex6(prefs[c[0]]);
+		});
+		edRefs.base.light.setAttribute('aria-pressed', String(!isDark())); edRefs.base.dark.setAttribute('aria-pressed', String(isDark()));
+		edRefs.radius.value = String(+prefs.cusRadius || 0); paintRange(edRefs.radius);
+		[ [ 'cusFont', '' ], [ 'cusShadow', '' ] ].forEach(function (k) { Object.keys(edRefs[k[0]]).forEach(function (v) { edRefs[k[0]][v].setAttribute('aria-pressed', String((prefs[k[0]] || '') === (v === '_' ? '' : v))); }); });
+		edRefs.color.value = hexToRgb(prefs.accent) ? prefs.accent : '#0067c0';
+	}
+	function openEditor() {
+		if (!ed) buildEditor();
+		if (pop) toggle(false);
+		ed.classList.add('open'); refreshEditor();
+		var x = ed.querySelector('.nf-pop-x'); if (x) x.focus();
+	}
+	function buildEditor() {
+		function color(key, label) {
+			var inp = edRefs[key] = h('input', { type: 'color', 'class': 'nf-color', 'aria-label': label, oninput: function (ev) { prefs.cusOn = true; set(key, ev.target.value); refreshEditor(); } });
+			var x = edRefs[key + 'x'] = h('button', { type: 'button', 'class': 'nf-ed-x', title: 'Вернуть как в теме', 'aria-label': 'Сбросить: ' + label, text: '↺', onclick: function () { set(key, ''); refreshEditor(); } });
+			return h('div', { 'class': 'nf-ed-c' }, [ h('span', { text: label }), inp, x ]);
+		}
+		function seg(key, label, items) {
+			var m = edRefs[key] = {};
+			var el = h('div', { 'class': 'nf-seg nf-seg-wrap', role: 'group', 'aria-label': label }, items.map(function (i) {
+				return m[i[0]] = h('button', { type: 'button', text: i[1], onclick: function () { prefs.cusOn = true; set(key, i[0] === '_' ? '' : i[0]); refreshEditor(); } });
+			}));
+			return [ h('div', { 'class': 'nf-pop-l', text: label }), el ];
+		}
+		edRefs.on = h('input', { type: 'checkbox', onchange: function (ev) { set('cusOn', ev.target.checked); refreshEditor(); } });
+		edRefs.base = {
+			light: h('button', { type: 'button', text: 'Светлая основа', onclick: function () { prefs.schedule = false; set('mode', 'light'); refreshEditor(); } }),
+			dark: h('button', { type: 'button', text: 'Тёмная основа', onclick: function () { prefs.schedule = false; set('mode', 'dark'); refreshEditor(); } })
+		};
+		edRefs.color = h('input', { type: 'color', 'class': 'nf-color', 'aria-label': 'Цвет акцента', oninput: function (ev) { set('accent', ev.target.value); refreshEditor(); } });
+		edRefs.radius = h('input', { type: 'range', min: '0', max: '28', step: '1', 'aria-label': 'Скругление, пикселей', oninput: function (ev) { prefs.cusOn = true; set('cusRadius', +ev.target.value); } });
+		edRefs.radius.setAttribute('data-unit', 'px');
+		edRefs.code = h('textarea', { 'class': 'nf-ed-code', rows: '3', spellcheck: 'false', 'aria-label': 'Код темы', placeholder: 'Вставьте сюда код чужой темы (начинается с NF1:)' });
+		edRefs.note = h('div', { 'class': 'nf-pop-ionote', role: 'status' });
+		var note = function (t, bad) { edRefs.note.textContent = t; edRefs.note.classList.toggle('bad', !!bad); };
+		var rngRow = h('label', { 'class': 'nf-rng' }, [ h('span', { 'class': 'nf-rng-t' }, [ h('span', { text: 'Скругление углов' }), h('output', { 'class': 'nf-rng-v' }) ]), edRefs.radius ]);
+		ed = h('div', { 'class': 'nf-pop nf-ed', role: 'dialog', 'aria-label': 'Редактор темы' }, [
+			h('div', { 'class': 'nf-pop-h' }, [ h('span', { text: 'Редактор темы' }), h('button', { type: 'button', 'class': 'nf-pop-x', 'aria-label': 'Закрыть', title: 'Закрыть', text: '×', onclick: function () { ed.classList.remove('open'); } }) ]),
+			h('div', { 'class': 'nf-pop-note', text: 'Изменения видны сразу на этой странице. Выберите основу и подстройте цвета, форму и шрифт.' }),
+			h('label', { 'class': 'nf-pop-row' }, [ h('span', { text: 'Использовать свою тему' }), h('span', { 'class': 'cbi-checkbox' }, [ edRefs.on ]) ]),
+			h('div', { 'class': 'nf-seg', role: 'group', 'aria-label': 'Основа' }, [ edRefs.base.light, edRefs.base.dark ]),
+			h('div', { 'class': 'nf-ed-body' }, [
+				color('cusBg', 'Фон страницы'), color('cusCard', 'Карточки'), color('cusText', 'Текст'),
+				h('div', { 'class': 'nf-ed-c' }, [ h('span', { text: 'Акцент' }), edRefs.color ]),
+				rngRow
+			].concat(seg('cusFont', 'Шрифт', [ [ '_', 'Как в теме' ], [ 'system', 'Системный' ], [ 'rounded', 'Округлый' ], [ 'humanist', 'Мягкий' ], [ 'serif', 'Засечки' ], [ 'mono', 'Моно' ] ]),
+				seg('cusShadow', 'Тени карточек', [ [ '_', 'Как в теме' ], [ 'none', 'Без теней' ], [ 'soft', 'Мягкие' ], [ 'deep', 'Глубокие' ] ]),
+				[ h('div', { 'class': 'nf-ed-prev' }, [ h('b', { text: 'Так выглядит карточка' }), h('span', { text: 'Текст, ссылки и кнопки в выбранных цветах.' }), h('button', { type: 'button', 'class': 'cbi-button cbi-button-action', text: 'Кнопка' }) ]) ])),
+			h('div', { 'class': 'nf-pop-l', text: 'Поделиться темой' }),
+			edRefs.code,
+			h('div', { 'class': 'nf-pop-io' }, [
+				h('button', { type: 'button', text: 'Показать код моей темы', onclick: function () { edRefs.code.value = themeCode(); edRefs.code.select(); note('Скопируйте код и отправьте: на другом роутере вставьте его сюда и нажмите «Применить код».'); } }),
+				h('button', { type: 'button', text: 'Копировать', onclick: function () {
+					if (!edRefs.code.value) edRefs.code.value = themeCode(); edRefs.code.select();
+					var ok = false; try { ok = document.execCommand('copy'); } catch (e) { /* ignore */ }
+					if (!ok && navigator.clipboard) { navigator.clipboard.writeText(edRefs.code.value).then(function () { note('Код скопирован.'); }, function () { note('Выделите код и скопируйте вручную.', true); }); return; }
+					note(ok ? 'Код скопирован.' : 'Выделите код и скопируйте вручную.', !ok);
+				} }),
+				h('button', { type: 'button', text: 'Применить код', onclick: function () { var e = applyCode(edRefs.code.value); note(e || 'Тема применена.', !!e); } })
+			]),
+			edRefs.note,
+			h('button', { type: 'button', 'class': 'nf-pop-reset', text: 'Сбросить свою тему', onclick: function () {
+				[ 'cusBg', 'cusCard', 'cusText', 'cusFont', 'cusShadow' ].forEach(function (k) { prefs[k] = ''; }); prefs.cusRadius = 0; prefs.cusOn = false; save(); applyAll(); refreshPanel(); refreshEditor();
+			} })
+		]);
+		ed.addEventListener('input', function (ev) { if (ev.target.type === 'range') paintRange(ev.target); });
+		document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && ed.classList.contains('open')) ed.classList.remove('open'); });
+		document.body.appendChild(ed);
+	}
+
 	/* ---------- экспорт и импорт настроек вида одним файлом ---------- */
 	function ioNote(text, bad) {
 		if (!refs.ioNote) return;
@@ -1132,11 +1343,11 @@
 			if (typeof v !== typeof d) return;
 			if (typeof v === 'string') {
 				if (v.length > 32) return;
-				if (k === 'accent' && v !== '' && !/^#[0-9a-fA-F]{6}$/.test(v)) return;
+				if ((k === 'accent' || k === 'cusBg' || k === 'cusCard' || k === 'cusText') && v !== '' && !/^#[0-9a-fA-F]{6}$/.test(v)) return;
 				if ((k === 'nightFrom' || k === 'dayFrom') && !/^\d\d:\d\d$/.test(v)) return;
-				if (k !== 'accent' && k !== 'nightFrom' && k !== 'dayFrom' && !/^[A-Za-z0-9_-]*$/.test(v)) return;
+				if (k !== 'accent' && k !== 'cusBg' && k !== 'cusCard' && k !== 'cusText' && k !== 'nightFrom' && k !== 'dayFrom' && !/^[A-Za-z0-9_-]*$/.test(v)) return;
 			}
-			if (typeof v === 'number' && (!isFinite(v) || v < 0 || v > 1000)) return;
+			if (typeof v === 'number' && (!isFinite(v) || v < 0 || v > 1000 || (k === 'cusRadius' && v > 28))) return;
 			out[k] = v; n++;
 		});
 		return n ? out : null;
@@ -1357,7 +1568,7 @@
 		refs.scale.value = String(prefs.bgScale);
 		refs.scale.disabled = prefs.bg === 'mica' || prefs.bg === 'flat' || prefs.bg === 'aurora' || prefs.bg === 'waves';
 		refs.color.value = hexToRgb(prefs.accent) ? prefs.accent : '#0067c0';
-		[ [ 'density', 'normal' ], [ 'font', 'md' ], [ 'radius', 'md' ], [ 'glass', 'on' ], [ 'loginBg', 'mica' ], [ 'constKind', 'net' ], [ 'glassTone', 'auto' ], [ 'ovSize', 'md' ] ].forEach(function (k) {
+		[ [ 'density', 'normal' ], [ 'font', 'md' ], [ 'radius', 'md' ], [ 'glass', 'on' ], [ 'chart', 'area' ], [ 'chartPal', 'accent' ], [ 'loginBg', 'mica' ], [ 'constKind', 'net' ], [ 'glassTone', 'auto' ], [ 'ovSize', 'md' ] ].forEach(function (k) {
 			Object.keys(refs[k[0]]).forEach(function (v) { refs[k[0]][v].setAttribute('aria-pressed', String((prefs[k[0]] || k[1]) === v)); });
 		});
 		Object.keys(refs.preset).forEach(function (k) { refs.preset[k].setAttribute('aria-pressed', String(prefs.preset === k)); });
@@ -1367,7 +1578,7 @@
 		refs.nightFrom.value = prefs.nightFrom || '20:00';
 		refs.dayFrom.value = prefs.dayFrom || '07:00';
 		pop.querySelector('.nf-pop-times').toggleAttribute('data-on', !!prefs.schedule);
-		[ 'loginClock', 'loginInfo', 'ovLive', 'ovBadges', 'navMini', 'netBar', 'constLogin', 'constApp', 'hints', 'ovTop', 'ovApps', 'ovBlock', 'ovWifi', 'ovEvents', 'ovHealth', 'ovQuick' ].forEach(function (k) { refs[k].checked = k === 'constApp' ? !!prefs[k] : prefs[k] !== false; });
+		[ 'chartSmooth', 'loginClock', 'loginInfo', 'ovLive', 'ovBadges', 'navMini', 'netBar', 'constLogin', 'constApp', 'hints', 'ovTop', 'ovApps', 'ovBlock', 'ovWifi', 'ovEvents', 'ovHealth', 'ovQuick' ].forEach(function (k) { refs[k].checked = k === 'constApp' ? !!prefs[k] : prefs[k] !== false; });
 		refs.motion.checked = !!prefs.motion;
 		refs.liteAuto.checked = prefs.liteAuto !== false;
 		refs.ovWide.checked = !!prefs.ovWide;

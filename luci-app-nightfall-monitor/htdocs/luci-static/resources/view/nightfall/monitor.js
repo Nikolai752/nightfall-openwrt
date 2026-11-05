@@ -180,6 +180,36 @@ function ring(color) {
 let uid = 0;
 
 /* time series chart: series = [{ key, cls, axis }], axes: left/right max */
+
+/* стиль графиков из настроек темы (Персонализация → Графики): заливка, линия, столбики, ступени; сглаживание */
+function nfPlot(segs, H) {
+	const root = document.documentElement, kind = root.getAttribute('data-nf-chart') || 'area', smooth = root.getAttribute('data-nf-chart-smooth') !== 'off';
+	const f = n => n.toFixed(1);
+	let line = '', area = '';
+	segs.forEach(p => {
+		if (!p.length) return;
+		let d = 'M' + f(p[0][0]) + ' ' + f(p[0][1]);
+		if (kind === 'bars') {   /* столбики: вертикальные штрихи цвета ряда (без заливки) */
+			p.forEach(q => { line += 'M' + f(q[0]) + ' ' + f(q[1]) + 'V' + H; });
+			return;
+		}
+		if (kind === 'step') {
+			for (let i = 1; i < p.length; i++) d += 'L' + f(p[i][0]) + ' ' + f(p[i - 1][1]) + 'L' + f(p[i][0]) + ' ' + f(p[i][1]);
+		}
+		else if (smooth && p.length > 2) {
+			for (let i = 0; i < p.length - 1; i++) {
+				const a = p[Math.max(0, i - 1)], b = p[i], c = p[i + 1], e = p[Math.min(p.length - 1, i + 2)];
+				const y1 = Math.max(0, Math.min(H, b[1] + (c[1] - a[1]) / 6)), y2 = Math.max(0, Math.min(H, c[1] - (e[1] - b[1]) / 6));
+				d += 'C' + f(b[0] + (c[0] - a[0]) / 6) + ' ' + f(y1) + ' ' + f(c[0] - (e[0] - b[0]) / 6) + ' ' + f(y2) + ' ' + f(c[0]) + ' ' + f(c[1]);
+			}
+		}
+		else for (let i = 1; i < p.length; i++) d += 'L' + f(p[i][0]) + ' ' + f(p[i][1]);
+		line += d;
+		if (kind !== 'line') area += d + 'L' + f(p[p.length - 1][0]) + ' ' + H + 'L' + f(p[0][0]) + ' ' + H + 'Z';
+	});
+	return { line, area };
+}
+
 function chart(opts) {
 	const id = 'nfm-g' + (++uid);
 	const W = 300, H = 100;
@@ -291,20 +321,19 @@ function chart(opts) {
 			opts.series.forEach((s, i) => {
 				const vals = data[s.key] || [];
 				const m = (s.axis === 'right' ? max.right : max.left) || 1;
-				let d = '', first = null, last = null;
-				let brk = false;
+				const segs = [];
+				let cur0 = null;
 				for (let k = 0; k < times.length; k++) {
-					if (vals[k] == null) { brk = !!s.gaps; continue; }
+					if (vals[k] == null) { if (s.gaps) cur0 = null; continue; }
 					if (now - times[k] > win) continue;
 					const x = Math.max(0, W - (now - times[k]) / win * W);
 					const y = H - Math.min(1, vals[k] / m) * (H - 1) - .5;
-					d += (d && !brk ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
-					brk = false;
-					if (first == null) first = x;
-					last = x;
+					if (!cur0) { cur0 = []; segs.push(cur0); }
+					cur0.push([ x, y ]);
 				}
-				parts[i].line.setAttribute('d', d);
-				parts[i].area.setAttribute('d', d && s.fill !== 0 ? `${d}L${last.toFixed(1)} ${H}L${first.toFixed(1)} ${H}Z` : '');
+				const pl = nfPlot(segs, H);
+				parts[i].line.setAttribute('d', pl.line);
+				parts[i].area.setAttribute('d', s.fill !== 0 ? pl.area : '');
 			});
 			setLabels(yl, max.left, opts.fmtLeft);
 			if (opts.right) setLabels(yr, max.right, opts.fmtRight);
@@ -321,17 +350,14 @@ function sparkline(cls) {
 	return {
 		el: SVG('svg', { class: 'nfm-spark', viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'none' }, [ area, line ]),
 		update(times, vals, max) {
-			const now = times[times.length - 1] || 0;
-			let d = '', fx = 0, lx = 0;
+			const now = times[times.length - 1] || 0, pts = [];
 			for (let k = 0; k < times.length; k++) {
 				if (vals[k] == null) continue;
-				const x = Math.max(0, W - (now - times[k]) / WINDOW * W), y = H - Math.min(1, vals[k] / max) * (H - 2) - 1;
-				if (!d) fx = x;
-				lx = x;
-				d += (d ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
+				pts.push([ Math.max(0, W - (now - times[k]) / WINDOW * W), H - Math.min(1, vals[k] / max) * (H - 2) - 1 ]);
 			}
-			line.setAttribute('d', d);
-			area.setAttribute('d', d ? `${d}L${lx.toFixed(1)} ${H}L${fx.toFixed(1)} ${H}Z` : '');
+			const pl = nfPlot([ pts ], H);
+			line.setAttribute('d', pl.line);
+			area.setAttribute('d', pl.area);
 		}
 	};
 }
