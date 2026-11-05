@@ -55,6 +55,9 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 **Internet access**
 - A card on the Overview page and bot buttons: cut a device off the internet manually, on a schedule (for example a child's tablet from 23:00 to 07:00) or by a daily traffic quota. A block log is kept.
 
+**Login screen**
+- The three summary cards (internet, current speed, speed test, uptime, firmware, temperature, load, memory, device count) are chosen in Personalize → Login screen. You can also upload your own picture instead of the logo. The summary is shown on the local network only.
+
 **Backup**
 - A button in the bot and in the monitor settings sends an archive of your Nightfall settings to Telegram (the bot token is not included).
 

@@ -645,6 +645,14 @@ function saveSizes(m) {
 	SIZE_MEM = m;
 	try { window.localStorage.setItem(SIZE_KEY, JSON.stringify(m)); } catch (e) { /* private mode */ }
 }
+/* IP и MAC в таблицах (аренда DHCP, Wi‑Fi) не переносим по символам */
+const NW_RE = /^((\d{1,3}\.){3}\d{1,3}|([0-9a-f]{2}[:-]){5}[0-9a-f]{2})$/i;
+function markNoWrap(view) {
+	view.querySelectorAll('.td, td').forEach(td => {
+		if (!td.classList.contains('nf-nw') && NW_RE.test(td.textContent.trim())) td.classList.add('nf-nw');
+	});
+}
+
 function syncSizes(view, relayoutNow) {
 	const m = loadSizes();
 	cardsOf(view).forEach(sec => {
@@ -1374,6 +1382,7 @@ return baseclass.extend({
 			decorateCards(view);
 			syncPins(view);
 			syncSizes(view);
+			markNoWrap(view);
 			enhanceBadges(view);
 			relayout();
 		};

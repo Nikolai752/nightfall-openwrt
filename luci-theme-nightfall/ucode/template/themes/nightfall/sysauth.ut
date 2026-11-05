@@ -47,7 +47,7 @@
 	const raddr = replace(http.getenv('REMOTE_ADDR') ?? '', /^::ffff:/i, '');
 	const nflocal = match(raddr, /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|127\.|169\.254\.|f[cd][0-9a-f][0-9a-f]:|fe80:|::1$)/i) != null;
 
-	let nfnet = '', nfms = '', nfup = '', nfrel = '';
+	let nfnet = '', nfms = '', nfup = '', nfrel = '', nfcpu = '', nfmem = '', nftemp = '', nfrx = '', nftx = '', nfspd = '', nfcl = '';
 
 	if (nflocal) {
 		nfup = ubus.call('system', 'info')?.uptime ?? '';
@@ -66,11 +66,39 @@
 				else {
 					nfnet = 'down';
 				}
+
+				nfcpu = int(f[1]);
+				nfmem = int(f[2]);
+				nftemp = int(f[3]);
+				nfrx = int(f[4]);
+				nftx = int(f[5]);
 			}
 		}
 		catch (e) {
 			nfnet = 'none';
 		}
+
+		/* последний замер скорости: «время Мбит/с …» */
+		try {
+			const sl = split(trim(readfile('/tmp/nightfall/speed.log') ?? ''), '\n');
+			const sf = split(sl[length(sl) - 1] ?? '', ' ');
+
+			if (length(sf) >= 2)
+				nfspd = sf[1];
+		}
+		catch (e) {}
+
+		/* устройства в локальной сети: записи ARP на br-lan */
+		try {
+			let n = 0;
+
+			for (let l in split(readfile('/proc/net/arp') ?? '', '\n'))
+				if (index(l, '0x2') >= 0 && match(l, /br-lan\s*$/))
+					n++;
+
+			nfcl = n;
+		}
+		catch (e) {}
 	}
 %}
 <div id="view"
@@ -80,6 +108,13 @@
 	data-net="{{ nfnet }}"
 	data-ms="{{ nfms }}"
 	data-up="{{ nfup }}"
+	data-cpu="{{ nfcpu }}"
+	data-mem="{{ nfmem }}"
+	data-temp="{{ nftemp }}"
+	data-rx="{{ nfrx }}"
+	data-tx="{{ nftx }}"
+	data-spd="{{ nfspd }}"
+	data-cl="{{ nfcl }}"
 	data-rel="{{ entityencode(nfrel, true) }}">
 	<div class="spinning">{{ _('Loading view…') }}</div>
 	<script>
