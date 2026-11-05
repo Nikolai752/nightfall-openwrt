@@ -32,6 +32,30 @@ const GUESS = [
 	[ /ap|wifi|repeater|extender|mesh|router/i, 'router' ]
 ];
 
+/* значки устройств: один набор линий, рисуется цветом текста темы */
+const SHAPES = {
+	phone: [ [ 'rect', { x: 7, y: 2, width: 10, height: 20, rx: 2.5 } ], [ 'path', { d: 'M11 18.5h2' } ] ],
+	tablet: [ [ 'rect', { x: 4, y: 3, width: 16, height: 18, rx: 2 } ], [ 'path', { d: 'M11 18h2' } ] ],
+	laptop: [ [ 'rect', { x: 5, y: 5, width: 14, height: 10, rx: 1.5 } ], [ 'path', { d: 'M2 19h20' } ] ],
+	pc: [ [ 'rect', { x: 3, y: 4, width: 18, height: 12, rx: 2 } ], [ 'path', { d: 'M9 20h6M12 16v4' } ] ],
+	tv: [ [ 'rect', { x: 3, y: 6, width: 18, height: 12, rx: 2 } ], [ 'path', { d: 'M9 3l3 3 3-3' } ] ],
+	console: [ [ 'rect', { x: 2, y: 8, width: 20, height: 9, rx: 4.5 } ], [ 'path', { d: 'M7 12.5h3M8.5 11v3' } ], [ 'circle', { cx: 15.5, cy: 12, r: .6 } ], [ 'circle', { cx: 17.5, cy: 13.5, r: .6 } ] ],
+	speaker: [ [ 'rect', { x: 6, y: 2, width: 12, height: 20, rx: 3 } ], [ 'circle', { cx: 12, cy: 15, r: 3.5 } ], [ 'circle', { cx: 12, cy: 7, r: 1 } ] ],
+	camera: [ [ 'path', { d: 'M2 8h4l2-3h8l2 3h4v11H2z' } ], [ 'circle', { cx: 12, cy: 13, r: 3.5 } ] ],
+	printer: [ [ 'path', { d: 'M7 9V3h10v6' } ], [ 'rect', { x: 3, y: 9, width: 18, height: 8, rx: 2 } ], [ 'rect', { x: 7, y: 14, width: 10, height: 7 } ] ],
+	iot: [ [ 'path', { d: 'M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.1 1 1.9v.2h5v-.2c0-.8.4-1.4 1-1.9A6 6 0 0 0 12 3z' } ] ],
+	watch: [ [ 'rect', { x: 7, y: 6, width: 10, height: 12, rx: 3 } ], [ 'path', { d: 'M9 6l.7-3h4.6l.7 3M9 18l.7 3h4.6l.7-3M12 10v2.5l1.5 1' } ] ],
+	router: [ [ 'rect', { x: 3, y: 13, width: 18, height: 7, rx: 2 } ], [ 'path', { d: 'M7 16.5h.01M11 16.5h.01M12 13V9M8.5 7a5 5 0 0 1 7 0M6 4.5a8.5 8.5 0 0 1 12 0' } ] ],
+	other: [ [ 'circle', { cx: 12, cy: 12, r: 9 } ], [ 'path', { d: 'M12 8v5M12 16h.01' } ] ],
+	group: [ [ 'circle', { cx: 9, cy: 8, r: 3 } ], [ 'path', { d: 'M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6' } ], [ 'circle', { cx: 17, cy: 9, r: 2.4 } ], [ 'path', { d: 'M16 14.2c2.8.2 5 2.4 5 5.3' } ] ]
+};
+/* значок как вложенный SVG: size в пикселях, x и y только внутри карты */
+function glyph(name, size, x, y) {
+	const a = { viewBox: '0 0 24 24', width: size, height: size, class: 'nf-ic', 'aria-hidden': 'true' };
+	if (x != null) { a.x = x; a.y = y; }
+	return svgEl('svg', a, (SHAPES[name] || SHAPES.other).map(sh => svgEl(sh[0], sh[1])));
+}
+
 const nf1 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 const nf0 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
 
@@ -42,7 +66,7 @@ function bytes(b) {
 	return nf0.format(b) + ' Б';
 }
 function mbit(bps) { const m = bps * 8 / 1e6; return (m >= 10 ? nf0.format(m) : nf1.format(m)) + ' Мбит/с'; }
-const iconOf = d => ICON[d.icon] || ICON[(GUESS.find(g => g[0].test(d.name || '')) || [ 0, 'other' ])[1]];
+const iconOf = d => (SHAPES[d.icon] ? d.icon : (GUESS.find(g => g[0].test(d.name || '')) || [ 0, 'other' ])[1]);
 const show = d => d.name || d.ip || d.mac;
 const parse = r => { try { return JSON.parse(r.stdout); } catch (e) { return null; } };
 
@@ -98,7 +122,7 @@ return view.extend({
 				const g = svgEl('g', { class: 'nf-dv-node' + (S.sel === d.mac ? ' sel' : '') + (d.active ? ' off' : ''), tabindex: '0', role: 'button', 'aria-label': show(d) });
 				g.setAttribute('transform', 'translate(' + x.toFixed(1) + ' ' + y.toFixed(1) + ')');
 				g.appendChild(svgEl('circle', { r: 28 }));
-				g.appendChild(svgEl('text', { class: 'ic', 'font-size': 26, 'text-anchor': 'middle', y: 9 }, [ iconOf(d) ]));
+				g.appendChild(glyph(iconOf(d), 26, -13, -13));
 				const label = show(d); g.appendChild(svgEl('text', { class: 'lb', 'text-anchor': 'middle', y: 47 }, [ label.length > 16 ? label.slice(0, 15) + '…' : label ]));
 				if (busy) g.appendChild(svgEl('text', { class: 'sp', 'text-anchor': 'middle', y: 61 }, [ mbit(bps) ]));
 				const pick = () => { S.sel = S.sel === d.mac ? null : d.mac; draw(); };
@@ -106,7 +130,7 @@ return view.extend({
 				g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
 				nodes.appendChild(g);
 			});
-			const hub = svgEl('g', { class: 'nf-dv-hub' }, [ svgEl('circle', { cx: cx, cy: cy, r: 38 }), svgEl('text', { x: cx, y: cy + 12, 'text-anchor': 'middle', 'font-size': 32, class: 'ic' }, [ '📡' ]) ]);
+			const hub = svgEl('g', { class: 'nf-dv-hub' }, [ svgEl('circle', { cx: cx, cy: cy, r: 38 }), glyph('router', 34, cx - 17, cy - 17) ]);
 			svg.appendChild(hub);
 			mapBox.replaceChildren(svg, n ? '' : E('div', { class: 'nf-dv-empty' }, 'Сейчас в этой группе нет устройств в сети.'));
 		}
@@ -132,7 +156,7 @@ return view.extend({
 			const grp = E('select', { 'aria-label': 'Группа' }, [ opt('', 'Без группы', !d.group) ].concat(S.groups.map(g => opt(g.name, g.name, g.name === d.group))));
 			const state = d.active ? ({ manual: 'Отключено вручную', gmanual: 'Отключено группой', quota: 'Лимит исчерпан', sched: 'Отключено по расписанию' }[d.reason] || 'Отключено') : (d.online ? 'В сети' : 'Не в сети');
 			return E('div', { class: 'nf-dv-card' }, [
-				E('div', { class: 'nf-dv-h' }, [ E('span', { class: 'ic' }, iconOf(d)), E('div', {}, [ E('b', {}, show(d)), E('small', {}, state + (d.ip ? ' · ' + d.ip : '')) ]),
+				E('div', { class: 'nf-dv-h' }, [ E('span', { class: 'ic' }, glyph(iconOf(d), 26)), E('div', {}, [ E('b', {}, show(d)), E('small', {}, state + (d.ip ? ' · ' + d.ip : '')) ]),
 					E('button', { class: 'nf-dv-x', 'aria-label': 'Закрыть', click: () => { S.sel = null; draw(); } }, '✕') ]),
 				E('div', { class: 'nf-dv-kv' }, [
 					E('div', {}, [ E('small', {}, 'Сегодня'), E('b', {}, day ? '↓ ' + bytes(day[0]) + ' ↑ ' + bytes(day[1]) : '—') ]),
@@ -156,7 +180,7 @@ return view.extend({
 			const q = E('input', { type: 'number', min: '1', max: '1000000', value: g.quota || '', placeholder: 'МБ', 'aria-label': 'Лимит каждому в сутки, МБ' });
 			const rules = [ g.manual ? 'отключена' : '', g.from ? 'с ' + g.from + ' до ' + g.to : '', g.quota ? 'лимит ' + g.quota + ' МБ' : '' ].filter(Boolean).join(' · ') || 'без правил';
 			return E('div', { class: 'nf-dv-grp' + (S.filter === g.name ? ' on' : '') }, [
-				E('div', { class: 'nf-dv-h' }, [ E('span', { class: 'ic' }, '👥'), E('div', {}, [ E('b', {}, g.name), E('small', {}, members.length + ' устр. · ' + rules) ]),
+				E('div', { class: 'nf-dv-h' }, [ E('span', { class: 'ic' }, glyph('group', 26)), E('div', {}, [ E('b', {}, g.name), E('small', {}, members.length + ' устр. · ' + rules) ]),
 					E('button', { class: 'cbi-button', click: () => { S.filter = S.filter === g.name ? '' : g.name; draw(); } }, S.filter === g.name ? 'Все устройства' : 'Показать') ]),
 				E('div', { class: 'nf-dv-row' }, [ g.manual
 					? E('button', { class: 'cbi-button cbi-button-positive', click: () => act([ 'gunblock', g.name ], 'Группа «' + g.name + '» снова в интернете.') }, 'Вернуть интернет группе')
@@ -183,8 +207,8 @@ return view.extend({
 			return E('div', { class: 'nf-dv-list' }, rows.map(d => {
 				const r = S.rate[d.ip] || [ 0, 0 ], day = S.day[d.ip];
 				return E('button', { type: 'button', class: 'nf-dv-item' + (S.sel === d.mac ? ' sel' : '') + (d.active ? ' off' : '') + (d.online ? '' : ' gone'), click: () => { S.sel = S.sel === d.mac ? null : d.mac; draw(); } }, [
-					E('span', { class: 'ic' }, iconOf(d)),
-					E('span', { class: 'tx' }, [ E('b', {}, show(d)), E('small', {}, [ d.group ? '👥 ' + d.group + ' · ' : '', d.active ? 'отключено' : (d.online ? (S.wifi[d.mac] ? 'Wi-Fi' : 'кабель') : 'не в сети'), day ? ' · ' + bytes(day[0] + day[1]) + ' сегодня' : '' ].join('')) ]),
+					E('span', { class: 'ic' }, glyph(iconOf(d), 22)),
+					E('span', { class: 'tx' }, [ E('b', {}, show(d)), E('small', {}, [ d.group ? d.group + ' · ' : '', d.active ? 'отключено' : (d.online ? (S.wifi[d.mac] ? 'Wi-Fi' : 'кабель') : 'не в сети'), day ? ' · ' + bytes(day[0] + day[1]) + ' сегодня' : '' ].join('')) ]),
 					E('span', { class: 'sp' }, d.online && (r[0] + r[1]) > 2000 ? mbit(r[0] + r[1]) : '') ]);
 			}));
 		}
