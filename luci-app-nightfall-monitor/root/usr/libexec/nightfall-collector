@@ -50,6 +50,7 @@ clean() { printf '%s' "$1" | tr -d '"\\|' | tr '\n' ' '; }
 BLOCKBIN=${NF_BLOCKBIN:-/usr/libexec/nightfall-block}
 BOTBIN=${NF_BOTBIN:-/usr/libexec/nightfall-bot}
 BLOCKLIST=${NF_BLOCK:-/etc/nightfall-block.list}
+GROUPLIST=${NF_GROUPS:-/etc/nightfall-groups.list}
 REPORT_MARK="$DIR/report.sent"
 
 tgsend() {  # tgsend ТЕКСТ [КНОПКИ_JSON]: в фоне, чтобы сбой сети не тормозил сборщик
@@ -416,7 +417,7 @@ trap stop TERM INT
 # блокировка устройств: правила применяются при старте и раз в минуту (расписание), если список не пуст
 do_block() {
 	[ -x "$BLOCKBIN" ] || return 0
-	if [ -s "$BLOCKLIST" ]; then
+	if [ -s "$BLOCKLIST" ] || [ -s "$GROUPLIST" ]; then
 		bt=$((bt + 1)); [ "$bt" = 1 ] || [ $((now - blast)) -ge 60 ] || return 0
 		blast=$now; "$BLOCKBIN" apply >/dev/null 2>&1; bhad=1
 	elif [ "$bhad" = 1 ]; then

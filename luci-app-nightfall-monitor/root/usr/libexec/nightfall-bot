@@ -117,7 +117,36 @@ cmd_block() {  # cmd_block [ПРЕФИКС]
 	reply "${1:+$1
 
 }🚫 Нажмите на устройство, чтобы отключить или вернуть ему интернет.
-🟢 в сети   🔴 отключено   ⏰ расписание   📉 лимит (расписание и лимиты задаются в теме на странице «Обзор»)" "{\"inline_keyboard\":[$rows,[{\"text\":\"📜 Журнал\",\"callback_data\":\"bl\"},{\"text\":\"« Меню\",\"callback_data\":\"menu\"}]]}"
+🟢 в сети   🔴 отключено   ⏰ расписание   📉 лимит (расписание и лимиты задаются в теме на странице «Обзор»)" "{\"inline_keyboard\":[$rows,[{\"text\":\"👥 Группы\",\"callback_data\":\"gr\"},{\"text\":\"📜 Журнал\",\"callback_data\":\"bl\"}],[{\"text\":\"« Меню\",\"callback_data\":\"menu\"}]]}"
+}
+
+# группы устройств (создаются в теме: Состояние → Устройства): одна кнопка отключает или возвращает интернет всей группе
+cmd_groups() {  # cmd_groups [СООБЩЕНИЕ]
+	rows=$("$BLOCK" groups 2>/dev/null | sed 's/},{"name"/}\n{"name"/g' | awk '
+		function g(k,   s) { if (match($0, "\"" k "\":\"[^\"]*\"")) return substr($0, RSTART + length(k) + 4, RLENGTH - length(k) - 5); return "" }
+		/"name":"/ {
+			nm = g("name"); man = ($0 ~ /"manual":true/); sc = (g("from") != ""); qt = ($0 !~ /"quota":0,/)
+			printf "[{\"text\":\"%s%s%s\",\"callback_data\":\"gt:%d\"}]\n", (man ? "🔴 " : "🟢 "), nm, (sc ? " ⏰" : "") (qt ? " 📉" : ""), n++
+		}' | head -n 12 | paste -sd, -)
+	if [ -z "$rows" ]; then reply "${1:+$1
+
+}Групп пока нет. Создайте их в теме: Состояние → Устройства (например «Дети»), и тут появятся кнопки." '{"inline_keyboard":[[{"text":"« Блокировка","callback_data":"block"},{"text":"« Меню","callback_data":"menu"}]]}'; return; fi
+	reply "${1:+$1
+
+}👥 Нажмите на группу, чтобы отключить или вернуть интернет всем её устройствам.
+🟢 работает   🔴 отключена   ⏰ расписание   📉 лимит" "{\"inline_keyboard\":[$rows,[{\"text\":\"« Блокировка\",\"callback_data\":\"block\"},{\"text\":\"« Меню\",\"callback_data\":\"menu\"}]]}"
+}
+
+cb_gtoggle() {  # cb_gtoggle НОМЕР_ГРУППЫ
+	case "$1" in ''|*[!0-9]*) cmd_groups "Неверная группа."; return ;; esac
+	obj=$("$BLOCK" groups 2>/dev/null | sed 's/},{"name"/}\n{"name"/g' | grep '"name":"' | sed -n "$(($1 + 1))p")
+	nm=$(printf '%s' "$obj" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')
+	[ -n "$nm" ] || { cmd_groups "Такой группы уже нет."; return; }
+	case "$obj" in
+	*'"manual":true'*) r=$(NF_BY=бот "$BLOCK" gunblock "$nm" 2>/dev/null); msg="✅ Группа «$nm»: интернет возвращён" ;;
+	*) r=$(NF_BY=бот "$BLOCK" gblock "$nm" 2>/dev/null); msg="🔴 Группа «$nm»: интернет отключён" ;;
+	esac
+	case "$r" in *'"ok":true'*) cmd_groups "$msg" ;; *) cmd_groups "Не получилось: $(printf '%s' "$r" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p')" ;; esac
 }
 
 cb_toggle() {  # cb_toggle MAC без двоеточий
@@ -216,6 +245,8 @@ run() {  # run КОМАНДА (из текста «/status» или из кно�
 		speed) cmd_speed ;;
 		block) cmd_block ;;
 		bl) cmd_blocklog ;;
+		gr) cmd_groups ;;
+		gt:*) cb_gtoggle "${1#gt:}" ;;
 		bk) cmd_backup ;;
 		backup) cmd_backup ;;
 		ok:*|bk:*|ub:*) cb_newdev "${1%%:*}" "${1#*:}" ;;

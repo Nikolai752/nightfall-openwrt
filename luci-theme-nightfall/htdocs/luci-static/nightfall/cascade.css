@@ -5074,3 +5074,77 @@ html body #cbi-tachyon ~ .cbi-page-actions .cbi-dropdown.btn > ul { padding: 0 8
 	html body #view > .cbi-page-actions > *,
 	html body #cbi-tachyon ~ .cbi-page-actions > * { flex: 1 1 0 !important; min-height: 38px !important; padding: 0 8px !important; font-size: 13px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
+
+/* ======== v20261105f: страница «Устройства» (карта сети, карточки, группы) ======== */
+.nf-dv { display: block; }
+.nf-dv-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-bottom: 8px; }
+.nf-dv-top h2 { margin: 0; }
+.nf-dv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.nf-dv-chip { height: 32px; padding: 0 14px; border-radius: 16px; border: 1px solid var(--nf-stroke); background: var(--nf-ctrl); color: var(--nf-text); font-size: 13px; cursor: pointer; }
+.nf-dv-chip[aria-pressed="true"] { background: var(--nf-accent); border-color: var(--nf-accent); color: var(--nf-on-accent); }
+.nf-dv-note:empty { display: none; }
+.nf-dv-note { margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--nf-accent) 12%, transparent); font-size: 13px; }
+.nf-dv-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.nf-dv-map, .nf-dv-side > *, .nf-dv-grp { background: var(--nf-card); border: 1px solid var(--nf-stroke); border-radius: 12px; }
+.nf-dv-map { padding: 6px; position: relative; }
+.nf-dv-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.nf-dv-svg { display: block; width: 100%; height: auto; }
+.nf-dv-link { stroke: var(--nf-stroke-strong, var(--nf-text-dim)); stroke-width: 1.5; opacity: .55; }
+.nf-dv-link.wifi { stroke-dasharray: 5 5; }
+.nf-dv-link.off { stroke: #d13438; opacity: .5; }
+.nf-dv-link.busy { stroke: var(--nf-accent); opacity: .95; stroke-dasharray: 8 6; animation: nf-dv-flow 1.2s linear infinite; }
+@keyframes nf-dv-flow { to { stroke-dashoffset: -28; } }
+html[data-nf-motion="off"] .nf-dv-link.busy { animation: none; }
+.nf-dv-node { cursor: pointer; outline: 0; }
+.nf-dv-node circle { fill: var(--nf-card); stroke: var(--nf-stroke-strong, var(--nf-text-dim)); stroke-width: 1.5; transition: stroke .15s, fill .15s; }
+.nf-dv-node:hover circle, .nf-dv-node:focus-visible circle { stroke: var(--nf-accent); }
+.nf-dv-node.sel circle { stroke: var(--nf-accent); stroke-width: 3; fill: color-mix(in srgb, var(--nf-accent) 14%, var(--nf-card)); }
+.nf-dv-node.off circle { stroke: #d13438; }
+.nf-dv-node .ic { font-size: 26px; }
+.nf-dv-hub .ic { font-size: 32px; }
+.nf-dv-node .lb { font-size: 13px; fill: var(--nf-text); }
+.nf-dv-node .sp { font-size: 12px; fill: var(--nf-accent); }
+.nf-dv-hub circle { fill: color-mix(in srgb, var(--nf-accent) 18%, var(--nf-card)); stroke: var(--nf-accent); stroke-width: 2; }
+.nf-dv-empty { padding: 18px; text-align: center; color: var(--nf-text-dim); font-size: 14px; }
+.nf-dv-card, .nf-dv-grp { padding: 12px 14px; }
+.nf-dv-h { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.nf-dv-h > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.nf-dv-h small, .nf-dv-kv small { color: var(--nf-text-dim); font-size: 12px; }
+.nf-dv-h .ic { font-size: 26px; }
+.nf-dv-x { width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--nf-text-dim); cursor: pointer; }
+.nf-dv-x:hover { background: var(--nf-hover); }
+.nf-dv-kv { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; margin-bottom: 10px; }
+.nf-dv-kv > div { display: flex; flex-direction: column; min-width: 0; }
+.nf-dv-kv b { font-weight: 600; font-size: 13.5px; overflow-wrap: anywhere; }
+.nf-dv-kv .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; }
+.nf-dv-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 8px 0 0; }
+.nf-dv-row input[type="text"] { flex: 1 1 140px; min-width: 0; }
+.nf-dv-row input[type="number"] { width: 110px; }
+.nf-dv-row select { max-width: 100%; }
+.nf-dv-bar { position: relative; height: 22px; border-radius: 11px; background: var(--nf-ctrl); overflow: hidden; margin-bottom: 4px; }
+.nf-dv-bar i { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--nf-accent) 45%, transparent); }
+.nf-dv-bar span { position: relative; display: block; line-height: 22px; text-align: center; font-size: 12px; }
+.nf-dv-list { display: flex; flex-direction: column; gap: 2px; max-height: 420px; overflow: auto; padding: 4px; }
+.nf-dv-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--nf-text); text-align: left; cursor: pointer; }
+.nf-dv-item:hover, .nf-dv-item:focus-visible { background: var(--nf-hover); outline: 0; }
+.nf-dv-item.sel { background: color-mix(in srgb, var(--nf-accent) 13%, transparent); }
+.nf-dv-item.gone { opacity: .6; }
+.nf-dv-item.off .tx b::after { content: " ⛔"; }
+.nf-dv-item .ic { font-size: 22px; }
+.nf-dv-item .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.nf-dv-item .tx b, .nf-dv-item .tx small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nf-dv-item small { color: var(--nf-text-dim); font-size: 12px; }
+.nf-dv-item .sp { color: var(--nf-accent); font-size: 12px; white-space: nowrap; }
+.nf-dv-gh { margin: 18px 0 8px; }
+.nf-dv-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.nf-dv-groups > .nf-dv-add, .nf-dv-groups > .nf-dv-empty { grid-column: 1 / -1; }
+.nf-dv-grp.on { border-color: var(--nf-accent); }
+@media (max-width: 899px) {
+	.nf-dv-grid { grid-template-columns: minmax(0, 1fr); }
+	.nf-dv-list { max-height: none; }
+	.nf-dv-groups { grid-template-columns: minmax(0, 1fr); }
+}
+#view .nf-dv-svg .nf-dv-node .ic { font-size: 26px !important; }
+#view .nf-dv-svg .nf-dv-hub .ic { font-size: 32px !important; }
+#view .nf-dv-svg .nf-dv-node .lb { font-size: 13px !important; fill: var(--nf-text) !important; }
+#view .nf-dv-svg .nf-dv-node .sp { font-size: 12px !important; fill: var(--nf-accent) !important; }
