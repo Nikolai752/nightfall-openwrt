@@ -86,7 +86,7 @@ backup)    # backup: отправить в чат архив настроек Ni
 	[ -n "$CHAT" ] || fail "не указан chat id"
 	w=$(mktemp -d 2>/dev/null || { mkdir -p "$DIR/bk" && echo "$DIR/bk"; })
 	mkdir -p "$w/etc"
-	for f in nightfall-monitor.conf nightfall-prefs.json nightfall-block.list nightfall-block.log nightfall-known.list nightfall-apps.list nightfall-journal.log; do
+	for f in nightfall-monitor.conf nightfall-prefs.json nightfall-block.list nightfall-block.log nightfall-devices.list nightfall-groups.list nightfall-known.list nightfall-apps.list nightfall-journal.log; do
 		[ -r "/etc/$f" ] && cp "/etc/$f" "$w/etc/$f"
 	done
 	[ -f "$w/etc/nightfall-monitor.conf" ] && sed -i 's/^TG_TOKEN=.*/TG_TOKEN=/' "$w/etc/nightfall-monitor.conf"

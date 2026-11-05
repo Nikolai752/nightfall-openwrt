@@ -9,5 +9,16 @@
 		"depends": {
 			"acl": [ "luci-app-nightfall-monitor" ]
 		}
+	},
+	"admin/status/nightfall-devices": {
+		"title": "Устройства",
+		"order": 3,
+		"action": {
+			"type": "view",
+			"path": "nightfall/devices"
+		},
+		"depends": {
+			"acl": [ "luci-app-nightfall-monitor" ]
+		}
 	}
 }

@@ -52,6 +52,11 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 **Telegram notifications and bot**
 - Messages about lost and restored internet, overheating, low memory, reboots and new devices; a button-driven bot (status, clients, traffic, device blocking, reboot) and a daily report. Details below.
 
+**Devices and groups** (Status → Devices)
+- Network map: the router in the middle, devices around it; dashed lines for Wi-Fi, solid for wired; a line comes alive and shows the speed while data flows. Tap a device to open its card.
+- Device card: custom name, icon, group, traffic today and right now, Wi-Fi signal, internet block, schedule and daily quota.
+- Groups ("Kids", "Guests", "Smart home"): rules apply to every device of a group at once: block, "from … to …" schedule, a daily quota for each. Groups can also be controlled from the bot.
+
 **Internet access**
 - A card on the Overview page and bot buttons: cut a device off the internet manually, on a schedule (for example a child's tablet from 23:00 to 07:00) or by a daily traffic quota. A block log is kept.
 
@@ -91,6 +96,8 @@ The monitor can message you in Telegram when the internet goes down or comes bac
 **Quotas and log.** In the "Internet access" card (the ⏰ button on a device) you can set a daily traffic quota: when the device downloads more, its internet is cut until the end of the day and Telegram sends a "Restore for today" button. "Restore" also works for schedules: the rule is skipped until the end of the day. The log shows who was blocked, when and why (`/etc/nightfall-block.log`).
 
 **New device** messages arrive in Telegram with "It's mine" and "Block" buttons.
+
+**Groups in the bot.** The "Block" section has a "👥 Groups" button: tapping a group cuts the internet for all its devices or restores it (🟢 working, 🔴 blocked, ⏰ schedule, 📉 quota). Groups are created on the Devices page. A single device can still be restored from its card, but if the group was blocked by hand, restore the group first. Files: `/etc/nightfall-devices.list` (names, icons, groups) and `/etc/nightfall-groups.list` (group rules); both are part of the backup.
 
 **Backup.** The "Backup" button sends a file with your settings (`tar -xzf file -C /` to restore; the bot token is not included, enter it again).
 
