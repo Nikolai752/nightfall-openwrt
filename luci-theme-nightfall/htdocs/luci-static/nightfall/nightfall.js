@@ -263,6 +263,78 @@
 		img.src = url;
 	}
 
+
+	/* ---------- карточки со сводкой на экране входа ----------
+	 * Рисуются здесь, а не в login.js: этот файл подключается с номером сборки и обновляется сразу,
+	 * а модули LuCI браузер может держать в кэше после обновления темы. */
+	var LTXT = {
+		ru: { net: 'Интернет', up: 'Работает', fw: 'Прошивка', speed: 'Скорость', test: 'Замер скорости', mbit: 'Мбит/с', temp: 'Температура', cpu: 'Процессор', mem: 'Память', cl: 'Устройств',
+			online: 'есть', offline: 'нет связи', nodata: 'нет данных', ms: 'мс', d: 'д', h: 'ч', m: 'мин', dec: ',' },
+		en: { net: 'Internet', up: 'Uptime', fw: 'Firmware', speed: 'Speed', test: 'Speed test', mbit: 'Mbit/s', temp: 'Temperature', cpu: 'CPU', mem: 'Memory', cl: 'Devices',
+			online: 'online', offline: 'offline', nodata: 'no data', ms: 'ms', d: 'd', h: 'h', m: 'min', dec: '.' }
+	};
+	function loginCell(key, d, T) {
+		var num = function (k) { var v = d[k]; return v === '' || v === undefined || isNaN(parseFloat(v)) ? null : parseFloat(v); };
+		var fmt = function (n) { return (Math.round(n * 10) / 10).toString().replace('.', T.dec); };
+		var mbit = function (bps) { return fmt(parseFloat(bps) * 8 / 1e6); };
+		var box = function (cls, label, val, kids, title) {
+			var b = h('b', {}, kids || []); if (!kids) b.textContent = val;
+			var a = { 'class': 'nf-st' + (cls ? ' ' + cls : '') }; if (title) a.title = title;
+			return h('div', a, [ h('span', { text: label }), b ]);
+		};
+		var v;
+		switch (key) {
+		case 'net':
+			return box('nf-st-' + (d.net || 'none'), T.net, '', [ h('i', { 'class': 'nf-dot' }), document.createTextNode(d.net === 'up' ? (d.ms !== '' ? d.ms + ' ' + T.ms : T.online) : d.net === 'down' ? T.offline : T.nodata) ]);
+		case 'speed':
+			v = num('rx');
+			return box('nf-st-speed', T.speed, v === null ? T.nodata : '↓' + mbit(v) + ' ↑' + mbit(num('tx') || 0), null, T.mbit);
+		case 'test':
+			v = num('spd');
+			return box('', T.test, v === null ? T.nodata : Math.round(v) + ' ' + T.mbit);
+		case 'up':
+			v = parseInt(d.up, 10);
+			if (isNaN(v)) return null;
+			var dd = Math.floor(v / 86400), hh = Math.floor(v % 86400 / 3600), mm = Math.floor(v % 3600 / 60);
+			return box('', T.up, dd > 0 ? dd + T.d + ' ' + hh + T.h : hh > 0 ? hh + T.h + ' ' + mm + T.m : mm + ' ' + T.m);
+		case 'fw':
+			return d.rel ? box('', T.fw, d.rel) : null;
+		case 'temp':
+			v = num('temp');
+			return box('', T.temp, v === null || v < 0 ? T.nodata : Math.round(v) + ' °C');
+		case 'cpu':
+			v = num('cpu');
+			return box('', T.cpu, v === null || v < 0 ? T.nodata : Math.round(v) + ' %');
+		case 'mem':
+			v = num('mem');
+			return box('', T.mem, v === null || v < 0 ? T.nodata : Math.round(v) + ' %');
+		case 'clients':
+			v = num('cl');
+			return box('', T.cl, v === null ? T.nodata : String(v));
+		}
+		return null;
+	}
+	function renderLoginStats() {
+		var info = document.getElementById('view'), plate = document.querySelector('.modal.login .nf-plate');
+		if (!info || !plate || info.dataset.local !== '1') return;
+		var keys = Array.isArray(prefs.loginCells) ? prefs.loginCells.slice(0, 3) : [ 'net', 'up', 'fw' ];
+		var T = /^ru|^uk|^be/i.test(document.documentElement.lang || '') ? LTXT.ru : LTXT.en;
+		var cells = keys.map(function (k) { return loginCell(k, info.dataset, T); }).filter(Boolean);
+		var sig = keys.join(',') + '|' + Object.keys(info.dataset).map(function (k) { return info.dataset[k]; }).join(',');
+		var old = plate.parentNode.querySelector('.nf-stats');
+		if (old && old.getAttribute('data-sig') === sig) return;
+		if (old) old.remove();
+		if (!cells.length) return;
+		var box = h('div', { 'class': 'nf-stats', 'data-n': String(cells.length), 'data-sig': sig }, cells);
+		plate.parentNode.insertBefore(box, plate.nextSibling);
+	}
+	document.addEventListener('DOMContentLoaded', function () {
+		if (!document.body || !document.body.classList.contains('nf-blank')) return;
+		renderLoginStats();
+		new MutationObserver(renderLoginStats).observe(document.body, { childList: true, subtree: true });
+		document.addEventListener('nf-prefs', renderLoginStats);
+	});
+
 	/* слабое устройство: мало памяти или ядер; тогда анимации выключаются сами (можно отключить это в «Персонализации») */
 	function weakDevice() {
 		try { return (navigator.deviceMemory && navigator.deviceMemory <= 2) || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2); } catch (e) { return false; }
@@ -994,7 +1066,7 @@
 		refs.liteAuto = h('input', { type: 'checkbox', onchange: function (ev) { set('liteAuto', ev.target.checked); } });
 
 		pop = h('div', { 'class': 'nf-pop', role: 'dialog', 'aria-label': 'Персонализация' }, [
-			h('div', { 'class': 'nf-pop-h', text: 'Персонализация' }),
+			h('div', { 'class': 'nf-pop-h' }, [ h('span', { text: 'Персонализация' }), h('button', { type: 'button', 'class': 'nf-pop-x', 'aria-label': 'Закрыть', title: 'Закрыть', text: '×', onclick: function () { toggle(false); } }) ]),
 			h('div', { 'class': 'nf-pop-l', text: 'Стиль' }), presets,
 			h('div', { 'class': 'nf-pop-l', text: 'Режим' }), seg, sched,
 			h('div', { 'class': 'nf-pop-l', text: 'Цвет акцента' }), grid,
