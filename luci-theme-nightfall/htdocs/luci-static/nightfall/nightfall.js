@@ -1390,9 +1390,7 @@
 	function loadVer() {
 		if (!window.fetch) return;
 		window.fetch(BASE + 'version.json?' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
-			verInfo = d && typeof d.version === 'string' ? d : null; paintVer(); checkWhatsNew(); offerUpdate(false);
-			var c = updCache();
-			if (verInfo && prefs.updCheck && !document.body.classList.contains('nf-blank') && (!c || Date.now() - c.t > 7 * 864e5)) window.setTimeout(function () { checkUpdate(false); }, 4000);
+			verInfo = d && typeof d.version === 'string' ? d : null; paintVer(); checkWhatsNew(); loginCheck();
 		}).catch(function () { /* без версии просто не показываем */ });
 	}
 	/* Номер последнего релиза берём сначала из latest.json в репозитории (raw.githubusercontent.com, лимитов нет;
@@ -1408,14 +1406,15 @@
 					.then(function (d) { var t = ok(d && d.tag_name); if (!t) throw new Error('api-tag'); return t; });
 			});
 	}
-	function checkUpdate(manual) {
+	function checkUpdate(manual, announce) {
 		if (!window.fetch) return;
 		if (manual && refs.updNote) { refs.updNote.textContent = 'Проверяю…'; refs.updNote.classList.remove('bad'); }
 		getLatestTag().then(function (tag) {
 			try { window.localStorage.setItem(UKEY, JSON.stringify({ tag: tag, t: Date.now() })); } catch (e) { /* ignore */ }
-			paintVer(); offerUpdate(false);
+			paintVer(); if (announce) offerUpdate(false);
 			if (manual && refs.updNote && !updAvail()) { refs.updNote.textContent = 'Установлена последняя версия (' + (/^v/i.test(tag) ? tag : 'v' + tag) + ').'; refs.updNote.classList.remove('bad'); }
 		}).catch(function () {
+			if (announce) offerUpdate(false);
 			if (manual && refs.updNote) { refs.updNote.textContent = 'Не удалось проверить: GitHub не ответил или исчерпан лимит запросов. Попробуйте позже.'; refs.updNote.classList.add('bad'); }
 		});
 	}
@@ -1440,10 +1439,11 @@
 				try { return JSON.parse(res[1].stdout || ''); } catch (e) { throw new Error('parse'); }
 			});
 	}
+	document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && updModal && !updBusy && updModal.querySelector('.nf-upd-card')) closeUpd(); });
 	function closeUpd() { if (updModal) { updModal.remove(); updModal = null; } document.documentElement.classList.remove('nf-upd-open'); }
 	function openUpd(title, kids, wide) {
 		closeUpd();
-		var box = h('div', { 'class': 'nf-upd-box' + (wide ? ' wide' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, [ h('h4', { text: title }) ].concat(kids));
+		var box = h('div', { 'class': 'nf-upd-box' + (wide ? ' wide' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': title }, (kids[0] && kids[0].classList && kids[0].classList.contains('nf-upd-hero') ? [] : [ h('h4', { text: title }) ]).concat(kids));
 		updModal = h('div', { 'class': 'nf-upd-modal' }, [ box ]);
 		document.body.appendChild(updModal);
 		document.documentElement.classList.add('nf-upd-open');
@@ -1459,17 +1459,55 @@
 		});
 		return out;
 	}
+	/* **жирный** и `код` из CHANGELOG.md */
+	function inlineMd(el, text) {
+		String(text).split(/(\*\*[^*]+\*\*|`[^`]+`)/).forEach(function (part) {
+			if (!part) return;
+			if (/^\*\*[^*]+\*\*$/.test(part)) el.appendChild(h('b', { text: part.slice(2, -2) }));
+			else if (/^`[^`]+`$/.test(part)) el.appendChild(h('code', { text: part.slice(1, -1) }));
+			else el.appendChild(document.createTextNode(part));
+		});
+		return el;
+	}
+	/* тип пункта по первым словам: новое / исправлено / важно / улучшено */
+	function lineKind(t) {
+		var x = t.replace(/^\*\*/, '');
+		if (/^(Нужно|Важно|После обновления|Обновите)/i.test(x)) return [ 'warn', 'Важно' ];
+		if (/^(Исправ|Починил|Устранен)/i.test(x) || /^[^.]{0,40}\bисправлен/i.test(x)) return [ 'fix', 'Исправлено' ];
+		if (/^(Нов|Добавл|Появил|Теперь)/i.test(x) || /^\*\*/.test(t)) return [ 'new', 'Новое' ];
+		return [ 'imp', 'Улучшено' ];
+	}
 	function renderChanges(sections) {
 		var wrap = h('div', { 'class': 'nf-upd-log' });
 		sections.forEach(function (s) {
-			wrap.appendChild(h('h5', { text: 'v' + s.v + (s.t ? ' · ' + s.t : '') }));
-			var ul = null;
+			var head = h('div', { 'class': 'nf-cl-head' }, [ h('span', { 'class': 'nf-cl-v', text: 'v' + s.v }) ]);
+			if (s.t) head.appendChild(h('span', { 'class': 'nf-cl-t', text: s.t }));
+			var sec = h('section', { 'class': 'nf-cl' }, [ head ]);
 			s.lines.forEach(function (ln) {
-				if (/^[-*]\s+/.test(ln)) { if (!ul) { ul = h('ul'); wrap.appendChild(ul); } ul.appendChild(h('li', { text: ln.replace(/^[-*]\s+/, '') })); }
-				else { ul = null; wrap.appendChild(h(/^###/.test(ln) ? 'h6' : 'p', { text: ln.replace(/^#+\s*/, '') })); }
+				if (/^[-*]\s+/.test(ln)) {
+					var txt = ln.replace(/^[-*]\s+/, ''), k = lineKind(txt);
+					sec.appendChild(h('div', { 'class': 'nf-cl-row' }, [ h('span', { 'class': 'nf-cl-b ' + k[0], text: k[1] }), inlineMd(h('span', { 'class': 'nf-cl-x' }), txt) ]));
+				} else sec.appendChild(h(/^###/.test(ln) ? 'h6' : 'p', { text: ln.replace(/^#+\s*/, '') }));
 			});
+			wrap.appendChild(sec);
 		});
 		return wrap;
+	}
+	/* карточка с «шапкой»: значок, заголовок, переход версий; по центру на компьютере, снизу на телефоне */
+	function openCard(title, sub, from, to, body, btns, extra) {
+		var chips = h('div', { 'class': 'nf-upd-vers' });
+		if (from) chips.appendChild(h('span', { 'class': 'nf-upd-chip old', text: fullTag(from) }));
+		if (from && to) chips.appendChild(h('span', { 'class': 'nf-upd-arrow', text: '→' }));
+		if (to) chips.appendChild(h('span', { 'class': 'nf-upd-chip new', text: fullTag(to) }));
+		var hero = h('div', { 'class': 'nf-upd-hero' }, [
+			h('img', { 'class': 'nf-upd-logo', src: BASE + 'logo.svg', alt: '', width: 48, height: 48 }),
+			h('div', { 'class': 'nf-upd-ht' }, [ h('h4', { text: title }), h('p', { text: sub || '' }), chips ])
+		]);
+		var box = openUpd(title, [ hero ].concat(body, [ h('div', { 'class': 'nf-upd-btns' }, btns) ]), true);
+		box.classList.add('nf-upd-card');
+		if (extra) box.parentNode.classList.add(extra);
+		var first = box.querySelector('.nf-upd-go'); if (first) try { first.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+		return box;
 	}
 	function loadChangelog(url) {
 		return window.fetch(url, { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error('nolog'); return r.text(); }).then(parseChangelog);
@@ -1484,7 +1522,7 @@
 		loadChangelog(BASE + 'CHANGELOG.md?' + Date.now()).then(function (all) {
 			var list = all.filter(function (s) { return isNewer(seen, s.v) && !isNewer(cur, s.v); }).slice(0, 4);
 			if (!list.length) return;
-			openUpd('Nightfall обновлён до v' + cur, [ renderChanges(list), h('div', { 'class': 'nf-upd-btns' }, [ h('button', { type: 'button', 'class': 'nf-upd-go', text: 'Понятно', onclick: closeUpd }) ]) ], true);
+			openCard('Что нового', 'Панель обновлена', seen, cur, [ renderChanges(list) ], [ h('button', { type: 'button', 'class': 'nf-upd-go', text: 'Понятно', onclick: closeUpd }) ]);
 		}).catch(function () { /* нет файла — без окна */ });
 	}
 	function restartSession() {
@@ -1528,24 +1566,54 @@
 			finish(false, e && e.message === 'denied' ? 'Нет прав на запуск обновления. Выйдите и войдите снова, затем повторите; если не помогло, обновите вручную (install-update.sh).' : 'Не удалось запустить обновление.', false);
 		});
 	}
+	var SNZKEY = 'nightfall-upd-snooze', LOGKEY = 'nightfall-upd-login';
 	function offerUpdate(force) {
 		var tag = updAvail();
 		if (!tag || updBusy || document.body.classList.contains('nf-blank') || !sid()) return;
-		if (!force && lsGet(SKIPKEY) === tag) return;
-		var log = h('div');
-		var box = openUpd('Доступна новая версия', [
-			h('p', { 'class': 'nf-upd-msg', text: 'Nightfall ' + fullTag(tag) + (verInfo ? ' (сейчас v' + verInfo.version + ')' : '') + '. Роутер сам скачает и установит обновление, после чего потребуется войти заново.' }),
-			log,
-			h('div', { 'class': 'nf-upd-btns' }, [
-				h('button', { type: 'button', text: 'Позже', onclick: function () { lsSet(SKIPKEY, tag); closeUpd(); } }),
-				h('button', { type: 'button', 'class': 'nf-upd-go', text: 'Обновить', onclick: function () { runUpdate(tag); } })
-			])
-		]);
-		/* «Что нового» в новой версии берём из CHANGELOG.md репозитория (если доступен) */
-		loadChangelog('https://raw.githubusercontent.com/' + REPO + '/main/CHANGELOG.md?' + Math.floor(Date.now() / 300000)).then(function (all) {
-			var list = all.filter(function (s) { return verInfo && isNewer(verInfo.version, s.v) && !isNewer(tag, s.v); }).slice(0, 3);
-			if (list.length && updModal === box.parentNode) log.appendChild(renderChanges(list));
-		}).catch(function () { /* без списка изменений */ });
+		if (!force && (updModal || lsGet(SNZKEY) === sid().sessionid)) return;      /* «Отложить» действует до следующего входа */
+		var log = h('div', { 'class': 'nf-upd-more' }), loaded = false, moreBtn;
+		function toggleMore() {
+			var open = log.classList.toggle('open');
+			moreBtn.textContent = open ? 'Скрыть' : 'Что изменится';
+			box.classList.toggle('expanded', open);
+			if (open && !loaded) {
+				loaded = true;
+				log.appendChild(h('p', { 'class': 'nf-upd-note', text: 'Загружаю список изменений…' }));
+				loadChangelog('https://raw.githubusercontent.com/' + REPO + '/main/CHANGELOG.md?' + Math.floor(Date.now() / 300000)).then(function (all) {
+					var list = all.filter(function (x) { return verInfo && isNewer(verInfo.version, x.v) && !isNewer(tag, x.v); }).slice(0, 4);
+					log.textContent = '';
+					log.appendChild(list.length ? renderChanges(list) : h('p', { 'class': 'nf-upd-note', text: 'Список изменений для этой версии не найден.' }));
+				}).catch(function () { log.textContent = ''; log.appendChild(h('p', { 'class': 'nf-upd-note', text: 'Не удалось загрузить список изменений (GitHub не ответил).' })); });
+			}
+		}
+		moreBtn = h('button', { type: 'button', text: 'Что изменится', onclick: toggleMore });
+		var box = openCard('Доступно обновление', 'Nightfall ' + fullTag(tag), verInfo && verInfo.version, tag, [
+			h('p', { 'class': 'nf-upd-msg', text: 'Роутер сам скачает и установит обновление, проверит подпись и откатит при ошибке. После установки нужно войти в LuCI заново.' }),
+			log
+		], [
+			moreBtn,
+			h('button', { type: 'button', text: 'Отложить', onclick: function () { lsSet(SNZKEY, sid() ? sid().sessionid : '1'); closeUpd(); } }),
+			h('button', { type: 'button', 'class': 'nf-upd-go', text: 'Обновить', onclick: function () { runUpdate(tag); } })
+		], 'sheet');
+	}
+	/* проверка при каждом входе в LuCI и ещё раз через минуту после входа */
+	function loginCheck() {
+		var env = sid();
+		if (!env || document.body.classList.contains('nf-blank') || prefs.updCheck === false) return;
+		var st = null;
+		try { st = JSON.parse(lsGet(LOGKEY) || 'null'); } catch (e) { st = null; }
+		if (!st || st.sid !== env.sessionid) st = { sid: env.sessionid, t: Date.now(), a: 0, b: 0 };
+		function save() { lsSet(LOGKEY, JSON.stringify(st)); }
+		save();
+		if (!st.a) { st.a = 1; save(); checkUpdate(false, true); }
+		if (!st.b) {
+			window.setTimeout(function () {
+				var cur = null; try { cur = JSON.parse(lsGet(LOGKEY) || 'null'); } catch (e) { cur = null; }
+				if (!cur || cur.sid !== env.sessionid || cur.b) return;
+				cur.b = 1; lsSet(LOGKEY, JSON.stringify(cur));
+				checkUpdate(false, true);
+			}, Math.max(500, 60000 - (Date.now() - st.t)));
+		}
 	}
 
 	function paintRange(el) {

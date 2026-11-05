@@ -691,6 +691,37 @@ function markNoWrap(view) {
 	});
 }
 
+/* Таблицы с живыми данными (Wi‑Fi клиенты, аренды DHCP): LuCI пересобирает строки каждые 5 секунд, и ширина колонок и высота строк
+   «дышат» из-за меняющегося текста (сигнал, скорость, подписи). Запоминаем наибольшие размеры и не даём таблице сжиматься обратно.
+   Вызывается синхронно из MutationObserver, до отрисовки кадра, поэтому скачка не видно. Сбрасывается при изменении размера окна. */
+let STAB_GEN = 0, STAB_W = window.innerWidth;
+const STAB_MEM = {};   /* наибольшие размеры по id таблицы: LuCI создаёт таблицу заново при каждом опросе, память должна переживать смену элемента */
+window.addEventListener('resize', () => { if (Math.abs(window.innerWidth - STAB_W) > 2) { STAB_W = window.innerWidth; STAB_GEN++; } });
+function stabilizeTables(view) {
+	view.querySelectorAll('.table').forEach(tb => {
+		if (!tb.querySelector('.td[data-title], td')) return;
+		const st = tb.id ? (STAB_MEM[tb.id] = STAB_MEM[tb.id] || {}) : (tb.__nfSt = tb.__nfSt || {});
+		if (st.gen !== STAB_GEN) { st.gen = STAB_GEN; st.col = []; st.row = []; st.h = 0; }
+		if (tb.__nfGen !== STAB_GEN) { tb.__nfGen = STAB_GEN; tb.querySelectorAll('.tr, tr').forEach(r => { r.style.minHeight = ''; r.querySelectorAll('.td, .th, td, th').forEach(c => { c.style.minWidth = ''; }); }); tb.style.minHeight = ''; }
+		const rows = Array.from(tb.querySelectorAll(':scope > .tr, :scope > tbody > tr, :scope > thead > tr'));
+		if (!rows.length || tb.getBoundingClientRect().width < 40) return;
+		rows.forEach((r, ri) => {
+			const cells = Array.from(r.querySelectorAll(':scope > .td, :scope > .th, :scope > td, :scope > th'));
+			cells.forEach((c, ci) => {
+				const w = Math.ceil(c.getBoundingClientRect().width);
+				if (w > (st.col[ci] || 0)) st.col[ci] = w;
+				if (st.col[ci] && c.style.minWidth !== st.col[ci] + 'px') c.style.minWidth = st.col[ci] + 'px';
+			});
+			const h = Math.ceil(r.getBoundingClientRect().height);
+			if (h > (st.row[ri] || 0)) st.row[ri] = h;
+			if (st.row[ri] && r.style.minHeight !== st.row[ri] + 'px') r.style.minHeight = st.row[ri] + 'px';
+		});
+		const th = Math.ceil(tb.getBoundingClientRect().height);
+		if (th > st.h) st.h = th;
+		if (st.h && tb.style.minHeight !== st.h + 'px') tb.style.minHeight = st.h + 'px';
+	});
+}
+
 function syncSizes(view, relayoutNow) {
 	const m = loadSizes();
 	cardsOf(view).forEach(sec => {
@@ -1516,9 +1547,11 @@ return baseclass.extend({
 		};
 		new MutationObserver(muts => {
 			const own = muts.every(m => (strip && strip.el.contains(m.target)) || extras.some(x => x.contains(m.target)) || (m.target === view && DRAG));
-			if (!own) enhanceBadges(view);
+			if (!own) { enhanceBadges(view); markNoWrap(view); stabilizeTables(view); }
 			schedule(muts);
 		}).observe(view, { childList: true, subtree: true, characterData: true });
+		/* значки сигнала и Wi-Fi в таблицах догружаются уже после вставки строк: учитываем их размер сразу, не ждать следующего опроса */
+		view.addEventListener('load', ev => { if (ev.target && ev.target.tagName === 'IMG') stabilizeTables(view); }, true);
 		schedule();
 	}
 });
