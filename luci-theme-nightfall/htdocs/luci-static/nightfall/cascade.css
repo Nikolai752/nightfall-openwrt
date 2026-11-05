@@ -4009,7 +4009,7 @@ html[data-nf-style="glass"] header .nav > li > a, html[data-nf-style="glass"] .n
 html[data-nf-style="glass"] header .nav > li.active > a { background: var(--nf-glass-fill); box-shadow: inset 0 1px 0 var(--nf-glass-in); }
 html[data-nf-style="glass"] .nf-badge { border-radius: 999px; }
 html[data-nf-glass="off"][data-nf-style="glass"] .cbi-section, html[data-nf-glass="off"][data-nf-style="glass"] .nf-tile, html[data-nf-glass="off"][data-nf-style="glass"] .modal, html[data-nf-glass="off"][data-nf-style="glass"] .nf-pop { background: var(--nf-card) !important; }
-.nf-seg.nf-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.nf-seg.nf-presets { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3px; }
 .nf-presets button { height: 32px; padding: 0 4px; font-size: calc(12.5px * var(--nf-fsz, 1)); white-space: nowrap; }
 
 /* метки внутри блоков портов и клиентов: не вылезают за границы */

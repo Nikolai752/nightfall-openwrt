@@ -16,7 +16,11 @@
 
 	var PRESETS = [
 		[ 'win11', 'Windows 11', { style: '', accent: '', bg: 'mica', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
-		[ 'glass', 'Liquid Glass', { style: 'glass', accent: '#0a84ff', bg: 'mica', density: 'normal', font: 'md', radius: 'round', glass: 'on', motion: true } ]
+		[ 'glass', 'Liquid Glass', { style: 'glass', accent: '#0a84ff', bg: 'mica', density: 'normal', font: 'md', radius: 'round', glass: 'on', motion: true } ],
+		[ 'night', 'Ночь', { style: '', mode: 'dark', accent: '#4f6bed', bg: 'stars', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
+		[ 'aurora', 'Аврора', { style: 'glass', mode: 'dark', accent: '#038387', bg: 'aurora', density: 'normal', font: 'md', radius: 'round', glass: 'on', motion: true } ],
+		[ 'graphite', 'Графит', { style: '', mode: 'dark', accent: '#69797e', bg: 'flat', density: 'compact', font: 'md', radius: 'sharp', glass: 'on', motion: true } ],
+		[ 'sakura', 'Сакура', { style: 'glass', mode: 'light', accent: '#e3008c', bg: 'waves', density: 'normal', font: 'md', radius: 'round', glass: 'on', motion: true } ]
 	];
 	var BGS = [ [ 'mica', 'Mica' ], [ 'flat', 'Плоский' ], [ 'dots', 'Точки' ], [ 'grid', 'Сетка' ], [ 'stars', 'Звёзды' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ] ];
 
