@@ -5034,3 +5034,12 @@ html[data-nf-login-bg="tod"][data-nf-tod="night"] .nf-lock span { opacity: .75; 
 html[data-nf-login-bg="tod"] body.nf-blank .modal.login label.cbi-value-title, html[data-nf-login-bg="tod"] body.nf-blank .modal.login .nf-row label { color: var(--nf-text); opacity: .88; }
 #view .table:has(.nf-nw) .td, #view .table:has(.nf-nw) .th { overflow-wrap: normal !important; white-space: nowrap; }
 #view .table:has(.nf-nw) .td:first-child { width: auto; }
+
+/* ======== v20261105c: кнопка «Закрыть» в окне персонализации ======== */
+.nf-pop-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.nf-pop-x { flex: none; width: 36px; height: 36px; margin: -6px -8px -6px 0; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--nf-text); font-size: 32px; font-weight: 300; line-height: 1; cursor: pointer; box-shadow: none; }
+.nf-pop-x:hover, .nf-pop-x:focus-visible { background: var(--nf-hover); outline: 0; }
+@media (max-width: 899px) {
+	.nf-pop-h { position: sticky; top: -16px; z-index: 3; margin: -16px -16px 8px; padding: 14px 16px 8px 16px; background: var(--nf-flyout, var(--nf-card)); border-radius: var(--nf-radius) var(--nf-radius) 0 0; }
+	.nf-pop-x { width: 44px; height: 44px; margin: -8px -10px -8px 0; }
+}
