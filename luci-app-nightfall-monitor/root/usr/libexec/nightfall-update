@@ -128,6 +128,8 @@ run)
 	done
 	rm -f "$ROOT/www/luci-static/resources/view/nightfall/sysauth.js"
 	rm -rf "$TMP"/luci-indexcache* "$TMP"/luci-modulecache 2>/dev/null
+	# файлы настроек темы должны читаться веб-сервером (иначе prefs.json отдаёт Forbidden)
+	chmod 644 "${ROOT:-}"/etc/nightfall-prefs.json "${ROOT:-}"/etc/nightfall-logo.json "${ROOT:-}"/etc/nightfall-bg.json 2>/dev/null
 
 	NEW=$(version)
 	rm -rf "$WORK"
