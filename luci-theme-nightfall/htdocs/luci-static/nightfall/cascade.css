@@ -5340,14 +5340,6 @@ html[data-nf-style="mac"] .modal.login .cbi-section::before, html[data-nf-style=
 .nf-colsel > span { margin-right: 4px; }
 .nf-colsel .nf-linkbtn { padding: 2px 6px; border-radius: 6px; }
 .nf-colsel .nf-linkbtn.on { background: color-mix(in srgb, var(--nf-accent) 18%, transparent); font-weight: 700; text-decoration: none; }
-@media (min-width: 900px) {
-	html:is([data-nf-ov-cols="1"], [data-nf-ov-cols="2"], [data-nf-ov-cols="3"]) body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) { display: block; column-width: auto; column-gap: 16px; grid-template-columns: none; grid-auto-rows: auto; }
-	html[data-nf-ov-cols="1"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) { column-count: 1; }
-	html[data-nf-ov-cols="2"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) { column-count: 2; }
-	html[data-nf-ov-cols="3"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) { column-count: 3; }
-	html:is([data-nf-ov-cols="1"], [data-nf-ov-cols="2"], [data-nf-ov-cols="3"]) body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .cbi-section { display: block; width: 100%; box-sizing: border-box; break-inside: avoid; -webkit-column-break-inside: avoid; margin: 0 0 16px; grid-row-end: auto !important; }
-	html:is([data-nf-ov-cols="1"], [data-nf-ov-cols="2"], [data-nf-ov-cols="3"]) body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > :not(.cbi-section) { column-span: all; }
-	html:is([data-nf-ov-cols="2"], [data-nf-ov-cols="3"]) body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .cbi-section:has(.table .th:nth-child(5)) { column-span: all; }
-}
+/* раскладка столбцов считается в nightfall-overview.js (applyColumns) */
 /* macOS: меню без размытия и своего фона, чтобы волны шли под ним без обрыва */
 @media (min-width: 900px) { html[data-nf-style="mac"] header { background: transparent !important; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; } }
