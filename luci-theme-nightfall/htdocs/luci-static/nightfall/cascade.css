@@ -4736,7 +4736,8 @@ html[data-darkmode="false"] select option, html[data-darkmode="false"] select op
 @media (max-width: 899px) {
 	.nf-time { height: 44px; width: 104px; padding: 0 8px; font-size: 16px; }
 	/* нижняя панель страницы: главная кнопка на всю ширину, две вторичные в ряд, всё по центру */
-	html .cbi-page-actions { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px; align-items: stretch; padding: 10px 12px; justify-items: stretch; }
+	:where(html) .cbi-page-actions { display: grid; }
+	html .cbi-page-actions { grid-template-columns: 1fr 1fr; gap: 8px; align-items: stretch; padding: 10px 12px; justify-items: stretch; }
 	html .cbi-page-actions > * { float: none !important; margin: 0 !important; width: 100%; }
 	html .cbi-page-actions > .cbi-dropdown, html .cbi-page-actions > .cbi-button-apply, html .cbi-page-actions > .cbi-button-primary { grid-column: 1 / -1; }
 	html .cbi-page-actions > .cbi-button-save:only-of-type, html .cbi-page-actions > .cbi-button-reset:only-of-type { grid-column: 1 / -1; }
@@ -4947,9 +4948,10 @@ html[data-darkmode="true"] .nf-cl-b.warn { color: #fca5a5; }
 /* ======== v20261103f: компактная нижняя панель «Применить / Сохранить / Сброс» на телефонах ======== */
 /* Размеры считаются от ширины и высоты экрана, поэтому панель аккуратна и на маленьком SE/mini, и на Pro Max, и на Android с любым масштабом. */
 @media (max-width: 899px) {
+	:where(html) .cbi-page-actions { display: flex; }
 	html .cbi-page-actions {
 		--nf-abh: clamp(34px, 9.4vw, 42px);
-		display: flex !important; flex-wrap: nowrap; align-items: stretch; gap: clamp(5px, 1.6vw, 8px);
+		flex-wrap: nowrap; align-items: stretch; gap: clamp(5px, 1.6vw, 8px);
 		padding: clamp(6px, 1.8vw, 9px) clamp(8px, 2.4vw, 12px);
 	}
 	html .cbi-page-actions > * { flex: 1 1 0; width: auto; min-width: 0; }
@@ -5237,7 +5239,7 @@ html[data-nf-style="mac"][data-darkmode="true"] {
 	--nf-text: #f5f5f7; --nf-text-dim: #a1a1a6; --nf-header-bg: rgba(30, 30, 30, .72);
 	--nf-shadow-card: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .25);
 }
-html[data-nf-style="mac"] body:not(.nf-blank) { background: var(--nf-bg); }
+html[data-nf-style="mac"] body:not(.nf-blank) { background: transparent; }   /* плоский фон даёт html; иначе body закрывает волны и «северное сияние» и они видны только у меню */
 html[data-nf-style="mac"] header, html[data-nf-style="mac"] .nf-tabbar { -webkit-backdrop-filter: saturate(180%) blur(22px); backdrop-filter: saturate(180%) blur(22px); }
 html[data-nf-style="mac"] .cbi-section, html[data-nf-style="mac"] fieldset.cbi-section, html[data-nf-style="mac"] .nf-tile, html[data-nf-style="mac"] .modal {
 	border-color: transparent !important; box-shadow: var(--nf-shadow-card) !important; }
@@ -5331,3 +5333,15 @@ html[data-nf-style="mac"] .modal.login .cbi-section::before, html[data-nf-style=
 .nf-h1ip { font-weight: 500; }
 .nf-h2 { font-size: calc(12px * var(--nf-fsz, 1)); color: var(--nf-text-dim); font-variant-numeric: tabular-nums; line-height: 1.3; overflow-wrap: anywhere; }
 .nf-h2m, .nf-h1ip .nf-h2m { color: var(--nf-text-dim); font-weight: 400; font-size: .9em; white-space: nowrap; }
+
+/* v20261106a: «Упаковать в столбики» — карточки Обзора текут по колонкам сверху вниз, пустых мест нет */
+.nf-live-acts { display: inline-flex; gap: 14px; align-items: baseline; flex-wrap: wrap; justify-content: flex-end; }
+.nf-packbtn.on { font-weight: 600; }
+@media (min-width: 900px) {
+	html[data-nf-ov-pack="on"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) { display: block; column-width: 440px; column-count: auto; column-gap: 16px; grid-template-columns: none; grid-auto-rows: auto; }
+	html[data-nf-ov-pack="on"][data-nf-ov-size="lg"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in),
+	html[data-nf-ov-pack="on"][data-nf-ov-wide="on"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) { column-width: auto; column-count: 1; }
+	html[data-nf-ov-pack="on"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .cbi-section { display: block; width: 100%; box-sizing: border-box; break-inside: avoid; -webkit-column-break-inside: avoid; margin: 0 0 16px; grid-row-end: auto !important; }
+	html[data-nf-ov-pack="on"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > :not(.cbi-section) { column-span: all; }
+	html[data-nf-ov-pack="on"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .cbi-section:has(.table .th:nth-child(5)) { column-span: all; }
+}

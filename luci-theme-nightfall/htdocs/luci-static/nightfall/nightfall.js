@@ -9,7 +9,7 @@
 
 	var KEY = 'nightfall-prefs-v1';
 	var root = document.documentElement;
-	var DEFAULTS = { mode: 'auto', accent: '', motion: true, liteAuto: true, loginCells: [ 'net', 'up', 'fw' ], loginLogo: false, ovWide: false, bg: 'mica', bgScale: 100,
+	var DEFAULTS = { mode: 'auto', accent: '', motion: true, liteAuto: true, loginCells: [ 'net', 'up', 'fw' ], loginLogo: false, ovWide: false, ovPack: false, bg: 'mica', bgScale: 100,
 		density: 'normal', font: 'md', radius: 'md', glass: 'on', loginClock: true, loginInfo: true, loginBg: 'mica', ovLive: true, ovBadges: true,
 		style: '', preset: 'win11', navMini: false, schedule: false, nightFrom: '20:00', dayFrom: '07:00', netBar: true, constLogin: true, constApp: false, constKind: 'net',
 		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, chart: 'area', chartSmooth: true, chartPal: 'accent', cusOn: false, cusBg: '', cusCard: '', cusText: '', cusRadius: 0, cusFont: '', cusShadow: '', loginPhoto: false, ovTop: true, ovApps: true, ovBlock: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
@@ -892,6 +892,7 @@
 		root.setAttribute('data-nf-login-bg', pick(prefs.loginBg, [ 'mica', 'flat', 'aurora', 'waves', 'tod', 'rain', 'sunset', 'photo' ], 'mica'));
 		root.setAttribute('data-nf-tod', todPart());
 		root.setAttribute('data-nf-ov-wide', prefs.ovWide ? 'on' : 'off');
+		root.setAttribute('data-nf-ov-pack', prefs.ovPack ? 'on' : 'off');
 		applyLogo();
 		root.setAttribute('data-nf-ov-live', on(prefs.ovLive));
 		root.setAttribute('data-nf-ov-badges', on(prefs.ovBadges));
@@ -1169,7 +1170,7 @@
 			h('div', { 'class': 'nf-pop-l', text: 'Обзор' }),
 			sw('ovLive', 'Полоса «Сейчас»'), sw('ovBadges', 'Цветные метки'),
 			sw('ovTop', 'Топ клиентов'), sw('ovApps', 'Трафик по приложениям'), sw('ovBlock', 'Доступ в интернет'), sw('ovWifi', 'Wi‑Fi сейчас'), sw('ovHealth', 'Состояние роутера'), sw('ovEvents', 'Лента событий'), sw('ovQuick', 'Быстрые действия'),
-		sw('ovWide', 'Один столбец (карточки на всю ширину)')
+		sw('ovWide', 'Один столбец (карточки на всю ширину)'), sw('ovPack', 'Плотные столбики (без пустых мест)')
 		].concat(seg2('ovSize', 'Размер карточек', [ [ 'sm', 'Компактные' ], [ 'md', 'Обычные' ], [ 'lg', 'Крупные' ] ], true)).concat([
 			h('div', { 'class': 'nf-pop-l', text: 'Интерфейс' }), sw('navMini', 'Свёрнутое меню (значки)'), sw('constApp', 'Анимация на фоне страниц'), sw('netBar', 'Полоса состояния интернета'), sw('hints', 'Подсказки по терминам'), refs.install,
 			h('div', { 'class': 'nf-pop-note', text: 'Приложение: в Chrome и Edge установка работает по HTTPS, на iPhone — «Поделиться → На экран Домой».' })
@@ -1650,6 +1651,7 @@
 		refs.motion.checked = !!prefs.motion;
 		refs.liteAuto.checked = prefs.liteAuto !== false;
 		refs.ovWide.checked = !!prefs.ovWide;
+		if (refs.ovPack) refs.ovPack.checked = !!prefs.ovPack;
 		var cc = Array.isArray(prefs.loginCells) ? prefs.loginCells : [ 'net', 'up', 'fw' ];
 		refs.cells.forEach(function (sel, i) { sel.value = cc[i] || 'none'; });
 		refs.gblur.value = String(prefs.glassBlur == null ? 28 : prefs.glassBlur);
