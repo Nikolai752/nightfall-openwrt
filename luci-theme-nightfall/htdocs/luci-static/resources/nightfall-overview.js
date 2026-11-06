@@ -736,10 +736,13 @@ function decorateHosts(view) {
 function levelFree(view) {
 	view.querySelectorAll('.cbi-progressbar').forEach(pb => {
 		const row = pb.closest('.tr, tr'), lab = row && row.querySelector('.td, td');
-		if (!lab || !/^\s*(свободно|free|available|доступно)\s*$/i.test(lab.textContent || '')) return;
+		if (!lab) return;
+		const t = (lab.textContent || '').trim();
 		const m = /\((\d+(?:[.,]\d+)?)%\)\s*$/.exec(pb.getAttribute('title') || ''); if (!m) return;
 		const f = parseFloat(m[1].replace(',', '.'));
-		pb.setAttribute('data-nf-free', f >= 30 ? 'ok' : f >= 12 ? 'mid' : 'low');
+		if (/^(свободно|free|available|доступно)$/i.test(t)) pb.setAttribute('data-nf-free', f >= 30 ? 'ok' : f >= 12 ? 'mid' : 'low');
+		else if (/^(занято|used|в\s+использовании)$/i.test(t)) pb.setAttribute('data-nf-free', f < 60 ? 'ok' : f < 85 ? 'mid' : 'low');   /* занято: мало — зелёный, много — красный */
+		else if (/^(буферизовано|кэшировано|кешировано|buffered|cached|shared)/i.test(t)) pb.setAttribute('data-nf-free', 'dim');   /* кэш освобождается сам: не тревожим цветом */
 	});
 }
 function stabilizeTables(view) {

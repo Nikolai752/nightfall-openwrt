@@ -5362,7 +5362,7 @@ html[data-nf-style="mac"] .modal.login .cbi-section::before, html[data-nf-style=
 	:where(html) .cbi-page-actions .cbi-button, :where(html) .cbi-page-actions .btn, :where(html) .cbi-page-actions .cbi-dropdown { font-size: 12.5px; padding-left: 8px; padding-right: 8px; min-width: 0; white-space: nowrap; letter-spacing: -.01em; }
 	.nf-live-acts { gap: 8px; }
 	/* нижняя панель всегда у края экрана, даже если мобильный браузер меняет высоту окна */
-	body #nf-tabbar { position: fixed !important; top: auto !important; transform: translateZ(0); -webkit-transform: translateZ(0); will-change: transform; z-index: 1000; }
+	body #nf-tabbar { position: fixed !important; top: auto !important; transform: translateZ(0); -webkit-transform: translateZ(0); will-change: transform; z-index: 2500; }
 }
 .nf-pop .nf-pop-io { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .nf-pop .nf-pop-io button, .nf-pop .nf-pop-io .nf-pop-btn { min-width: 0; white-space: normal; line-height: 1.15; height: auto; min-height: 36px; padding: 4px 6px; font-size: calc(12.5px * var(--nf-fsz, 1)); }
@@ -5398,3 +5398,4 @@ html[data-darkmode="true"] .nf-cl-b.fix { background: rgba(245, 158, 11, .12); c
 	html body .cbi-page-actions .cbi-button-save { color: var(--nf-text) !important; }
 	.nf-seg.nf-seg-grid button { white-space: normal; line-height: 1.1; padding: 4px 6px; height: auto; min-height: 30px; text-overflow: clip; overflow: visible; }
 }
+.cbi-progressbar[data-nf-free="dim"] > div { background: color-mix(in srgb, var(--nf-text) 38%, transparent) !important; }
