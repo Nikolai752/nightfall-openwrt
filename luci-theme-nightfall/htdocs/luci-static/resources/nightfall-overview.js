@@ -734,15 +734,30 @@ function decorateHosts(view) {
 }
 /* «Свободно» в памяти: чем больше свободного, тем лучше. Зелёный — запас есть, жёлтый — средне, красный — мало (обратно обычным полосам) */
 function levelFree(view) {
+	const fmt = (n, u) => (Math.round(n * 100) / 100).toFixed(2) + ' ' + u;
 	view.querySelectorAll('.cbi-progressbar').forEach(pb => {
 		const row = pb.closest('.tr, tr'), lab = row && row.querySelector('.td, td');
 		if (!lab) return;
-		const t = (lab.textContent || '').trim();
-		const m = /\((\d+(?:[.,]\d+)?)%\)\s*$/.exec(pb.getAttribute('title') || ''); if (!m) return;
+		const t = (lab.textContent || '').trim(), title = pb.getAttribute('title') || '';
+		const m = /\((\d+(?:[.,]\d+)?)%\)\s*$/.exec(title); if (!m) return;
 		const f = parseFloat(m[1].replace(',', '.'));
 		if (/^(свободно|free|available|доступно)$/i.test(t)) pb.setAttribute('data-nf-free', f >= 30 ? 'ok' : f >= 12 ? 'mid' : 'low');
-		else if (/^(занято|used|в\s+использовании)$/i.test(t)) pb.setAttribute('data-nf-free', f < 60 ? 'ok' : f < 85 ? 'mid' : 'low');   /* занято: мало — зелёный, много — красный */
-		else if (/^(буферизовано|кэшировано|кешировано|buffered|cached|shared)/i.test(t)) pb.setAttribute('data-nf-free', 'dim');   /* кэш освобождается сам: не тревожим цветом */
+		else if (/^(занято|used|в\s+использовании)$/i.test(t)) {
+			/* «Занято» = всё, что не свободно (вместе с кэшем): 67% свободно → 33% занято */
+			const fr = Array.from((row.closest('.table, table') || view).querySelectorAll('.cbi-progressbar')).find(x => { const r = x.closest('.tr, tr'), l = r && r.querySelector('.td, td'); return l && /^(свободно|free|available|доступно)$/i.test((l.textContent || '').trim()) && x !== pb; });
+			const fm = fr && /([\d.,]+)\s*([KMGT]?i?B)\s*\/\s*([\d.,]+)\s*([KMGT]?i?B)\s*\((\d+(?:[.,]\d+)?)%\)/.exec(fr.getAttribute('title') || '');
+			let u = f;
+			if (fm && fm[2] === fm[4]) {
+				const tot = parseFloat(fm[3].replace(',', '.')), fre = parseFloat(fm[1].replace(',', '.'));
+				u = Math.max(0, Math.min(100, Math.round(100 - parseFloat(fm[5].replace(',', '.')))));
+				const nt = fmt(tot - fre, fm[2]) + ' / ' + fmt(tot, fm[4]) + ' (' + u + '%)';
+				if (title !== nt) { pb.setAttribute('title', nt); pb.setAttribute('data-nf-fixed', '1'); }
+				const bar = pb.firstElementChild; if (bar && bar.style.width !== u + '%') bar.style.width = u + '%';
+			}
+			pb.setAttribute('data-nf-free', u < 60 ? 'ok' : u < 85 ? 'mid' : 'low');
+		}
+		else if (/^(буферизовано|кэшировано|кешировано|buffered|cached|shared)/i.test(t)) pb.setAttribute('data-nf-free', 'dim');
+		else if (/(дисков|временн|storage|disk|temporary|tmp|overlay|root)/i.test(t)) pb.setAttribute('data-nf-free', f < 70 ? 'ok' : f < 90 ? 'mid' : 'low');   /* хранилище: заполнение */
 	});
 }
 function stabilizeTables(view) {
