@@ -267,7 +267,10 @@ function liveStrip() {
 	const strip = E('div', { class: 'nf-live' }, [
 		E('div', { class: 'nf-live-h' }, [
 			E('span', {}, 'Сейчас'),
-			R.reset = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Вернуть порядок карточек по умолчанию' }, 'Сбросить порядок карточек')
+			E('span', { class: 'nf-live-acts' }, [
+				R.pack = E('button', { type: 'button', class: 'nf-linkbtn nf-packbtn', title: 'Расставить карточки плотными столбиками, без пустых мест' }, '▦ Упаковать в столбики'),
+				R.reset = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Вернуть порядок карточек по умолчанию' }, 'Сбросить порядок карточек')
+			])
 		]),
 		E('div', { class: 'nf-live-grid' }, [
 			tile('net', 'Интернет', R.netBadge,
@@ -283,6 +286,9 @@ function liveStrip() {
 		])
 	]);
 
+	const paintPack = () => { const on = document.documentElement.getAttribute('data-nf-ov-pack') === 'on'; R.pack.textContent = on ? '▤ Обычная сетка' : '▦ Упаковать в столбики'; R.pack.classList.toggle('on', on); };
+	R.pack.addEventListener('click', () => { const on = document.documentElement.getAttribute('data-nf-ov-pack') === 'on'; if (window.Nightfall && window.Nightfall.set) window.Nightfall.set('ovPack', !on); paintPack(); window.setTimeout(() => window.dispatchEvent(new Event('resize')), 60); });
+	new MutationObserver(paintPack).observe(document.documentElement, { attributes: true, attributeFilter: [ 'data-nf-ov-pack' ] }); paintPack();
 	strip.addEventListener('click', ev => {
 		const t = ev.target.closest && ev.target.closest('.nf-tile[data-tile]');
 		if (t) openDetail(t.getAttribute('data-tile'), t);
@@ -702,7 +708,7 @@ new MutationObserver(() => {
 	STAB_GEN++;
 	const v = document.getElementById('view');
 	if (v) { v.querySelectorAll('.cbi-section').forEach(c => { if (!c.classList.contains('nf-fixh')) c.style.minHeight = ''; }); window.setTimeout(() => { stabilizeTables(v); window.dispatchEvent(new Event('resize')); }, 120); }
-}).observe(document.documentElement, { attributes: true, attributeFilter: [ 'data-nf-ov-size', 'data-nf-density', 'data-nf-font', 'data-nf-style', 'data-nf-radius', 'data-nf-fsz', 'data-nf-ovwide', 'style' ] });
+}).observe(document.documentElement, { attributes: true, attributeFilter: [ 'data-nf-ov-size', 'data-nf-density', 'data-nf-font', 'data-nf-style', 'data-nf-radius', 'data-nf-fsz', 'data-nf-ovwide', 'data-nf-ov-pack', 'style' ] });
 /* «Подключённые клиенты»: имя узла в первой строке, ниже IP и MAC (отдельный столбец MAC скрывается) */
 function decorateHosts(view) {
 	view.querySelectorAll('#wifi_assoclist_table').forEach(tb => {
