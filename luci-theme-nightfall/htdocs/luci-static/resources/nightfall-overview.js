@@ -104,7 +104,7 @@ function spark(classes) {
 	const W = 100, H = 34;
 	const parts = classes.map(c => ({
 		area: SVG('path', { class: 'a ' + c }),
-		line: SVG('path', { class: 'l ' + c })
+		line: SVG('path', { class: 'l ' + c, pathLength: 1 })
 	}));
 	const el = SVG('svg', { class: 'nf-spark', viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'none' },
 		parts.reduce((a, p) => a.concat([ p.area, p.line ]), []));
@@ -203,7 +203,7 @@ function openDetail(key, from) {
 			});
 			if (cfg.cols.length === 1 && d) ad = d + 'L' + lx + ' ' + H + 'L' + fx + ' ' + H + 'Z';
 			if (ad) svg.appendChild(SVG('path', { class: 'a ' + cfg.cols[si][2], d: ad }));
-			svg.appendChild(SVG('path', { class: 'l ' + cfg.cols[si][2], d }));
+			svg.appendChild(SVG('path', { class: 'l ' + cfg.cols[si][2], d, pathLength: 1 }));
 		});
 		const cur = SVG('line', { class: 'cur', y1: 0, y2: H, x1: 0, x2: 0, visibility: 'hidden' });
 		svg.appendChild(cur);
@@ -351,7 +351,7 @@ function liveStrip() {
 
 		/* internet */
 		R.netBadge.replaceChildren(S.online === true ? badge('ok', 'Онлайн') : S.online === false ? badge('bad', 'Нет связи') : badge('off', 'Нет данных'));
-		R.netV.textContent = S.net != null && S.net >= 0 ? nf0.format(S.net) + ' мс' : (S.online === false ? '—' : '–');
+		setNum(R.netV, S.net != null && S.net >= 0 ? nf0.format(S.net) + ' мс' : (S.online === false ? '—' : '–'));
 		R.netS.textContent = S.gw != null && S.gw >= 0 ? 'до шлюза ' + nf1.format(S.gw) + ' мс' : (S.online == null ? 'история не собирается' : ' ');
 		sp.net.update(S.t, [ S.ping ], niceCeil(Math.max(20, ...S.ping.filter(v => v != null))));
 
@@ -367,14 +367,14 @@ function liveStrip() {
 
 		/* CPU */
 		const cpu = lastOf(S.cpu);
-		R.cpuV.textContent = cpu != null ? nf0.format(cpu) + '%' : '–';
+		setNum(R.cpuV, cpu != null ? nf0.format(cpu) + '%' : '–');
 		R.cpuS.textContent = 'нагрузка ' + d.load.map(v => nf2.format(v)).join(' · ');
 		sp.cpu.update(S.t, [ S.cpu ], 100);
 
 		/* temperature */
 		const t = lastOf(S.temp);
 		if (t != null) {
-			R.tempV.textContent = nf1.format(t) + ' °C';
+			setNum(R.tempV, nf1.format(t) + ' °C');
 			R.tempBadge.replaceChildren(t >= 85 ? badge('bad', 'Жарко') : t >= 70 ? badge('warn', 'Тепло') : badge('ok', 'Норма'));
 			R.tempS.textContent = 'процессор';
 		}
@@ -383,7 +383,7 @@ function liveStrip() {
 
 		/* memory */
 		const m = d.mem, used = m.total - m.avail;
-		R.memV.textContent = nf0.format(100 * used / m.total) + '%';
+		setNum(R.memV, nf0.format(100 * used / m.total) + '%');
 		R.memS.textContent = nf0.format(used / 1024) + ' МБ из ' + nf0.format(m.total / 1024) + ' МБ';
 		sp.mem.update(S.t, [ S.mem ], 100);
 
@@ -733,6 +733,21 @@ function decorateHosts(view) {
 	});
 }
 /* «Свободно» в памяти: чем больше свободного, тем лучше. Зелёный — запас есть, жёлтый — средне, красный — мало (обратно обычным полосам) */
+/* число на карточке плавно «докручивается» до нового значения */
+function setNum(el, text) {
+	const m = /^(\D*)(-?\d+(?:[.,]\d+)?)(.*)$/.exec(text), off = document.documentElement.getAttribute('data-nf-motion') === 'off';
+	if (el._nfR) { cancelAnimationFrame(el._nfR); el._nfR = 0; }
+	const to = m ? parseFloat(m[2].replace(',', '.')) : null, from = el._nfN;
+	el._nfN = to;
+	if (!m || off || from == null || from === to || Math.abs(to - from) > 1e6) { el.textContent = text; return; }
+	const dec = (m[2].split(/[.,]/)[1] || '').length, sep = m[2].indexOf(',') >= 0 ? ',' : '.', t0 = performance.now(), D = 500;
+	const step = now => {
+		const k = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - k, 3);
+		el.textContent = k >= 1 ? text : m[1] + (from + (to - from) * e).toFixed(dec).replace('.', sep) + m[3];
+		el._nfR = k < 1 ? requestAnimationFrame(step) : 0;
+	};
+	el._nfR = requestAnimationFrame(step);
+}
 function levelFree(view) {
 	const fmt = (n, u) => (Math.round(n * 100) / 100).toFixed(2) + ' ' + u;
 	view.querySelectorAll('.cbi-progressbar').forEach(pb => {
