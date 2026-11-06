@@ -268,7 +268,7 @@ function liveStrip() {
 		E('div', { class: 'nf-live-h' }, [
 			E('span', {}, 'Сейчас'),
 			E('span', { class: 'nf-live-acts' }, [
-				R.pack = E('button', { type: 'button', class: 'nf-linkbtn nf-packbtn', title: 'Расставить карточки плотными столбиками, без пустых мест' }, '▦ Упаковать в столбики'),
+				R.cols = E('span', { class: 'nf-colsel', title: 'Сколько столбцов карточек на «Обзоре»; карточки плотно, без пустых мест' }, [ E('span', {}, 'Столбцы:') ].concat([ [ '0', 'Авто' ], [ '1', '1' ], [ '2', '2' ], [ '3', '3' ] ].map(c => E('button', { type: 'button', class: 'nf-linkbtn', 'data-c': c[0] }, c[1])))),
 				R.reset = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Вернуть порядок карточек по умолчанию' }, 'Сбросить порядок карточек')
 			])
 		]),
@@ -286,9 +286,9 @@ function liveStrip() {
 		])
 	]);
 
-	const paintPack = () => { const on = document.documentElement.getAttribute('data-nf-ov-pack') === 'on'; R.pack.textContent = on ? '▤ Обычная сетка' : '▦ Упаковать в столбики'; R.pack.classList.toggle('on', on); };
-	R.pack.addEventListener('click', () => { const on = document.documentElement.getAttribute('data-nf-ov-pack') === 'on'; if (window.Nightfall && window.Nightfall.set) window.Nightfall.set('ovPack', !on); paintPack(); window.setTimeout(() => window.dispatchEvent(new Event('resize')), 60); });
-	new MutationObserver(paintPack).observe(document.documentElement, { attributes: true, attributeFilter: [ 'data-nf-ov-pack' ] }); paintPack();
+	const paintCols = () => { const cur = document.documentElement.getAttribute('data-nf-ov-cols') || '0'; R.cols.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.getAttribute('data-c') === cur)); };
+	R.cols.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('button[data-c]'); if (!b) return; if (window.Nightfall && window.Nightfall.set) window.Nightfall.set('ovCols', b.getAttribute('data-c')); paintCols(); window.setTimeout(() => window.dispatchEvent(new Event('resize')), 60); });
+	new MutationObserver(paintCols).observe(document.documentElement, { attributes: true, attributeFilter: [ 'data-nf-ov-cols' ] }); paintCols();
 	strip.addEventListener('click', ev => {
 		const t = ev.target.closest && ev.target.closest('.nf-tile[data-tile]');
 		if (t) openDetail(t.getAttribute('data-tile'), t);
@@ -708,7 +708,7 @@ new MutationObserver(() => {
 	STAB_GEN++;
 	const v = document.getElementById('view');
 	if (v) { v.querySelectorAll('.cbi-section').forEach(c => { if (!c.classList.contains('nf-fixh')) c.style.minHeight = ''; }); window.setTimeout(() => { stabilizeTables(v); window.dispatchEvent(new Event('resize')); }, 120); }
-}).observe(document.documentElement, { attributes: true, attributeFilter: [ 'data-nf-ov-size', 'data-nf-density', 'data-nf-font', 'data-nf-style', 'data-nf-radius', 'data-nf-fsz', 'data-nf-ovwide', 'data-nf-ov-pack', 'style' ] });
+}).observe(document.documentElement, { attributes: true, attributeFilter: [ 'data-nf-ov-size', 'data-nf-density', 'data-nf-font', 'data-nf-style', 'data-nf-radius', 'data-nf-fsz', 'data-nf-ovwide', 'data-nf-ov-cols', 'style' ] });
 /* «Подключённые клиенты»: имя узла в первой строке, ниже IP и MAC (отдельный столбец MAC скрывается) */
 function decorateHosts(view) {
 	view.querySelectorAll('#wifi_assoclist_table').forEach(tb => {
