@@ -5399,3 +5399,15 @@ html[data-darkmode="true"] .nf-cl-b.fix { background: rgba(245, 158, 11, .12); c
 	.nf-seg.nf-seg-grid button { white-space: normal; line-height: 1.1; padding: 4px 6px; height: auto; min-height: 30px; text-overflow: clip; overflow: visible; }
 }
 .cbi-progressbar[data-nf-free="dim"] > div { background: color-mix(in srgb, var(--nf-text) 38%, transparent) !important; }
+
+/* ---- полоса заполнения в стиле темы ---- */
+.cbi-progressbar { height: 8px !important; border-radius: 999px; box-shadow: inset 0 1px 2px rgba(0, 0, 0, .18); }
+.cbi-progressbar > div { border-radius: 999px; background-image: linear-gradient(180deg, rgba(255, 255, 255, .34), rgba(255, 255, 255, 0) 62%) !important; box-shadow: 0 0 9px -1px color-mix(in srgb, currentColor 0%, transparent); }
+.cbi-progressbar[data-nf-free="ok"] { --pbc: var(--nf-g-up, #13a10e); }
+.cbi-progressbar[data-nf-free="mid"] { --pbc: #e0a800; }
+.cbi-progressbar[data-nf-free="low"] { --pbc: var(--nf-g-bad, #d13438); }
+.cbi-progressbar[data-nf-free] > div { box-shadow: 0 0 10px -2px var(--pbc, transparent) !important; }
+html[data-nf-style="glass"] .cbi-progressbar { background: color-mix(in srgb, var(--nf-text) 9%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nf-text) 8%, transparent); }
+html[data-nf-style="mac"] .cbi-progressbar { height: 6px !important; box-shadow: none; }
+html[data-nf-style="mac"] .cbi-progressbar > div { background-image: none !important; }
+html[data-nf-radius="sharp"] .cbi-progressbar, html[data-nf-radius="sharp"] .cbi-progressbar > div { border-radius: 2px; }
