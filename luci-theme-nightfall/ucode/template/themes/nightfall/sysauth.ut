@@ -45,7 +45,7 @@
 
 	const nfb = ubus.call('system', 'board');
 	const raddr = replace(http.getenv('REMOTE_ADDR') ?? '', /^::ffff:/i, '');
-	const nflocal = match(raddr, /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|127\.|169\.254\.|f[cd][0-9a-f][0-9a-f]:|fe80:|::1$)/i) != null;
+	const nflocal = match(raddr, /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|127\.|169\.254\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.|f[cd][0-9a-f][0-9a-f]:|fe80:|::1$)/i) != null;
 
 	let nfnet = '', nfms = '', nfup = '', nfrel = '', nfcpu = '', nfmem = '', nftemp = '', nfrx = '', nftx = '', nfspd = '', nfcl = '';
 

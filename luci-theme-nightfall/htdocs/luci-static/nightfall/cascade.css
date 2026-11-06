@@ -5334,14 +5334,20 @@ html[data-nf-style="mac"] .modal.login .cbi-section::before, html[data-nf-style=
 .nf-h2 { font-size: calc(12px * var(--nf-fsz, 1)); color: var(--nf-text-dim); font-variant-numeric: tabular-nums; line-height: 1.3; overflow-wrap: anywhere; }
 .nf-h2m, .nf-h1ip .nf-h2m { color: var(--nf-text-dim); font-weight: 400; font-size: .9em; white-space: nowrap; }
 
-/* v20261106a: «Упаковать в столбики» — карточки Обзора текут по колонкам сверху вниз, пустых мест нет */
+/* v20261106b: число столбцов «Обзора» (1, 2, 3): карточки текут по колонкам сверху вниз, пустых мест нет */
 .nf-live-acts { display: inline-flex; gap: 14px; align-items: baseline; flex-wrap: wrap; justify-content: flex-end; }
-.nf-packbtn.on { font-weight: 600; }
+.nf-colsel { display: inline-flex; align-items: baseline; gap: 2px; font-size: calc(12px * var(--nf-fsz, 1)); color: var(--nf-text-dim); }
+.nf-colsel > span { margin-right: 4px; }
+.nf-colsel .nf-linkbtn { padding: 2px 6px; border-radius: 6px; }
+.nf-colsel .nf-linkbtn.on { background: color-mix(in srgb, var(--nf-accent) 18%, transparent); font-weight: 700; text-decoration: none; }
 @media (min-width: 900px) {
-	html[data-nf-ov-pack="on"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) { display: block; column-width: 440px; column-count: auto; column-gap: 16px; grid-template-columns: none; grid-auto-rows: auto; }
-	html[data-nf-ov-pack="on"][data-nf-ov-size="lg"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in),
-	html[data-nf-ov-pack="on"][data-nf-ov-wide="on"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) { column-width: auto; column-count: 1; }
-	html[data-nf-ov-pack="on"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .cbi-section { display: block; width: 100%; box-sizing: border-box; break-inside: avoid; -webkit-column-break-inside: avoid; margin: 0 0 16px; grid-row-end: auto !important; }
-	html[data-nf-ov-pack="on"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > :not(.cbi-section) { column-span: all; }
-	html[data-nf-ov-pack="on"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .cbi-section:has(.table .th:nth-child(5)) { column-span: all; }
+	html:is([data-nf-ov-cols="1"], [data-nf-ov-cols="2"], [data-nf-ov-cols="3"]) body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) { display: block; column-width: auto; column-gap: 16px; grid-template-columns: none; grid-auto-rows: auto; }
+	html[data-nf-ov-cols="1"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) { column-count: 1; }
+	html[data-nf-ov-cols="2"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) { column-count: 2; }
+	html[data-nf-ov-cols="3"] body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) { column-count: 3; }
+	html:is([data-nf-ov-cols="1"], [data-nf-ov-cols="2"], [data-nf-ov-cols="3"]) body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .cbi-section { display: block; width: 100%; box-sizing: border-box; break-inside: avoid; -webkit-column-break-inside: avoid; margin: 0 0 16px; grid-row-end: auto !important; }
+	html:is([data-nf-ov-cols="1"], [data-nf-ov-cols="2"], [data-nf-ov-cols="3"]) body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > :not(.cbi-section) { column-span: all; }
+	html:is([data-nf-ov-cols="2"], [data-nf-ov-cols="3"]) body[data-page="admin-status-overview"] #view:has(> .cbi-section.fade-in) > .cbi-section:has(.table .th:nth-child(5)) { column-span: all; }
 }
+/* macOS: меню без размытия и своего фона, чтобы волны шли под ним без обрыва */
+@media (min-width: 900px) { html[data-nf-style="mac"] header { background: transparent !important; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; } }
