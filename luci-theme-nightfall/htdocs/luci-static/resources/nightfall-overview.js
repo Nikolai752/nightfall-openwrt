@@ -732,6 +732,16 @@ function decorateHosts(view) {
 		tb.classList.toggle('nf-hostmerged', any);
 	});
 }
+/* «Свободно» в памяти: чем больше свободного, тем лучше. Зелёный — запас есть, жёлтый — средне, красный — мало (обратно обычным полосам) */
+function levelFree(view) {
+	view.querySelectorAll('.cbi-progressbar').forEach(pb => {
+		const row = pb.closest('.tr, tr'), lab = row && row.querySelector('.td, td');
+		if (!lab || !/^\s*(свободно|free|available|доступно)\s*$/i.test(lab.textContent || '')) return;
+		const m = /\((\d+(?:[.,]\d+)?)%\)\s*$/.exec(pb.getAttribute('title') || ''); if (!m) return;
+		const f = parseFloat(m[1].replace(',', '.'));
+		pb.setAttribute('data-nf-free', f >= 30 ? 'ok' : f >= 12 ? 'mid' : 'low');
+	});
+}
 function stabilizeTables(view) {
 	view.querySelectorAll('.table').forEach(tb => {
 		if (!tb.querySelector('.td[data-title], td')) return;
@@ -1614,7 +1624,7 @@ return baseclass.extend({
 			decorateCards(view);
 			syncPins(view);
 			syncSizes(view);
-			markNoWrap(view); decorateHosts(view);
+			markNoWrap(view); decorateHosts(view); levelFree(view);
 			enhanceBadges(view);
 			applyColumns(view, relayout);
 		};
@@ -1625,7 +1635,7 @@ return baseclass.extend({
 		};
 		new MutationObserver(muts => {
 			const own = muts.every(m => (strip && strip.el.contains(m.target)) || extras.some(x => x.contains(m.target)) || (m.target === view && DRAG));
-			if (!own) { enhanceBadges(view); markNoWrap(view); decorateHosts(view); stabilizeTables(view); }
+			if (!own) { enhanceBadges(view); markNoWrap(view); decorateHosts(view); levelFree(view); stabilizeTables(view); }
 			schedule(muts);
 		}).observe(view, { childList: true, subtree: true, characterData: true });
 		/* значки сигнала и Wi-Fi в таблицах догружаются уже после вставки строк: учитываем их размер сразу, не ждать следующего опроса */

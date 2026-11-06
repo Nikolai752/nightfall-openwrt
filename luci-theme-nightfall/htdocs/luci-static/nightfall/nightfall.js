@@ -1183,7 +1183,7 @@
 		var more = h('div', { 'class': 'nf-pop-sec' }, [
 			h('div', { 'class': 'nf-pop-l', text: 'Экран входа' }),
 			sw('loginClock', 'Часы и дата'), sw('loginInfo', 'Сводка о роутере'), sw('constLogin', 'Анимированный фон')
-		].concat(seg2('constKind', 'Вид анимации', [ [ 'net', 'Созвездия' ], [ 'fire', 'Светлячки' ], [ 'bubbles', 'Пузыри' ], [ 'snow', 'Снег' ], [ 'meteors', 'Звёзды' ] ], true)).concat(seg2('loginBg', 'Фон входа', [ [ 'mica', 'Как у темы' ], [ 'flat', 'Однотонный' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'tod', 'По времени суток' ], [ 'rain', 'Дождь' ], [ 'sunset', 'Закат' ], [ 'photo', 'Своё фото' ] ], true)).concat(loginExtras()));
+		].concat(seg2('constKind', 'Вид анимации', [ [ 'net', 'Созвездия' ], [ 'fire', 'Светлячки' ], [ 'bubbles', 'Пузыри' ], [ 'snow', 'Снег' ], [ 'meteors', 'Звёзды' ] ], true)).concat(seg2('loginBg', 'Фон входа', [ [ 'mica', 'Как у темы' ], [ 'flat', 'Однотонный' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'tod', 'По времени' ], [ 'rain', 'Дождь' ], [ 'sunset', 'Закат' ], [ 'photo', 'Своё фото' ] ], true)).concat(loginExtras()));
 		function desk(nodes) { nodes = [].concat(nodes); nodes.forEach(function (n) { if (n && n.classList) n.classList.add('nf-desk'); }); return nodes; }   /* пункты только для компьютера: на телефоне скрыты */
 		var ov = h('div', { 'class': 'nf-pop-sec' }, [
 			h('div', { 'class': 'nf-pop-l', text: 'Что показывать на «Обзоре»' }),
@@ -1240,8 +1240,8 @@
 					h('div', { 'class': 'nf-pop-l', text: 'Копия настроек' }),
 					h('div', { 'class': 'nf-pop-note', text: 'Настройки автоматически сохраняются на роутере и подтягиваются в других браузерах после входа в LuCI.' }),
 					h('div', { 'class': 'nf-pop-io' }, [
-						h('button', { type: 'button', text: 'Отправить на роутер', onclick: function () { syncNote('Отправляю…'); pushNow(true); } }),
-						h('button', { type: 'button', text: 'Взять с роутера', onclick: function () { syncNote('Загружаю…'); pull(true).then(function () { syncNote('Настройки взяты с роутера.'); }); } })
+						h('button', { type: 'button', text: 'На роутер', onclick: function () { syncNote('Отправляю…'); pushNow(true); } }),
+						h('button', { type: 'button', text: 'С роутера', onclick: function () { syncNote('Загружаю…'); pull(true).then(function () { syncNote('Настройки взяты с роутера.'); }); } })
 					]),
 					refs.syncNote,
 					h('div', { 'class': 'nf-pop-io' }, [
