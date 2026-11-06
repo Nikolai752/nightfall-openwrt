@@ -21,9 +21,18 @@
 		[ 'night', 'Ночь', { style: '', mode: 'dark', accent: '#4f6bed', bg: 'stars', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
 		[ 'aurora', 'Аврора', { style: 'glass', mode: 'dark', accent: '#038387', bg: 'aurora', density: 'normal', font: 'md', radius: 'round', glass: 'on', motion: true } ],
 		[ 'graphite', 'Графит', { style: '', mode: 'dark', accent: '#69797e', bg: 'flat', density: 'compact', font: 'md', radius: 'sharp', glass: 'on', motion: true } ],
-		[ 'sakura', 'Сакура', { style: 'glass', mode: 'light', accent: '#e3008c', bg: 'waves', density: 'normal', font: 'md', radius: 'round', glass: 'on', motion: true } ]
+		[ 'sakura', 'Сакура', { style: 'glass', mode: 'light', accent: '#e3008c', bg: 'waves', density: 'normal', font: 'md', radius: 'round', glass: 'on', motion: true } ],
+		[ 'nord', 'Nord', { style: '', mode: 'dark', accent: '#88c0d0', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#2e3440', cusCard: '#3b4252', cusText: '#eceff4' } ],
+		[ 'dracula', 'Dracula', { style: '', mode: 'dark', accent: '#bd93f9', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#282a36', cusCard: '#343746', cusText: '#f8f8f2' } ],
+		[ 'tokyo', 'Tokyo Night', { style: '', mode: 'dark', accent: '#7aa2f7', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#1a1b26', cusCard: '#24283b', cusText: '#c0caf5' } ],
+		[ 'gruvbox', 'Gruvbox', { style: '', mode: 'dark', accent: '#d79921', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#282828', cusCard: '#3c3836', cusText: '#ebdbb2' } ],
+		[ 'mocha', 'Catppuccin', { style: '', mode: 'dark', accent: '#cba6f7', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#1e1e2e', cusCard: '#313244', cusText: '#cdd6f4' } ],
+		[ 'rosepine', 'Rosé Pine', { style: '', mode: 'dark', accent: '#ebbcba', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#191724', cusCard: '#1f1d2e', cusText: '#e0def4' } ],
+		[ 'oled', 'OLED', { style: '', mode: 'dark', accent: '#0a84ff', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#000000', cusCard: '#0c0c0e', cusText: '#f2f2f2' } ],
+		[ 'terminal', 'Terminal', { style: '', mode: 'dark', accent: '#33ff66', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#050a06', cusCard: '#0b140d', cusText: '#b8f5c4', cusFont: 'mono', cusRadius: 2 } ],
+		[ 'paper', 'Бумага', { style: '', mode: 'light', accent: '#b45309', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#f4efe6', cusCard: '#fbf7ef', cusText: '#2b2620', cusFont: 'serif' } ]
 	];
-	var BGS = [ [ 'mica', 'Mica' ], [ 'flat', 'Плоский' ], [ 'dots', 'Точки' ], [ 'grid', 'Сетка' ], [ 'stars', 'Звёзды' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ] ];
+	var BGS = [ [ 'mica', 'Mica' ], [ 'flat', 'Плоский' ], [ 'dots', 'Точки' ], [ 'grid', 'Сетка' ], [ 'stars', 'Звёзды' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'mesh', 'Перелив' ], [ 'drift', 'Частицы' ], [ 'neon', 'Неон' ] ];
 
 	var ACCENTS = [
 		[ '', 'Синий (по умолчанию)', '#0067c0' ],
@@ -923,7 +932,7 @@
 		root.setAttribute('data-nf-style', pick(prefs.style, [ '', 'glass', 'mac' ], ''));
 		root.setAttribute('data-nf-chart', pick(prefs.chart, [ 'area', 'line', 'bars', 'step' ], 'area'));
 		root.setAttribute('data-nf-chart-smooth', prefs.chartSmooth === false ? 'off' : 'on');
-		root.setAttribute('data-nf-gpal', pick(prefs.chartPal, [ 'accent', 'vivid', 'mono', 'warm', 'cool' ], 'accent'));
+		root.setAttribute('data-nf-gpal', pick(prefs.chartPal, [ 'accent', 'vivid', 'mono', 'warm', 'cool', 'sunset', 'neon', 'pastel', 'nord', 'dracula' ], 'accent'));
 		root.setAttribute('data-nf-nav', prefs.navMini ? 'mini' : 'full');
 		root.setAttribute('data-nf-netbar', on(prefs.netBar));
 		root.setAttribute('data-nf-const', prefs.constApp ? 'app' : 'login');
@@ -1086,7 +1095,7 @@
 		refs.preset = {};
 		var presets = h('div', { 'class': 'nf-seg nf-presets', role: 'group', 'aria-label': 'Стиль' }, PRESETS.map(function (pr) {
 			return refs.preset[pr[0]] = h('button', { type: 'button', text: pr[1], onclick: function () {
-				Object.assign(prefs, pr[2], { preset: pr[0] }); save(); applyAll(); refreshPanel();
+				Object.assign(prefs, { cusOn: false, cusBg: '', cusCard: '', cusText: '', cusFont: '', cusRadius: 0 }, pr[2], { preset: pr[0] }); save(); applyAll(); refreshPanel();
 			} });
 		}));
 		refs.schedule = h('input', { type: 'checkbox', onchange: function (ev) { set('schedule', ev.target.checked); } });
@@ -1113,7 +1122,7 @@
 			seg2('radius', 'Скругление углов', [ [ 'sharp', 'Острые' ], [ 'md', 'Средние' ], [ 'round', 'Круглые' ] ]),
 			seg2('glass', 'Стекло и размытие', [ [ 'on', 'Включено' ], [ 'off', 'Выключено' ] ]),
 			seg2('chart', 'Графики', [ [ 'area', 'Заливка' ], [ 'line', 'Линия' ], [ 'bars', 'Столбики' ], [ 'step', 'Ступени' ] ], true),
-			seg2('chartPal', 'Цвета графиков', [ [ 'accent', 'Акцент' ], [ 'vivid', 'Яркие' ], [ 'mono', 'Моно' ], [ 'warm', 'Тёплые' ], [ 'cool', 'Холодные' ] ], true),
+			seg2('chartPal', 'Цвета графиков', [ [ 'accent', 'Акцент' ], [ 'vivid', 'Яркие' ], [ 'mono', 'Моно' ], [ 'warm', 'Тёплые' ], [ 'cool', 'Холодные' ], [ 'sunset', 'Закат' ], [ 'neon', 'Неон' ], [ 'pastel', 'Пастель' ], [ 'nord', 'Nord' ], [ 'dracula', 'Dracula' ] ], true),
 			[ sw('chartSmooth', 'Сглаживать линии графиков') ],
 			seg2('glassTone', 'Тон стекла', [ [ 'auto', 'Авто' ], [ 'light', 'Светлое' ], [ 'dark', 'Тёмное' ] ]),
 			[ rng('Размытие', refs.gblur, 'px'), rng('Плотность стекла', refs.galpha, '%') ]
@@ -1692,7 +1701,7 @@
 		refs.sw.forEach(function (p) { p[1].setAttribute('aria-pressed', String(prefs.accent === p[0])); });
 		Object.keys(refs.bg).forEach(function (k) { refs.bg[k].setAttribute('aria-pressed', String(prefs.bg === k)); });
 		refs.scale.value = String(prefs.bgScale);
-		refs.scale.disabled = prefs.bg === 'mica' || prefs.bg === 'flat' || prefs.bg === 'aurora' || prefs.bg === 'waves';
+		refs.scale.disabled = prefs.bg === 'mica' || prefs.bg === 'flat' || prefs.bg === 'aurora' || prefs.bg === 'waves' || prefs.bg === 'mesh';
 		refs.color.value = hexToRgb(prefs.accent) ? prefs.accent : '#0067c0';
 		[ [ 'density', 'normal' ], [ 'font', 'md' ], [ 'radius', 'md' ], [ 'glass', 'on' ], [ 'chart', 'area' ], [ 'chartPal', 'accent' ], [ 'loginBg', 'mica' ], [ 'constKind', 'net' ], [ 'glassTone', 'auto' ], [ 'ovSize', 'md' ] ].forEach(function (k) {
 			Object.keys(refs[k[0]]).forEach(function (v) { refs[k[0]][v].setAttribute('aria-pressed', String((prefs[k[0]] || k[1]) === v)); });
