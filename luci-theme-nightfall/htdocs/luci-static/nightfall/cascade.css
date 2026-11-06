@@ -5366,3 +5366,35 @@ html[data-nf-style="mac"] .modal.login .cbi-section::before, html[data-nf-style=
 }
 .nf-pop .nf-pop-io { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .nf-pop .nf-pop-io button, .nf-pop .nf-pop-io .nf-pop-btn { min-width: 0; white-space: normal; line-height: 1.15; height: auto; min-height: 36px; padding: 4px 6px; font-size: calc(12.5px * var(--nf-fsz, 1)); }
+
+/* ---- v1.2.8+: память «Свободно», тёмная тема без кричащих пятен, выравнивание «Что нового», кнопки внизу на телефоне ---- */
+/* «Свободно»: чем больше свободного, тем зеленее; мало — красный (обратно обычным полосам, где красный = занято) */
+.cbi-progressbar[data-nf-free="ok"] > div { background: var(--nf-g-up, #13a10e) !important; }
+.cbi-progressbar[data-nf-free="mid"] > div { background: #e0a800 !important; }
+.cbi-progressbar[data-nf-free="low"] > div { background: var(--nf-g-bad, #d13438) !important; }
+/* тёмная тема: цвета полос и плашек мягче */
+html[data-darkmode="true"] .cbi-progressbar > div { filter: saturate(.7) brightness(.9); }
+html[data-darkmode="true"] .nf-upd-hero { background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--nf-accent, #0067c0) 48%, #14161c) 0%, color-mix(in srgb, var(--nf-accent, #0067c0) 24%, #14121f) 100%); }
+html[data-darkmode="true"] .nf-upd-chip.new { background: rgba(255, 255, 255, .88); }
+html[data-darkmode="true"] .nf-upd-btns button.nf-upd-go { background: color-mix(in srgb, var(--nf-accent, #0067c0) 62%, #1d2026); color: #fff; }
+html[data-darkmode="true"] .nf-upd-card .nf-cl-v, html[data-darkmode="true"] .nf-upd-card .nf-cl-t { filter: saturate(.7); }
+html[data-darkmode="true"] .nf-upd-card .nf-cl-v { color: color-mix(in srgb, var(--nf-accent) 70%, #cfd6e6); }
+html[data-darkmode="true"] .nf-cl-b.new { background: rgba(16, 185, 129, .12); color: #5fd0a6; }
+html[data-darkmode="true"] .nf-cl-b.imp { background: rgba(59, 130, 246, .13); color: #93b9f0; }
+html[data-darkmode="true"] .nf-cl-b.fix { background: rgba(245, 158, 11, .12); color: #e3b960; }
+/* «Что нового»: плашка и текст на одной базовой линии, колонка плашек одинаковой ширины */
+.nf-cl-row { align-items: baseline; }
+.nf-cl-b { margin-top: 0; width: 84px; min-width: 84px; padding: 1px 6px; line-height: 1.5; align-self: baseline; }
+.nf-cl-x { text-align: left; flex: 1 1 auto; }
+/* кнопки «Сохранить и применить / Сохранить / Сброс» на телефоне: всегда видны целиком */
+@media (max-width: 899px) {
+	html body .cbi-page-actions { flex-wrap: nowrap; gap: 6px; padding: 8px; align-items: stretch; }
+	html body .cbi-page-actions > *, html body #view > .cbi-page-actions > *, html body #cbi-tachyon ~ .cbi-page-actions > * {
+		height: auto !important; min-height: 40px !important; padding: 4px 6px !important; font-size: 12.5px !important; line-height: 1.1 !important;
+		white-space: normal !important; overflow: visible !important; text-overflow: clip !important; display: flex; align-items: center; justify-content: center; text-align: center; min-width: 0 !important; flex: 1 1 0 !important;
+	}
+	html body .cbi-page-actions > .cbi-button-apply, html body .cbi-page-actions > .cbi-dropdown, html body .cbi-page-actions > .cbi-button-primary { flex: 1.5 1 0 !important; }
+	html body .cbi-page-actions .cbi-dropdown > ul > li:first-child { white-space: normal !important; line-height: 1.1; padding: 0 4px; min-height: 0; text-overflow: clip; }
+	html body .cbi-page-actions .cbi-button-save { color: var(--nf-text) !important; }
+	.nf-seg.nf-seg-grid button { white-space: normal; line-height: 1.1; padding: 4px 6px; height: auto; min-height: 30px; text-overflow: clip; overflow: visible; }
+}
