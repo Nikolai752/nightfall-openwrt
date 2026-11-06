@@ -5411,3 +5411,8 @@ html[data-nf-style="glass"] .cbi-progressbar { background: color-mix(in srgb, va
 html[data-nf-style="mac"] .cbi-progressbar { height: 6px !important; box-shadow: none; }
 html[data-nf-style="mac"] .cbi-progressbar > div { background-image: none !important; }
 html[data-nf-radius="sharp"] .cbi-progressbar, html[data-nf-radius="sharp"] .cbi-progressbar > div { border-radius: 2px; }
+
+/* полосы заполнения плавно вырастают при открытии страницы (не повторяется при обновлении данных) */
+@keyframes nf-pb-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+html:not([data-nf-motion="off"]):not([data-nf-settled]) .cbi-progressbar > div { transform-origin: left center; animation: nf-pb-grow .9s cubic-bezier(.2, .7, .2, 1) .15s both; }
+@media (prefers-reduced-motion: reduce) { .cbi-progressbar > div { animation: none !important; } }
