@@ -5343,3 +5343,26 @@ html[data-nf-style="mac"] .modal.login .cbi-section::before, html[data-nf-style=
 /* раскладка столбцов считается в nightfall-overview.js (applyColumns) */
 /* macOS: меню без размытия и своего фона, чтобы волны шли под ним без обрыва */
 @media (min-width: 900px) { html[data-nf-style="mac"] header { background: transparent !important; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; } }
+
+/* ---- v1.2.8: вкладки персонализации ---- */
+.nf-tabs { display: flex; gap: 2px; padding: 3px; margin: 0 0 12px; background: var(--nf-card-alt); border: 1px solid var(--nf-stroke); border-radius: 8px; }
+.nf-tabs button { flex: 1; height: 30px; padding: 0 4px; font: inherit; font-size: calc(13px * var(--nf-fsz, 1)); background: transparent; color: var(--nf-text); border: 0 !important; border-radius: 6px; box-shadow: none !important; cursor: pointer; white-space: nowrap; }
+.nf-tabs button:hover { background: var(--nf-hover); }
+.nf-tabs button[aria-selected="true"] { background: var(--nf-card); box-shadow: 0 1px 2px rgba(0, 0, 0, .16) !important; font-weight: 600; }
+.nf-pop .nf-pane { display: none; }
+.nf-pop[data-tab="theme"] .nf-pane[data-pane="theme"], .nf-pop[data-tab="look"] .nf-pane[data-pane="look"], .nf-pop[data-tab="login"] .nf-pane[data-pane="login"],
+.nf-pop[data-tab="ov"] .nf-pane[data-pane="ov"], .nf-pop[data-tab="more"] .nf-pane[data-pane="more"] { display: block; }
+.nf-pop .nf-pane > .nf-pop-sec:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.nf-pop .nf-sync-note:empty { display: none; }
+@media (max-width: 899px) {
+	/* то, что на телефоне не работает, скрыто */
+	.nf-pop .nf-desk, .nf-colsel { display: none !important; }
+	.nf-tabs button { height: 38px; }
+	/* «Сохранить и применить» и соседние кнопки: помещаются в одну строку */
+	:where(html) .cbi-page-actions .cbi-button, :where(html) .cbi-page-actions .btn, :where(html) .cbi-page-actions .cbi-dropdown { font-size: 12.5px; padding-left: 8px; padding-right: 8px; min-width: 0; white-space: nowrap; letter-spacing: -.01em; }
+	.nf-live-acts { gap: 8px; }
+	/* нижняя панель всегда у края экрана, даже если мобильный браузер меняет высоту окна */
+	body #nf-tabbar { position: fixed !important; top: auto !important; transform: translateZ(0); -webkit-transform: translateZ(0); will-change: transform; z-index: 1000; }
+}
+.nf-pop .nf-pop-io { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.nf-pop .nf-pop-io button, .nf-pop .nf-pop-io .nf-pop-btn { min-width: 0; white-space: normal; line-height: 1.15; height: auto; min-height: 36px; padding: 4px 6px; font-size: calc(12.5px * var(--nf-fsz, 1)); }

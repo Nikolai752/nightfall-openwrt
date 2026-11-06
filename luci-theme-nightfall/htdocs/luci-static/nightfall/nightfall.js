@@ -57,28 +57,42 @@
 	function localT() { try { return +window.localStorage.getItem(TKEY) || 0; } catch (e) { return 0; } }
 	function setLocalT(t) { try { window.localStorage.setItem(TKEY, String(t)); } catch (e) { /* ignore */ } }
 	function sid() { var l = window.L; return l && l.env && l.env.sessionid ? l.env : null; }
-	function pushNow() {
+	var syncMsg = '';
+	function syncNote(t) { syncMsg = t; var n = document.querySelector('.nf-sync-note'); if (n) n.textContent = t; }
+	function hhmm() { var d = new Date(); return (d.getHours() < 10 ? '0' : '') + d.getHours() + ':' + (d.getMinutes() < 10 ? '0' : '') + d.getMinutes(); }
+	function pushNow(manual) {
 		clearTimeout(pushTimer); pushTimer = 0;
 		var env = sid();
-		if (!dirty || !env || !window.fetch) return;
+		if (!env || !window.fetch) { if (manual === true) syncNote('Копия на роутер пишется только после входа в LuCI.'); return Promise.resolve(); }
+		if (!dirty && manual !== true) return Promise.resolve();
 		dirty = false;
 		var data = JSON.stringify({ t: localT() || Date.now(), p: prefs });
-		window.fetch(env.ubuspath || '/ubus/', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' },
+		return window.fetch(env.ubuspath || '/ubus/', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'call', params: [ env.sessionid, 'file', 'exec',
-				{ command: '/usr/libexec/nightfall-config', params: [ 'prefs-set', data ] } ] }) }).catch(function () { dirty = true; });
+				{ command: '/usr/libexec/nightfall-config', params: [ 'prefs-set', data ] } ] }) })
+			.then(function (r) { return r.json(); })
+			.then(function (j) {
+				var res = j && j.result, ok = false, why = '';
+				if (res && res[0] === 0) { try { ok = !!JSON.parse((res[1] && res[1].stdout) || '{}').ok; if (!ok) why = (JSON.parse(res[1].stdout).error) || ''; } catch (e) { ok = false; } }
+				else if (res && res[0] === 6) why = 'нет прав: выйдите и войдите в LuCI заново';
+				else if (j && j.error) why = j.error.message || 'ошибка rpc';
+				else why = 'роутер не ответил (установлен ли пакет монитора nightfall?)';
+				if (ok) syncNote('Настройки сохранены на роутере в ' + hhmm() + ': в других браузерах они подтянутся сами.');
+				else { dirty = true; syncNote('Не удалось сохранить на роутере' + (why ? ': ' + why : '') + '.'); }
+			}).catch(function () { dirty = true; syncNote('Не удалось сохранить на роутере: нет связи.'); });
 	}
 	function push() {
 		dirty = true;
 		clearTimeout(pushTimer);
-		pushTimer = setTimeout(pushNow, 15000);      /* ползунки не должны писать на флеш на каждый шаг */
+		pushTimer = setTimeout(pushNow, 3000);      /* ползунки не должны писать на флеш на каждый шаг, но другой браузер должен увидеть изменения быстро */
 	}
-	function pull() {
-		if (!window.fetch) return;
-		window.fetch(BASE + 'prefs.json?' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+	function pull(force) {
+		if (!window.fetch) return Promise.resolve();
+		return window.fetch(BASE + 'prefs.json?' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
 			var lt = localT(), hasLocal = false;
 			try { hasLocal = !!window.localStorage.getItem(KEY); } catch (e) { /* ignore */ }
 			if (d && typeof d.t === 'number' && d.p && typeof d.p === 'object') {
-				if (d.t > lt) {
+				if (d.t > lt || force === true) {
 					fromRouter = true;
 					prefs = Object.assign({}, DEFAULTS, d.p);
 					try { window.localStorage.setItem(KEY, JSON.stringify(prefs)); } catch (e) { /* ignore */ }
@@ -91,8 +105,12 @@
 			if (hasLocal && sid()) { if (!lt) setLocalT(Date.now()); dirty = true; pushNow(); }   /* на роутере нет или старее: сохраняем текущие */
 		}).catch(function () { /* нет копии на роутере — работаем с локальной */ });
 	}
-	document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') pushNow(); });
-	window.addEventListener('pagehide', pushNow);
+	var lastPull = 0;
+	document.addEventListener('visibilitychange', function () {
+		if (document.visibilityState === 'hidden') pushNow();
+		else if (Date.now() - lastPull > 20000) { lastPull = Date.now(); pull(); }      /* вернулись во вкладку: подтягиваем свежие настройки с роутера */
+	});
+	window.addEventListener('pagehide', function () { pushNow(); });
 	window.addEventListener('load', function () { window.setTimeout(function () { pull(); window.setTimeout(fetchLogo, 700); window.setTimeout(fetchPhoto, 900); }, 200); window.setTimeout(loadVer, 600); });
 
 	var prefs = load();
@@ -1166,52 +1184,89 @@
 			h('div', { 'class': 'nf-pop-l', text: 'Экран входа' }),
 			sw('loginClock', 'Часы и дата'), sw('loginInfo', 'Сводка о роутере'), sw('constLogin', 'Анимированный фон')
 		].concat(seg2('constKind', 'Вид анимации', [ [ 'net', 'Созвездия' ], [ 'fire', 'Светлячки' ], [ 'bubbles', 'Пузыри' ], [ 'snow', 'Снег' ], [ 'meteors', 'Звёзды' ] ], true)).concat(seg2('loginBg', 'Фон входа', [ [ 'mica', 'Как у темы' ], [ 'flat', 'Однотонный' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'tod', 'По времени суток' ], [ 'rain', 'Дождь' ], [ 'sunset', 'Закат' ], [ 'photo', 'Своё фото' ] ], true)).concat(loginExtras()));
+		function desk(nodes) { nodes = [].concat(nodes); nodes.forEach(function (n) { if (n && n.classList) n.classList.add('nf-desk'); }); return nodes; }   /* пункты только для компьютера: на телефоне скрыты */
 		var ov = h('div', { 'class': 'nf-pop-sec' }, [
-			h('div', { 'class': 'nf-pop-l', text: 'Обзор' }),
+			h('div', { 'class': 'nf-pop-l', text: 'Что показывать на «Обзоре»' }),
 			sw('ovLive', 'Полоса «Сейчас»'), sw('ovBadges', 'Цветные метки'),
-			sw('ovTop', 'Топ клиентов'), sw('ovApps', 'Трафик по приложениям'), sw('ovBlock', 'Доступ в интернет'), sw('ovWifi', 'Wi‑Fi сейчас'), sw('ovHealth', 'Состояние роутера'), sw('ovEvents', 'Лента событий'), sw('ovQuick', 'Быстрые действия'),
-		sw('ovWide', 'Один столбец (карточки на всю ширину)')
-		].concat(seg2('ovCols', 'Столбцов на «Обзоре» (без пустых мест)', [ [ '0', 'Авто' ], [ '1', '1' ], [ '2', '2' ], [ '3', '3' ] ], true)).concat(seg2('ovSize', 'Размер карточек', [ [ 'sm', 'Компактные' ], [ 'md', 'Обычные' ], [ 'lg', 'Крупные' ] ], true)).concat([
-			h('div', { 'class': 'nf-pop-l', text: 'Интерфейс' }), sw('navMini', 'Свёрнутое меню (значки)'), sw('constApp', 'Анимация на фоне страниц'), sw('netBar', 'Полоса состояния интернета'), sw('hints', 'Подсказки по терминам'), refs.install,
+			sw('ovTop', 'Топ клиентов'), sw('ovApps', 'Трафик по приложениям'), sw('ovBlock', 'Доступ в интернет'), sw('ovWifi', 'Wi‑Fi сейчас'), sw('ovHealth', 'Состояние роутера'), sw('ovEvents', 'Лента событий'), sw('ovQuick', 'Быстрые действия')
+		]);
+		var ovLay = h('div', { 'class': 'nf-pop-sec nf-desk' }, [ h('div', { 'class': 'nf-pop-l', text: 'Раскладка карточек' }), sw('ovWide', 'Один столбец (карточки на всю ширину)') ]
+			.concat(seg2('ovCols', 'Столбцов (без пустых мест)', [ [ '0', 'Авто' ], [ '1', '1' ], [ '2', '2' ], [ '3', '3' ] ], true))
+			.concat(seg2('ovSize', 'Размер карточек', [ [ 'sm', 'Компактные' ], [ 'md', 'Обычные' ], [ 'lg', 'Крупные' ] ], true)));
+		var ui = h('div', { 'class': 'nf-pop-sec' }, [ h('div', { 'class': 'nf-pop-l', text: 'Интерфейс' }) ].concat(desk(sw('navMini', 'Свёрнутое меню (значки)')), [ sw('constApp', 'Анимация на фоне страниц'), sw('netBar', 'Полоса состояния интернета') ], desk(sw('hints', 'Подсказки по терминам')), [ refs.install,
 			h('div', { 'class': 'nf-pop-note', text: 'Приложение: в Chrome и Edge установка работает по HTTPS, на iPhone — «Поделиться → На экран Домой».' })
 		]));
 
 		refs.motion = h('input', { type: 'checkbox', onchange: function (ev) { set('motion', ev.target.checked); } });
 		refs.liteAuto = h('input', { type: 'checkbox', onchange: function (ev) { set('liteAuto', ev.target.checked); } });
 
+		var TABS = [ [ 'theme', 'Тема' ], [ 'look', 'Вид' ], [ 'login', 'Вход' ], [ 'ov', 'Обзор' ], [ 'more', 'Ещё' ] ];
+		var tabbar = h('div', { 'class': 'nf-tabs', role: 'tablist' }, TABS.map(function (t) {
+			return h('button', { type: 'button', role: 'tab', 'data-t': t[0], text: t[1], onclick: function () { showTab(t[0]); } });
+		}));
+		function pane(id, kids) { return h('div', { 'class': 'nf-pane', 'data-pane': id, role: 'tabpanel' }, kids); }
+		refs.syncNote = h('div', { 'class': 'nf-pop-ionote nf-sync-note', role: 'status', text: syncMsg });
+		var tabNow = 'theme';
+		try { tabNow = window.sessionStorage.getItem('nightfall-tab') || 'theme'; } catch (e) { /* ignore */ }
+		function showTab(id) {
+			if (!TABS.some(function (t) { return t[0] === id; })) id = 'theme';
+			pop.setAttribute('data-tab', id);
+			Array.prototype.forEach.call(tabbar.children, function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-t') === id)); });
+			try { window.sessionStorage.setItem('nightfall-tab', id); } catch (e) { /* ignore */ }
+		}
+
 		pop = h('div', { 'class': 'nf-pop', role: 'dialog', 'aria-label': 'Персонализация' }, [
 			h('div', { 'class': 'nf-pop-h' }, [ h('span', { text: 'Персонализация' }), h('button', { type: 'button', 'class': 'nf-pop-x', 'aria-label': 'Закрыть', title: 'Закрыть', text: '×', onclick: function () { toggle(false); } }) ]),
-			h('div', { 'class': 'nf-pop-l', text: 'Стиль' }), presets,
-			h('button', { type: 'button', 'class': 'nf-ed-open', text: '🎨 Редактор своей темы', onclick: function () { openEditor(); } }),
-			h('div', { 'class': 'nf-pop-l', text: 'Режим' }), seg, sched,
-			h('div', { 'class': 'nf-pop-l', text: 'Цвет акцента' }), grid,
+			tabbar,
+			pane('theme', [
+				h('div', { 'class': 'nf-pop-l', text: 'Стиль' }), presets,
+				h('button', { type: 'button', 'class': 'nf-ed-open', text: '🎨 Редактор своей темы', onclick: function () { openEditor(); } }),
+				h('div', { 'class': 'nf-pop-l', text: 'Режим' }), seg, sched,
+				h('div', { 'class': 'nf-pop-l', text: 'Цвет акцента' }), grid,
+				h('label', { 'class': 'nf-pop-c' }, [ h('span', { text: 'Свой цвет' }), refs.color ])
+			]),
+			pane('look', [
 				h('div', { 'class': 'nf-pop-l', text: 'Фон' }), bgseg,
 				rng('Масштаб узора', refs.scale, '%'),
-			h('label', { 'class': 'nf-pop-c' }, [ h('span', { text: 'Свой цвет' }), refs.color ]),
-			h('div', { 'class': 'nf-pop-sec' }, look),
-			h('label', { 'class': 'nf-pop-row' }, [ h('span', { text: 'Анимации' }), h('span', { 'class': 'cbi-checkbox' }, [ refs.motion ]) ]),
-			h('label', { 'class': 'nf-pop-row' }, [ h('span', { text: 'Выключать анимации на слабых телефонах' }), h('span', { 'class': 'cbi-checkbox' }, [ refs.liteAuto ]) ]),
-			more, ov,
-			h('div', { 'class': 'nf-pop-io' }, [
-				h('button', { type: 'button', text: 'Сохранить в файл', onclick: exportPrefs }),
-				h('button', { type: 'button', text: 'Загрузить из файла', onclick: function () { refs.file.click(); } }),
-				refs.file = h('input', { type: 'file', accept: 'application/json,.json', hidden: true, onchange: function (ev) { importPrefs(ev.target.files && ev.target.files[0]); ev.target.value = ''; } })
+				h('div', { 'class': 'nf-pop-sec' }, look),
+				h('label', { 'class': 'nf-pop-row' }, [ h('span', { text: 'Анимации' }), h('span', { 'class': 'cbi-checkbox' }, [ refs.motion ]) ]),
+				h('label', { 'class': 'nf-pop-row' }, [ h('span', { text: 'Выключать анимации на слабых телефонах' }), h('span', { 'class': 'cbi-checkbox' }, [ refs.liteAuto ]) ])
 			]),
-			refs.ioNote = h('div', { 'class': 'nf-pop-ionote', role: 'status' }),
-			h('div', { 'class': 'nf-pop-sec nf-pop-about' }, [
-				h('div', { 'class': 'nf-pop-l', text: 'О теме' }),
-				refs.ver = h('div', { 'class': 'nf-ver' }),
-				h('label', { 'class': 'nf-pop-row' }, [ h('span', { text: 'Проверять обновления раз в неделю' }), h('span', { 'class': 'cbi-checkbox' }, [ refs.upd = h('input', { type: 'checkbox', onchange: function (ev) { set('updCheck', ev.target.checked); } }) ]) ]),
-				h('div', { 'class': 'nf-pop-io' }, [
-					h('button', { type: 'button', text: 'Проверить сейчас', onclick: function () { checkUpdate(true); } }),
-					h('a', { 'class': 'nf-pop-btn', href: 'https://github.com/' + REPO + '/releases', target: '_blank', rel: 'noopener', text: 'Страница релизов' })
+			pane('login', [ more ]),
+			pane('ov', [ ov, ovLay ]),
+			pane('more', [
+				ui,
+				h('div', { 'class': 'nf-pop-sec' }, [
+					h('div', { 'class': 'nf-pop-l', text: 'Копия настроек' }),
+					h('div', { 'class': 'nf-pop-note', text: 'Настройки автоматически сохраняются на роутере и подтягиваются в других браузерах после входа в LuCI.' }),
+					h('div', { 'class': 'nf-pop-io' }, [
+						h('button', { type: 'button', text: 'Отправить на роутер', onclick: function () { syncNote('Отправляю…'); pushNow(true); } }),
+						h('button', { type: 'button', text: 'Взять с роутера', onclick: function () { syncNote('Загружаю…'); pull(true).then(function () { syncNote('Настройки взяты с роутера.'); }); } })
+					]),
+					refs.syncNote,
+					h('div', { 'class': 'nf-pop-io' }, [
+						h('button', { type: 'button', text: 'Сохранить в файл', onclick: exportPrefs }),
+						h('button', { type: 'button', text: 'Загрузить из файла', onclick: function () { refs.file.click(); } }),
+						refs.file = h('input', { type: 'file', accept: 'application/json,.json', hidden: true, onchange: function (ev) { importPrefs(ev.target.files && ev.target.files[0]); ev.target.value = ''; } })
+					]),
+					refs.ioNote = h('div', { 'class': 'nf-pop-ionote', role: 'status' })
 				]),
-				refs.updNote = h('div', { 'class': 'nf-pop-ionote', role: 'status' })
-			]),
-			h('button', { type: 'button', 'class': 'nf-pop-reset', text: 'Сбросить', onclick: function () {
-				prefs = Object.assign({}, DEFAULTS); save(); applyAll(); refreshPanel();
-			} })
+				h('div', { 'class': 'nf-pop-sec nf-pop-about' }, [
+					h('div', { 'class': 'nf-pop-l', text: 'О теме' }),
+					refs.ver = h('div', { 'class': 'nf-ver' }),
+					h('label', { 'class': 'nf-pop-row' }, [ h('span', { text: 'Проверять обновления раз в неделю' }), h('span', { 'class': 'cbi-checkbox' }, [ refs.upd = h('input', { type: 'checkbox', onchange: function (ev) { set('updCheck', ev.target.checked); } }) ]) ]),
+					h('div', { 'class': 'nf-pop-io' }, [
+						h('button', { type: 'button', text: 'Проверить сейчас', onclick: function () { checkUpdate(true); } }),
+						h('a', { 'class': 'nf-pop-btn', href: 'https://github.com/' + REPO + '/releases', target: '_blank', rel: 'noopener', text: 'Страница релизов' })
+					]),
+					refs.updNote = h('div', { 'class': 'nf-pop-ionote', role: 'status' })
+				]),
+				h('button', { type: 'button', 'class': 'nf-pop-reset', text: 'Сбросить всё', onclick: function () {
+					prefs = Object.assign({}, DEFAULTS); save(); applyAll(); refreshPanel();
+				} })
+			])
 		]);
+		showTab(tabNow);
 
 		pop.addEventListener('input', function (ev) { if (ev.target.type === 'range') paintRange(ev.target); });
 		document.body.appendChild(pop);

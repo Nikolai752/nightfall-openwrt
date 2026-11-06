@@ -740,10 +740,23 @@ function stabilizeTables(view) {
 		if (tb.__nfGen !== STAB_GEN) { tb.__nfGen = STAB_GEN; tb.querySelectorAll('.tr, tr').forEach(r => { r.style.minHeight = ''; r.querySelectorAll('.td, .th, td, th').forEach(c => { c.style.minWidth = ''; }); }); tb.style.minHeight = ''; }
 		const rows = Array.from(tb.querySelectorAll(':scope > .tr, :scope > tbody > tr, :scope > thead > tr'));
 		if (!rows.length || tb.getBoundingClientRect().width < 40) return;
+		/* число строк изменилось (клиент ушёл или появился): высота запоминается заново, иначе под таблицей остаётся пустое место */
+		if (st.n !== rows.length) {
+			if (st.n != null) { st.row = []; st.h = 0; tb.style.minHeight = ''; rows.forEach(r => { r.style.minHeight = ''; }); }
+			st.n = rows.length;
+		}
+		/* запомненные ширины не должны выпирать из карточки: при переполнении сбрасываем и меряем заново */
+		const box = tb.parentElement;
+		if (box && st.col.length && tb.getBoundingClientRect().width > box.clientWidth + 2) {
+			st.col = []; tb.querySelectorAll('.td, .th, td, th').forEach(c => { c.style.minWidth = ''; });
+			st.noW = Date.now();
+		}
+		const keepW = !st.noW || Date.now() - st.noW > 60000;   /* после переполнения минуту не фиксируем ширины */
 		rows.forEach((r, ri) => {
 			const cells = Array.from(r.querySelectorAll(':scope > .td, :scope > .th, :scope > td, :scope > th'));
 			cells.forEach((c, ci) => {
 				const w = Math.ceil(c.getBoundingClientRect().width);
+				if (!keepW) return;
 				if (w > (st.col[ci] || 0)) st.col[ci] = w;
 				if (st.col[ci] && c.style.minWidth !== st.col[ci] + 'px') c.style.minWidth = st.col[ci] + 'px';
 			});
