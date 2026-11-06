@@ -973,6 +973,34 @@ function enhanceBadges(view) {
 
 /* ---------- dense grid layout: each card spans N rows of 8px ---------- */
 
+/* Раскладка карточек по столбцам. Считаем здесь, а не в таблице стилей: так работает независимо от того, какие классы LuCI успел навесить.
+   «Авто» повторяет прежние правила: 2 столбца, 3 при «Компактных» на экране от 1700 px, 1 при «Крупных» или «Один столбец». */
+function applyColumns(view) {
+	const root = document.documentElement, pref = root.getAttribute('data-nf-ov-cols') || '0';
+	const size = root.getAttribute('data-nf-ov-size') || 'md', wideOn = root.getAttribute('data-nf-ov-wide') === 'on';
+	const w = window.innerWidth;
+	let n = pref === '1' || pref === '2' || pref === '3' ? +pref : (size === 'lg' || wideOn ? 1 : size === 'sm' && w >= 1700 ? 3 : 2);
+	if (w < 900) n = 0;
+	const imp = (el, k, v) => el.style.setProperty(k, v, 'important');
+	const clear = (el, ks) => ks.forEach(k => el.style.removeProperty(k));
+	const cards = Array.from(view.children);
+	if (!n) {
+		clear(view, [ 'display', 'column-count', 'column-gap', 'column-width' ]);
+		cards.forEach(c => clear(c, [ 'break-inside', 'column-span', 'margin', 'width', 'box-sizing' ]));
+		return;
+	}
+	imp(view, 'display', 'block'); imp(view, 'column-count', String(n)); imp(view, 'column-width', 'auto'); imp(view, 'column-gap', '16px');
+	cards.forEach(c => {
+		if (c.classList.contains('cbi-section') && !c.classList.contains('nf-live')) {
+			const span = n > 1 && (c.classList.contains('nf-wide') || !!c.querySelector('.table .th:nth-child(5)'));
+			imp(c, 'break-inside', 'avoid'); imp(c, 'margin', '0 0 16px'); imp(c, 'width', '100%'); imp(c, 'box-sizing', 'border-box');
+			imp(c, 'grid-row-end', 'auto'); c.style.removeProperty('align-self');
+			if (span) imp(c, 'column-span', 'all'); else c.style.removeProperty('column-span');
+		}
+		else imp(c, 'column-span', 'all');
+	});
+}
+
 function gridLayout(view) {
 	const ROW = 8, GAP = 16;
 	let raf = 0;
@@ -1573,6 +1601,7 @@ return baseclass.extend({
 			syncSizes(view);
 			markNoWrap(view); decorateHosts(view);
 			enhanceBadges(view);
+			applyColumns(view);
 			relayout();
 		};
 
@@ -1587,6 +1616,8 @@ return baseclass.extend({
 		}).observe(view, { childList: true, subtree: true, characterData: true });
 		/* значки сигнала и Wi-Fi в таблицах догружаются уже после вставки строк: учитываем их размер сразу, не ждать следующего опроса */
 		view.addEventListener('load', ev => { if (ev.target && ev.target.tagName === 'IMG') stabilizeTables(view); }, true);
+		window.addEventListener('resize', () => applyColumns(view));
+		new MutationObserver(() => applyColumns(view)).observe(document.documentElement, { attributes: true, attributeFilter: [ 'data-nf-ov-cols', 'data-nf-ov-size', 'data-nf-ov-wide' ] });
 		schedule();
 	}
 });

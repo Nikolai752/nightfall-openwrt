@@ -1472,10 +1472,12 @@
 	}
 	/* тип пункта по первым словам: новое / исправлено / важно / улучшено */
 	function lineKind(t) {
-		var x = t.replace(/^\*\*/, '');
+		var m = /^\[(Новое|Улучшено|Исправлено|Важно)\]\s*/i.exec(t), x;
+		if (m) return { 'новое': [ 'new', 'Новое' ], 'улучшено': [ 'imp', 'Улучшено' ], 'исправлено': [ 'fix', 'Исправлено' ], 'важно': [ 'warn', 'Важно' ] }[m[1].toLowerCase()];
+		x = t.replace(/^\*\*/, '');
 		if (/^(Нужно|Важно|После обновления|Обновите)/i.test(x)) return [ 'warn', 'Важно' ];
-		if (/^(Исправ|Починил|Устранен)/i.test(x) || /^[^.]{0,40}\bисправлен/i.test(x)) return [ 'fix', 'Исправлено' ];
-		if (/^(Нов|Добавл|Появил|Теперь)/i.test(x) || /^\*\*/.test(t)) return [ 'new', 'Новое' ];
+		if (/^(Исправ|Починил|Устранен)|больше не |не (дёргаются|обрывается|растягиваются|показывается)|пропал[аио]? |убран[аоы]? |без обрыва/i.test(x)) return [ 'fix', 'Исправлено' ];
+		if (/^(Нов|Добавл|Появил|Теперь|Число|Выбор|Можно|Окно|Редактор|Проверка)/i.test(x) || /^\*\*/.test(t)) return [ 'new', 'Новое' ];
 		return [ 'imp', 'Улучшено' ];
 	}
 	function renderChanges(sections) {
@@ -1486,7 +1488,7 @@
 			var sec = h('section', { 'class': 'nf-cl' }, [ head ]);
 			s.lines.forEach(function (ln) {
 				if (/^[-*]\s+/.test(ln)) {
-					var txt = ln.replace(/^[-*]\s+/, ''), k = lineKind(txt);
+					var txt = ln.replace(/^[-*]\s+/, ''), k = lineKind(txt); txt = txt.replace(/^\[(Новое|Улучшено|Исправлено|Важно)\]\s*/i, '');
 					sec.appendChild(h('div', { 'class': 'nf-cl-row' }, [ h('span', { 'class': 'nf-cl-b ' + k[0], text: k[1] }), inlineMd(h('span', { 'class': 'nf-cl-x' }), txt) ]));
 				} else sec.appendChild(h(/^###/.test(ln) ? 'h6' : 'p', { text: ln.replace(/^#+\s*/, '') }));
 			});
