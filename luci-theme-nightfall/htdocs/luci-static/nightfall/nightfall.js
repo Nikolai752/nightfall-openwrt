@@ -12,7 +12,7 @@
 	var DEFAULTS = { mode: 'auto', accent: '', motion: true, liteAuto: true, loginCells: [ 'net', 'up', 'fw' ], loginLogo: false, ovWide: false, ovCols: '0', bg: 'mica', bgScale: 100,
 		density: 'normal', font: 'md', radius: 'md', glass: 'on', loginClock: true, loginInfo: true, loginBg: 'mica', ovLive: true, ovBadges: true,
 		style: '', preset: 'win11', navMini: false, schedule: false, nightFrom: '20:00', dayFrom: '07:00', netBar: true, constLogin: true, constApp: false, constKind: 'net',
-		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, chart: 'area', chartSmooth: true, chartPal: 'accent', cusOn: false, cusBg: '', cusCard: '', cusText: '', cusRadius: 0, cusFont: '', cusShadow: '', loginPhoto: false, ovTop: true, ovApps: true, ovBlock: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
+		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, chart: 'area', chartSmooth: true, chartPal: 'accent', chartW: '2', chartGrid: true, chartThr: false, chartShine: true, wxLat: '', wxLon: '', cusOn: false, cusBg: '', cusCard: '', cusText: '', cusRadius: 0, cusFont: '', cusShadow: '', loginPhoto: false, ovTop: true, ovApps: true, ovBlock: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
 
 	var PRESETS = [
 		[ 'win11', 'Windows 11', { style: '', accent: '', bg: 'mica', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
@@ -32,7 +32,7 @@
 		[ 'terminal', 'Terminal', { style: '', mode: 'dark', accent: '#33ff66', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#050a06', cusCard: '#0b140d', cusText: '#b8f5c4', cusFont: 'mono', cusRadius: 2 } ],
 		[ 'paper', 'Бумага', { style: '', mode: 'light', accent: '#b45309', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#f4efe6', cusCard: '#fbf7ef', cusText: '#2b2620', cusFont: 'serif' } ]
 	];
-	var BGS = [ [ 'mica', 'Mica' ], [ 'flat', 'Плоский' ], [ 'dots', 'Точки' ], [ 'grid', 'Сетка' ], [ 'stars', 'Звёзды' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'mesh', 'Перелив' ], [ 'drift', 'Частицы' ], [ 'neon', 'Неон' ] ];
+	var BGS = [ [ 'mica', 'Mica' ], [ 'flat', 'Плоский' ], [ 'dots', 'Точки' ], [ 'grid', 'Сетка' ], [ 'stars', 'Звёзды' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'mesh', 'Перелив' ], [ 'drift', 'Частицы' ], [ 'neon', 'Неон' ], [ 'sunset', 'Закат' ], [ 'ocean', 'Океан' ], [ 'snow', 'Снег' ], [ 'rain', 'Дождь' ], [ 'tod', 'Время суток' ], [ 'weather', 'Погода' ] ];
 
 	var ACCENTS = [
 		[ '', 'Синий (по умолчанию)', '#0067c0' ],
@@ -906,6 +906,41 @@
 	var FONT = { sm: .92, md: 1, lg: 1.1 };
 	function pick(v, list, def) { return list.indexOf(v) >= 0 ? v : def; }
 
+
+	/* ---- фон «Время суток» и «Погода» ---- */
+	var wxCode = '', wxTimer = 0, wxAt = 0;
+	function todPhase() { var hr = new Date().getHours(); return hr >= 5 && hr < 8 ? 'dawn' : hr >= 8 && hr < 17 ? 'day' : hr >= 17 && hr < 21 ? 'dusk' : 'night'; }
+	function wxKind(code, day) {
+		if (code === 0 || code === 1) return day ? 'sun' : 'clear';
+		if (code === 2 || code === 3) return 'cloud';
+		if (code === 45 || code === 48) return 'fog';
+		if (code >= 95) return 'storm';
+		if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
+		if (code >= 51) return 'rain';
+		return 'cloud';
+	}
+	function wxFetch() {
+		var la = parseFloat(prefs.wxLat), lo = parseFloat(prefs.wxLon);
+		if (!window.fetch || !isFinite(la) || !isFinite(lo) || Math.abs(la) > 90 || Math.abs(lo) > 180) return Promise.resolve(false);
+		return window.fetch('https://api.open-meteo.com/v1/forecast?latitude=' + la.toFixed(2) + '&longitude=' + lo.toFixed(2) + '&current=weather_code,is_day', { cache: 'no-store' })
+			.then(function (r) { return r.json(); })
+			.then(function (j) {
+				var c = j && j.current; if (!c) return false;
+				wxCode = wxKind(+c.weather_code, +c.is_day === 1); wxAt = Date.now();
+				try { window.sessionStorage.setItem('nightfall-wx', JSON.stringify({ k: wxCode, t: wxAt, la: la, lo: lo })); } catch (e) { /* ignore */ }
+				skyUpdate(); return true;
+			}).catch(function () { return false; });
+	}
+	function skyUpdate() {
+		root.setAttribute('data-nf-tod', todPhase());
+		if (prefs.bg === 'weather') {
+			if (!wxCode) { try { var c = JSON.parse(window.sessionStorage.getItem('nightfall-wx') || 'null'); if (c && Date.now() - c.t < 1800000) { wxCode = c.k; wxAt = c.t; } } catch (e) { /* ignore */ } }
+			root.setAttribute('data-nf-wx', wxCode || (todPhase() === 'night' ? 'clear' : 'sun'));
+			if (!wxCode || Date.now() - wxAt > 1800000) wxFetch();
+		}
+		else root.removeAttribute('data-nf-wx');
+		if (!wxTimer && (prefs.bg === 'weather' || prefs.bg === 'tod')) wxTimer = setInterval(function () { skyUpdate(); }, 300000);
+	}
 	function applyLook() {
 		var d = pick(prefs.density, [ 'normal', 'compact' ], 'normal'), f = pick(prefs.font, [ 'sm', 'md', 'lg' ], 'md');
 		var r = pick(prefs.radius, [ 'sharp', 'md', 'round' ], 'md'), g = pick(prefs.glass, [ 'on', 'off' ], 'on');
@@ -931,6 +966,11 @@
 		root.style.setProperty('--nf-gk', String(Math.max(30, Math.min(170, +prefs.glassAlpha || 100)) / 100));
 		root.setAttribute('data-nf-style', pick(prefs.style, [ '', 'glass', 'mac' ], ''));
 		root.setAttribute('data-nf-chart', pick(prefs.chart, [ 'area', 'line', 'bars', 'step' ], 'area'));
+		root.setAttribute('data-nf-lw', pick(String(prefs.chartW), [ '1', '2', '3' ], '2'));
+		root.setAttribute('data-nf-grid', prefs.chartGrid === false ? 'off' : 'on');
+		root.setAttribute('data-nf-thr', prefs.chartThr ? 'on' : 'off');
+		root.setAttribute('data-nf-shine', prefs.chartShine === false ? 'off' : 'on');
+		skyUpdate();
 		root.setAttribute('data-nf-chart-smooth', prefs.chartSmooth === false ? 'off' : 'on');
 		root.setAttribute('data-nf-gpal', pick(prefs.chartPal, [ 'accent', 'vivid', 'mono', 'warm', 'cool', 'sunset', 'neon', 'pastel', 'nord', 'dracula' ], 'accent'));
 		root.setAttribute('data-nf-nav', prefs.navMini ? 'mini' : 'full');
@@ -1123,7 +1163,8 @@
 			seg2('glass', 'Стекло и размытие', [ [ 'on', 'Включено' ], [ 'off', 'Выключено' ] ]),
 			seg2('chart', 'Графики', [ [ 'area', 'Заливка' ], [ 'line', 'Линия' ], [ 'bars', 'Столбики' ], [ 'step', 'Ступени' ] ], true),
 			seg2('chartPal', 'Цвета графиков', [ [ 'accent', 'Акцент' ], [ 'vivid', 'Яркие' ], [ 'mono', 'Моно' ], [ 'warm', 'Тёплые' ], [ 'cool', 'Холодные' ], [ 'sunset', 'Закат' ], [ 'neon', 'Неон' ], [ 'pastel', 'Пастель' ], [ 'nord', 'Nord' ], [ 'dracula', 'Dracula' ] ], true),
-			[ sw('chartSmooth', 'Сглаживать линии графиков') ],
+			[ sw('chartSmooth', 'Сглаживать линии графиков'), sw('chartGrid', 'Сетка на графиках'), sw('chartThr', 'Цвет линии по нагрузке (зелёный, жёлтый, красный)'), sw('chartShine', 'Бегущий блик под линией') ],
+			seg2('chartW', 'Толщина линии', [ [ '1', 'Тонкая' ], [ '2', 'Обычная' ], [ '3', 'Толстая' ] ]),
 			seg2('glassTone', 'Тон стекла', [ [ 'auto', 'Авто' ], [ 'light', 'Светлое' ], [ 'dark', 'Тёмное' ] ]),
 			[ rng('Размытие', refs.gblur, 'px'), rng('Плотность стекла', refs.galpha, '%') ]
 		);
@@ -1237,6 +1278,26 @@
 			pane('look', [
 				h('div', { 'class': 'nf-pop-l', text: 'Фон' }), bgseg,
 				rng('Масштаб узора', refs.scale, '%'),
+				refs.wxSec = h('div', { 'class': 'nf-pop-sec', hidden: true }, [
+					h('div', { 'class': 'nf-pop-l', text: 'Погода для фона' }),
+					h('div', { 'class': 'nf-pop-note', text: 'Фон меняется по погоде у вас: солнце, облака, дождь, снег, туман, гроза. Данные берутся из бесплатного сервиса Open-Meteo прямо в вашем браузере, регистрация не нужна. Роутер ничего не отправляет. Нужны только координаты (десятые доли градуса достаточно).' }),
+					h('div', { 'class': 'nf-pop-times' }, [
+						h('span', { text: 'Широта' }), refs.wxLat = h('input', { type: 'text', inputmode: 'decimal', 'class': 'nf-time', placeholder: '55.75', 'aria-label': 'Широта', onchange: function (ev) { set('wxLat', ev.target.value.replace(',', '.').trim()); wxCode = ''; skyUpdate(); } }),
+						h('span', { text: 'Долгота' }), refs.wxLon = h('input', { type: 'text', inputmode: 'decimal', 'class': 'nf-time', placeholder: '37.62', 'aria-label': 'Долгота', onchange: function (ev) { set('wxLon', ev.target.value.replace(',', '.').trim()); wxCode = ''; skyUpdate(); } })
+					]),
+					h('div', { 'class': 'nf-pop-io' }, [
+						h('button', { type: 'button', text: 'Определить место', onclick: function () {
+							if (!navigator.geolocation) { refs.wxNote.textContent = 'Браузер не умеет определять место. Введите координаты вручную.'; return; }
+							refs.wxNote.textContent = 'Определяю…';
+							navigator.geolocation.getCurrentPosition(function (pos) {
+								set('wxLat', pos.coords.latitude.toFixed(2)); set('wxLon', pos.coords.longitude.toFixed(2)); wxCode = ''; refreshPanel();
+								wxFetch().then(function (ok) { refs.wxNote.textContent = ok ? 'Готово: ' + (wxCode || '') : 'Не удалось получить погоду.'; });
+							}, function () { refs.wxNote.textContent = 'Нет доступа к месту (нужен HTTPS и разрешение). Введите координаты вручную.'; }, { timeout: 8000 });
+						} }),
+						h('button', { type: 'button', text: 'Проверить', onclick: function () { wxCode = ''; refs.wxNote.textContent = 'Запрашиваю…'; wxFetch().then(function (ok) { refs.wxNote.textContent = ok ? 'Сейчас: ' + wxCode : 'Не получилось: проверьте координаты и интернет.'; }); } })
+					]),
+					refs.wxNote = h('div', { 'class': 'nf-pop-ionote', role: 'status' })
+				]),
 				h('div', { 'class': 'nf-pop-sec' }, look),
 				h('label', { 'class': 'nf-pop-row' }, [ h('span', { text: 'Анимации' }), h('span', { 'class': 'cbi-checkbox' }, [ refs.motion ]) ]),
 				h('label', { 'class': 'nf-pop-row' }, [ h('span', { text: 'Выключать анимации на слабых телефонах' }), h('span', { 'class': 'cbi-checkbox' }, [ refs.liteAuto ]) ])
@@ -1287,7 +1348,7 @@
 	 * Окно с цветами, скруглением, шрифтом и тенями. Страница вокруг и есть предпросмотр: всё применяется сразу.
 	 * Тему можно отправить другому текстом-кодом (одна строка) и применить у него. */
 	var ed = null, edRefs = {};
-	var CODE_KEYS = [ 'mode', 'accent', 'style', 'bg', 'bgScale', 'radius', 'density', 'font', 'glass', 'glassTone', 'glassBlur', 'glassAlpha', 'chart', 'chartSmooth', 'chartPal', 'cusOn', 'cusBg', 'cusCard', 'cusText', 'cusRadius', 'cusFont', 'cusShadow' ];
+	var CODE_KEYS = [ 'mode', 'accent', 'style', 'bg', 'bgScale', 'radius', 'density', 'font', 'glass', 'glassTone', 'glassBlur', 'glassAlpha', 'chart', 'chartSmooth', 'chartPal', 'chartW', 'chartGrid', 'chartThr', 'chartShine', 'cusOn', 'cusBg', 'cusCard', 'cusText', 'cusRadius', 'cusFont', 'cusShadow' ];
 	function themeCode() {
 		var o = {}; CODE_KEYS.forEach(function (k) { o[k] = prefs[k]; });
 		var js = JSON.stringify(o), b;
@@ -1701,9 +1762,11 @@
 		refs.sw.forEach(function (p) { p[1].setAttribute('aria-pressed', String(prefs.accent === p[0])); });
 		Object.keys(refs.bg).forEach(function (k) { refs.bg[k].setAttribute('aria-pressed', String(prefs.bg === k)); });
 		refs.scale.value = String(prefs.bgScale);
-		refs.scale.disabled = prefs.bg === 'mica' || prefs.bg === 'flat' || prefs.bg === 'aurora' || prefs.bg === 'waves' || prefs.bg === 'mesh';
+		refs.scale.disabled = prefs.bg === 'mica' || prefs.bg === 'flat' || prefs.bg === 'aurora' || prefs.bg === 'waves' || prefs.bg === 'mesh' || prefs.bg === 'sunset' || prefs.bg === 'ocean' || prefs.bg === 'tod' || prefs.bg === 'weather';
+		if (refs.wxSec) refs.wxSec.hidden = prefs.bg !== 'weather';
+		if (refs.wxLat) { refs.wxLat.value = prefs.wxLat || ''; refs.wxLon.value = prefs.wxLon || ''; }
 		refs.color.value = hexToRgb(prefs.accent) ? prefs.accent : '#0067c0';
-		[ [ 'density', 'normal' ], [ 'font', 'md' ], [ 'radius', 'md' ], [ 'glass', 'on' ], [ 'chart', 'area' ], [ 'chartPal', 'accent' ], [ 'loginBg', 'mica' ], [ 'constKind', 'net' ], [ 'glassTone', 'auto' ], [ 'ovSize', 'md' ] ].forEach(function (k) {
+		[ [ 'density', 'normal' ], [ 'font', 'md' ], [ 'radius', 'md' ], [ 'glass', 'on' ], [ 'chart', 'area' ], [ 'chartPal', 'accent' ], [ 'chartW', '2' ], [ 'loginBg', 'mica' ], [ 'constKind', 'net' ], [ 'glassTone', 'auto' ], [ 'ovSize', 'md' ] ].forEach(function (k) {
 			Object.keys(refs[k[0]]).forEach(function (v) { refs[k[0]][v].setAttribute('aria-pressed', String((prefs[k[0]] || k[1]) === v)); });
 		});
 		Object.keys(refs.preset).forEach(function (k) { refs.preset[k].setAttribute('aria-pressed', String(prefs.preset === k)); });
@@ -1789,6 +1852,18 @@
 			if (ev.key === 'Escape' && pop && pop.classList.contains('open')) { toggle(false); btn.focus(); }
 		});
 	});
+
+
+	/* волна на кнопках */
+	document.addEventListener('pointerdown', function (ev) {
+		if (root.getAttribute('data-nf-motion') === 'off') return;
+		var b = ev.target.closest && ev.target.closest('.cbi-button, .btn, .nf-pop-io button, .nf-ed-open');
+		if (!b || b.disabled) return;
+		var r = b.getBoundingClientRect();
+		b.style.setProperty('--rx', (ev.clientX - r.left) + 'px'); b.style.setProperty('--ry', (ev.clientY - r.top) + 'px');
+		b.classList.remove('nf-rp'); void b.offsetWidth; b.classList.add('nf-rp');
+		setTimeout(function () { b.classList.remove('nf-rp'); }, 650);
+	}, true);
 
 	window.Nightfall = { prefs: function () { return Object.assign({}, prefs); }, set: set, accents: ACCENTS };
 })();
