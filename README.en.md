@@ -12,7 +12,7 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 
 ## Screenshots
 
-> **Demo screenshots.** The first four images were taken on a demo page with made-up data (devices, traffic and numbers are not real) to show how the theme looks: light, dark, the built-in Nord theme and a phone. The screenshots after them come from a real router.
+> **Demo screenshots.** The three large images at the top and the phone on the left of the bottom row were taken on a demo page with made-up data (devices, traffic and numbers are not real) to show how the theme looks. "Resource Monitor", "Overview" and the two phones on the right are from a real router.
 
 ![Light theme, "Mesh" background (demo screenshot)](docs/demo/desktop-light.png)
 
@@ -20,20 +20,18 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 
 ![Built-in Nord theme and the personalisation menu (demo screenshot)](docs/demo/desktop-nord.png)
 
-<p>
-  <img src="docs/demo/mobile-dark.png" style="width: 300px; border-radius: 8px;" alt="Phone, dark theme, Neon background (demo screenshot)">
-</p>
-
-Screenshots from a real router:
 
 ![Resource Monitor](docs/monitor.png)
 
 ![Overview](docs/overview.png)
 
-<p>
-  <img src="docs/mobile.png" style="width: 300px; height: 600px; object-fit: cover; border-radius: 8px;" alt="Мобильный вид: Монитор ресурсов">
-  <img src="docs/mobile1.png" style="width: 300px; height: 600px; object-fit: cover; border-radius: 8px;" alt="Мобильный вид: Обзор">
+<p align="center">
+  <img src="docs/demo/mobile-dark.png" width="30%" alt="Phone, dark theme, Neon background (demo screenshot)">
+  <img src="docs/mobile.png" width="30%" alt="Mobile: Resource Monitor">
+  <img src="docs/mobile1.png" width="30%" alt="Mobile: Overview">
 </p>
+
+<p align="center"><sub>Left: demo screenshot; the two on the right are from a real router.</sub></p>
 
 ## Features
 
