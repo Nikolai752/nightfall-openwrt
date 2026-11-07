@@ -9,7 +9,7 @@
 
 	var KEY = 'nightfall-prefs-v1';
 	var root = document.documentElement;
-	var DEFAULTS = { mode: 'auto', accent: '', motion: true, liteAuto: true, loginCells: [ 'net', 'up', 'fw' ], loginLogo: false, ovWide: false, ovCols: '0', bg: 'mica', bgScale: 100,
+	var DEFAULTS = { swipe: true, mode: 'auto', accent: '', motion: true, liteAuto: true, loginCells: [ 'net', 'up', 'fw' ], loginLogo: false, ovWide: false, ovCols: '0', bg: 'mica', bgScale: 100,
 		density: 'normal', font: 'md', radius: 'md', glass: 'on', loginClock: true, loginInfo: true, loginBg: 'mica', ovLive: true, ovBadges: true,
 		style: '', preset: 'win11', navMini: false, schedule: false, nightFrom: '20:00', dayFrom: '07:00', netBar: true, constLogin: true, constApp: false, constKind: 'net',
 		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, chart: 'area', chartSmooth: true, chartPal: 'accent', chartW: '2', chartGrid: true, chartThr: false, chartShine: true, wxLat: '', wxLon: '', cusOn: false, cusBg: '', cusCard: '', cusText: '', cusRadius: 0, cusFont: '', cusShadow: '', loginPhoto: false, ovTop: true, ovApps: true, ovBlock: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
@@ -503,6 +503,35 @@
 	function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
 	var mqPhone = window.matchMedia('(max-width: 899px)');
 
+	/* свайп влево/вправо — соседняя вкладка раздела (телефон) */
+	function initSwipe() {
+		var x0 = null, y0 = 0, t0 = 0;
+		function blocked(t) {
+			for (var n = t; n && n !== document.body; n = n.parentNode) {
+				if (n.nodeType !== 1) continue;
+				if (/^(INPUT|SELECT|TEXTAREA|CANVAS|SVG|svg)$/.test(n.tagName) || n.isContentEditable) return true;
+				if (n.matches && n.matches('.nf-pop, #nf-sheet, .modal, .cbi-dropdown, .nf-live-grid, #nf-tabbar')) return true;
+				if (n.scrollWidth > n.clientWidth + 4 && /(auto|scroll)/.test(getComputedStyle(n).overflowX)) return true;
+			}
+			return false;
+		}
+		document.addEventListener('touchstart', function (ev) {
+			x0 = null;
+			if (prefs.swipe === false || !mqPhone.matches || ev.touches.length !== 1 || document.body.classList.contains('modal-overlay-active') || blocked(ev.target)) return;
+			x0 = ev.touches[0].clientX; y0 = ev.touches[0].clientY; t0 = Date.now();
+		}, { passive: true });
+		document.addEventListener('touchend', function (ev) {
+			if (x0 === null) return;
+			var t = ev.changedTouches[0], dx = t.clientX - x0, dy = t.clientY - y0; x0 = null;
+			if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2 || Date.now() - t0 > 600) return;
+			var uls = document.querySelectorAll('#tabmenu ul.tabs'); if (!uls.length) return;
+			var items = [].slice.call(uls[uls.length - 1].children), i = -1;
+			for (var k = 0; k < items.length; k++) if (/\bactive\b/.test(items[k].className)) i = k;
+			var to = items[i + (dx < 0 ? 1 : -1)], a = to && to.querySelector('a');
+			if (a && i >= 0) { buzz(8); location.href = a.href; }
+		});
+	}
+
 	/* потянуть вниз — обновить страницу (только у верхнего края и без открытых окон) */
 	function initPull() {
 		var ind = h('div', { id: 'nf-ptr', 'aria-hidden': 'true' }, [ h('span') ]);
@@ -540,7 +569,7 @@
 		});
 	}
 	function initMobile() {
-		initPull();
+		initPull(); initSwipe();
 		var raf = 0;
 		new MutationObserver(function () { if (!raf) raf = requestAnimationFrame(function () { raf = 0; labelTables(); }); })
 			.observe(document.body, { childList: true, subtree: true });
@@ -1079,9 +1108,18 @@
 
 	function applyAll() { applyMode(); applyMotion(); applyBg(); applyLook(); applyCustom(); applyPhoto(); syncConst(); try { document.dispatchEvent(new CustomEvent('nf-prefs')); } catch (e) { /* старый браузер */ } }
 
+	var txTimer;
+	function themeFade() {
+		var h = document.documentElement;
+		if (h.getAttribute('data-nf-motion') === 'off') return;
+		h.classList.add('nf-tx'); clearTimeout(txTimer);
+		txTimer = setTimeout(function () { h.classList.remove('nf-tx'); }, 600);
+	}
+
 	function set(key, value) {
+		if (key !== 'wxLat' && key !== 'wxLon') themeFade();
 		prefs[key] = value;
-		if (key !== 'preset' && key !== 'schedule' && key !== 'nightFrom' && key !== 'dayFrom' && key !== 'mode' && key !== 'navMini' && key !== 'netBar' && key.indexOf('login') !== 0 && key.indexOf('const') !== 0 && key.indexOf('ov') !== 0) prefs.preset = '';
+		if (key !== 'preset' && key !== 'schedule' && key !== 'nightFrom' && key !== 'dayFrom' && key !== 'mode' && key !== 'navMini' && key !== 'netBar' && key !== 'swipe' && key.indexOf('login') !== 0 && key.indexOf('const') !== 0 && key.indexOf('ov') !== 0) prefs.preset = '';
 		save();
 		applyAll();
 		refreshPanel();
@@ -1263,7 +1301,7 @@
 		var ovLay = h('div', { 'class': 'nf-pop-sec nf-desk' }, [ h('div', { 'class': 'nf-pop-l', text: 'Раскладка карточек' }), sw('ovWide', 'Один столбец (карточки на всю ширину)') ]
 			.concat(seg2('ovCols', 'Столбцов (без пустых мест)', [ [ '0', 'Авто' ], [ '1', '1' ], [ '2', '2' ], [ '3', '3' ] ], true))
 			.concat(seg2('ovSize', 'Размер карточек', [ [ 'sm', 'Компактные' ], [ 'md', 'Обычные' ], [ 'lg', 'Крупные' ] ], true)));
-		var ui = h('div', { 'class': 'nf-pop-sec' }, [ h('div', { 'class': 'nf-pop-l', text: 'Интерфейс' }) ].concat(desk(sw('navMini', 'Свёрнутое меню (значки)')), [ sw('constApp', 'Анимация на фоне страниц'), sw('netBar', 'Полоса состояния интернета') ], desk(sw('hints', 'Подсказки по терминам')), [ refs.install,
+		var ui = h('div', { 'class': 'nf-pop-sec' }, [ h('div', { 'class': 'nf-pop-l', text: 'Интерфейс' }) ].concat(desk(sw('navMini', 'Свёрнутое меню (значки)')), [ sw('constApp', 'Анимация на фоне страниц'), sw('netBar', 'Полоса состояния интернета'), sw('swipe', 'Свайп между вкладками страницы') ], desk(sw('hints', 'Подсказки по терминам')), [ refs.install,
 			h('div', { 'class': 'nf-pop-note', text: 'Приложение: в Chrome и Edge установка работает по HTTPS, на iPhone — «Поделиться → На экран Домой».' })
 		]));
 

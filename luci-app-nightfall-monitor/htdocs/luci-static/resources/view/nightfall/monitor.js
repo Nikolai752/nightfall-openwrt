@@ -369,6 +369,13 @@ const CARD_ICONS = [
 	[ /событ|предупрежд|истори/i, 'events' ], [ /настройк/i, 'quick' ]
 ];
 
+const HEAT = {
+	cpu: [ 'Процессор', r => r[1], v => Math.round(v) + '%' ],
+	mem: [ 'Память', r => r[2], v => Math.round(v) + '%' ],
+	ping: [ 'Пинг', r => r[7], v => Math.round(v) + ' мс' ],
+	net: [ 'Трафик', r => (r[4] >= 0 && r[5] >= 0) ? r[4] + r[5] : null, v => (v * 8 / 1e6).toFixed(1) + ' Мбит/с' ]
+};
+
 function card(title, body, extra) {
 	const first = Array.isArray(title) ? title.find(x => typeof x === 'string') : title;
 	const ic = typeof first === 'string' ? (CARD_ICONS.find(x => x[0].test(first)) || [ 0, 'generic' ])[1] : null;
@@ -411,6 +418,19 @@ const CSS = `
 .nfm-btn { font: inherit; font-size: 13px; padding: 6px 14px; border-radius: 6px; cursor: pointer; color: var(--nfm-text);
   background: var(--nfm-card); border: 1px solid var(--nfm-border); border-bottom-color: var(--nf-stroke-strong, var(--nfm-border)); }
 .nfm-btn:hover { background: var(--nfm-card2); }
+.nfm-ti::before { content:''; display:inline-block; width:14px; height:14px; margin-right:6px; vertical-align:-2px; background:currentColor; -webkit-mask:var(--ic) center/contain no-repeat; mask:var(--ic) center/contain no-repeat; opacity:.85; }
+.nfm-ti[data-ic='overview'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='7' height='9' rx='1'/%3E%3Crect x='14' y='3' width='7' height='5' rx='1'/%3E%3Crect x='14' y='12' width='7' height='9' rx='1'/%3E%3Crect x='3' y='16' width='7' height='5' rx='1'/%3E%3C/svg%3E"); }
+.nfm-ti[data-ic='net'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0'/%3E%3Ccircle cx='12' cy='19' r='1'/%3E%3C/svg%3E"); }
+.nfm-ti[data-ic='procs'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='6' y='6' width='12' height='12' rx='2'/%3E%3Cpath d='M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4'/%3E%3C/svg%3E"); }
+.nfm-ti[data-ic='svcs'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2v10'/%3E%3Cpath d='M18.4 6.6a9 9 0 1 1-12.8 0'/%3E%3C/svg%3E"); }
+.nfm-ti[data-ic='hist'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 1 0 3-6.7L3 8'/%3E%3Cpath d='M3 3v5h5M12 7v5l3 2'/%3E%3C/svg%3E"); }
+@media (max-width: 420px) { .nfm-ti::before { margin-right:4px; width:13px; height:13px; } }
+.nfm-heat-grid { display: grid; grid-template-columns: 26px repeat(24, 1fr); gap: 3px; align-items: center; }
+.nfm-heat-h, .nfm-heat-d { font-size: 10.5px; opacity: .65; text-align: center; }
+.nfm-heat-d.today { opacity: 1; font-weight: 700; }
+.nfm-heat-c { aspect-ratio: 1; min-height: 10px; border-radius: 3px; background: color-mix(in srgb, var(--nfm-border) 70%, transparent); }
+.nfm-heat-c[style] { background: color-mix(in srgb, var(--nfm-accent, #6aa7ff) var(--hv), color-mix(in srgb, var(--nfm-border) 70%, transparent)); }
+@media (max-width: 600px) { .nfm-heat-grid { gap: 2px; grid-template-columns: 22px repeat(24, 1fr); } .nfm-heat-c { border-radius: 2px; } }
 .nfm-tabs { display: inline-flex; padding: 3px; gap: 2px; border-radius: 8px; background: var(--nfm-card2); border: 1px solid var(--nfm-border); }
 .nfm-tab { font: inherit; font-size: 13px; border: 0; background: transparent; color: var(--nfm-text); padding: 5px 16px; border-radius: 6px; cursor: pointer; }
 .nfm-tab:hover { background: color-mix(in srgb, var(--nfm-card) 70%, transparent); }
@@ -839,9 +859,39 @@ return view.extend({
 		const spdBtn = E('button', { class: 'nfm-btn', click: () => startSpeed() }, 'Измерить сейчас');
 		const flashBox = E('div');
 		const dayBody = E('div', { class: 'nfm-day' }, E('div', { class: 'nfm-empty' }, 'Загружаю…'));
+		const heatBody = E('div', { class: 'nfm-heat' });
+		const heatTabs = E('div', { class: 'nfm-tabs' }, Object.keys(HEAT).map(k =>
+			E('button', { class: 'nfm-tab' + (k === 'cpu' ? ' on' : ''), type: 'button', 'data-k': k, click: ev => { S.heat = k; for (const b of heatTabs.children) b.classList.toggle('on', b === ev.currentTarget); renderHeat(); } }, HEAT[k][0])));
+		function renderHeat() {
+			const D = S.day, key = S.heat || 'cpu', H = HEAT[key];
+			if (!D || !D.h || !D.h.info || !D.h.info.started) { heatBody.replaceChildren(E('div', { class: 'nfm-empty' }, D ? 'Нет данных' : 'Загружаю…')); return; }
+			const sum = [], cnt = [];
+			for (let i = 0; i < 168; i++) { sum[i] = 0; cnt[i] = 0; }
+			const now = new Date();
+			for (const r of D.h.rows || []) {
+				const v = H[1](r); if (v == null || v < 0) continue;
+				const d = new Date(r[0] * 1000), i = ((d.getDay() + 6) % 7) * 24 + d.getHours();
+				sum[i] += v; cnt[i]++;
+			}
+			const avg = sum.map((x, i) => cnt[i] ? x / cnt[i] : null);
+			const mx = Math.max(0, ...avg.filter(v => v != null)) || 1;
+			const days = [ 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс' ];
+			const grid = E('div', { class: 'nfm-heat-grid' });
+			grid.appendChild(E('span'));
+			for (let h = 0; h < 24; h++) grid.appendChild(E('span', { class: 'nfm-heat-h' }, h % 3 === 0 ? String(h) : ''));
+			for (let d = 0; d < 7; d++) {
+				grid.appendChild(E('span', { class: 'nfm-heat-d' + (d === (now.getDay() + 6) % 7 ? ' today' : '') }, days[d]));
+				for (let h = 0; h < 24; h++) {
+					const v = avg[d * 24 + h];
+					grid.appendChild(E('span', { class: 'nfm-heat-c', style: v == null ? '' : `--hv:${Math.round(100 * v / mx)}%`, title: days[d] + ', ' + h + ':00 — ' + (v == null ? 'нет данных' : H[2](v)) }));
+				}
+			}
+			heatBody.replaceChildren(grid, E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Среднее за последние 7 дней по часам. Тёмнее — меньше, ярче — больше (максимум ' + H[2](mx) + ').'));
+		}
 		const hist = E('div', { hidden: true }, [
 			histNote,
 			E('div', { class: 'nfm-grid' }, [ card([ 'Сводка за день', E('span', { class: 'nfm-spacer' }), E('span', { class: 'nfm-note-s' }, 'с 00:00 по данным сборщика') ], dayBody) ]),
+			E('div', { class: 'nfm-grid' }, [ card([ 'Тепловая карта по часам', E('span', { class: 'nfm-spacer' }), heatTabs ], heatBody) ]),
 			E('div', { class: 'nfm-grid' }, [
 				card([ 'Процессор, память, температура', E('span', { class: 'nfm-spacer' }),
 					E('span', { class: 'nfm-legend' }, [ legendDot('c-cpu', 'Процессор'), legendDot('c-mem', 'Память'), legendDot('c-temp', 'Температура, °C') ]), rangeTabs ], histMain.el)
@@ -870,7 +920,7 @@ return view.extend({
 		const pauseBtn = E('button', { class: 'nfm-btn', click: () => setPaused(!S.paused) }, 'Пауза');
 		const tabBtns = {};
 		const tabs = E('div', { class: 'nfm-tabs', role: 'tablist' }, [ [ 'overview', 'Обзор' ], [ 'net', 'Сеть' ], [ 'procs', 'Программы' ], [ 'svcs', 'Службы' ], [ 'hist', 'История' ] ]
-			.map(([ k, l ]) => tabBtns[k] = E('button', { class: 'nfm-tab', role: 'tab', click: () => { S.tab = k; refresh(); } }, l)));
+			.map(([ k, l ]) => tabBtns[k] = E('button', { class: 'nfm-tab nfm-ti', 'data-ic': k, role: 'tab', click: () => { S.tab = k; refresh(); } }, l)));
 
 		const svcFilter = E('input', { class: 'nfm-in', type: 'search', placeholder: 'Найти службу…', input: () => renderServices() });
 		const svcBox = E('div');
@@ -1734,7 +1784,7 @@ return view.extend({
 			renderAlerts();
 			if (S.tab === 'net') { renderDevices(); renderChannel(); }
 			if (S.tab === 'svcs') renderServices();
-			if (S.tab === 'hist') { renderHist(); renderDay(); renderJournal(); renderSpeed(); renderFlash(); }
+			if (S.tab === 'hist') { renderHist(); renderDay(); renderHeat(); renderJournal(); renderSpeed(); renderFlash(); }
 
 			/* overheating banner */
 			const hot = hotInfo();
