@@ -12,7 +12,7 @@
 	var DEFAULTS = { mode: 'auto', accent: '', motion: true, liteAuto: true, loginCells: [ 'net', 'up', 'fw' ], loginLogo: false, ovWide: false, ovCols: '0', bg: 'mica', bgScale: 100,
 		density: 'normal', font: 'md', radius: 'md', glass: 'on', loginClock: true, loginInfo: true, loginBg: 'mica', ovLive: true, ovBadges: true,
 		style: '', preset: 'win11', navMini: false, schedule: false, nightFrom: '20:00', dayFrom: '07:00', netBar: true, constLogin: true, constApp: false, constKind: 'net',
-		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, chart: 'area', chartSmooth: true, chartPal: 'accent', chartW: '2', chartGrid: true, chartThr: false, wxLat: '', wxLon: '', cusOn: false, cusBg: '', cusCard: '', cusText: '', cusRadius: 0, cusFont: '', cusShadow: '', loginPhoto: false, ovTop: true, ovApps: true, ovBlock: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
+		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, chart: 'area', chartSmooth: true, chartPal: 'accent', chartW: '2', chartGrid: true, chartThr: false, chartShine: true, wxLat: '', wxLon: '', cusOn: false, cusBg: '', cusCard: '', cusText: '', cusRadius: 0, cusFont: '', cusShadow: '', loginPhoto: false, ovTop: true, ovApps: true, ovBlock: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
 
 	var PRESETS = [
 		[ 'win11', 'Windows 11', { style: '', accent: '', bg: 'mica', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
@@ -989,6 +989,7 @@
 		root.setAttribute('data-nf-lw', pick(String(prefs.chartW), [ '1', '2', '3' ], '2'));
 		root.setAttribute('data-nf-grid', prefs.chartGrid === false ? 'off' : 'on');
 		root.setAttribute('data-nf-thr', prefs.chartThr ? 'on' : 'off');
+		root.setAttribute('data-nf-shine', prefs.chartShine === false ? 'off' : 'on');
 		skyUpdate();
 		root.setAttribute('data-nf-chart-smooth', prefs.chartSmooth === false ? 'off' : 'on');
 		root.setAttribute('data-nf-gpal', pick(prefs.chartPal, [ 'accent', 'vivid', 'mono', 'warm', 'cool', 'sunset', 'neon', 'pastel', 'nord', 'dracula' ], 'accent'));
@@ -1182,7 +1183,7 @@
 			seg2('glass', 'Стекло и размытие', [ [ 'on', 'Включено' ], [ 'off', 'Выключено' ] ]),
 			seg2('chart', 'Графики', [ [ 'area', 'Заливка' ], [ 'line', 'Линия' ], [ 'bars', 'Столбики' ], [ 'step', 'Ступени' ] ], true),
 			seg2('chartPal', 'Цвета графиков', [ [ 'accent', 'Акцент' ], [ 'vivid', 'Яркие' ], [ 'mono', 'Моно' ], [ 'warm', 'Тёплые' ], [ 'cool', 'Холодные' ], [ 'sunset', 'Закат' ], [ 'neon', 'Неон' ], [ 'pastel', 'Пастель' ], [ 'nord', 'Nord' ], [ 'dracula', 'Dracula' ] ], true),
-			[ sw('chartSmooth', 'Сглаживать линии графиков'), sw('chartGrid', 'Сетка на графиках'), sw('chartThr', 'Цвет линии по нагрузке (зелёный, жёлтый, красный)') ],
+			[ sw('chartSmooth', 'Сглаживать линии графиков'), sw('chartGrid', 'Сетка на графиках'), sw('chartThr', 'Цвет линии по нагрузке (зелёный, жёлтый, красный)'), sw('chartShine', 'Бегущий блик по линии') ],
 			seg2('chartW', 'Толщина линии', [ [ '1', 'Тонкая' ], [ '2', 'Обычная' ], [ '3', 'Толстая' ] ]),
 			seg2('glassTone', 'Тон стекла', [ [ 'auto', 'Авто' ], [ 'light', 'Светлое' ], [ 'dark', 'Тёмное' ] ]),
 			[ rng('Размытие', refs.gblur, 'px'), rng('Плотность стекла', refs.galpha, '%') ]
@@ -1372,7 +1373,7 @@
 	 * Окно с цветами, скруглением, шрифтом и тенями. Страница вокруг и есть предпросмотр: всё применяется сразу.
 	 * Тему можно отправить другому текстом-кодом (одна строка) и применить у него. */
 	var ed = null, edRefs = {};
-	var CODE_KEYS = [ 'mode', 'accent', 'style', 'bg', 'bgScale', 'radius', 'density', 'font', 'glass', 'glassTone', 'glassBlur', 'glassAlpha', 'chart', 'chartSmooth', 'chartPal', 'chartW', 'chartGrid', 'chartThr', 'cusOn', 'cusBg', 'cusCard', 'cusText', 'cusRadius', 'cusFont', 'cusShadow' ];
+	var CODE_KEYS = [ 'mode', 'accent', 'style', 'bg', 'bgScale', 'radius', 'density', 'font', 'glass', 'glassTone', 'glassBlur', 'glassAlpha', 'chart', 'chartSmooth', 'chartPal', 'chartW', 'chartGrid', 'chartThr', 'chartShine', 'cusOn', 'cusBg', 'cusCard', 'cusText', 'cusRadius', 'cusFont', 'cusShadow' ];
 	function themeCode() {
 		var o = {}; CODE_KEYS.forEach(function (k) { o[k] = prefs[k]; });
 		var js = JSON.stringify(o), b;

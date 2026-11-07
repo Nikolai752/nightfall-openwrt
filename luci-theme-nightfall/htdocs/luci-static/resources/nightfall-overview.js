@@ -104,10 +104,11 @@ function spark(classes) {
 	const W = 100, H = 34;
 	const parts = classes.map(c => ({
 		area: SVG('path', { class: 'a ' + c }),
-		line: SVG('path', { class: 'l ' + c, pathLength: 1 })
+		line: SVG('path', { class: 'l ' + c, pathLength: 1 }),
+		glint: SVG('path', { class: 's ' + c })
 	}));
 	const el = SVG('svg', { class: 'nf-spark', viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'none' },
-		parts.reduce((a, p) => a.concat([ p.area, p.line ]), []));
+		parts.reduce((a, p) => a.concat([ p.area, p.line, p.glint ]), []));
 
 	return {
 		el,
@@ -122,6 +123,7 @@ function spark(classes) {
 				}
 				const pl = nfPlot([ pts ], H);
 				p.line.setAttribute('d', pl.line);
+				p.glint.setAttribute('d', pl.line);
 				p.area.setAttribute('d', classes.length === 1 ? pl.area : '');
 			});
 		}
