@@ -383,6 +383,14 @@ function card(title, body, extra) {
 		title ? E('h3', { class: 'nfm-card-title' }, ic ? [ E('i', { class: 'nf-ci', 'data-i': ic }) ].concat(title) : title) : null, body ]);
 }
 
+/* «как обычно в это время»: среднее значение колонки по 15-минутным отрезкам суток за все дни, что есть в сводке (до 7 дней) */
+function usualCurve(rows, times, i) {
+	if (!rows || rows.length < 288) return times.map(() => null);   /* меньше суток данных — сравнивать не с чем */
+	const sum = new Array(96).fill(0), cnt = new Array(96).fill(0), bin = t => { const d = new Date(t * 1000); return d.getHours() * 4 + Math.floor(d.getMinutes() / 15); };
+	for (const r of rows) { const v = r[i]; if (v == null || v < 0) continue; const b = bin(r[0]); sum[b] += v; cnt[b]++; }
+	return times.map(t => { const b = bin(t); return cnt[b] ? sum[b] / cnt[b] : null; });
+}
+
 function legendDot(cls, text) {
 	return E('span', { class: 'nfm-leg' }, [ E('i', { class: 'nfm-dot ' + cls }), text ]);
 }
@@ -398,6 +406,8 @@ const CSS = `
   --g1:#3dd0e0; --g2:#b39bff; --g3:#ff7fbf; --g4:#ffc552; --g5:#5cb7ff; --g6:#6ccb5f; --g7:#9aa7bf; --gx:#7d8798; }
 .nfm *, .nfm *::before, .nfm *::after { box-sizing: border-box; }
 .nfm .c-cpu { --c: var(--c-cpu); } .nfm .c-mem { --c: var(--c-mem); } .nfm .c-temp { --c: var(--c-temp); }
+.nfm .c-base { --c: var(--nfm-dim); }
+.nfm .nfm-line.c-base { stroke-dasharray: 5 4; stroke-width: 1.4; opacity: .75; }
 .nfm .c-flash { --c: var(--c-flash); } .nfm .c-down { --c: var(--c-down); } .nfm .c-up { --c: var(--c-up); }
 .nfm .g1 { --c: var(--g1); } .nfm .g2 { --c: var(--g2); } .nfm .g3 { --c: var(--g3); } .nfm .g4 { --c: var(--g4); }
 .nfm .g5 { --c: var(--g5); } .nfm .g6 { --c: var(--g6); } .nfm .g7 { --c: var(--g7); } .nfm .gx { --c: var(--gx); }
@@ -768,13 +778,13 @@ return view.extend({
 			rangeBtns[k] = E('button', { class: 'nfm-tab', click: () => { S.range = k; S.hist = undefined; S.at.hist = 0; refresh(); tick(); } }, RANGES[k][2])));
 		const histNote = E('div', { class: 'nfm-hint', hidden: '' });
 		const histMain = chart({ right: true, height: 240,
-			series: [ { key: 'cpu', cls: 'c-cpu', label: 'Процессор', fmt: v => nf0.format(v) + '%' }, { key: 'mem', cls: 'c-mem', label: 'Память', fmt: v => nf0.format(v) + '%' },
+			series: [ { key: 'cpuB', cls: 'c-base', fill: 0, label: 'Процессор обычно', fmt: v => nf0.format(v) + '%' }, { key: 'cpu', cls: 'c-cpu', label: 'Процессор', fmt: v => nf0.format(v) + '%' }, { key: 'mem', cls: 'c-mem', label: 'Память', fmt: v => nf0.format(v) + '%' },
 				{ key: 'temp', cls: 'c-temp', axis: 'right', fill: .12, label: 'Температура', fmt: v => nf1.format(v) + ' °C' } ],
 			fmtLeft: v => nf0.format(v) + '%', fmtRight: v => nf0.format(v) + '°' });
 		const histPing = chart({ height: 200,
-			series: [ { key: 'gw', cls: 'c-up', fill: 0, gaps: true, label: 'Шлюз', fmt: v => nf1.format(v) + ' мс' }, { key: 'net', cls: 'c-down', fill: 0, gaps: true, label: 'Интернет', fmt: v => nf1.format(v) + ' мс' } ],
+			series: [ { key: 'netB', cls: 'c-base', fill: 0, label: 'Интернет обычно', fmt: v => nf1.format(v) + ' мс' }, { key: 'gw', cls: 'c-up', fill: 0, gaps: true, label: 'Шлюз', fmt: v => nf1.format(v) + ' мс' }, { key: 'net', cls: 'c-down', fill: 0, gaps: true, label: 'Интернет', fmt: v => nf1.format(v) + ' мс' } ],
 			fmtLeft: v => nf0.format(v) + ' мс', fmtRight: () => '' });
-		const histNet = chart({ height: 200, series: [ { key: 'rx', cls: 'c-down', label: 'Загрузка', fmt: rateText }, { key: 'tx', cls: 'c-up', fill: .18, label: 'Отдача', fmt: rateText } ],
+		const histNet = chart({ height: 200, series: [ { key: 'rxB', cls: 'c-base', fill: 0, label: 'Загрузка обычно', fmt: rateText }, { key: 'rx', cls: 'c-down', label: 'Загрузка', fmt: rateText }, { key: 'tx', cls: 'c-up', fill: .18, label: 'Отдача', fmt: rateText } ],
 			fmtLeft: v => rateText(v), fmtRight: () => '' });
 		const evBox = E('div', { class: 'nfm-evlist' });
 		const histInfo = E('div', { class: 'nfm-s', style: 'margin-top:10px' });
@@ -894,7 +904,7 @@ return view.extend({
 			E('div', { class: 'nfm-grid' }, [ card([ 'Тепловая карта по часам', E('span', { class: 'nfm-spacer' }), heatTabs ], heatBody) ]),
 			E('div', { class: 'nfm-grid' }, [
 				card([ 'Процессор, память, температура', E('span', { class: 'nfm-spacer' }),
-					E('span', { class: 'nfm-legend' }, [ legendDot('c-cpu', 'Процессор'), legendDot('c-mem', 'Память'), legendDot('c-temp', 'Температура, °C') ]), rangeTabs ], histMain.el)
+					E('span', { class: 'nfm-legend' }, [ legendDot('c-cpu', 'Процессор'), legendDot('c-mem', 'Память'), legendDot('c-temp', 'Температура, °C'), legendDot('c-base', 'как обычно') ]), rangeTabs ], histMain.el)
 			]),
 			E('div', { class: 'nfm-grid nfm-g21' }, [
 				card([ 'Интернет: задержка', E('span', { class: 'nfm-spacer' }),
@@ -1307,12 +1317,13 @@ return view.extend({
 			const vmax = a => a.reduce((m, v) => v != null && v > m ? v : m, 0);
 
 			const temp = col(3), tm = vmax(temp);
-			histMain.update(times, { cpu: col(1), mem: col(2), temp }, { left: 100, right: tm > 90 ? Math.ceil(tm / 20) * 20 : 100 }, view);
+			const usual = i => usualCurve(S.day && S.day.h && S.day.h.rows, times, i);
+			histMain.update(times, { cpuB: usual(1), cpu: col(1), mem: col(2), temp }, { left: 100, right: tm > 90 ? Math.ceil(tm / 20) * 20 : 100 }, view);
 
 			const gw = col(6), net = col(7);
-			histPing.update(times, { gw, net }, { left: niceCeil(Math.max(vmax(net), vmax(gw), 20)) }, view);
+			histPing.update(times, { netB: usual(7), gw, net }, { left: niceCeil(Math.max(vmax(net), vmax(gw), 20)) }, view);
 			const rx = col(4), tx = col(5);
-			histNet.update(times, { rx, tx }, { left: niceCeil(Math.max(vmax(rx), vmax(tx), 12500)) }, view);
+			histNet.update(times, { rxB: usual(4), rx, tx }, { left: niceCeil(Math.max(vmax(rx), vmax(tx), 12500)) }, view);
 
 			const ok = net.filter(v => v != null);
 			T.pAvg.textContent = ok.length ? nf0.format(ok.reduce((a, b) => a + b, 0) / ok.length) + ' мс' : '–';

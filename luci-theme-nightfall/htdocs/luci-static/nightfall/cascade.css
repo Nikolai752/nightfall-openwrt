@@ -5480,8 +5480,11 @@ html[data-nf-lw="1"] .nf-spark path, html[data-nf-lw="1"] svg path.l { stroke-wi
 html[data-nf-lw="2"] .nf-spark path, html[data-nf-lw="2"] svg path.l { stroke-width: 1.6px; }
 html[data-nf-lw="3"] .nf-spark path, html[data-nf-lw="3"] svg path.l { stroke-width: 2.6px; }
 html[data-nf-grid="off"] svg .g, html[data-nf-grid="off"] svg line.g { display: none; }
+html[data-nf-thr="on"] .nf-tile[data-lvl="ok"] .nf-spark linearGradient { color: var(--nf-g-up, #13a10e); }
 html[data-nf-thr="on"] .nf-tile[data-lvl="ok"] .nf-spark path { stroke: var(--nf-g-up, #13a10e); color: var(--nf-g-up, #13a10e); }
+html[data-nf-thr="on"] .nf-tile[data-lvl="mid"] .nf-spark linearGradient { color: #e0a800; }
 html[data-nf-thr="on"] .nf-tile[data-lvl="mid"] .nf-spark path { stroke: #e0a800; color: #e0a800; }
+html[data-nf-thr="on"] .nf-tile[data-lvl="bad"] .nf-spark linearGradient { color: var(--nf-g-bad, #d13438); }
 html[data-nf-thr="on"] .nf-tile[data-lvl="bad"] .nf-spark path { stroke: var(--nf-g-bad, #d13438); color: var(--nf-g-bad, #d13438); }
 html[data-nf-thr="on"] .nf-tile[data-lvl] .nf-spark path.a { stroke: none; }
 /* --- плавная смена страницы, точка «Онлайн», волна на кнопках --- */

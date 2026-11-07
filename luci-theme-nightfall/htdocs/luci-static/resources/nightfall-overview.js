@@ -100,15 +100,22 @@ function nfPlot(segs, H) {
 }
 
 /* time based mini graph; classes[i] is the colour class of series i */
+let sparkSeq = 0;
 function spark(classes) {
 	const W = 100, H = 34;
-	const parts = classes.map(c => ({
-		area: SVG('path', { class: 'a ' + c }),
+	const uid = 'nfg' + (++sparkSeq) + '_';
+	/* заливка под линией — плавный градиент от линии вниз, без сплошного прямоугольника */
+	const grads = classes.map((c, i) => SVG('linearGradient', { id: uid + i, x1: 0, y1: 0, x2: 0, y2: 1, class: c }, [
+		SVG('stop', { offset: 0, 'stop-color': 'currentColor', 'stop-opacity': .34 }),
+		SVG('stop', { offset: 1, 'stop-color': 'currentColor', 'stop-opacity': 0 })
+	]));
+	const parts = classes.map((c, i) => ({
+		area: SVG('path', { class: 'a ' + c, style: `fill:url(#${uid + i});opacity:1` }),
 		line: SVG('path', { class: 'l ' + c, pathLength: 1 }),
 		glint: SVG('path', { class: 's ' + c })
 	}));
 	const el = SVG('svg', { class: 'nf-spark', viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'none' },
-		parts.reduce((a, p) => a.concat([ p.area, p.line, p.glint ]), []));
+		[ SVG('defs', {}, grads) ].concat(parts.reduce((a, p) => a.concat([ p.area, p.line, p.glint ]), [])));
 
 	return {
 		el,
