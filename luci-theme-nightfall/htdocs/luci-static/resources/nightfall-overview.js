@@ -743,7 +743,10 @@ function decorateHosts(view) {
 /* цвет линии по нагрузке: зелёный, жёлтый, красный */
 function setLvl(el, v, mid, bad) {
 	const tile = el && el.closest ? el.closest('.nf-tile') : null;
-	if (tile) tile.setAttribute('data-lvl', v == null ? '' : v >= bad ? 'bad' : v >= mid ? 'mid' : 'ok');
+	if (tile) {
+		tile.setAttribute('data-lvl', v == null ? '' : v >= bad ? 'bad' : v >= mid ? 'mid' : 'ok');
+		tile.style.setProperty('--ring', v == null ? 0 : Math.max(0, Math.min(100, v)));
+	}
 }
 /* число на карточке плавно «докручивается» до нового значения */
 function setNum(el, text) {

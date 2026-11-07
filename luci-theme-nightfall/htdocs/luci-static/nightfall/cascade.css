@@ -5597,3 +5597,19 @@ html.nf-tx:not([data-nf-motion="off"]) *, html.nf-tx:not([data-nf-motion="off"])
 .nf-pop .nf-pop-l[data-ic='login'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='9' rx='2'/%3E%3Cpath d='M8 11V8a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E"); }
 .nf-pop .nf-pop-l[data-ic='ov'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='7' height='9' rx='1'/%3E%3Crect x='14' y='3' width='7' height='5' rx='1'/%3E%3Crect x='14' y='12' width='7' height='9' rx='1'/%3E%3Crect x='3' y='16' width='7' height='5' rx='1'/%3E%3C/svg%3E"); }
 .nf-pop .nf-pop-l[data-ic='ui'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6h16M4 12h16M4 18h16'/%3E%3C/svg%3E"); }
+
+/* кольцо загрузки в углу плиток Обзора (процессор, температура, память) */
+@property --ringp { syntax: '<number>'; inherits: true; initial-value: 0; }
+html[data-nf-ring="on"] .nf-tile[data-tile="cpu"],
+html[data-nf-ring="on"] .nf-tile[data-tile="temp"],
+html[data-nf-ring="on"] .nf-tile[data-tile="mem"] { position: relative; --rc: var(--nf-accent, #0067c0); transition: --ringp .6s ease; --ringp: var(--ring, 0); }
+html[data-nf-ring="on"] .nf-tile[data-lvl="mid"] { --rc: #e0a800; }
+html[data-nf-ring="on"] .nf-tile[data-lvl="bad"] { --rc: var(--nf-g-bad, #d13438); }
+html[data-nf-ring="on"] .nf-tile[data-tile="cpu"]::after,
+html[data-nf-ring="on"] .nf-tile[data-tile="temp"]::after,
+html[data-nf-ring="on"] .nf-tile[data-tile="mem"]::after {
+	content: ''; position: absolute; top: 28px; right: 12px; width: 34px; height: 34px; border-radius: 50%; pointer-events: none;
+	background: conic-gradient(var(--rc) calc(var(--ringp) * 1%), color-mix(in srgb, var(--nf-text-dim, #888) 22%, transparent) 0);
+	-webkit-mask: radial-gradient(circle, transparent 11px, #000 12px); mask: radial-gradient(circle, transparent 11px, #000 12px);
+}
+html[data-nf-ring="on"][data-nf-motion="off"] .nf-tile { transition: none; }
