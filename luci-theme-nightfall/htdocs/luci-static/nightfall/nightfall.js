@@ -1403,6 +1403,9 @@
 
 		pop.addEventListener('input', function (ev) { if (ev.target.type === 'range') paintRange(ev.target); });
 		document.body.appendChild(pop);
+		var IC = { 'Стиль': 'style', 'Режим': 'mode', 'Цвет акцента': 'color', 'Фон': 'bg', 'Погода для фона': 'wx', 'Копия настроек': 'sync', 'О теме': 'info',
+			'Экран входа': 'login', 'Что показывать на «Обзоре»': 'ov', 'Раскладка карточек': 'ov', 'Интерфейс': 'ui', 'Карточки на входе': 'login', 'Поделиться темой': 'sync' };
+		[].forEach.call(pop.querySelectorAll('.nf-pop-l'), function (l) { var k = IC[l.textContent.trim()]; if (k) l.setAttribute('data-ic', k); });
 		refreshPanel();
 	}
 
