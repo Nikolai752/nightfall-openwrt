@@ -12,6 +12,20 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 
 ## Screenshots
 
+> **Demo screenshots.** The first four images were taken on a demo page with made-up data (devices, traffic and numbers are not real) to show how the theme looks: light, dark, the built-in Nord theme and a phone. The screenshots after them come from a real router.
+
+![Light theme, "Mesh" background (demo screenshot)](docs/demo/desktop-light.png)
+
+![Dark theme, "Aurora" background (demo screenshot)](docs/demo/desktop-dark.png)
+
+![Built-in Nord theme and the personalisation menu (demo screenshot)](docs/demo/desktop-nord.png)
+
+<p>
+  <img src="docs/demo/mobile-dark.png" style="width: 300px; border-radius: 8px;" alt="Phone, dark theme, Neon background (demo screenshot)">
+</p>
+
+Screenshots from a real router:
+
 ![Resource Monitor](docs/monitor.png)
 
 ![Overview](docs/overview.png)
@@ -26,7 +40,12 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 **Theme**
 - Two styles: Windows 11 (Mica, cards) and Liquid Glass (translucent blurred cards).
 - Light and dark modes, switching automatically by system setting or by schedule.
-- 12 accent colors plus a custom color, backgrounds (Mica, dots, grid, stars, aurora, waves) and animated "constellations".
+- 12 accent colors plus a custom color.
+- **Ready-made themes** in one tap: Nord, Dracula, Tokyo Night, Gruvbox, Catppuccin, Rosé Pine, OLED, Terminal, Paper, plus Night, Aurora, Graphite and Sakura.
+- **Live backgrounds:** Mica, dots, grid, stars, aurora, waves, Mesh, Particles, Neon, Sunset, Ocean, Snow, Rain, Time of day and Weather (the background follows the weather where you are; data comes from Open-Meteo or wttr.in straight from your browser, no key needed; a VPN on the device may be required in some countries). Animated "constellations".
+- **Charts:** area, line, bars, steps; 10 palettes, line width, grid, load-based line colour (green, yellow, red), a running glint, smooth number counters. Memory and storage bars are coloured by level.
+- Animations: smooth page changes, a pulsing "Online" dot, a ripple on buttons (all can be turned off in Personalisation).
+- The Personalisation menu is split into tabs: Theme, Look, Login, Overview, More. Settings are stored on the router and follow you across browsers.
 - Collapsible menu, page search (`Ctrl+K` or `/`), quick theme toggle button.
 - Mobile layout: bottom section bar, settings shown as cards, a compact one-row "Apply / Save / Reset" bar that adapts to the phone screen.
 - Lock-screen style login page with a router summary (shown to local-network clients only).
@@ -52,7 +71,7 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 **Telegram notifications and bot**
 - Messages about lost and restored internet, overheating, low memory, reboots and new devices; a button-driven bot (status, clients, traffic, device blocking, reboot) and a daily report. Details below.
 
-**Look.** Windows 11, Liquid Glass and macOS styles, one-tap presets (Night, Aurora, Graphite, Sakura), a **custom theme editor** (colours, corner radius, font, shadows; share a theme as a text code NF1:…), chart styles (area, line, bars, steps, 5 palettes), line icons for devices and apps. Overview cards can be dragged and **resized by their corner**. The login screen offers time-of-day, rain, sunset, animations and **your own photo** (kept on the router in `/etc/nightfall-bg.json`).
+**Look.** Windows 11, Liquid Glass and macOS styles, one-tap presets (Night, Aurora, Graphite, Sakura), a **custom theme editor** (colours, corner radius, font, shadows; share a theme as a text code NF1:…), chart styles (area, line, bars, steps, 10 palettes), line icons for devices and apps. Overview cards can be dragged and **resized by their corner**. The login screen offers time-of-day, rain, sunset, animations and **your own photo** (kept on the router in `/etc/nightfall-bg.json`).
 
 **Devices and groups** (Status → Devices)
 - Network map: the router in the middle, devices around it; dashed lines for Wi-Fi, solid for wired; a line comes alive and shows the speed while data flows. Tap a device to open its card.
