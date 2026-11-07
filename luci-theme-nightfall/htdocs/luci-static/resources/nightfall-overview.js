@@ -308,14 +308,16 @@ function liveStrip() {
 	}
 
 	function pickTemp(list) {
-		let main = null, first = null;
+		let main = null, first = null, wifi = null;
 		for (const [ n, v ] of list || []) {
 			const c = v / 1000;
-			if (!isFinite(c) || c <= 0 || /phy|mt76|mt79|wifi|wlan|ath|iwlwifi/i.test(n)) continue;
+			if (!isFinite(c) || c <= 0) continue;
+			if (/phy|mt76|mt79|wifi|wlan|ath|iwlwifi/i.test(n)) { if (wifi == null) wifi = c; continue; }
 			if (first == null) first = c;
 			if (main == null && /cpu|soc|core|a53|a73|thermal/i.test(n)) main = c;
 		}
-		return main != null ? main : first;
+		/* у роутеров без датчика процессора (MikroTik hAP ac2) берём датчик Wi‑Fi‑чипа */
+		return main != null ? main : first != null ? first : wifi;
 	}
 
 	function ingest(d) {
