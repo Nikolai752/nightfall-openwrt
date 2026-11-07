@@ -12,7 +12,7 @@
 	var DEFAULTS = { mode: 'auto', accent: '', motion: true, liteAuto: true, loginCells: [ 'net', 'up', 'fw' ], loginLogo: false, ovWide: false, ovCols: '0', bg: 'mica', bgScale: 100,
 		density: 'normal', font: 'md', radius: 'md', glass: 'on', loginClock: true, loginInfo: true, loginBg: 'mica', ovLive: true, ovBadges: true,
 		style: '', preset: 'win11', navMini: false, schedule: false, nightFrom: '20:00', dayFrom: '07:00', netBar: true, constLogin: true, constApp: false, constKind: 'net',
-		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, chart: 'area', chartSmooth: true, chartPal: 'accent', chartW: '2', chartGrid: true, chartThr: false, chartShine: true, wxLat: '', wxLon: '', cusOn: false, cusBg: '', cusCard: '', cusText: '', cusRadius: 0, cusFont: '', cusShadow: '', loginPhoto: false, ovTop: true, ovApps: true, ovBlock: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
+		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, chart: 'area', chartSmooth: true, chartPal: 'accent', chartW: '2', chartGrid: true, chartThr: false, wxLat: '', wxLon: '', cusOn: false, cusBg: '', cusCard: '', cusText: '', cusRadius: 0, cusFont: '', cusShadow: '', loginPhoto: false, ovTop: true, ovApps: true, ovBlock: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
 
 	var PRESETS = [
 		[ 'win11', 'Windows 11', { style: '', accent: '', bg: 'mica', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
@@ -908,6 +908,11 @@
 
 
 	/* ---- фон «Время суток» и «Погода» ---- */
+	var WX_CITIES = [ [ 'Москва', '55.75', '37.62' ], [ 'Санкт-Петербург', '59.94', '30.31' ], [ 'Новосибирск', '55.03', '82.92' ], [ 'Екатеринбург', '56.84', '60.61' ], [ 'Казань', '55.79', '49.12' ],
+		[ 'Нижний Новгород', '56.33', '44.0' ], [ 'Челябинск', '55.16', '61.4' ], [ 'Самара', '53.2', '50.15' ], [ 'Омск', '54.99', '73.37' ], [ 'Ростов-на-Дону', '47.24', '39.71' ], [ 'Уфа', '54.74', '55.97' ],
+		[ 'Красноярск', '56.01', '92.85' ], [ 'Воронеж', '51.67', '39.18' ], [ 'Пермь', '58.01', '56.23' ], [ 'Волгоград', '48.71', '44.51' ], [ 'Краснодар', '45.04', '38.98' ], [ 'Саратов', '51.53', '46.03' ],
+		[ 'Тюмень', '57.15', '65.53' ], [ 'Ижевск', '56.85', '53.2' ], [ 'Барнаул', '53.35', '83.77' ], [ 'Иркутск', '52.29', '104.3' ], [ 'Хабаровск', '48.48', '135.08' ], [ 'Владивосток', '43.12', '131.89' ],
+		[ 'Ярославль', '57.63', '39.87' ], [ 'Калининград', '54.71', '20.51' ], [ 'Мурманск', '68.97', '33.07' ], [ 'Сочи', '43.6', '39.73' ], [ 'Минск', '53.9', '27.57' ], [ 'Алматы', '43.24', '76.89' ], [ 'Киев', '50.45', '30.52' ] ];
 	var wxCode = '', wxTimer = 0, wxAt = 0;
 	function todPhase() { var hr = new Date().getHours(); return hr >= 5 && hr < 8 ? 'dawn' : hr >= 8 && hr < 17 ? 'day' : hr >= 17 && hr < 21 ? 'dusk' : 'night'; }
 	function wxKind(code, day) {
@@ -919,16 +924,31 @@
 		if (code >= 51) return 'rain';
 		return 'cloud';
 	}
+	/* коды WWO (wttr.in) → наши виды погоды */
+	function wwoKind(c, day) {
+		if (c === 113) return day ? 'sun' : 'clear';
+		if (c === 116 || c === 119 || c === 122) return 'cloud';
+		if (c === 143 || c === 248 || c === 260) return 'fog';
+		if (c === 200 || (c >= 386 && c <= 395)) return 'storm';
+		if ([ 179, 182, 185, 227, 230, 323, 326, 329, 332, 335, 338, 350, 368, 371, 374, 377 ].indexOf(c) >= 0) return 'snow';
+		if (c >= 176) return 'rain';
+		return 'cloud';
+	}
+	function wxDone(kind, la, lo) {
+		wxCode = kind; wxAt = Date.now();
+		try { window.sessionStorage.setItem('nightfall-wx', JSON.stringify({ k: wxCode, t: wxAt, la: la, lo: lo })); } catch (e) { /* ignore */ }
+		skyUpdate(); return true;
+	}
+	function getJson(url) { return window.fetch(url, { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error('http'); return r.json(); }); }
 	function wxFetch() {
 		var la = parseFloat(prefs.wxLat), lo = parseFloat(prefs.wxLon);
 		if (!window.fetch || !isFinite(la) || !isFinite(lo) || Math.abs(la) > 90 || Math.abs(lo) > 180) return Promise.resolve(false);
-		return window.fetch('https://api.open-meteo.com/v1/forecast?latitude=' + la.toFixed(2) + '&longitude=' + lo.toFixed(2) + '&current=weather_code,is_day', { cache: 'no-store' })
-			.then(function (r) { return r.json(); })
-			.then(function (j) {
-				var c = j && j.current; if (!c) return false;
-				wxCode = wxKind(+c.weather_code, +c.is_day === 1); wxAt = Date.now();
-				try { window.sessionStorage.setItem('nightfall-wx', JSON.stringify({ k: wxCode, t: wxAt, la: la, lo: lo })); } catch (e) { /* ignore */ }
-				skyUpdate(); return true;
+		/* сначала Open-Meteo, если он недоступен (в России часто закрыт), то wttr.in */
+		return getJson('https://api.open-meteo.com/v1/forecast?latitude=' + la.toFixed(2) + '&longitude=' + lo.toFixed(2) + '&current=weather_code,is_day')
+			.then(function (j) { var c = j && j.current; if (!c) throw new Error('no'); return wxDone(wxKind(+c.weather_code, +c.is_day === 1), la, lo); })
+			.catch(function () {
+				return getJson('https://wttr.in/' + la.toFixed(2) + ',' + lo.toFixed(2) + '?format=j1')
+					.then(function (j) { var c = j && j.current_condition && j.current_condition[0]; if (!c) throw new Error('no'); return wxDone(wwoKind(+c.weatherCode, todPhase() !== 'night'), la, lo); });
 			}).catch(function () { return false; });
 	}
 	function skyUpdate() {
@@ -969,7 +989,6 @@
 		root.setAttribute('data-nf-lw', pick(String(prefs.chartW), [ '1', '2', '3' ], '2'));
 		root.setAttribute('data-nf-grid', prefs.chartGrid === false ? 'off' : 'on');
 		root.setAttribute('data-nf-thr', prefs.chartThr ? 'on' : 'off');
-		root.setAttribute('data-nf-shine', prefs.chartShine === false ? 'off' : 'on');
 		skyUpdate();
 		root.setAttribute('data-nf-chart-smooth', prefs.chartSmooth === false ? 'off' : 'on');
 		root.setAttribute('data-nf-gpal', pick(prefs.chartPal, [ 'accent', 'vivid', 'mono', 'warm', 'cool', 'sunset', 'neon', 'pastel', 'nord', 'dracula' ], 'accent'));
@@ -1163,7 +1182,7 @@
 			seg2('glass', 'Стекло и размытие', [ [ 'on', 'Включено' ], [ 'off', 'Выключено' ] ]),
 			seg2('chart', 'Графики', [ [ 'area', 'Заливка' ], [ 'line', 'Линия' ], [ 'bars', 'Столбики' ], [ 'step', 'Ступени' ] ], true),
 			seg2('chartPal', 'Цвета графиков', [ [ 'accent', 'Акцент' ], [ 'vivid', 'Яркие' ], [ 'mono', 'Моно' ], [ 'warm', 'Тёплые' ], [ 'cool', 'Холодные' ], [ 'sunset', 'Закат' ], [ 'neon', 'Неон' ], [ 'pastel', 'Пастель' ], [ 'nord', 'Nord' ], [ 'dracula', 'Dracula' ] ], true),
-			[ sw('chartSmooth', 'Сглаживать линии графиков'), sw('chartGrid', 'Сетка на графиках'), sw('chartThr', 'Цвет линии по нагрузке (зелёный, жёлтый, красный)'), sw('chartShine', 'Бегущий блик под линией') ],
+			[ sw('chartSmooth', 'Сглаживать линии графиков'), sw('chartGrid', 'Сетка на графиках'), sw('chartThr', 'Цвет линии по нагрузке (зелёный, жёлтый, красный)') ],
 			seg2('chartW', 'Толщина линии', [ [ '1', 'Тонкая' ], [ '2', 'Обычная' ], [ '3', 'Толстая' ] ]),
 			seg2('glassTone', 'Тон стекла', [ [ 'auto', 'Авто' ], [ 'light', 'Светлое' ], [ 'dark', 'Тёмное' ] ]),
 			[ rng('Размытие', refs.gblur, 'px'), rng('Плотность стекла', refs.galpha, '%') ]
@@ -1280,21 +1299,26 @@
 				rng('Масштаб узора', refs.scale, '%'),
 				refs.wxSec = h('div', { 'class': 'nf-pop-sec', hidden: true }, [
 					h('div', { 'class': 'nf-pop-l', text: 'Погода для фона' }),
-					h('div', { 'class': 'nf-pop-note', text: 'Фон меняется по погоде у вас: солнце, облака, дождь, снег, туман, гроза. Данные берутся из бесплатного сервиса Open-Meteo прямо в вашем браузере, регистрация не нужна. Роутер ничего не отправляет. Нужны только координаты (десятые доли градуса достаточно).' }),
-					h('div', { 'class': 'nf-pop-times' }, [
-						h('span', { text: 'Широта' }), refs.wxLat = h('input', { type: 'text', inputmode: 'decimal', 'class': 'nf-time', placeholder: '55.75', 'aria-label': 'Широта', onchange: function (ev) { set('wxLat', ev.target.value.replace(',', '.').trim()); wxCode = ''; skyUpdate(); } }),
-						h('span', { text: 'Долгота' }), refs.wxLon = h('input', { type: 'text', inputmode: 'decimal', 'class': 'nf-time', placeholder: '37.62', 'aria-label': 'Долгота', onchange: function (ev) { set('wxLon', ev.target.value.replace(',', '.').trim()); wxCode = ''; skyUpdate(); } })
+					h('div', { 'class': 'nf-pop-note', text: 'Фон меняется по погоде у вас: солнце, облака, дождь, снег, туман, гроза. Выберите город или введите координаты. Данные берутся в вашем браузере из бесплатных сервисов Open-Meteo и wttr.in, регистрация не нужна, роутер ничего не отправляет. Если оба закрыты у вашего провайдера, нужен VPN на устройстве.' }),
+					refs.wxCity = h('select', { 'class': 'nf-sel', 'aria-label': 'Город', onchange: function (ev) {
+						var c = WX_CITIES[+ev.target.value]; if (!c) return;
+						set('wxLat', c[1]); set('wxLon', c[2]); wxCode = ''; refreshPanel();
+						refs.wxNote.textContent = 'Запрашиваю погоду…'; wxFetch().then(function (ok) { refs.wxNote.textContent = ok ? 'Сейчас: ' + wxCode : 'Не получилось: сервис погоды недоступен (в России может быть нужен VPN).'; });
+					} }, [ h('option', { value: '-1', text: 'Выберите город…' }) ].concat(WX_CITIES.map(function (c, i) { return h('option', { value: String(i), text: c[0] }); }))),
+					h('div', { 'class': 'nf-wx-ll' }, [
+						h('label', {}, [ h('span', { text: 'Широта' }), refs.wxLat = h('input', { type: 'text', inputmode: 'decimal', placeholder: '55.75', 'aria-label': 'Широта', onchange: function (ev) { set('wxLat', ev.target.value.replace(',', '.').trim()); wxCode = ''; skyUpdate(); } }) ]),
+						h('label', {}, [ h('span', { text: 'Долгота' }), refs.wxLon = h('input', { type: 'text', inputmode: 'decimal', placeholder: '37.62', 'aria-label': 'Долгота', onchange: function (ev) { set('wxLon', ev.target.value.replace(',', '.').trim()); wxCode = ''; skyUpdate(); } }) ])
 					]),
 					h('div', { 'class': 'nf-pop-io' }, [
-						h('button', { type: 'button', text: 'Определить место', onclick: function () {
-							if (!navigator.geolocation) { refs.wxNote.textContent = 'Браузер не умеет определять место. Введите координаты вручную.'; return; }
+						h('button', { type: 'button', text: 'Моё место', onclick: function () {
+							if (!navigator.geolocation) { refs.wxNote.textContent = 'Браузер не умеет определять место. Выберите город.'; return; }
 							refs.wxNote.textContent = 'Определяю…';
 							navigator.geolocation.getCurrentPosition(function (pos) {
 								set('wxLat', pos.coords.latitude.toFixed(2)); set('wxLon', pos.coords.longitude.toFixed(2)); wxCode = ''; refreshPanel();
-								wxFetch().then(function (ok) { refs.wxNote.textContent = ok ? 'Готово: ' + (wxCode || '') : 'Не удалось получить погоду.'; });
-							}, function () { refs.wxNote.textContent = 'Нет доступа к месту (нужен HTTPS и разрешение). Введите координаты вручную.'; }, { timeout: 8000 });
+								wxFetch().then(function (ok) { refs.wxNote.textContent = ok ? 'Готово: ' + wxCode : 'Не удалось получить погоду.'; });
+							}, function () { refs.wxNote.textContent = 'Нет доступа к месту (нужен HTTPS и разрешение). Выберите город.'; }, { timeout: 8000 });
 						} }),
-						h('button', { type: 'button', text: 'Проверить', onclick: function () { wxCode = ''; refs.wxNote.textContent = 'Запрашиваю…'; wxFetch().then(function (ok) { refs.wxNote.textContent = ok ? 'Сейчас: ' + wxCode : 'Не получилось: проверьте координаты и интернет.'; }); } })
+						h('button', { type: 'button', text: 'Проверить', onclick: function () { wxCode = ''; refs.wxNote.textContent = 'Запрашиваю…'; wxFetch().then(function (ok) { refs.wxNote.textContent = ok ? 'Сейчас: ' + wxCode : 'Не получилось: сервис погоды недоступен (в России может быть нужен VPN).'; }); } })
 					]),
 					refs.wxNote = h('div', { 'class': 'nf-pop-ionote', role: 'status' })
 				]),
@@ -1348,7 +1372,7 @@
 	 * Окно с цветами, скруглением, шрифтом и тенями. Страница вокруг и есть предпросмотр: всё применяется сразу.
 	 * Тему можно отправить другому текстом-кодом (одна строка) и применить у него. */
 	var ed = null, edRefs = {};
-	var CODE_KEYS = [ 'mode', 'accent', 'style', 'bg', 'bgScale', 'radius', 'density', 'font', 'glass', 'glassTone', 'glassBlur', 'glassAlpha', 'chart', 'chartSmooth', 'chartPal', 'chartW', 'chartGrid', 'chartThr', 'chartShine', 'cusOn', 'cusBg', 'cusCard', 'cusText', 'cusRadius', 'cusFont', 'cusShadow' ];
+	var CODE_KEYS = [ 'mode', 'accent', 'style', 'bg', 'bgScale', 'radius', 'density', 'font', 'glass', 'glassTone', 'glassBlur', 'glassAlpha', 'chart', 'chartSmooth', 'chartPal', 'chartW', 'chartGrid', 'chartThr', 'cusOn', 'cusBg', 'cusCard', 'cusText', 'cusRadius', 'cusFont', 'cusShadow' ];
 	function themeCode() {
 		var o = {}; CODE_KEYS.forEach(function (k) { o[k] = prefs[k]; });
 		var js = JSON.stringify(o), b;
