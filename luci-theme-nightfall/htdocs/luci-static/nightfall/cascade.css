@@ -5569,3 +5569,18 @@ html[data-nf-bg="weather"][data-nf-wx="snow"] body::after { background-color: rg
 html[data-nf-shine="on"]:not([data-nf-motion="off"]) .nf-spark path.s { stroke-opacity: .85; animation: nf-glint 4.5s cubic-bezier(.4, 0, .6, 1) infinite; }
 @keyframes nf-glint { 0% { stroke-dashoffset: 26; } 65%, 100% { stroke-dashoffset: -520; } }
 @media (prefers-reduced-motion: reduce) { .nf-spark path.s { display: none; } }
+
+/* плавная смена темы: класс ставится на 0.6 с при переключении настроек */
+html.nf-tx:not([data-nf-motion="off"]) *, html.nf-tx:not([data-nf-motion="off"]) *::before, html.nf-tx:not([data-nf-motion="off"]) *::after {
+	transition: background-color .45s ease, color .45s ease, border-color .45s ease, fill .45s ease, stroke .45s ease, box-shadow .45s ease !important;
+}
+
+/* телефон: компактный Обзор и отступы под вырез/полосу жестов (iPhone) */
+@media (max-width: 600px) {
+	html body .nf-live-grid { gap: 8px; }
+	html body .nf-tile { padding: 10px 12px; }
+	html body .nf-tile .nf-tile-v { font-size: 1.35em; }
+	html body .nf-tile .nf-tile-k { font-size: 11px; }
+	html body .nf-tile .nf-tile-s { font-size: 11px; }
+	html body #maincontent, html body .main-right { padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px)); }
+}
