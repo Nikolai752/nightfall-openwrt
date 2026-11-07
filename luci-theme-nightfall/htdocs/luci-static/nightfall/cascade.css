@@ -5608,8 +5608,8 @@ html[data-nf-ring="on"] .nf-tile[data-lvl="bad"] { --rc: var(--nf-g-bad, #d13438
 html[data-nf-ring="on"] .nf-tile[data-tile="cpu"]::after,
 html[data-nf-ring="on"] .nf-tile[data-tile="temp"]::after,
 html[data-nf-ring="on"] .nf-tile[data-tile="mem"]::after {
-	content: ''; position: absolute; top: 28px; right: 12px; width: 34px; height: 34px; border-radius: 50%; pointer-events: none;
+	content: ""; position: absolute; top: 40px; right: 12px; width: 32px; height: 32px; border-radius: 50%; pointer-events: none;
 	background: conic-gradient(var(--rc) calc(var(--ringp) * 1%), color-mix(in srgb, var(--nf-text-dim, #888) 22%, transparent) 0);
-	-webkit-mask: radial-gradient(circle, transparent 11px, #000 12px); mask: radial-gradient(circle, transparent 11px, #000 12px);
+	-webkit-mask: radial-gradient(circle, transparent 10px, #000 11px); mask: radial-gradient(circle, transparent 10px, #000 11px);
 }
 html[data-nf-ring="on"][data-nf-motion="off"] .nf-tile { transition: none; }
