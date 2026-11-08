@@ -108,7 +108,8 @@ function spark(classes) {
 	const uid = 'nfg' + (++sparkSeq) + '_';
 	/* заливка под линией — плавный градиент от линии вниз, без сплошного прямоугольника */
 	const grads = classes.map((c, i) => SVG('linearGradient', { id: uid + i, x1: 0, y1: 0, x2: 0, y2: 1, class: c }, [
-		SVG('stop', { offset: 0, 'stop-color': 'currentColor', 'stop-opacity': .34 }),
+		SVG('stop', { offset: 0, 'stop-color': 'currentColor', 'stop-opacity': .26 }),
+		SVG('stop', { offset: .55, 'stop-color': 'currentColor', 'stop-opacity': 0 }),
 		SVG('stop', { offset: 1, 'stop-color': 'currentColor', 'stop-opacity': 0 })
 	]));
 	const parts = classes.map((c, i) => ({
