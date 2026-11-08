@@ -2,6 +2,7 @@
 'require baseclass';
 'require fs';
 'require rpc';
+'require nightfall-qr as NfQr';
 
 /*
  * Nightfall: Status → Overview extras.
@@ -27,6 +28,7 @@ const callWireless = rpc.declare({ object: 'network.wireless', method: 'status',
 const callIwDevs = rpc.declare({ object: 'iwinfo', method: 'devices', expect: { devices: [] } });
 const callIwInfo = rpc.declare({ object: 'iwinfo', method: 'info', params: [ 'device' ] });
 const callAssoc = rpc.declare({ object: 'iwinfo', method: 'assoclist', params: [ 'device' ], expect: { results: [] } });
+const callUci = rpc.declare({ object: 'uci', method: 'get', params: [ 'config' ], expect: { values: {} } });
 const callReboot = rpc.declare({ object: 'system', method: 'reboot' });
 
 /* shared live numbers (filled by the live strip, read by the health card) */
@@ -279,6 +281,7 @@ function liveStrip() {
 			E('span', { class: 'nf-live-acts' }, [
 				R.cols = E('span', { class: 'nf-colsel', title: 'Сколько столбцов карточек на «Обзоре»; карточки плотно, без пустых мест' }, [ E('span', {}, 'Столбцы:') ].concat([ [ '0', 'Авто' ], [ '1', '1' ], [ '2', '2' ], [ '3', '3' ] ].map(c => E('button', { type: 'button', class: 'nf-linkbtn', 'data-c': c[0] }, c[1])))),
 				R.reset = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Вернуть порядок карточек по умолчанию' }, 'Сбросить порядок карточек'),
+				R.qrBtn = E('button', { type: 'button', class: 'nf-linkbtn', title: 'QR-код для подключения к Wi-Fi' }, 'QR Wi-Fi'),
 				R.boardBtn = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Полноэкранное табло: время, скорость, пинг, нагрузка' }, 'Табло')
 			])
 		]),
@@ -332,6 +335,49 @@ function liveStrip() {
 	document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeBoard(); });
 	document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) closeBoard(); });
 	R.boardBtn.addEventListener('click', openBoard);
+	function openQr() {
+		if (document.querySelector('.nf-qr-ov')) return;
+		const esc = v => String(v).replace(/([\\;,:"])/g, '\\$1');
+		const body = E('div', { class: 'nf-qr-body' }, 'Загрузка…');
+		const ov = E('div', { class: 'nf-qr-ov' }, E('div', { class: 'nf-qr-box' }, [
+			E('div', { class: 'nf-qr-h' }, [ E('b', {}, 'QR-код Wi-Fi'), E('button', { type: 'button', class: 'nf-linkbtn', 'data-close': '1' }, 'Закрыть') ]),
+			body,
+			E('div', { class: 'nf-qr-note' }, 'Наведите камеру телефона — он предложит подключиться. Пароль виден только вам и не покидает роутер.')
+		]));
+		ov.addEventListener('click', ev => { if (ev.target === ov || (ev.target.getAttribute && ev.target.getAttribute('data-close'))) ov.remove(); });
+		document.body.appendChild(ov);
+		callUci('wireless').then(v => {
+			const list = Object.keys(v).map(k => v[k]).filter(x => x['.type'] === 'wifi-iface' && x.mode !== 'sta' && x.ssid);
+			body.textContent = '';
+			if (!list.length) { body.textContent = 'Сети Wi-Fi не найдены.'; return; }
+			const seen = {};
+			list.forEach(x => {
+				const open = !x.encryption || x.encryption === 'none';
+				const sae = /^sae/.test(x.encryption || '') && !/psk/.test(x.encryption || '');
+				const key = x.key || '';
+				const k = x.ssid + '|' + key; if (seen[k]) return; seen[k] = 1;
+				const txt = 'WIFI:T:' + (open ? 'nopass' : (sae ? 'SAE' : 'WPA')) + ';S:' + esc(x.ssid) + ';' + (open ? '' : 'P:' + esc(key) + ';') + (x.hidden === '1' ? 'H:true;' : '') + ';';
+				const m = NfQr.encode(txt);
+				const card = E('div', { class: 'nf-qr-card' });
+				if (!m) card.appendChild(E('div', {}, 'Слишком длинные данные'));
+				else if (!open && !key) card.appendChild(E('div', {}, 'Пароль не задан в настройках (возможно, радиус-сервер).'));
+				else {
+					const n = m.length, q = 3, NS = 'http://www.w3.org/2000/svg';
+					const svg = document.createElementNS(NS, 'svg');
+					svg.setAttribute('viewBox', '0 0 ' + (n + 2 * q) + ' ' + (n + 2 * q)); svg.setAttribute('class', 'nf-qr-svg'); svg.setAttribute('shape-rendering', 'crispEdges');
+					const bg = document.createElementNS(NS, 'rect'); bg.setAttribute('width', n + 2 * q); bg.setAttribute('height', n + 2 * q); bg.setAttribute('fill', '#fff'); svg.appendChild(bg);
+					let d = ''; m.forEach((r, i) => r.forEach((c, j) => { if (c) d += 'M' + (j + q) + ' ' + (i + q) + 'h1v1h-1z'; }));
+					const p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); p.setAttribute('fill', '#000'); svg.appendChild(p);
+					card.appendChild(svg);
+				}
+				card.appendChild(E('div', { class: 'nf-qr-ssid' }, x.ssid));
+				card.appendChild(E('div', { class: 'nf-qr-sub' }, open ? 'без пароля' : (x.encryption || '') + (x.disabled === '1' ? ' · выключена' : '')));
+				body.appendChild(card);
+			});
+		}).catch(() => { body.textContent = 'Нет доступа к настройкам Wi-Fi. Обновите пакет и перезайдите в LuCI.'; });
+	}
+	document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { const o = document.querySelector('.nf-qr-ov'); if (o) o.remove(); } });
+	R.qrBtn.addEventListener('click', openQr);
 
 	const paintCols = () => { const cur = document.documentElement.getAttribute('data-nf-ov-cols') || '0'; R.cols.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.getAttribute('data-c') === cur)); };
 	R.cols.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('button[data-c]'); if (!b) return; if (window.Nightfall && window.Nightfall.set) window.Nightfall.set('ovCols', b.getAttribute('data-c')); paintCols(); window.setTimeout(() => window.dispatchEvent(new Event('resize')), 60); });
