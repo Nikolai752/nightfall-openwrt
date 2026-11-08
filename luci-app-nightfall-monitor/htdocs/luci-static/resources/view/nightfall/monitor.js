@@ -435,6 +435,8 @@ const CSS = `
 .nfm-ti[data-ic='svcs'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2v10'/%3E%3Cpath d='M18.4 6.6a9 9 0 1 1-12.8 0'/%3E%3C/svg%3E"); }
 .nfm-ti[data-ic='hist'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 1 0 3-6.7L3 8'/%3E%3Cpath d='M3 3v5h5M12 7v5l3 2'/%3E%3C/svg%3E"); }
 @media (max-width: 420px) { .nfm-ti::before { margin-right:4px; width:13px; height:13px; } }
+.nfm-wq-b { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; background: color-mix(in srgb, var(--c) 18%, transparent); color: var(--c); }
+.nfm-wq-b.ok { --c: #3fb950; } .nfm-wq-b.mid { --c: #e0a800; } .nfm-wq-b.bad { --c: #e5534b; }
 .nfm-heat-grid { display: grid; grid-template-columns: 26px repeat(24, 1fr); gap: 3px; align-items: center; }
 .nfm-heat-h, .nfm-heat-d { font-size: 10.5px; opacity: .65; text-align: center; }
 .nfm-heat-d.today { opacity: 1; font-weight: 700; }
@@ -869,6 +871,35 @@ return view.extend({
 		const spdBtn = E('button', { class: 'nfm-btn', click: () => startSpeed() }, 'Измерить сейчас');
 		const flashBox = E('div');
 		const dayBody = E('div', { class: 'nfm-day' }, E('div', { class: 'nfm-empty' }, 'Загружаю…'));
+		const wqBody = E('div', { class: 'nfm-wq' });
+		function renderWq() {
+			const R = S.wq;
+			if (R === undefined) { wqBody.replaceChildren(E('div', { class: 'nfm-empty' }, 'Загружаю…')); return; }
+			const rows = R && R.rows || [];
+			if (!rows.length) { wqBody.replaceChildren(E('div', { class: 'nfm-hint' }, 'Данных пока нет: история сигнала копится раз в минуту с запуска сборщика.' + ((R && R.info && R.info.wifi_hist === '0') ? ' Запись истории Wi-Fi выключена в настройках (WIFI_HIST=0).' : ''))); return; }
+			const by = {};
+			for (const x of rows) { const m = String(x[1]).toLowerCase(), v = +x[2]; if (!isFinite(v)) continue; const e = by[m] = by[m] || { v: [], last: 0, lastT: 0 }; e.v.push(v); if (x[0] >= e.lastT) { e.lastT = x[0]; e.last = v; } }
+			const leaves = {}, from = rows[0][0];
+			for (const e of R.events || []) if (e[2] === 'leave' && e[0] >= from) { const k = String(e[1]).toLowerCase(); leaves[k] = (leaves[k] || 0) + 1; }
+			const ORD = { bad: 0, mid: 1, ok: 2 };
+			const list = Object.keys(by).map(m => {
+				const v = by[m].v, avg = v.reduce((a, b) => a + b, 0) / v.length, weak = 100 * v.filter(x => x <= -75).length / v.length, lv = leaves[m] || 0;
+				/* оценка: сильный сигнал и без обрывов — хорошо; слабый сигнал или частые отключения — плохо */
+				const q = (avg <= -75 || weak >= 40 || lv >= 6) ? 'bad' : (avg <= -65 || weak >= 15 || lv >= 3) ? 'mid' : 'ok';
+				return { m, avg, weak, lv, last: by[m].last, q, live: R.now - by[m].lastT < 180 };
+			}).sort((a, b) => ORD[a.q] - ORD[b.q] || a.avg - b.avg);
+			const QL = { ok: 'хорошо', mid: 'терпимо', bad: 'плохо' };
+			const nm = m => { const h = hints[m.toUpperCase()] || hints[m] || {}; return h.name || (h.ipaddrs || [])[0] || m.toUpperCase(); };
+			wqBody.replaceChildren(
+				E('table', { class: 'nfm-table' }, [
+					E('thead', {}, E('tr', {}, [ E('th', {}, 'Устройство'), E('th', { class: 'r' }, 'Сейчас'), E('th', { class: 'r' }, 'В среднем'), E('th', { class: 'r' }, 'Слабый'), E('th', { class: 'r' }, 'Отключений'), E('th', {}, 'Оценка') ])),
+					E('tbody', {}, list.map(c => E('tr', { class: 'nfm-click', title: 'Показать сигнал в динамике', click: () => wifiDialog(c.m, nm(c.m), {}) }, [
+						E('td', {}, [ nm(c.m), c.live ? '' : E('span', { class: 'nfm-chip' }, 'не в сети') ]),
+						E('td', { class: 'r' }, c.live ? c.last + ' дБм' : '–'), E('td', { class: 'r' }, nf0.format(c.avg) + ' дБм'),
+						E('td', { class: 'r' }, nf0.format(c.weak) + '%'), E('td', { class: 'r' }, String(c.lv)),
+						E('td', {}, E('span', { class: 'nfm-wq-b ' + c.q }, QL[c.q])) ]))) ]),
+				E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Слабый — доля времени с сигналом −75 дБм и ниже. «Плохо»: средний сигнал слабый или частые отключения; обычно помогает поднести устройство ближе или сменить канал. Нажмите строку, чтобы увидеть график.'));
+		}
 		const heatBody = E('div', { class: 'nfm-heat' });
 		const heatTabs = E('div', { class: 'nfm-tabs' }, Object.keys(HEAT).map(k =>
 			E('button', { class: 'nfm-tab' + (k === 'cpu' ? ' on' : ''), type: 'button', 'data-k': k, click: ev => { S.heat = k; for (const b of heatTabs.children) b.classList.toggle('on', b === ev.currentTarget); renderHeat(); } }, HEAT[k][0])));
@@ -901,6 +932,7 @@ return view.extend({
 		const hist = E('div', { hidden: true }, [
 			histNote,
 			E('div', { class: 'nfm-grid' }, [ card([ 'Сводка за день', E('span', { class: 'nfm-spacer' }), E('span', { class: 'nfm-note-s' }, 'с 00:00 по данным сборщика') ], dayBody) ]),
+			E('div', { class: 'nfm-grid' }, [ card('Качество Wi‑Fi по клиентам', wqBody) ]),
 			E('div', { class: 'nfm-grid' }, [ card([ 'Тепловая карта по часам', E('span', { class: 'nfm-spacer' }), heatTabs ], heatBody) ]),
 			E('div', { class: 'nfm-grid' }, [
 				card([ 'Процессор, память, температура', E('span', { class: 'nfm-spacer' }),
@@ -1085,6 +1117,7 @@ return view.extend({
 			if (S.tab === 'net' && due('devs', DEVICES_EVERY * INTERVAL)) jobs.push(callHistory([ 'devices' ]).then(r => { S.devs = r; }));
 			if (S.tab === 'hist' && due('hist', HIST_EVERY * INTERVAL)) jobs.push(callHistory([ 'series', RANGES[S.range][0] ]).then(r => { S.hist = r; }));
 			if (S.tab === 'hist' && due('day', 60)) jobs.push(Promise.all([ callHistory([ 'series', 'coarse' ]), callHistory([ 'devices' ]) ]).then(r => { S.day = { h: r[0], d: r[1] }; }));
+			if (S.tab === 'hist' && due('wq', 60)) jobs.push(callHistory([ 'wifi' ]).then(r => { S.wq = r || null; }));
 			if (S.tab === 'net' && due('chan', DEVICES_EVERY * INTERVAL)) jobs.push(callHistory([ 'channel' ]).then(r => { S.chan = r; }));
 			if (S.tab === 'hist' && due('jrn', 30)) jobs.push(callHistory([ 'journal' ]).then(r => { S.jrn = r; }));
 			if (S.tab === 'hist' && due('spd', S.spdRun ? 3 : 30)) jobs.push(callHistory([ 'speed' ]).then(r => { S.spd = r; if (S.spdRun && Date.now() - (S.spdT || 0) > 4000 && (!r || !r.running)) { S.spdRun = false; if (r === false) ui.addNotification(null, E('p', {}, 'Замер завершён, но результат не прочитан: ' + MISSING), 'danger'); } }));
@@ -1795,7 +1828,7 @@ return view.extend({
 			renderAlerts();
 			if (S.tab === 'net') { renderDevices(); renderChannel(); }
 			if (S.tab === 'svcs') renderServices();
-			if (S.tab === 'hist') { renderHist(); renderDay(); renderHeat(); renderJournal(); renderSpeed(); renderFlash(); }
+			if (S.tab === 'hist') { renderHist(); renderDay(); renderHeat(); renderWq(); renderJournal(); renderSpeed(); renderFlash(); }
 
 			/* overheating banner */
 			const hot = hotInfo();

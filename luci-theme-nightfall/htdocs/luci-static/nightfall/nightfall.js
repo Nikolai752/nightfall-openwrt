@@ -9,7 +9,7 @@
 
 	var KEY = 'nightfall-prefs-v1';
 	var root = document.documentElement;
-	var DEFAULTS = { swipe: true, mode: 'auto', accent: '', motion: true, liteAuto: true, loginCells: [ 'net', 'up', 'fw' ], loginLogo: false, ovWide: false, ovCols: '0', bg: 'mica', bgScale: 100,
+	var DEFAULTS = { ovThrCpu: '60,85', ovThrTemp: '70,85', ovThrMem: '70,88', ovOrder: 'net,wan,cpu,temp,mem', swipe: true, mode: 'auto', accent: '', motion: true, liteAuto: true, loginCells: [ 'net', 'up', 'fw' ], loginLogo: false, ovWide: false, ovCols: '0', bg: 'mica', bgScale: 100,
 		density: 'normal', font: 'md', radius: 'md', glass: 'on', loginClock: true, loginInfo: true, loginBg: 'mica', ovLive: true, ovBadges: true,
 		style: '', preset: 'win11', navMini: false, schedule: false, nightFrom: '20:00', dayFrom: '07:00', netBar: true, constLogin: true, constApp: false, constKind: 'net',
 		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, chart: 'area', chartSmooth: true, chartPal: 'accent', chartW: '2', chartGrid: true, chartThr: false, chartShine: true, ovRing: true, wxLat: '', wxLon: '', cusOn: false, cusBg: '', cusCard: '', cusText: '', cusRadius: 0, cusFont: '', cusShadow: '', loginPhoto: false, ovTop: true, ovApps: true, ovBlock: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
@@ -30,9 +30,11 @@
 		[ 'rosepine', 'Rosé Pine', { style: '', mode: 'dark', accent: '#ebbcba', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#191724', cusCard: '#1f1d2e', cusText: '#e0def4' } ],
 		[ 'oled', 'OLED', { style: '', mode: 'dark', accent: '#0a84ff', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#000000', cusCard: '#0c0c0e', cusText: '#f2f2f2' } ],
 		[ 'terminal', 'Terminal', { style: '', mode: 'dark', accent: '#33ff66', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#050a06', cusCard: '#0b140d', cusText: '#b8f5c4', cusFont: 'mono', cusRadius: 2 } ],
-		[ 'paper', 'Бумага', { style: '', mode: 'light', accent: '#b45309', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#f4efe6', cusCard: '#fbf7ef', cusText: '#2b2620', cusFont: 'serif' } ]
+		[ 'paper', 'Бумага', { style: '', mode: 'light', accent: '#b45309', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#f4efe6', cusCard: '#fbf7ef', cusText: '#2b2620', cusFont: 'serif' } ],
+		[ 'newyear', 'Новый год', { style: '', mode: 'dark', accent: '#e5484d', bg: 'garland', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#0b1a14', cusCard: '#12261d', cusText: '#f3efe6' } ],
+		[ 'autumn', 'Осень', { style: '', mode: 'light', accent: '#c2410c', bg: 'leaves', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#f6ece0', cusCard: '#fff8ef', cusText: '#3a2a1c' } ]
 	];
-	var BGS = [ [ 'mica', 'Mica' ], [ 'flat', 'Плоский' ], [ 'dots', 'Точки' ], [ 'grid', 'Сетка' ], [ 'stars', 'Звёзды' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'mesh', 'Перелив' ], [ 'drift', 'Частицы' ], [ 'neon', 'Неон' ], [ 'sunset', 'Закат' ], [ 'ocean', 'Океан' ], [ 'snow', 'Снег' ], [ 'rain', 'Дождь' ], [ 'tod', 'Время суток' ], [ 'weather', 'Погода' ] ];
+	var BGS = [ [ 'mica', 'Mica' ], [ 'flat', 'Плоский' ], [ 'dots', 'Точки' ], [ 'grid', 'Сетка' ], [ 'stars', 'Звёзды' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'mesh', 'Перелив' ], [ 'drift', 'Частицы' ], [ 'neon', 'Неон' ], [ 'sunset', 'Закат' ], [ 'ocean', 'Океан' ], [ 'snow', 'Снег' ], [ 'rain', 'Дождь' ], [ 'tod', 'Время суток' ], [ 'weather', 'Погода' ], [ 'garland', 'Гирлянда' ], [ 'leaves', 'Листопад' ] ];
 
 	var ACCENTS = [
 		[ '', 'Синий (по умолчанию)', '#0067c0' ],
@@ -937,7 +939,8 @@
 
 
 	/* ---- фон «Время суток» и «Погода» ---- */
-	var WX_CITIES = [ [ 'Москва', '55.75', '37.62' ], [ 'Санкт-Петербург', '59.94', '30.31' ], [ 'Новосибирск', '55.03', '82.92' ], [ 'Екатеринбург', '56.84', '60.61' ], [ 'Казань', '55.79', '49.12' ],
+	var TILE_NAMES = { net: 'Интернет', wan: 'Трафик WAN', cpu: 'Процессор', temp: 'Температура', mem: 'Память' };
+	var WX_CITIES = [ [ 'Белгород', '50.60', '36.59' ], [ 'Строитель (Яковлевский р-н)', '50.79', '36.49' ], [ 'Москва', '55.75', '37.62' ], [ 'Санкт-Петербург', '59.94', '30.31' ], [ 'Новосибирск', '55.03', '82.92' ], [ 'Екатеринбург', '56.84', '60.61' ], [ 'Казань', '55.79', '49.12' ],
 		[ 'Нижний Новгород', '56.33', '44.0' ], [ 'Челябинск', '55.16', '61.4' ], [ 'Самара', '53.2', '50.15' ], [ 'Омск', '54.99', '73.37' ], [ 'Ростов-на-Дону', '47.24', '39.71' ], [ 'Уфа', '54.74', '55.97' ],
 		[ 'Красноярск', '56.01', '92.85' ], [ 'Воронеж', '51.67', '39.18' ], [ 'Пермь', '58.01', '56.23' ], [ 'Волгоград', '48.71', '44.51' ], [ 'Краснодар', '45.04', '38.98' ], [ 'Саратов', '51.53', '46.03' ],
 		[ 'Тюмень', '57.15', '65.53' ], [ 'Ижевск', '56.85', '53.2' ], [ 'Барнаул', '53.35', '83.77' ], [ 'Иркутск', '52.29', '104.3' ], [ 'Хабаровск', '48.48', '135.08' ], [ 'Владивосток', '43.12', '131.89' ],
@@ -1019,6 +1022,10 @@
 		root.setAttribute('data-nf-grid', prefs.chartGrid === false ? 'off' : 'on');
 		root.setAttribute('data-nf-thr', prefs.chartThr ? 'on' : 'off');
 		root.setAttribute('data-nf-shine', prefs.chartShine === false ? 'off' : 'on');
+		[ 'Cpu', 'Temp', 'Mem' ].forEach(function (k) { root.setAttribute('data-nf-thr-' + k.toLowerCase(), String(prefs['ovThr' + k] || DEFAULTS['ovThr' + k])); });
+		var ord = String(prefs.ovOrder || DEFAULTS.ovOrder).split(',').filter(function (k) { return TILE_NAMES[k]; });
+		Object.keys(TILE_NAMES).forEach(function (k) { if (ord.indexOf(k) < 0) ord.push(k); });
+		ord.forEach(function (k, i) { root.style.setProperty('--nf-ord-' + k, String(i)); });
 		root.setAttribute('data-nf-ring', prefs.ovRing === false ? 'off' : 'on');
 		skyUpdate();
 		root.setAttribute('data-nf-chart-smooth', prefs.chartSmooth === false ? 'off' : 'on');
@@ -1299,6 +1306,35 @@
 			sw('ovLive', 'Полоса «Сейчас»'), sw('ovBadges', 'Цветные метки'),
 			sw('ovTop', 'Топ клиентов'), sw('ovApps', 'Трафик по приложениям'), sw('ovBlock', 'Доступ в интернет'), sw('ovWifi', 'Wi‑Fi сейчас'), sw('ovHealth', 'Состояние роутера'), sw('ovEvents', 'Лента событий'), sw('ovQuick', 'Быстрые действия')
 		]);
+		/* пороги цвета плиток и порядок плиток */
+		var thrBox = h('div', { 'class': 'nf-pop-sec' }), ordBox = h('div', { 'class': 'nf-pop-sec' });
+		function thrRow(key, label, lo, hi) {
+			var v = String(prefs[key] || DEFAULTS[key]).split(','), a, b;
+			function save() {
+				var m = parseFloat(a.value), r = parseFloat(b.value);
+				if (!isFinite(m) || !isFinite(r)) return;
+				m = Math.max(1, Math.min(m, r - 1)); r = Math.max(m + 1, Math.min(r, 150));
+				set(key, m + ',' + r);
+			}
+			a = h('input', { type: 'number', inputmode: 'decimal', min: lo, max: hi, value: v[0], 'aria-label': label + ': внимание', onchange: save });
+			b = h('input', { type: 'number', inputmode: 'decimal', min: lo, max: hi, value: v[1], 'aria-label': label + ': перегрузка', onchange: save });
+			return h('div', { 'class': 'nf-thr-row' }, [ h('span', { text: label }), h('label', {}, [ h('i', { 'class': 'nf-thr-d mid' }), a ]), h('label', {}, [ h('i', { 'class': 'nf-thr-d bad' }), b ]) ]);
+		}
+		function renderOv() {
+			thrBox.replaceChildren.apply(thrBox, [ h('div', { 'class': 'nf-pop-l', text: 'Пороги цвета плиток' }),
+				thrRow('ovThrCpu', 'Процессор, %', 5, 100), thrRow('ovThrTemp', 'Температура, °C', 20, 120), thrRow('ovThrMem', 'Память, %', 5, 100),
+				h('div', { 'class': 'nf-pop-note', text: 'Жёлтый — «внимание», красный — «перегрузка». Работает, когда включены цветные метки.' }),
+				h('div', { 'class': 'nf-pop-io' }, [ h('button', { type: 'button', text: 'Сбросить пороги', onclick: function (ev) { ev.stopPropagation(); set('ovThrCpu', DEFAULTS.ovThrCpu); set('ovThrTemp', DEFAULTS.ovThrTemp); set('ovThrMem', DEFAULTS.ovThrMem); renderOv(); } }) ]) ]);
+			var ord = String(prefs.ovOrder || DEFAULTS.ovOrder).split(',').filter(function (k) { return TILE_NAMES[k]; });
+			Object.keys(TILE_NAMES).forEach(function (k) { if (ord.indexOf(k) < 0) ord.push(k); });
+			function arrow(t, lbl, off, fn) { var o = { type: 'button', text: t, 'aria-label': lbl, onclick: function (ev) { ev.stopPropagation(); fn(); } }; if (off) o.disabled = 'disabled'; return h('button', o); }
+			function move(i, d) { var j = i + d; if (j < 0 || j >= ord.length) return; var t = ord[i]; ord[i] = ord[j]; ord[j] = t; set('ovOrder', ord.join(',')); renderOv(); }
+			ordBox.replaceChildren.apply(ordBox, [ h('div', { 'class': 'nf-pop-l', text: 'Порядок плиток «Сейчас»' }) ].concat(ord.map(function (k, i) {
+				return h('div', { 'class': 'nf-ord-row' }, [ h('span', { text: TILE_NAMES[k] }),
+					arrow('▲', 'Выше', i === 0, function () { move(i, -1); }), arrow('▼', 'Ниже', i === ord.length - 1, function () { move(i, 1); }) ]);
+			})).concat([ h('div', { 'class': 'nf-pop-io' }, [ h('button', { type: 'button', text: 'Порядок по умолчанию', onclick: function (ev) { ev.stopPropagation(); set('ovOrder', DEFAULTS.ovOrder); renderOv(); } }) ]) ]));
+		}
+		refs.renderOv = renderOv; renderOv();
 		var ovLay = h('div', { 'class': 'nf-pop-sec nf-desk' }, [ h('div', { 'class': 'nf-pop-l', text: 'Раскладка карточек' }), sw('ovWide', 'Один столбец (карточки на всю ширину)') ]
 			.concat(seg2('ovCols', 'Столбцов (без пустых мест)', [ [ '0', 'Авто' ], [ '1', '1' ], [ '2', '2' ], [ '3', '3' ] ], true))
 			.concat(seg2('ovSize', 'Размер карточек', [ [ 'sm', 'Компактные' ], [ 'md', 'Обычные' ], [ 'lg', 'Крупные' ] ], true)));
@@ -1367,7 +1403,7 @@
 				h('label', { 'class': 'nf-pop-row' }, [ h('span', { text: 'Выключать анимации на слабых телефонах' }), h('span', { 'class': 'cbi-checkbox' }, [ refs.liteAuto ]) ])
 			]),
 			pane('login', [ more ]),
-			pane('ov', [ ov, ovLay ]),
+			pane('ov', [ ov, ovLay, ordBox, thrBox ]),
 			pane('more', [
 				ui,
 				h('div', { 'class': 'nf-pop-sec' }, [
@@ -1405,7 +1441,7 @@
 		pop.addEventListener('input', function (ev) { if (ev.target.type === 'range') paintRange(ev.target); });
 		document.body.appendChild(pop);
 		var IC = { 'Стиль': 'style', 'Режим': 'mode', 'Цвет акцента': 'color', 'Фон': 'bg', 'Погода для фона': 'wx', 'Копия настроек': 'sync', 'О теме': 'info',
-			'Экран входа': 'login', 'Что показывать на «Обзоре»': 'ov', 'Раскладка карточек': 'ov', 'Интерфейс': 'ui', 'Карточки на входе': 'login', 'Поделиться темой': 'sync' };
+			'Экран входа': 'login', 'Что показывать на «Обзоре»': 'ov', 'Раскладка карточек': 'ov', 'Порядок плиток «Сейчас»': 'ov', 'Пороги цвета плиток': 'ov', 'Интерфейс': 'ui', 'Карточки на входе': 'login', 'Поделиться темой': 'sync' };
 		[].forEach.call(pop.querySelectorAll('.nf-pop-l'), function (l) { var k = IC[l.textContent.trim()]; if (k) l.setAttribute('data-ic', k); });
 		refreshPanel();
 	}
@@ -1821,6 +1857,7 @@
 	function refreshPanel() {
 		refreshQuick();
 		if (!pop) return;
+		if (refs.renderOv) refs.renderOv();
 
 		Object.keys(refs.mode).forEach(function (k) {
 			refs.mode[k].setAttribute('aria-pressed', String(prefs.mode === k));
