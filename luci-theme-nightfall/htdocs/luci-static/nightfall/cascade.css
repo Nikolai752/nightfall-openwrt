@@ -5910,3 +5910,14 @@ input[type="range"]::-webkit-slider-thumb { transition: box-shadow .15s, transfo
 input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.12); box-shadow: inset 0 0 0 4px var(--nf-accent), 0 0 0 5px color-mix(in srgb, var(--nf-accent) 22%, transparent); }
 input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.2); }
 input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: inset 0 0 0 5px var(--nf-accent), 0 0 0 5px color-mix(in srgb, var(--nf-accent) 30%, transparent); }
+
+/* ======== v1.10.5: полоска строки не перекрывает текст; подсказки портов не обрезаются ======== */
+html #view .nf-blk-r { padding-left: 12px; padding-right: 6px; margin: 0 -6px 0 -12px; }
+html #view .nf-blk-r:hover { box-shadow: inset 2px 0 0 var(--nf-accent); }
+html #view .table .tr:not(.table-titles):not(.cbi-section-table-titles):hover > .td:first-child { box-shadow: inset 2px 0 0 var(--nf-accent); }
+html .nfm .nfm-table tbody tr:hover td:first-child { box-shadow: inset 2px 0 0 var(--nf-accent); }
+@media (hover: hover) {
+	html #view > .cbi-section.fade-in:has(.ifacebox, .cbi-tooltip-container) { overflow: visible; }
+	html #view .cbi-section:has(.cbi-tooltip-container:hover), html #view .cbi-section:has(.ifacebox:hover) { z-index: 30; }
+	html #view .ifacebox .cbi-tooltip { z-index: 1200; }
+}
