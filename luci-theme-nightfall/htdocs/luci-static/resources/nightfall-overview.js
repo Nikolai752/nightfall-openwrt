@@ -380,7 +380,7 @@ function liveStrip() {
 		const cpu = lastOf(S.cpu);
 		setNum(R.cpuV, cpu != null ? nf0.format(cpu) + '%' : '–');
 		R.cpuS.textContent = 'нагрузка ' + d.load.map(v => nf2.format(v)).join(' · ');
-		setLvl(R.cpuV, cpu, 60, 85);
+		setLvl(R.cpuV, cpu, ...thr('cpu', 60, 85));
 		sp.cpu.update(S.t, [ S.cpu ], 100);
 
 		/* temperature */
@@ -391,14 +391,14 @@ function liveStrip() {
 			R.tempS.textContent = 'процессор';
 		}
 		else { R.tempV.textContent = '–'; R.tempS.textContent = 'нет датчика'; R.tempBadge.replaceChildren(); }
-		setLvl(R.tempV, t, 70, 85);
+		setLvl(R.tempV, t, ...thr('temp', 70, 85));
 		sp.temp.update(S.t, [ S.temp ], 100, 30);
 
 		/* memory */
 		const m = d.mem, used = m.total - m.avail;
 		setNum(R.memV, nf0.format(100 * used / m.total) + '%');
 		R.memS.textContent = nf0.format(used / 1024) + ' МБ из ' + nf0.format(m.total / 1024) + ' МБ';
-		setLvl(R.memV, 100 * used / m.total, 70, 88);
+		setLvl(R.memV, 100 * used / m.total, ...thr('mem', 70, 88));
 		sp.mem.update(S.t, [ S.mem ], 100);
 
 		SHARED.t = Date.now(); SHARED.cpu = cpu; SHARED.mem = 100 * used / m.total; SHARED.temp = t;
@@ -748,6 +748,12 @@ function decorateHosts(view) {
 }
 /* «Свободно» в памяти: чем больше свободного, тем лучше. Зелёный — запас есть, жёлтый — средне, красный — мало (обратно обычным полосам) */
 /* цвет линии по нагрузке: зелёный, жёлтый, красный */
+/* пороги цвета плиток из настроек темы (атрибут на <html>, «середина,плохо») */
+function thr(k, mid, bad) {
+	const p = (document.documentElement.getAttribute('data-nf-thr-' + k) || '').split(',').map(parseFloat);
+	return p.length === 2 && isFinite(p[0]) && isFinite(p[1]) && p[0] < p[1] ? p : [ mid, bad ];
+}
+
 function setLvl(el, v, mid, bad) {
 	const tile = el && el.closest ? el.closest('.nf-tile') : null;
 	if (tile) {
