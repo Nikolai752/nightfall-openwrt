@@ -459,6 +459,11 @@ const CSS = `
 .nfm-mon-d.has { background: color-mix(in srgb, var(--nfm-accent) var(--hv), color-mix(in srgb, var(--nfm-border) 45%, transparent)); }
 .nfm-mon-d.today { outline: 2px solid var(--nfm-accent); outline-offset: -2px; }
 @media (max-width: 600px) { .nfm-mon-d { min-height: 38px; padding: 3px; font-size: 9.5px; } }
+.nfm-wk { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.nfm-wk-t { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: 10px; background: var(--nfm-card2); min-width: 0; }
+.nfm-wk-t b { font-size: 20px; line-height: 1.2; overflow-wrap: anywhere; }
+.nfm-wk-l { font-size: 11.5px; opacity: .7; text-transform: uppercase; letter-spacing: .04em; }
+@media (max-width: 640px) { .nfm-wk { grid-template-columns: 1fr; } }
 .nfm-heat-grid { display: grid; grid-template-columns: 26px repeat(24, 1fr); gap: 3px; align-items: center; }
 .nfm-heat-h, .nfm-heat-d { font-size: 10.5px; opacity: .65; text-align: center; }
 .nfm-heat-d.today { opacity: 1; font-weight: 700; }
@@ -983,6 +988,48 @@ return view.extend({
 			}
 			heatBody.replaceChildren(grid, E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Среднее за последние 7 дней по часам. Тёмнее — меньше, ярче — больше (максимум ' + H[2](mx) + ').'));
 		}
+		/* ---- Сводка недели: пиковые часы, самое «тяжёлое» устройство, средний пинг ---- */
+		const wkBody = E('div', { class: 'nfm-wk' });
+		function renderWeek() {
+			const D = S.day;
+			if (!D || !D.h || !D.h.info || !D.h.info.started) { wkBody.replaceChildren(E('div', { class: 'nfm-empty' }, D ? 'Нет данных' : 'Загружаю…')); return; }
+			const hs = new Array(24).fill(0), hc = new Array(24).fill(0), byDay = {};
+			let ps = 0, pc = 0;
+			for (const r of D.h.rows || []) {
+				const d = new Date(r[0] * 1000), h = d.getHours();
+				if (r[4] >= 0 && r[5] >= 0) { hs[h] += r[4] + r[5]; hc[h]++; }
+				if (r[7] >= 0) { ps += r[7]; pc++; const k = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(), t = byDay[k] || (byDay[k] = [ 0, 0 ]); t[0] += r[7]; t[1]++; }
+			}
+			const av = hs.map((x, i) => hc[i] ? x / hc[i] : 0);
+			let bi = -1, bv = 0;
+			for (let i = 0; i < 24; i++) { const v = av[i] + av[(i + 1) % 24] + av[(i + 2) % 24]; if (v > bv) { bv = v; bi = i; } }
+			const hh = h => String(h % 24).padStart(2, '0') + ':00';
+			const peak = bi < 0 ? [ '—', 'нет данных о трафике' ] : [ hh(bi) + '–' + hh(bi + 3), 'в среднем ' + (bv / 3 * 8 / 1e6).toFixed(1) + ' Мбит/с' ];
+			/* тяжёлое устройство */
+			let heavy = [ '—', 'учёт по приложениям не включён или данных ещё нет' ];
+			const A = S.wkA;
+			if (A && (A.hist || A.day)) {
+				const t = String(A.today || ''), base = /^\d{8}$/.test(t) ? new Date(+t.slice(0, 4), +t.slice(4, 6) - 1, +t.slice(6, 8)) : new Date();
+				base.setDate(base.getDate() - 6);
+				const from = base.getFullYear() * 10000 + (base.getMonth() + 1) * 100 + base.getDate(), tot = {};
+				for (const [ ip, , d, u ] of A.day || []) tot[ip] = (tot[ip] || 0) + d + u;
+				for (const [ dt, ip, , d, u ] of A.hist || []) if (+dt >= from) tot[ip] = (tot[ip] || 0) + d + u;
+				const ips = Object.keys(tot).sort((x, y) => tot[y] - tot[x]);
+				if (ips.length) {
+					let nmv = ips[0];
+					for (const mac in hints) if ((hints[mac].ipaddrs || []).indexOf(ips[0]) >= 0) nmv = hints[mac].name || ips[0];
+					heavy = [ nmv, fmtBytes(tot[ips[0]]) + ' за неделю' + (ips[1] ? ' · дальше ' + fmtBytes(tot[ips[1]]) : '') ];
+				}
+			}
+			/* пинг */
+			let ping = [ '—', 'нет данных о задержке' ];
+			if (pc) {
+				const dk = Object.keys(byDay).sort(), worst = dk.reduce((w, k) => (!w || byDay[k][0] / byDay[k][1] > byDay[w][0] / byDay[w][1]) ? k : w, null);
+				ping = [ Math.round(ps / pc) + ' мс', worst && dk.length > 1 ? 'хуже всего ' + worst.slice(6, 8) + '.' + worst.slice(4, 6) + ' · ' + Math.round(byDay[worst][0] / byDay[worst][1]) + ' мс' : 'до интернета' ];
+			}
+			const tile = (ic, t, v, sub) => E('div', { class: 'nfm-wk-t' }, [ E('span', { class: 'nfm-wk-l' }, t), E('b', {}, v), E('span', { class: 'nfm-note-s' }, sub) ]);
+			wkBody.replaceChildren(tile('', 'Пик трафика', peak[0], peak[1]), tile('', 'Самое «тяжёлое» устройство', heavy[0], heavy[1]), tile('', 'Средний пинг', ping[0], ping[1]));
+		}
 		/* ---- Трафик по месяцам: календарь суточных итогов WAN ---- */
 		const monBody = E('div', { class: 'nfm-mon' });
 		const lim = () => { try { return Math.max(0, parseFloat(localStorage.getItem('nfm-limit-gb')) || 0); } catch (e) { return 0; } };
@@ -1033,6 +1080,7 @@ return view.extend({
 			histNote,
 			E('div', { class: 'nfm-grid' }, [ card([ 'Сводка за день', E('span', { class: 'nfm-spacer' }), E('span', { class: 'nfm-note-s' }, 'с 00:00 по данным сборщика') ], dayBody) ]),
 			E('div', { class: 'nfm-grid' }, [ card('Качество Wi‑Fi по клиентам', wqBody) ]),
+			E('div', { class: 'nfm-grid' }, [ card([ 'Сводка недели', E('span', { class: 'nfm-spacer' }), E('span', { class: 'nfm-note-s' }, 'последние 7 дней') ], wkBody) ]),
 			E('div', { class: 'nfm-grid' }, [ card('Трафик по месяцам', monBody) ]),
 			E('div', { class: 'nfm-grid' }, [ card([ 'Тепловая карта по часам', E('span', { class: 'nfm-spacer' }), heatTabs ], heatBody) ]),
 			E('div', { class: 'nfm-grid' }, [
@@ -1219,6 +1267,7 @@ return view.extend({
 			if (S.tab === 'hist' && due('hist', HIST_EVERY * INTERVAL)) jobs.push(callHistory([ 'series', RANGES[S.range][0] ]).then(r => { S.hist = r; }));
 			if (S.tab === 'hist' && due('tr', 300)) jobs.push(callHistory([ 'traffic' ]).then(r => { S.tr = r; }));
 			if (S.tab === 'hist' && due('day', 60)) jobs.push(Promise.all([ callHistory([ 'series', 'coarse' ]), callHistory([ 'devices' ]) ]).then(r => { S.day = { h: r[0], d: r[1] }; }));
+			if (S.tab === 'hist' && due('wkA', 300)) jobs.push(callHistory([ 'apps' ]).then(r => { S.wkA = r || null; }));
 			if (S.tab === 'hist' && due('wq', 60)) jobs.push(callHistory([ 'wifi' ]).then(r => { S.wq = r || null; }));
 			if (S.tab === 'net' && due('chan', DEVICES_EVERY * INTERVAL)) jobs.push(callHistory([ 'channel' ]).then(r => { S.chan = r; }));
 			if (S.tab === 'hist' && due('jrn', 30)) jobs.push(callHistory([ 'journal' ]).then(r => { S.jrn = r; }));
@@ -1930,7 +1979,7 @@ return view.extend({
 			renderAlerts();
 			if (S.tab === 'net') { renderDevices(); renderChannel(); }
 			if (S.tab === 'svcs') renderServices();
-			if (S.tab === 'hist') { renderHist(); renderDay(); renderHeat(); renderMon(); renderWq(); renderJournal(); renderSpeed(); renderFlash(); }
+			if (S.tab === 'hist') { renderHist(); renderDay(); renderHeat(); renderWeek(); renderMon(); renderWq(); renderJournal(); renderSpeed(); renderFlash(); }
 
 			/* overheating banner */
 			const hot = hotInfo();
