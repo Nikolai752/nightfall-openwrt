@@ -101,6 +101,10 @@ wifi)
 	if [ -r "$DIR/wifi.ev" ]; then tail -n 200 "$DIR/wifi.ev" | awk -v mac="$2" 'BEGIN { printf "[" } mac == "" || $2 == mac { printf "%s[%s,\"%s\",\"%s\",\"%s\"]", (n++ ? "," : ""), $1, $2, $3, $4 } END { printf "]" }'; else printf '[]'; fi
 	printf ',"info":'; info_json
 	printf '}\n' ;;
+traffic)
+	printf '{"now":%s,"persist":%s,"rows":[' "$now" "$([ -n "$(sed -n 's/^PERSIST_DIR=\(.\)/\1/p' /etc/nightfall-monitor.conf 2>/dev/null | head -n 1)" ] && echo 1 || echo 0)"
+	[ -r "$DIR/traffic.daily" ] && awk 'NF >= 3 && $1 ~ /^[0-9]{8}$/ { printf "%s[\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3 }' "$DIR/traffic.daily"
+	printf ']}\n' ;;
 alerts)
 	printf '{"now":%s,"active":' "$now"
 	active_json
@@ -108,6 +112,6 @@ alerts)
 	printf ',"info":'; info_json
 	printf '}\n' ;;
 *)
-	echo "usage: nightfall-history series fine|coarse | devices | apps | channel | journal | speed | wifi [MAC] | alerts" >&2
+	echo "usage: nightfall-history series fine|coarse | devices | apps | channel | journal | speed | wifi [MAC] | traffic | alerts" >&2
 	exit 1 ;;
 esac

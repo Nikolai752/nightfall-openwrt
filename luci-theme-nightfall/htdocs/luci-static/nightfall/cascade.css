@@ -5776,3 +5776,14 @@ html[data-nf-motion="off"] .nf-board { animation: none; }
 @media (min-width: 900px) { .nf-bd-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); width: min(100%, 1500px); } }
 .nf-bd-c[data-k="wan"] .nf-bd-n { font-size: clamp(18px, 3.4vmin, 40px); }
 .nf-bd-n { min-width: 0; line-height: 1.15; overflow-wrap: anywhere; }
+
+/* QR Wi-Fi */
+.nf-qr-ov { position: fixed; inset: 0; z-index: 3900; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0,0,0,.55); backdrop-filter: blur(6px); }
+.nf-qr-box { width: min(560px, 100%); max-height: 92vh; overflow: auto; border-radius: 16px; padding: 16px; background: var(--nf-card, #1c2230); color: var(--nf-text, #e8ecf4); border: 1px solid var(--nf-border, rgba(255,255,255,.12)); box-shadow: 0 20px 60px rgba(0,0,0,.45); }
+.nf-qr-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.nf-qr-body { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+.nf-qr-card { flex: 1 1 200px; max-width: 240px; text-align: center; }
+.nf-qr-svg { width: 100%; height: auto; border-radius: 10px; display: block; }
+.nf-qr-ssid { margin-top: 6px; font-weight: 600; word-break: break-all; }
+.nf-qr-sub, .nf-qr-note { opacity: .65; font-size: 12px; margin-top: 2px; }
+.nf-qr-note { margin-top: 12px; text-align: center; }
