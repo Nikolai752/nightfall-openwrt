@@ -1992,3 +1992,57 @@
 
 	window.Nightfall = { prefs: function () { return Object.assign({}, prefs); }, set: set, accents: ACCENTS };
 })();
+
+/* v1.10.4: скользящая «пилюля» под активным пунктом меню и вкладкой Монитора, заливка дорожки ползунков */
+(function () {
+	'use strict';
+	var hoverOk = window.matchMedia && window.matchMedia('(hover: hover)').matches;
+
+	function pill(box, itemSel, activeSel, follow) {
+		if (box.__nfPill) return;
+		var p = document.createElement('span');
+		p.className = 'nf-pill'; p.setAttribute('aria-hidden', 'true');
+		box.insertBefore(p, box.firstChild);
+		box.__nfPill = p;
+		var shown = false, queued = false;
+		function place(el) {
+			if (!el || !box.offsetParent || !el.offsetParent) { p.removeAttribute('data-on'); box.removeAttribute('data-pill'); shown = false; return; }
+			var cr = box.getBoundingClientRect(), er = el.getBoundingClientRect();
+			if (!er.width) return;
+			box.setAttribute('data-pill', '1');
+			p.style.width = er.width + 'px'; p.style.height = er.height + 'px';
+			p.style.transform = 'translate(' + (er.left - cr.left - box.clientLeft + box.scrollLeft) + 'px,' + (er.top - cr.top - box.clientTop + box.scrollTop) + 'px)';
+			if (!shown) { p.style.transition = 'none'; void p.offsetWidth; p.style.transition = ''; shown = true; }
+			p.setAttribute('data-on', '1');
+		}
+		function home() { place(box.querySelector(activeSel)); }
+		function later() { if (queued) return; queued = true; requestAnimationFrame(function () { queued = false; home(); }); }
+		if (follow && hoverOk) {
+			box.addEventListener('mouseover', function (ev) { var a = ev.target.closest && ev.target.closest('a'); if (a && a.parentNode && a.parentNode.parentNode === box) place(a); });
+			box.addEventListener('mouseleave', home);
+		}
+		new MutationObserver(function (m) { if (m.some(function (x) { return x.target !== p; })) later(); }).observe(box, { attributes: true, attributeFilter: ['class', 'hidden', 'style'], childList: true, subtree: true });
+		window.addEventListener('resize', later);
+		box.addEventListener('click', function () { setTimeout(home, 260); });
+		box.addEventListener('scroll', later, { passive: true });
+		home(); setTimeout(home, 300);
+	}
+
+	function range(r) {
+		var set = function () { var mn = +r.min || 0, mx = r.max === '' ? 100 : +r.max, v = +r.value; r.style.setProperty('--p', (mx > mn ? (v - mn) / (mx - mn) * 100 : 0) + '%'); };
+		set(); r.__nfRange = 1;
+	}
+
+	var q = false;
+	function scan() {
+		q = false;
+		document.querySelectorAll('.nfm-tabs:not(.nfm-diag-chips)').forEach(function (b) { pill(b, '.nfm-tab', '.nfm-tab.on', false); });
+		var nav = document.querySelector('header ul.nav:not(.dropdown-menu)');
+		if (nav) pill(nav, 'a', ':scope > li.active > a', true);
+		document.querySelectorAll('input[type="range"]').forEach(function (r) { if (!r.__nfRange) range(r); });
+	}
+	function sched() { if (!q) { q = true; requestAnimationFrame(scan); } }
+	document.addEventListener('input', function (ev) { var r = ev.target; if (r && r.type === 'range') range(r); }, true);
+	function start() { scan(); new MutationObserver(sched).observe(document.body, { childList: true, subtree: true }); }
+	if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+})();
