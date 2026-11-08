@@ -5746,3 +5746,33 @@ html[data-nf-ov-badges="on"] .nf-live-grid .nf-tile[data-lvl="bad"] { box-shadow
 html[data-nf-ov-badges="on"] .nf-live-grid .nf-tile[data-lvl="mid"] { box-shadow: 0 0 0 1px color-mix(in srgb, #e0a800 45%, transparent); }
 @media (hover: none) { html .nf-live-grid .nf-tile:hover { transform: none; } }
 html[data-nf-motion="off"] .nf-live-grid .nf-tile:hover { transform: none; }
+
+/* ======== значки: градиентные и крупные (Вид → Значки) ======== */
+html[data-nf-ic="duo"] .nf-ci { background: linear-gradient(135deg, var(--nf-accent), color-mix(in srgb, var(--nf-accent) 45%, #c026d3)); }
+html[data-nf-ic="big"] .nf-ci { width: 22px; height: 22px; vertical-align: -5px; }
+html[data-nf-ic="big"] .nfm-tab.nfm-ti::before { width: 17px; height: 17px; }
+
+/* ======== анимированный логотип на экране входа ======== */
+@keyframes nf-logo-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--nf-accent) 55%, transparent), 0 0 0 0 color-mix(in srgb, var(--nf-accent) 35%, transparent); } 70% { box-shadow: 0 0 0 16px transparent, 0 0 0 0 color-mix(in srgb, var(--nf-accent) 35%, transparent); } 100% { box-shadow: 0 0 0 16px transparent, 0 0 0 30px transparent; } }
+html:not([data-nf-motion="off"]) body.nf-blank .modal.login::before { animation: nf-logo-pulse 3.2s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { body.nf-blank .modal.login::before { animation: none !important; } }
+
+/* ======== Табло ======== */
+.nf-board { position: fixed; inset: 0; z-index: 4000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2vh; padding: 4vh 4vw; cursor: pointer; color: var(--nf-text);
+	background: color-mix(in srgb, var(--nf-bg, #101218) 72%, transparent); -webkit-backdrop-filter: blur(26px) saturate(1.3); backdrop-filter: blur(26px) saturate(1.3); animation: nf-bd-in .35s ease both; }
+@keyframes nf-bd-in { from { opacity: 0; transform: scale(1.03); } to { opacity: 1; transform: none; } }
+.nf-bd-x { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 14px); right: 18px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--nf-stroke-strong, rgba(128,128,128,.35)); background: transparent; color: inherit; font-size: 18px; cursor: pointer; }
+.nf-bd-clock { font-size: clamp(64px, 20vmin, 220px); font-weight: 200; letter-spacing: -.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+.nf-bd-date { font-size: clamp(16px, 3.2vmin, 34px); color: var(--nf-text-dim); margin-bottom: 3vh; }
+.nf-bd-date::first-letter { text-transform: uppercase; }
+.nf-bd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: clamp(10px, 2vmin, 24px); width: min(100%, 1200px); }
+.nf-bd-c { padding: clamp(12px, 2.4vmin, 28px); border-radius: calc(var(--nf-radius, 10px) + 6px); background: color-mix(in srgb, var(--nf-card, #1c1f27) 78%, transparent); border: 1px solid var(--nf-stroke, rgba(128,128,128,.2)); text-align: center; }
+.nf-bd-t { font-size: clamp(12px, 2vmin, 20px); color: var(--nf-text-dim); }
+.nf-bd-n { font-size: clamp(26px, 6.4vmin, 72px); font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; margin: .15em 0; }
+.nf-bd-s { font-size: clamp(11px, 1.8vmin, 18px); color: var(--nf-text-dim); min-height: 1.2em; }
+.nf-bd-c[data-lvl="mid"] .nf-bd-n { color: #e0a800; }
+.nf-bd-c[data-lvl="bad"] .nf-bd-n { color: #d13438; }
+html[data-nf-motion="off"] .nf-board { animation: none; }
+@media (min-width: 900px) { .nf-bd-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); width: min(100%, 1500px); } }
+.nf-bd-c[data-k="wan"] .nf-bd-n { font-size: clamp(18px, 3.4vmin, 40px); }
+.nf-bd-n { min-width: 0; line-height: 1.15; overflow-wrap: anywhere; }

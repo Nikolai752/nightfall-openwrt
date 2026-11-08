@@ -278,7 +278,8 @@ function liveStrip() {
 			E('span', {}, 'Сейчас'),
 			E('span', { class: 'nf-live-acts' }, [
 				R.cols = E('span', { class: 'nf-colsel', title: 'Сколько столбцов карточек на «Обзоре»; карточки плотно, без пустых мест' }, [ E('span', {}, 'Столбцы:') ].concat([ [ '0', 'Авто' ], [ '1', '1' ], [ '2', '2' ], [ '3', '3' ] ].map(c => E('button', { type: 'button', class: 'nf-linkbtn', 'data-c': c[0] }, c[1])))),
-				R.reset = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Вернуть порядок карточек по умолчанию' }, 'Сбросить порядок карточек')
+				R.reset = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Вернуть порядок карточек по умолчанию' }, 'Сбросить порядок карточек'),
+				R.boardBtn = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Полноэкранное табло: время, скорость, пинг, нагрузка' }, 'Табло')
 			])
 		]),
 		E('div', { class: 'nf-live-grid' }, [
@@ -294,6 +295,43 @@ function liveStrip() {
 				R.memV = E('div', { class: 'nf-tile-v' }, '–'), R.memS = E('div', { class: 'nf-tile-s' }, ' '), sp.mem.el)
 		])
 	]);
+
+	/* режим «Табло»: крупные часы и показатели на весь экран (планшет на полке, второй монитор) */
+	let boardEl = null, boardTimer = 0;
+	const txt = el => (el && el.textContent || '').trim() || '–';
+	function closeBoard() {
+		if (!boardEl) return;
+		clearInterval(boardTimer); boardEl.remove(); boardEl = null;
+		if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+	}
+	function openBoard() {
+		if (boardEl) return;
+		const val = E('div', { class: 'nf-bd-v' }), clock = E('div', { class: 'nf-bd-clock' }), date = E('div', { class: 'nf-bd-date' });
+		const cell = (k, title) => { const v = E('div', { class: 'nf-bd-n' }), s = E('div', { class: 'nf-bd-s' }); return { k, v, s, el: E('div', { class: 'nf-bd-c', 'data-k': k }, [ E('div', { class: 'nf-bd-t' }, title), v, s ]) }; };
+		const cells = [ cell('net', 'Интернет'), cell('wan', 'Трафик'), cell('cpu', 'Процессор'), cell('temp', 'Температура'), cell('mem', 'Память') ];
+		boardEl = E('div', { class: 'nf-board', role: 'dialog', 'aria-label': 'Табло' }, [
+			E('button', { type: 'button', class: 'nf-bd-x', 'aria-label': 'Закрыть' }, '✕'), clock, date,
+			E('div', { class: 'nf-bd-grid' }, cells.map(c => c.el)) ]);
+		const tick = () => {
+			const d = new Date();
+			clock.textContent = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+			date.textContent = d.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
+			const src = { net: [ R.netV, R.netS ], wan: [ R.wanV, R.wanS ], cpu: [ R.cpuV, R.cpuS ], temp: [ R.tempV, R.tempS ], mem: [ R.memV, R.memS ] };
+			cells.forEach(c => {
+				c.v.textContent = txt(src[c.k][0]); c.s.textContent = txt(src[c.k][1]) === '–' ? '' : txt(src[c.k][1]);
+				const t = document.querySelector('.nf-tile[data-tile="' + c.k + '"]');
+				c.el.setAttribute('data-lvl', t && t.getAttribute('data-lvl') || '');
+			});
+		};
+		tick(); boardTimer = setInterval(tick, 1000);
+		boardEl.addEventListener('click', closeBoard);
+		document.body.appendChild(boardEl);
+		const rq = boardEl.requestFullscreen || boardEl.webkitRequestFullscreen;
+		if (rq) { try { const p = rq.call(boardEl); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+	}
+	document.addEventListener('keydown', ev => { if (ev.key === 'Escape') closeBoard(); });
+	document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) closeBoard(); });
+	R.boardBtn.addEventListener('click', openBoard);
 
 	const paintCols = () => { const cur = document.documentElement.getAttribute('data-nf-ov-cols') || '0'; R.cols.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.getAttribute('data-c') === cur)); };
 	R.cols.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('button[data-c]'); if (!b) return; if (window.Nightfall && window.Nightfall.set) window.Nightfall.set('ovCols', b.getAttribute('data-c')); paintCols(); window.setTimeout(() => window.dispatchEvent(new Event('resize')), 60); });

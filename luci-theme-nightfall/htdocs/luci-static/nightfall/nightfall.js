@@ -9,7 +9,7 @@
 
 	var KEY = 'nightfall-prefs-v1';
 	var root = document.documentElement;
-	var DEFAULTS = { ovThrCpu: '60,85', ovThrTemp: '70,85', ovThrMem: '70,88', ovOrder: 'net,wan,cpu,temp,mem', swipe: true, mode: 'auto', accent: '', motion: true, liteAuto: true, loginCells: [ 'net', 'up', 'fw' ], loginLogo: false, ovWide: false, ovCols: '0', bg: 'mica', bgScale: 100,
+	var DEFAULTS = { fontFam: '', icStyle: 'line', ovThrCpu: '60,85', ovThrTemp: '70,85', ovThrMem: '70,88', ovOrder: 'net,wan,cpu,temp,mem', swipe: true, mode: 'auto', accent: '', motion: true, liteAuto: true, loginCells: [ 'net', 'up', 'fw' ], loginLogo: false, ovWide: false, ovCols: '0', bg: 'mica', bgScale: 100,
 		density: 'normal', font: 'md', radius: 'md', glass: 'on', loginClock: true, loginInfo: true, loginBg: 'mica', ovLive: true, ovBadges: true,
 		style: '', preset: 'win11', navMini: false, schedule: false, nightFrom: '20:00', dayFrom: '07:00', netBar: true, constLogin: true, constApp: false, constKind: 'net',
 		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, chart: 'area', chartSmooth: true, chartPal: 'accent', chartW: '2', chartGrid: true, chartThr: false, chartShine: true, ovRing: true, wxLat: '', wxLon: '', cusOn: false, cusBg: '', cusCard: '', cusText: '', cusRadius: 0, cusFont: '', cusShadow: '', loginPhoto: false, ovTop: true, ovApps: true, ovBlock: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
@@ -1056,6 +1056,13 @@
 		mono: 'var(--font-mono)' };
 	var CUS_SHADOWS = { none: 'none', soft: '0 2px 10px rgba(0, 0, 0, .08)', deep: '0 10px 30px rgba(0, 0, 0, .22), 0 2px 6px rgba(0, 0, 0, .12)' };
 	function hex6(v) { return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v : ''; }
+	/* шрифт и вид значков — отдельные настройки, работают с любой темой */
+	function applyFont() {
+		var f = prefs.fontFam;
+		if (f && CUS_FONTS[f]) root.style.setProperty('--font-sans', CUS_FONTS[f]);
+		else if (!(prefs.cusOn && CUS_FONTS[prefs.cusFont]) && !CUS_FONTS[prefs.cusFont]) root.style.removeProperty('--font-sans');
+		root.setAttribute('data-nf-ic', pick(prefs.icStyle, [ 'line', 'duo', 'big' ], 'line'));
+	}
 	function applyCustom() {
 		var st = root.style;
 		CUS_VARS.forEach(function (n) { st.removeProperty(n); });
@@ -1122,7 +1129,7 @@
 		img.src = url;
 	}
 
-	function applyAll() { applyMode(); applyMotion(); applyBg(); applyLook(); applyCustom(); applyPhoto(); syncConst(); try { document.dispatchEvent(new CustomEvent('nf-prefs')); } catch (e) { /* старый браузер */ } }
+	function applyAll() { applyMode(); applyMotion(); applyBg(); applyLook(); applyCustom(); applyFont(); applyPhoto(); syncConst(); try { document.dispatchEvent(new CustomEvent('nf-prefs')); } catch (e) { /* старый браузер */ } }
 
 	var txTimer;
 	function themeFade() {
@@ -1135,7 +1142,7 @@
 	function set(key, value) {
 		if (key !== 'wxLat' && key !== 'wxLon') themeFade();
 		prefs[key] = value;
-		if (key !== 'preset' && key !== 'schedule' && key !== 'nightFrom' && key !== 'dayFrom' && key !== 'mode' && key !== 'navMini' && key !== 'netBar' && key !== 'swipe' && key.indexOf('login') !== 0 && key.indexOf('const') !== 0 && key.indexOf('ov') !== 0) prefs.preset = '';
+		if (key !== 'preset' && key !== 'schedule' && key !== 'nightFrom' && key !== 'dayFrom' && key !== 'mode' && key !== 'navMini' && key !== 'netBar' && key !== 'swipe' && key !== 'fontFam' && key !== 'icStyle' && key.indexOf('login') !== 0 && key.indexOf('const') !== 0 && key.indexOf('ov') !== 0) prefs.preset = '';
 		save();
 		applyAll();
 		refreshPanel();
@@ -1233,6 +1240,8 @@
 		var look = [].concat(
 			seg2('density', 'Плотность', [ [ 'normal', 'Обычная' ], [ 'compact', 'Компактная' ] ]),
 			seg2('font', 'Размер текста', [ [ 'sm', 'Мельче' ], [ 'md', 'Обычный' ], [ 'lg', 'Крупнее' ] ]),
+			seg2('fontFam', 'Шрифт', [ [ '', 'Как у темы' ], [ 'system', 'Системный' ], [ 'rounded', 'Округлый' ], [ 'humanist', 'Гуманист' ], [ 'serif', 'С засечками' ], [ 'mono', 'Моно' ] ], true),
+			seg2('icStyle', 'Значки', [ [ 'line', 'Линейные' ], [ 'duo', 'Градиент' ], [ 'big', 'Крупные' ] ]),
 			seg2('radius', 'Скругление углов', [ [ 'sharp', 'Острые' ], [ 'md', 'Средние' ], [ 'round', 'Круглые' ] ]),
 			seg2('glass', 'Стекло и размытие', [ [ 'on', 'Включено' ], [ 'off', 'Выключено' ] ]),
 			seg2('chart', 'Графики', [ [ 'area', 'Заливка' ], [ 'line', 'Линия' ], [ 'bars', 'Столбики' ], [ 'step', 'Ступени' ] ], true),
@@ -1434,7 +1443,7 @@
 					refs.ver = h('div', { 'class': 'nf-ver' }),
 					h('label', { 'class': 'nf-pop-row' }, [ h('span', { text: 'Проверять обновления раз в неделю' }), h('span', { 'class': 'cbi-checkbox' }, [ refs.upd = h('input', { type: 'checkbox', onchange: function (ev) { set('updCheck', ev.target.checked); } }) ]) ]),
 					h('div', { 'class': 'nf-pop-io' }, [
-						h('button', { type: 'button', text: 'Проверить сейчас', onclick: function () { checkUpdate(true); } }),
+						h('button', { type: 'button', text: 'Проверить', onclick: function () { checkUpdate(true); } }),
 						h('a', { 'class': 'nf-pop-btn', href: 'https://github.com/' + REPO + '/releases', target: '_blank', rel: 'noopener', text: 'Страница релизов' })
 					]),
 					refs.updNote = h('div', { 'class': 'nf-pop-ionote', role: 'status' })
@@ -1878,7 +1887,7 @@
 		if (refs.wxSec) refs.wxSec.hidden = prefs.bg !== 'weather';
 		if (refs.wxLat) { refs.wxLat.value = prefs.wxLat || ''; refs.wxLon.value = prefs.wxLon || ''; }
 		refs.color.value = hexToRgb(prefs.accent) ? prefs.accent : '#0067c0';
-		[ [ 'density', 'normal' ], [ 'font', 'md' ], [ 'radius', 'md' ], [ 'glass', 'on' ], [ 'chart', 'area' ], [ 'chartPal', 'accent' ], [ 'chartW', '2' ], [ 'loginBg', 'mica' ], [ 'constKind', 'net' ], [ 'glassTone', 'auto' ], [ 'ovSize', 'md' ] ].forEach(function (k) {
+		[ [ 'density', 'normal' ], [ 'font', 'md' ], [ 'fontFam', '' ], [ 'icStyle', 'line' ], [ 'radius', 'md' ], [ 'glass', 'on' ], [ 'chart', 'area' ], [ 'chartPal', 'accent' ], [ 'chartW', '2' ], [ 'loginBg', 'mica' ], [ 'constKind', 'net' ], [ 'glassTone', 'auto' ], [ 'ovSize', 'md' ] ].forEach(function (k) {
 			Object.keys(refs[k[0]]).forEach(function (v) { refs[k[0]][v].setAttribute('aria-pressed', String((prefs[k[0]] || k[1]) === v)); });
 		});
 		Object.keys(refs.preset).forEach(function (k) { refs.preset[k].setAttribute('aria-pressed', String(prefs.preset === k)); });
