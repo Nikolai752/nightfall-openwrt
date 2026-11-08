@@ -5661,3 +5661,17 @@ html[data-nf-motion="off"][data-nf-bg="garland"] body::after, html[data-nf-motio
 .nf-pop .nf-thr-row input { width: 62px; height: 30px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--nf-border, rgba(128,128,128,.3)); background: transparent; color: inherit; text-align: center; }
 .nf-pop .nf-thr-d { width: 8px; height: 8px; border-radius: 50%; background: #e0a800; }
 .nf-pop .nf-thr-d.bad { background: #d13438; }
+
+/* узкие экраны (iPhone SE/XR и меньше): «Сохранить и применить» на отдельной строке, остальное — две половины */
+@media (max-width: 430px) {
+	html body .cbi-page-actions, html body #view > .cbi-page-actions, html body #cbi-tachyon ~ .cbi-page-actions { flex-wrap: wrap !important; }
+	html body .cbi-page-actions > .cbi-button-apply, html body .cbi-page-actions > .cbi-dropdown, html body .cbi-page-actions > .cbi-button-primary,
+	html body #view > .cbi-page-actions > .cbi-button-apply, html body #view > .cbi-page-actions > .cbi-dropdown, html body #view > .cbi-page-actions > .cbi-button-primary { flex: 1 1 100% !important; }
+	html body .cbi-page-actions > .cbi-button-save, html body .cbi-page-actions > .cbi-button-reset, html body .cbi-page-actions > .cbi-button-negative,
+	html body #view > .cbi-page-actions > .cbi-button-save, html body #view > .cbi-page-actions > .cbi-button-reset, html body #view > .cbi-page-actions > .cbi-button-negative { flex: 1 1 calc(50% - 6px) !important; }
+	html body .cbi-page-actions .cbi-dropdown > ul > li:first-child { white-space: nowrap !important; }
+}
+/* кнопки сетки настроек: текст не переносится по буквам */
+.nf-pop .nf-seg.nf-seg-grid button { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: calc(12.5px * var(--nf-fsz, 1)); padding-left: 4px; padding-right: 4px; }
+.nf-pop .nf-pop-io button { width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nf-pop .nf-pop-io:has(> button:only-child) { grid-template-columns: 1fr; }
