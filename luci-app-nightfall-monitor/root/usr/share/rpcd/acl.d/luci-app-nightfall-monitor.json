@@ -23,8 +23,14 @@
 				],
 				"/usr/libexec/nightfall-block": [
 					"exec"
+				],
+				"/usr/libexec/nightfall-diag": [
+					"exec"
 				]
 			},
+			"uci": [
+				"wireless"
+			],
 			"ubus": {
 				"system": [
 					"board"
