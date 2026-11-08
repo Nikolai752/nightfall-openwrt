@@ -5852,3 +5852,15 @@ html .nf-live-acts .nf-linkbtn:focus-visible { border-color: var(--nf-accent); }
 html .nf-colsel .nf-linkbtn { padding: 3px 9px; }
 html .nf-colsel .nf-linkbtn.on { background: color-mix(in srgb, var(--nf-accent) 26%, transparent) !important; border-color: color-mix(in srgb, var(--nf-accent) 45%, transparent); }
 html[data-nf-motion="off"] .nf-live-acts .nf-linkbtn { transition: none; }
+
+/* ======== v1.10.3: единая подсветка при наведении, как в Мониторе, теперь на Обзоре и других страницах ======== */
+html { --nf-hl-line: color-mix(in srgb, var(--nf-accent) 45%, transparent); --nf-hl-glow: 0 10px 30px -16px color-mix(in srgb, var(--nf-accent) 65%, transparent); --nf-hl-ring: 0 0 0 3px color-mix(in srgb, var(--nf-accent) 22%, transparent); }
+html #view .cbi-section, html #view fieldset.cbi-section, html #view .nfm-card, html #view .nf-tile { transition: border-color .25s ease, box-shadow .25s ease, transform .25s ease; }
+html #view > .cbi-section:hover, html #view > fieldset.cbi-section:hover, html #view .cbi-section[data-nf-card]:hover, html #view .nfm-card:hover, html #view .nf-live-grid .nf-tile:hover {
+	border-color: var(--nf-hl-line) !important; box-shadow: var(--nf-hl-glow), inset 0 0 0 1px color-mix(in srgb, var(--nf-accent) 14%, transparent) !important;
+}
+html #view .cbi-button:hover:not([disabled]):not(.nf-linkbtn), html #view button.btn:hover:not([disabled]) { border-color: var(--nf-hl-line); box-shadow: 0 6px 18px -10px var(--nf-accent); }
+html #view input:focus, html #view select:focus, html #view textarea:focus, html #view .cbi-dropdown:focus-within { border-color: var(--nf-accent) !important; box-shadow: var(--nf-hl-ring) !important; outline: none; }
+html .nf-pop button:hover:not(.on):not([disabled]) { box-shadow: inset 0 0 0 1px var(--nf-hl-line); }
+html #view .ifacebox:hover, html #view .nf-tile:focus-visible, html #view .nfm-card:focus-within { border-color: var(--nf-hl-line); }
+@media (hover: none) { html #view > .cbi-section:hover, html #view .nfm-card:hover { box-shadow: none !important; border-color: inherit !important; } }
