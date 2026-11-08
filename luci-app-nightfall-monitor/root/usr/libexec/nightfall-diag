@@ -1,0 +1,28 @@
+#!/bin/sh
+# Nightfall: сетевая диагностика из Монитора ресурсов.
+#   nightfall-diag ping ХОСТ   — 4 пакета, сводка
+#   nightfall-diag trace ХОСТ  — маршрут до узла (traceroute, если установлен)
+#   nightfall-diag dns ХОСТ    — разрешение имени через DNS роутера
+# Узел проверяется строго: только буквы, цифры, точка, двоеточие, дефис (не больше 253 знаков, не начинается с «-»).
+cmd=$1; host=$2
+case "$host" in ''|-*|*[!A-Za-z0-9._:-]*) echo "Некорректный адрес узла"; exit 2 ;; esac
+[ "${#host}" -le 253 ] || { echo "Слишком длинный адрес"; exit 2; }
+case "$cmd" in
+ping)
+	command -v ping >/dev/null 2>&1 || { echo "Не найден ping"; exit 1; }
+	ping -c 4 -W 2 "$host" 2>&1 ;;
+trace)
+	if command -v traceroute >/dev/null 2>&1; then
+		traceroute -n -w 2 -q 1 -m 15 "$host" 2>&1
+	else
+		echo "Не установлен traceroute. Установите: apk add traceroute (или opkg install traceroute)"
+	fi ;;
+dns)
+	command -v nslookup >/dev/null 2>&1 || { echo "Не найден nslookup"; exit 1; }
+	s=$(date +%s%N 2>/dev/null)
+	nslookup "$host" 2>&1
+	e=$(date +%s%N 2>/dev/null)
+	case "$s$e" in *N*|'') ;; *) echo; echo "Время ответа: $(( (e - s) / 1000000 )) мс" ;; esac ;;
+*)
+	echo "usage: nightfall-diag ping|trace|dns ХОСТ" >&2; exit 1 ;;
+esac
