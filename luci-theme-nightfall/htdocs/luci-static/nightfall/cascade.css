@@ -5716,10 +5716,24 @@ html[data-nf-bg="city"] body::before, html[data-nf-bg="city"] body::after, html[
 html[data-nf-bg="space"] body::before, html[data-nf-bg="space"] body::after, html[data-nf-login-bg="space"] body.nf-blank::before, html[data-nf-login-bg="space"] body.nf-blank::after,
 html[data-nf-bg="lava"] body::before, html[data-nf-bg="lava"] body::after, html[data-nf-login-bg="lava"] body.nf-blank::before, html[data-nf-login-bg="lava"] body.nf-blank::after,
 html[data-nf-bg="cyber"] body::before, html[data-nf-bg="cyber"] body::after, html[data-nf-login-bg="cyber"] body.nf-blank::before, html[data-nf-login-bg="cyber"] body.nf-blank::after { animation: none !important; } }
-html[data-nf-login-bg="mountains"] body.nf-blank,html[data-nf-login-bg="city"] body.nf-blank,html[data-nf-login-bg="space"] body.nf-blank,html[data-nf-login-bg="lava"] body.nf-blank,html[data-nf-login-bg="cyber"] body.nf-blank { background: linear-gradient(180deg, #0d1330 0%, #1b1647 55%, #2b1a4d 100%); }
-html[data-nf-login-bg="space"] body.nf-blank { background: #070a1c; }
-html[data-nf-login-bg="lava"] body.nf-blank { background: #1a0a14; }
-html[data-nf-login-bg="cyber"] body.nf-blank { background: linear-gradient(180deg, #14002e 0%, #2a0a4a 60%, #4a0a5a 100%); }
+html[data-darkmode="true"][data-nf-login-bg="mountains"] body.nf-blank { background: linear-gradient(180deg, #0d1330 0%, #1b1647 55%, #2b1a4d 100%); }
+html:not([data-darkmode="true"])[data-nf-login-bg="mountains"] body.nf-blank { background: linear-gradient(180deg, #a9cdfb 0%, #d6e4fb 52%, #fde9d6 100%); }
+html:not([data-darkmode="true"])[data-nf-login-bg="mountains"] body.nf-blank::before, html:not([data-darkmode="true"])[data-nf-login-bg="mountains"] body.nf-blank::after { opacity: .8; }
+html[data-darkmode="true"][data-nf-login-bg="city"] body.nf-blank { background: linear-gradient(180deg, #0d1330 0%, #1b1647 55%, #2b1a4d 100%); }
+html:not([data-darkmode="true"])[data-nf-login-bg="city"] body.nf-blank { background: linear-gradient(180deg, #b9d3fa 0%, #dfe6fb 55%, #ffe6d4 100%); }
+html:not([data-darkmode="true"])[data-nf-login-bg="city"] body.nf-blank::before, html:not([data-darkmode="true"])[data-nf-login-bg="city"] body.nf-blank::after { opacity: .8; }
+html[data-darkmode="true"][data-nf-login-bg="space"] body.nf-blank { background: #070a1c; }
+html:not([data-darkmode="true"])[data-nf-login-bg="space"] body.nf-blank { background: linear-gradient(180deg, #e6e9ff 0%, #f1e8ff 100%); }
+html:not([data-darkmode="true"])[data-nf-login-bg="space"] body.nf-blank::before, html:not([data-darkmode="true"])[data-nf-login-bg="space"] body.nf-blank::after { opacity: .8; }
+html[data-darkmode="true"][data-nf-login-bg="lava"] body.nf-blank { background: #1a0a14; }
+html:not([data-darkmode="true"])[data-nf-login-bg="lava"] body.nf-blank { background: linear-gradient(180deg, #fff2e4 0%, #ffe0d1 100%); }
+html:not([data-darkmode="true"])[data-nf-login-bg="lava"] body.nf-blank::before, html:not([data-darkmode="true"])[data-nf-login-bg="lava"] body.nf-blank::after { opacity: .8; }
+html[data-darkmode="true"][data-nf-login-bg="cyber"] body.nf-blank { background: linear-gradient(180deg, #14002e 0%, #2a0a4a 60%, #4a0a5a 100%); }
+html:not([data-darkmode="true"])[data-nf-login-bg="cyber"] body.nf-blank { background: linear-gradient(180deg, #ffe7f6 0%, #e4dbff 60%, #d3e9ff 100%); }
+html:not([data-darkmode="true"])[data-nf-login-bg="cyber"] body.nf-blank::before, html:not([data-darkmode="true"])[data-nf-login-bg="cyber"] body.nf-blank::after { opacity: .8; }
+html:not([data-darkmode="true"])[data-nf-login-bg="space"] body.nf-blank::after { filter: invert(1); opacity: .35; }
+html:not([data-darkmode="true"])[data-nf-login-bg="space"] body.nf-blank::before { opacity: .9; }
+html:not([data-darkmode="true"])[data-nf-login-bg="cyber"] body.nf-blank::after { opacity: .9; filter: saturate(1.2) brightness(.85); }
 
 /* ======== Обзор: живее карточки и плитки ======== */
 html[data-nf-ov-live="on"] .nf-tile, html .nf-live-grid .nf-tile {
