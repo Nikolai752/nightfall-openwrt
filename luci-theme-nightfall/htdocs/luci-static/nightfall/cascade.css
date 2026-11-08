@@ -5836,3 +5836,19 @@ html:not([data-nf-motion="off"]):not([data-nf-settled]) .nf-live-grid .nf-tile:n
 
 /* мини-графики плиток: без прямоугольного фона (правило #view div[style] > svg красило их) */
 #view .nf-live-grid .nf-tile > svg.nf-spark, #view .nf-tile[style] > svg.nf-spark, #view .nf-live-grid svg.nf-spark { background: none !important; background-color: transparent !important; }
+
+/* ======== v1.10.2: кнопки-ссылки над плитками («Табло», «QR Wi-Fi», «Сбросить порядок») как мягкие «таблетки» ======== */
+html .nf-live-acts .nf-linkbtn, html .nf-qr-h .nf-linkbtn {
+	padding: 4px 11px; border-radius: 999px; border: 1px solid transparent; text-decoration: none; box-shadow: none; outline: none;
+	background: color-mix(in srgb, var(--nf-accent) 8%, transparent) !important; color: var(--nf-accent);
+	transition: background .2s ease, border-color .2s ease, transform .15s ease, box-shadow .2s ease;
+}
+html .nf-live-acts .nf-linkbtn:hover, html .nf-qr-h .nf-linkbtn:hover {
+	text-decoration: none; background: color-mix(in srgb, var(--nf-accent) 18%, transparent) !important; color: var(--nf-accent);
+	border-color: color-mix(in srgb, var(--nf-accent) 40%, transparent); box-shadow: 0 4px 14px -8px var(--nf-accent);
+}
+html .nf-live-acts .nf-linkbtn:active, html .nf-qr-h .nf-linkbtn:active { transform: scale(.96); }
+html .nf-live-acts .nf-linkbtn:focus-visible { border-color: var(--nf-accent); }
+html .nf-colsel .nf-linkbtn { padding: 3px 9px; }
+html .nf-colsel .nf-linkbtn.on { background: color-mix(in srgb, var(--nf-accent) 26%, transparent) !important; border-color: color-mix(in srgb, var(--nf-accent) 45%, transparent); }
+html[data-nf-motion="off"] .nf-live-acts .nf-linkbtn { transition: none; }
