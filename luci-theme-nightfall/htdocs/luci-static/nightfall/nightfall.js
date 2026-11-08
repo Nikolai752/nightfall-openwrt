@@ -34,7 +34,7 @@
 		[ 'newyear', 'Новый год', { style: '', mode: 'dark', accent: '#e5484d', bg: 'garland', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#0b1a14', cusCard: '#12261d', cusText: '#f3efe6' } ],
 		[ 'autumn', 'Осень', { style: '', mode: 'light', accent: '#c2410c', bg: 'leaves', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#f6ece0', cusCard: '#fff8ef', cusText: '#3a2a1c' } ]
 	];
-	var BGS = [ [ 'mica', 'Mica' ], [ 'flat', 'Плоский' ], [ 'dots', 'Точки' ], [ 'grid', 'Сетка' ], [ 'stars', 'Звёзды' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'mesh', 'Перелив' ], [ 'drift', 'Частицы' ], [ 'neon', 'Неон' ], [ 'sunset', 'Закат' ], [ 'ocean', 'Океан' ], [ 'snow', 'Снег' ], [ 'rain', 'Дождь' ], [ 'tod', 'Время суток' ], [ 'weather', 'Погода' ], [ 'garland', 'Гирлянда' ], [ 'leaves', 'Листопад' ] ];
+	var BGS = [ [ 'mica', 'Mica' ], [ 'flat', 'Плоский' ], [ 'dots', 'Точки' ], [ 'grid', 'Сетка' ], [ 'stars', 'Звёзды' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'mesh', 'Перелив' ], [ 'drift', 'Частицы' ], [ 'neon', 'Неон' ], [ 'sunset', 'Закат' ], [ 'ocean', 'Океан' ], [ 'snow', 'Снег' ], [ 'rain', 'Дождь' ], [ 'tod', 'День/ночь' ], [ 'weather', 'Погода' ], [ 'garland', 'Гирлянда' ], [ 'leaves', 'Листопад' ] ];
 
 	var ACCENTS = [
 		[ '', 'Синий (по умолчанию)', '#0067c0' ],
@@ -1332,7 +1332,7 @@
 			ordBox.replaceChildren.apply(ordBox, [ h('div', { 'class': 'nf-pop-l', text: 'Порядок плиток «Сейчас»' }) ].concat(ord.map(function (k, i) {
 				return h('div', { 'class': 'nf-ord-row' }, [ h('span', { text: TILE_NAMES[k] }),
 					arrow('▲', 'Выше', i === 0, function () { move(i, -1); }), arrow('▼', 'Ниже', i === ord.length - 1, function () { move(i, 1); }) ]);
-			})).concat([ h('div', { 'class': 'nf-pop-io' }, [ h('button', { type: 'button', text: 'Порядок по умолчанию', onclick: function (ev) { ev.stopPropagation(); set('ovOrder', DEFAULTS.ovOrder); renderOv(); } }) ]) ]));
+			})).concat([ h('div', { 'class': 'nf-pop-io' }, [ h('button', { type: 'button', text: 'По умолчанию', onclick: function (ev) { ev.stopPropagation(); set('ovOrder', DEFAULTS.ovOrder); renderOv(); } }) ]) ]));
 		}
 		refs.renderOv = renderOv; renderOv();
 		var ovLay = h('div', { 'class': 'nf-pop-sec nf-desk' }, [ h('div', { 'class': 'nf-pop-l', text: 'Раскладка карточек' }), sw('ovWide', 'Один столбец (карточки на всю ширину)') ]
