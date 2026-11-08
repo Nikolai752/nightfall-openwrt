@@ -41,8 +41,12 @@
 		[ 'space', 'Космос', { style: '', mode: 'dark', accent: '#8b5cf6', bg: 'space', loginBg: 'space', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
 		[ 'lava', 'Лава', { style: '', mode: 'dark', accent: '#ff6b35', bg: 'lava', loginBg: 'lava', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
 		[ 'synthwave', 'Синтвейв', { style: '', mode: 'dark', accent: '#ff3d9a', bg: 'cyber', loginBg: 'cyber', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
+		[ 'rainy', 'Дождливый вечер', { style: '', mode: 'dark', accent: '#7fb2ff', bg: 'rainglass', loginBg: 'rainglass', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
+		[ 'nightforest', 'Ночной лес', { style: '', mode: 'dark', accent: '#9be15d', bg: 'forest', loginBg: 'forest', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
+		[ 'fogpeaks', 'Туманные горы', { style: '', mode: 'dark', accent: '#c58bd6', bg: 'fogmount', loginBg: 'fogmount', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
+		[ 'deepsea', 'Подводный мир', { style: '', mode: 'dark', accent: '#4fd1e8', bg: 'underwater', loginBg: 'underwater', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
 	];
-	var BGS = [ [ 'mica', 'Mica' ], [ 'flat', 'Плоский' ], [ 'dots', 'Точки' ], [ 'grid', 'Сетка' ], [ 'stars', 'Звёзды' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'mesh', 'Перелив' ], [ 'drift', 'Частицы' ], [ 'neon', 'Неон' ], [ 'sunset', 'Закат' ], [ 'ocean', 'Океан' ], [ 'snow', 'Снег' ], [ 'rain', 'Дождь' ], [ 'tod', 'День/ночь' ], [ 'weather', 'Погода' ], [ 'garland', 'Гирлянда' ], [ 'leaves', 'Листопад' ], [ 'mountains', 'Горы' ], [ 'city', 'Город' ], [ 'space', 'Космос' ], [ 'lava', 'Лава' ], [ 'cyber', 'Синтвейв' ] ];
+	var BGS = [ [ 'mica', 'Mica' ], [ 'flat', 'Плоский' ], [ 'dots', 'Точки' ], [ 'grid', 'Сетка' ], [ 'stars', 'Звёзды' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'mesh', 'Перелив' ], [ 'drift', 'Частицы' ], [ 'neon', 'Неон' ], [ 'sunset', 'Закат' ], [ 'ocean', 'Океан' ], [ 'snow', 'Снег' ], [ 'rain', 'Дождь' ], [ 'tod', 'День/ночь' ], [ 'weather', 'Погода' ], [ 'garland', 'Гирлянда' ], [ 'leaves', 'Листопад' ], [ 'mountains', 'Горы' ], [ 'city', 'Город' ], [ 'space', 'Космос' ], [ 'lava', 'Лава' ], [ 'cyber', 'Синтвейв' ], [ 'rainglass', 'Дождь по стеклу' ], [ 'forest', 'Ночной лес' ], [ 'fogmount', 'Туманные горы' ], [ 'underwater', 'Подводный мир' ], [ 'live', 'Живой фон' ] ];
 
 	var ACCENTS = [
 		[ '', 'Синий (по умолчанию)', '#0067c0' ],
@@ -1011,7 +1015,7 @@
 		root.setAttribute('data-nf-glass', g);
 		root.setAttribute('data-nf-login-clock', on(prefs.loginClock));
 		root.setAttribute('data-nf-login-info', on(prefs.loginInfo));
-		root.setAttribute('data-nf-login-bg', pick(prefs.loginBg, [ 'mica', 'flat', 'aurora', 'waves', 'tod', 'rain', 'sunset', 'mountains', 'city', 'space', 'lava', 'cyber', 'photo' ], 'mica'));
+		root.setAttribute('data-nf-login-bg', pick(prefs.loginBg, [ 'mica', 'flat', 'aurora', 'waves', 'tod', 'rain', 'sunset', 'mountains', 'city', 'space', 'lava', 'cyber', 'rainglass', 'forest', 'fogmount', 'underwater', 'photo' ], 'mica'));
 		root.setAttribute('data-nf-tod', todPart());
 		root.setAttribute('data-nf-ov-wide', prefs.ovWide ? 'on' : 'off');
 		root.setAttribute('data-nf-ov-cols', pick(String(prefs.ovCols), [ '0', '1', '2', '3' ], '0'));
@@ -1316,7 +1320,7 @@
 		var more = h('div', { 'class': 'nf-pop-sec' }, [
 			h('div', { 'class': 'nf-pop-l', text: 'Экран входа' }),
 			sw('loginClock', 'Часы и дата'), sw('loginInfo', 'Сводка о роутере'), sw('constLogin', 'Анимированный фон')
-		].concat(seg2('constKind', 'Вид анимации', [ [ 'net', 'Созвездия' ], [ 'fire', 'Светлячки' ], [ 'bubbles', 'Пузыри' ], [ 'snow', 'Снег' ], [ 'meteors', 'Звёзды' ] ], true)).concat(seg2('loginBg', 'Фон входа', [ [ 'mica', 'Как у темы' ], [ 'flat', 'Однотонный' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'tod', 'По времени' ], [ 'rain', 'Дождь' ], [ 'sunset', 'Закат' ], [ 'mountains', 'Горы' ], [ 'city', 'Город' ], [ 'space', 'Космос' ], [ 'lava', 'Лава' ], [ 'cyber', 'Синтвейв' ], [ 'photo', 'Своё фото' ] ], true)).concat(loginExtras()));
+		].concat(seg2('constKind', 'Вид анимации', [ [ 'net', 'Созвездия' ], [ 'fire', 'Светлячки' ], [ 'bubbles', 'Пузыри' ], [ 'snow', 'Снег' ], [ 'meteors', 'Звёзды' ] ], true)).concat(seg2('loginBg', 'Фон входа', [ [ 'mica', 'Как у темы' ], [ 'flat', 'Однотонный' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'tod', 'По времени' ], [ 'rain', 'Дождь' ], [ 'sunset', 'Закат' ], [ 'mountains', 'Горы' ], [ 'city', 'Город' ], [ 'space', 'Космос' ], [ 'lava', 'Лава' ], [ 'cyber', 'Синтвейв' ], [ 'rainglass', 'Дождь по стеклу' ], [ 'forest', 'Ночной лес' ], [ 'fogmount', 'Туманные горы' ], [ 'underwater', 'Подводный мир' ], [ 'photo', 'Своё фото' ] ], true)).concat(loginExtras()));
 		function desk(nodes) { nodes = [].concat(nodes); nodes.forEach(function (n) { if (n && n.classList) n.classList.add('nf-desk'); }); return nodes; }   /* пункты только для компьютера: на телефоне скрыты */
 		var ov = h('div', { 'class': 'nf-pop-sec' }, [
 			h('div', { 'class': 'nf-pop-l', text: 'Что показывать на «Обзоре»' }),

@@ -26,7 +26,24 @@ return baseclass.extend({
 			}).catch(() => bar.removeAttribute('data-s'));
 		};
 
+		/* «Живой фон»: скорость WAN → data-nf-load 0…4 (плавно меняет скорость и яркость анимации) */
+		const root = document.documentElement;
+		const live = () => {
+			if (document.hidden || root.getAttribute('data-nf-bg') !== 'live') return;
+			fs.exec('/usr/libexec/nightfall-history', [ 'series', 'fine' ]).then(res => {
+				let h = null;
+				try { h = JSON.parse(res.stdout); } catch (e) { /* ignore */ }
+				const rows = h && h.rows || [];
+				const r = rows[rows.length - 1];
+				if (!r || r[4] < 0 || r[5] < 0) return;
+				const v = r[4] + r[5];
+				root.setAttribute('data-nf-load', v < 5e4 ? 0 : v < 5e5 ? 1 : v < 2e6 ? 2 : v < 8e6 ? 3 : 4);
+			}).catch(() => {});
+		};
+
 		tick();
+		live();
 		window.setInterval(tick, 10000);
+		window.setInterval(live, 15000);
 	}
 });
