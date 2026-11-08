@@ -5921,3 +5921,55 @@ html .nfm .nfm-table tbody tr:hover td:first-child { box-shadow: inset 2px 0 0 v
 	html #view .cbi-section:has(.cbi-tooltip-container:hover), html #view .cbi-section:has(.ifacebox:hover) { z-index: 30; }
 	html #view .ifacebox .cbi-tooltip { z-index: 1200; }
 }
+
+/* ======== v1.11: светлые варианты старых сценических фонов ======== */
+html:not([data-darkmode="true"])[data-nf-bg="mountains"] body::before, html:not([data-darkmode="true"])[data-nf-login-bg="mountains"] body.nf-blank::before { opacity: 1; filter: brightness(1.75) saturate(1.25); }
+html:not([data-darkmode="true"])[data-nf-bg="mountains"] body::after, html:not([data-darkmode="true"])[data-nf-login-bg="mountains"] body.nf-blank::after { opacity: 1; background: radial-gradient(90% 50% at 78% 8%, rgba(255,226,170,.75), transparent 60%), linear-gradient(180deg, #86b9f5 0%, #c6dcf8 45%, #fbe0d2 82%, #fff0d8 100%); z-index: -2; }
+html:not([data-darkmode="true"])[data-nf-bg="city"] body::before, html:not([data-darkmode="true"])[data-nf-login-bg="city"] body.nf-blank::before { opacity: 1; filter: brightness(1.9) saturate(.9); }
+html:not([data-darkmode="true"])[data-nf-bg="city"] body::after, html:not([data-darkmode="true"])[data-nf-login-bg="city"] body.nf-blank::after { opacity: 1; background: radial-gradient(70% 40% at 20% 0%, rgba(190,160,255,.35), transparent 70%), linear-gradient(180deg, #9ab8f0 0%, #d3d9f3 50%, #fbd9d0 85%, #ffe9d2 100%); z-index: -2; }
+html:not([data-darkmode="true"])[data-nf-bg="space"] body::before, html:not([data-darkmode="true"])[data-nf-login-bg="space"] body.nf-blank::before { opacity: .8; filter: invert(1) hue-rotate(180deg) brightness(.9); }
+html:not([data-darkmode="true"])[data-nf-bg="space"] body::after, html:not([data-darkmode="true"])[data-nf-login-bg="space"] body.nf-blank::after { opacity: 1; background: radial-gradient(60% 50% at 20% 25%, rgba(150,120,255,.38), transparent 70%), radial-gradient(55% 45% at 80% 70%, rgba(80,190,240,.34), transparent 70%), radial-gradient(40% 35% at 60% 15%, rgba(255,140,200,.28), transparent 70%), linear-gradient(180deg, #e6ebfb, #f3eefb); z-index: -2; }
+html:not([data-darkmode="true"])[data-nf-bg="lava"] body::before, html:not([data-darkmode="true"])[data-nf-login-bg="lava"] body.nf-blank::before { opacity: 1; filter: blur(48px) saturate(1.6); }
+html:not([data-darkmode="true"])[data-nf-bg="cyber"] body::before, html:not([data-darkmode="true"])[data-nf-login-bg="cyber"] body.nf-blank::before { opacity: 1; }
+html:not([data-darkmode="true"])[data-nf-bg="cyber"] body::after, html:not([data-darkmode="true"])[data-nf-login-bg="cyber"] body.nf-blank::after { opacity: 1; }
+
+/* ======== v1.11.0: плашка нового устройства, переключатель «Топ клиентов», кольца без данных, гостевая сеть, переходы страниц ======== */
+.nf-newdev { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 10px 14px; border-radius: 14px; border: 1px solid color-mix(in srgb, #e0a800 55%, transparent);
+	background: linear-gradient(90deg, color-mix(in srgb, #e0a800 16%, transparent), transparent 80%); animation: nf-rise .4s cubic-bezier(.2, .7, .2, 1) both; }
+.nf-newdev[hidden] { display: none; }
+.nf-newdev-i { font-size: 22px; line-height: 1; }
+.nf-newdev-t { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.nf-newdev-t span { font-size: 12.5px; opacity: .8; overflow-wrap: anywhere; }
+.nf-newdev-a { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.nf-linkbtn.nf-bad { color: var(--nf-g-bad, #d13438); }
+@media (max-width: 560px) { .nf-newdev { flex-wrap: wrap; } .nf-newdev-a { width: 100%; justify-content: flex-start; } }
+
+.nf-top-t { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.nf-top-m { display: inline-flex; gap: 4px; }
+.nf-top-m .nf-linkbtn { padding: 2px 9px; font-size: 12px; }
+.nf-top-m .nf-linkbtn.on { background: color-mix(in srgb, var(--nf-accent) 24%, transparent) !important; border-color: color-mix(in srgb, var(--nf-accent) 45%, transparent); }
+
+html[data-nf-ring="on"] .nf-tile[data-lvl=""]::after { display: none; }
+
+.nf-qr-guest { flex: 1 1 100%; margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--nf-stroke, rgba(128, 128, 128, .25)); }
+.nf-qr-gh { font-weight: 600; margin-bottom: 8px; }
+.nf-qr-gr { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 6px 0; }
+.nf-qr-gn { display: flex; flex-direction: column; min-width: 0; }
+.nf-qr-ga { display: flex; gap: 6px; flex-wrap: wrap; }
+.nf-qr-box .nf-linkbtn { padding: 4px 11px; border-radius: 999px; border: 1px solid transparent; background: color-mix(in srgb, var(--nf-accent) 10%, transparent); color: var(--nf-accent); cursor: pointer; }
+.nf-qr-box .nf-linkbtn:hover { background: color-mix(in srgb, var(--nf-accent) 20%, transparent); border-color: color-mix(in srgb, var(--nf-accent) 40%, transparent); }
+.nf-qr-box .nf-linkbtn[disabled] { opacity: .5; cursor: default; }
+
+/* плавные переходы между страницами (Chrome, Edge, Safari 18.2+): меню остаётся на месте, содержимое мягко сменяется */
+@media (prefers-reduced-motion: no-preference) {
+	@view-transition { navigation: auto; }
+	header { view-transition-name: nf-side; }
+	#view { view-transition-name: nf-view; }
+	::view-transition-old(root), ::view-transition-new(root) { animation-duration: .18s; }
+	::view-transition-old(nf-view) { animation: nf-vt-out .14s ease both; }
+	::view-transition-new(nf-view) { animation: nf-vt-in .26s cubic-bezier(.2, .7, .2, 1) both; }
+	::view-transition-group(nf-side) { animation-duration: 0s; }
+}
+@keyframes nf-vt-out { to { opacity: 0; transform: translateY(-4px); } }
+@keyframes nf-vt-in { from { opacity: 0; transform: translateY(8px); } }
+html[data-nf-motion="off"]::view-transition-group(*), html[data-nf-motion="off"]::view-transition-old(*), html[data-nf-motion="off"]::view-transition-new(*) { animation: none !important; }

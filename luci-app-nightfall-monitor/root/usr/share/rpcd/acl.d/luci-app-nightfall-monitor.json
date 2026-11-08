@@ -9,6 +9,9 @@
 				"/usr/libexec/nightfall-history": [
 					"exec"
 				],
+				"/usr/libexec/nightfall-guest": [
+					"exec"
+				],
 				"/usr/libexec/nightfall-config": [
 					"exec"
 				],

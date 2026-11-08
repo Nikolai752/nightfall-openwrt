@@ -1,0 +1,46 @@
+#!/bin/sh
+# Nightfall: гостевая сеть Wi-Fi по таймеру. Включает выбранную беспроводную сеть на заданное время и сама выключает её.
+#   nightfall-guest status        — JSON: включённые по таймеру сети и когда они выключатся
+#   nightfall-guest on ID МИН     — включить сеть ID (раздел wifi-iface из /etc/config/wireless) на МИН минут (1…1440)
+#   nightfall-guest off ID        — выключить сейчас
+#   nightfall-guest tick          — выключить те, у кого время вышло (вызывает сборщик, переживает перезагрузку)
+# Время выключения хранится в /etc/nightfall-guest.list («ID|время выключения, секунды Unix»).
+LIST=${NF_GUESTF:-/etc/nightfall-guest.list}
+UCI=${NF_UCI:-uci}
+WIFI=${NF_WIFI:-wifi}
+now=$(date +%s)
+
+fail() { printf '{"ok":false,"error":"%s"}\n' "$1"; exit 1; }
+valid() { case "$1" in ''|*[!A-Za-z0-9_.@\[\]-]*) return 1 ;; esac; [ "$($UCI -q get "wireless.$1" 2>/dev/null)" = "wifi-iface" ]; }
+reload() { ( $WIFI reload >/dev/null 2>&1 & ); }
+drop() { [ -f "$LIST" ] || return 0; grep -v "^$1|" "$LIST" > "$LIST.tmp" 2>/dev/null; mv "$LIST.tmp" "$LIST"; [ -s "$LIST" ] || rm -f "$LIST"; }
+
+case "$1" in
+status)
+	printf '{"now":%s,"list":[' "$now"
+	[ -r "$LIST" ] && awk -F'|' 'NF >= 2 { printf "%s[\"%s\",%s]", (n++ ? "," : ""), $1, $2 }' "$LIST"
+	printf ']}\n' ;;
+on)
+	valid "$2" || fail "сеть не найдена"
+	m=$3; case "$m" in ''|*[!0-9]*) fail "неверное время" ;; esac
+	[ "$m" -ge 1 ] && [ "$m" -le 1440 ] || fail "время от 1 до 1440 минут"
+	$UCI set "wireless.$2.disabled=0" && $UCI commit wireless || fail "не удалось сохранить настройки"
+	drop "$2"; printf '%s|%s\n' "$2" $((now + m * 60)) >> "$LIST"
+	reload; printf '{"ok":true,"until":%s}\n' $((now + m * 60)) ;;
+off)
+	valid "$2" || fail "сеть не найдена"
+	$UCI set "wireless.$2.disabled=1" && $UCI commit wireless || fail "не удалось сохранить настройки"
+	drop "$2"; reload; printf '{"ok":true}\n' ;;
+tick)
+	[ -r "$LIST" ] || exit 0
+	[ "$now" -gt 1700000000 ] || exit 0
+	ch=0
+	while IFS='|' read -r id until; do
+		[ -n "$id" ] || continue
+		case "$until" in ''|*[!0-9]*) continue ;; esac
+		if [ "$now" -ge "$until" ] && valid "$id"; then $UCI set "wireless.$id.disabled=1"; drop "$id"; ch=1; fi
+	done < "$LIST"
+	[ "$ch" = 1 ] && { $UCI commit wireless; reload; } ;;
+*)
+	echo "usage: nightfall-guest status|on ID МИН|off ID|tick" >&2; exit 1 ;;
+esac

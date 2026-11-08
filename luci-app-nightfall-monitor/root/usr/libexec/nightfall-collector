@@ -568,6 +568,7 @@ while :; do
 		do_devices
 		do_newdev
 		do_block
+		[ -f /etc/nightfall-guest.list ] && [ $((tick % 6)) = 0 ] && /usr/libexec/nightfall-guest tick >/dev/null 2>&1
 		do_report
 		wtick=$((wtick + 1))
 		if [ "$WIFI_HIST" = 1 ] && [ $((wtick % 4)) = 1 ]; then do_wifi; fi

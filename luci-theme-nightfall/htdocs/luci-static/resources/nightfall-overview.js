@@ -375,6 +375,30 @@ function liveStrip() {
 				card.appendChild(E('div', { class: 'nf-qr-sub' }, open ? 'без пароля' : (x.encryption || '') + (x.disabled === '1' ? ' · выключена' : '')));
 				body.appendChild(card);
 			});
+			/* гостевая сеть по таймеру: сети с «guest/гост» в названии и выключенные сети */
+			const cands = Object.keys(v).filter(k => v[k]['.type'] === 'wifi-iface' && v[k].mode !== 'sta' && v[k].ssid && (v[k].disabled === '1' || /guest|гост/i.test((v[k].network || '') + ' ' + v[k].ssid)));
+			const gbox = E('div', { class: 'nf-qr-guest' });
+			if (!cands.length) {
+				gbox.appendChild(E('div', { class: 'nf-qr-sub' }, 'Гостевая сеть по таймеру: создайте отдельную сеть Wi-Fi (например, guest) в Сеть → Беспроводная сеть, и здесь появятся кнопки включения.'));
+			} else {
+				fs.exec(GUESTBIN, [ 'status' ]).then(r => { let st = null; try { st = JSON.parse(r.stdout); } catch (e) { /* ignore */ } return st; }).catch(() => null).then(st => {
+					const until = {}; ((st && st.list) || []).forEach(x => { until[x[0]] = x[1]; });
+					const hm = t => { const d = new Date(t * 1000); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+					const reopen = () => { ov.remove(); window.setTimeout(openQr, 400); };
+					const act = (b, args) => { b.disabled = true; fs.exec(GUESTBIN, args).then(reopen).catch(() => { b.disabled = false; }); };
+					gbox.appendChild(E('div', { class: 'nf-qr-gh' }, 'Гостевая сеть по таймеру'));
+					cands.forEach(id => {
+						const x = v[id], on = x.disabled !== '1';
+						const btns = on ? [ E('button', { type: 'button', class: 'nf-linkbtn nf-bad', click: ev => act(ev.currentTarget, [ 'off', id ]) }, 'Выключить') ]
+							: [ [ 30, '30 мин' ], [ 60, '1 час' ], [ 240, '4 часа' ], [ 1440, 'Сутки' ] ].map(([ m, t ]) => E('button', { type: 'button', class: 'nf-linkbtn', click: ev => act(ev.currentTarget, [ 'on', id, String(m) ]) }, t));
+						gbox.appendChild(E('div', { class: 'nf-qr-gr' }, [
+							E('div', { class: 'nf-qr-gn' }, [ E('b', {}, x.ssid), E('span', { class: 'nf-qr-sub' }, on ? (until[id] ? 'включена до ' + hm(until[id]) : 'включена, без таймера') : 'выключена') ]),
+							E('div', { class: 'nf-qr-ga' }, btns) ]));
+					});
+					if (cands.some(id => v[id].disabled === '1')) gbox.appendChild(E('div', { class: 'nf-qr-note' }, 'После включения сеть появится через несколько секунд. Сама выключится по таймеру.'));
+				});
+			}
+			body.appendChild(gbox);
 		}).catch(() => { body.textContent = 'Нет доступа к настройкам Wi-Fi. Обновите пакет и перезайдите в LuCI.'; });
 	}
 	document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { const o = document.querySelector('.nf-qr-ov'); if (o) o.remove(); } });
@@ -843,7 +867,7 @@ function setLvl(el, v, mid, bad) {
 	const tile = el && el.closest ? el.closest('.nf-tile') : null;
 	if (tile) {
 		tile.setAttribute('data-lvl', v == null ? '' : v >= bad ? 'bad' : v >= mid ? 'mid' : 'ok');
-		tile.style.setProperty('--ring', v == null ? 0 : Math.max(0, Math.min(100, v)));
+		tile.style.setProperty('--ring', v == null || !(v > 0) ? 0 : Math.max(4, Math.min(100, v)));
 	}
 }
 /* число на карточке плавно «докручивается» до нового значения */
@@ -1196,6 +1220,40 @@ function gridLayout(view) {
 }
 
 
+
+/* ---------- плашка «Новое устройство в сети»: по событиям сборщика за последние сутки ---------- */
+function newDevBanner() {
+	const el = E('div', { class: 'nf-newdev', hidden: 'hidden' });
+	let timer = null;
+	const seenKey = 'nightfall-newdev-seen';
+	const seen = () => { try { return parseInt(localStorage.getItem(seenKey), 10) || 0; } catch (e) { return 0; } };
+	const mark = ts => { try { localStorage.setItem(seenKey, String(ts)); } catch (e) { /* ignore */ } };
+	function load() {
+		if (document.hidden) return;
+		fs.exec(HIST, [ 'series', 'fine' ]).then(res => {
+			let h = null;
+			try { h = JSON.parse(res.stdout); } catch (e) { /* no collector */ }
+			const now = Date.now() / 1000, last = seen();
+			const ev = ((h && h.events) || []).filter(e => typeof e[2] === 'string' && e[2].indexOf('Новое устройство в сети:') === 0 && e[0] > last && now - e[0] < 86400);
+			if (!ev.length) { el.hidden = true; return; }
+			const lastEv = ev[ev.length - 1], txt = lastEv[2].replace('Новое устройство в сети:', '').trim();
+			const mac = (txt.match(/([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})/) || [])[1];
+			const priv = /частный адрес/.test(txt);
+			const name = txt.split(',')[0].trim();
+			const acts = [ E('button', { type: 'button', class: 'nf-linkbtn', click: () => { mark(Math.ceil(lastEv[0])); el.hidden = true; } }, 'Это моё') ];
+			if (mac) acts.push(E('button', { type: 'button', class: 'nf-linkbtn nf-bad', click: ev2 => {
+				const b = ev2.currentTarget; b.disabled = true;
+				fs.exec(BLOCKBIN, [ 'block', mac, name === 'без имени' ? '' : name ]).then(() => { mark(Math.ceil(lastEv[0])); el.hidden = true; }).catch(() => { b.disabled = false; });
+			} }, 'Отключить интернет'));
+			el.replaceChildren(E('span', { class: 'nf-newdev-i', 'aria-hidden': 'true' }, '🆕'),
+				E('div', { class: 'nf-newdev-t' }, [ E('b', {}, ev.length > 1 ? 'Новых устройств: ' + ev.length + '. Последнее:' : 'Новое устройство в сети'), E('span', {}, txt.replace(/\s*\(частный.*$/, '')) , priv ? E('span', { class: 'nf-newdev-n' }, 'Частный адрес Wi-Fi: у телефона он может меняться.') : '' ]),
+				E('div', { class: 'nf-newdev-a' }, acts));
+			el.hidden = false;
+		}).catch(() => {});
+	}
+	return { el, start() { load(); timer = window.setInterval(load, 30000); } };
+}
+
 /* ---------- top clients card ---------- */
 
 function fmtBytes(b) {
@@ -1215,8 +1273,12 @@ function normIp(ip) {
 
 function topCard() {
 	const body = E('div', { class: 'nf-top-b' }, E('div', { class: 'nf-empty' }, 'Собираю данные…'));
+	let mode = 'now';
+	try { mode = localStorage.getItem('nightfall-top-mode') === 'day' ? 'day' : 'now'; } catch (e) { /* ignore */ }
+	const modeBtns = [ [ 'now', 'Сейчас' ], [ 'day', 'За сутки' ] ].map(([ k, t ]) => E('button', { type: 'button', class: 'nf-linkbtn' + (k === mode ? ' on' : ''), 'data-m': k,
+		click: ev => { ev.stopPropagation(); mode = k; try { localStorage.setItem('nightfall-top-mode', k); } catch (e) { /* ignore */ } modeBtns.forEach(b => b.classList.toggle('on', b.getAttribute('data-m') === k)); render(last); } }, t));
 	const el = E('div', { class: 'cbi-section nf-top fade-in' }, [
-		E('div', { class: 'cbi-title' }, E('h3', {}, 'Топ клиентов')), body ]);
+		E('div', { class: 'cbi-title nf-top-t' }, [ E('h3', {}, 'Топ клиентов'), E('span', { class: 'nf-top-m' }, modeBtns) ]), body ]);
 	let names = null, timer = null;
 
 	let last = null;
@@ -1240,13 +1302,15 @@ function topCard() {
 		};
 		if (dv.now - dv.ts <= 60) for (const [ ip, d, u ] of dv.rate) { const r = row(ip); r.rd += d; r.ru += u; }
 		for (const [ ip, d, u ] of dv.day || []) { const r = row(ip); r.dd += d; r.du += u; }
-		const list = Object.values(rows).filter(r => r.rd + r.ru + r.dd + r.du > 0)
-			.sort((a, b) => (b.rd + b.ru) - (a.rd + a.ru) || (b.dd + b.du) - (a.dd + a.du)).slice(0, 5);
+		const all = Object.values(rows).filter(r => r.rd + r.ru + r.dd + r.du > 0), dayTot = all.reduce((t, r) => t + r.dd + r.du, 0) || 1;
+		const list = mode === 'day'
+			? all.sort((a, b) => (b.dd + b.du) - (a.dd + a.du) || (b.rd + b.ru) - (a.rd + a.ru)).slice(0, 8)
+			: all.sort((a, b) => (b.rd + b.ru) - (a.rd + a.ru) || (b.dd + b.du) - (a.dd + a.du)).slice(0, 5);
 		if (!list.length) {
 			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Пока тихо'), E('span', {}, 'Сейчас нет заметного трафика от устройств.') ]));
 			return;
 		}
-		const mx = Math.max(1, ...list.map(r => r.rd + r.ru));
+		const val = r => mode === 'day' ? r.dd + r.du : r.rd + r.ru, mx = Math.max(1, ...list.map(val));
 		body.replaceChildren(...list.map(r => {
 			const dn = fmtRate(r.rd), up = fmtRate(r.ru);
 			const canName = r.k !== 'router' && /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(r.k);
@@ -1260,9 +1324,9 @@ function topCard() {
 			draw();
 			return E('div', { class: 'nf-top-r' }, [
 				nbox,
-				E('div', { class: 'nf-top-bar' }, E('i', { style: 'width:' + Math.max(2, Math.round((r.rd + r.ru) / mx * 100)) + '%' })),
+				E('div', { class: 'nf-top-bar' }, E('i', { style: 'width:' + Math.max(2, Math.round(val(r) / mx * 100)) + '%' })),
 				E('div', { class: 'nf-top-v' }, [ E('span', {}, '↓ ' + dn[0] + ' ' + dn[1]), E('span', {}, '↑ ' + up[0] + ' ' + up[1]) ]),
-				E('div', { class: 'nf-top-d' }, [ 'за день ', E('b', {}, fmtBytes(r.dd + r.du)) ])
+				E('div', { class: 'nf-top-d' }, [ 'за день ', E('b', {}, fmtBytes(r.dd + r.du)), mode === 'day' ? ' · ' + Math.max(1, Math.round((r.dd + r.du) / dayTot * 100)) + '%' : '' ])
 			]);
 		}));
 	}
@@ -1432,6 +1496,7 @@ function appsCard() {
 /* ---------- «Доступ в интернет»: отключение устройств вручную и по расписанию ---------- */
 
 const BLOCKBIN = '/usr/libexec/nightfall-block';
+const GUESTBIN = '/usr/libexec/nightfall-guest';
 
 function blockCard() {
 	const body = E('div', { class: 'nf-blk-b' }, E('div', { class: 'nf-empty' }, 'Собираю данные…'));
@@ -1756,6 +1821,7 @@ return baseclass.extend({
 				strip.resetBtn.addEventListener('click', () => { saveOrder(null); sortCards(view, null); });
 				sortCards(view, loadOrder());
 				view.insertBefore(strip.el, cardsOf(view)[0]);
+				const nd = newDevBanner(); strip.el.insertBefore(nd.el, strip.el.firstChild); nd.start();
 				strip.start();
 				extras = [ healthCard(), wifiCard(), eventsCard(), quickCard(), topCard(), appsCard(), blockCard() ];
 				extras.forEach(x => { view.appendChild(x.el); x.start(); });
