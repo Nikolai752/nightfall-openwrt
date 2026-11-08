@@ -32,9 +32,17 @@
 		[ 'terminal', 'Terminal', { style: '', mode: 'dark', accent: '#33ff66', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#050a06', cusCard: '#0b140d', cusText: '#b8f5c4', cusFont: 'mono', cusRadius: 2 } ],
 		[ 'paper', 'Бумага', { style: '', mode: 'light', accent: '#b45309', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#f4efe6', cusCard: '#fbf7ef', cusText: '#2b2620', cusFont: 'serif' } ],
 		[ 'newyear', 'Новый год', { style: '', mode: 'dark', accent: '#e5484d', bg: 'garland', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#0b1a14', cusCard: '#12261d', cusText: '#f3efe6' } ],
-		[ 'autumn', 'Осень', { style: '', mode: 'light', accent: '#c2410c', bg: 'leaves', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#f6ece0', cusCard: '#fff8ef', cusText: '#3a2a1c' } ]
+		[ 'autumn', 'Осень', { style: '', mode: 'light', accent: '#c2410c', bg: 'leaves', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#f6ece0', cusCard: '#fff8ef', cusText: '#3a2a1c' } ],
+		[ 'solard', 'Solarized Dark', { style: '', mode: 'dark', accent: '#268bd2', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#002b36', cusCard: '#073642', cusText: '#93a1a1' } ],
+		[ 'solarl', 'Solarized Light', { style: '', mode: 'light', accent: '#268bd2', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#fdf6e3', cusCard: '#eee8d5', cusText: '#586e75' } ],
+		[ 'latte', 'Catppuccin Latte', { style: '', mode: 'light', accent: '#8839ef', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: true, cusBg: '#eff1f5', cusCard: '#e6e9ef', cusText: '#4c4f69' } ],
+		[ 'mountains', 'Горы', { style: '', mode: 'dark', accent: '#7c9cff', bg: 'mountains', loginBg: 'mountains', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
+		[ 'city', 'Ночной город', { style: '', mode: 'dark', accent: '#c084fc', bg: 'city', loginBg: 'city', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
+		[ 'space', 'Космос', { style: '', mode: 'dark', accent: '#8b5cf6', bg: 'space', loginBg: 'space', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
+		[ 'lava', 'Лава', { style: '', mode: 'dark', accent: '#ff6b35', bg: 'lava', loginBg: 'lava', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
+		[ 'synthwave', 'Синтвейв', { style: '', mode: 'dark', accent: '#ff3d9a', bg: 'cyber', loginBg: 'cyber', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
 	];
-	var BGS = [ [ 'mica', 'Mica' ], [ 'flat', 'Плоский' ], [ 'dots', 'Точки' ], [ 'grid', 'Сетка' ], [ 'stars', 'Звёзды' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'mesh', 'Перелив' ], [ 'drift', 'Частицы' ], [ 'neon', 'Неон' ], [ 'sunset', 'Закат' ], [ 'ocean', 'Океан' ], [ 'snow', 'Снег' ], [ 'rain', 'Дождь' ], [ 'tod', 'День/ночь' ], [ 'weather', 'Погода' ], [ 'garland', 'Гирлянда' ], [ 'leaves', 'Листопад' ] ];
+	var BGS = [ [ 'mica', 'Mica' ], [ 'flat', 'Плоский' ], [ 'dots', 'Точки' ], [ 'grid', 'Сетка' ], [ 'stars', 'Звёзды' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'mesh', 'Перелив' ], [ 'drift', 'Частицы' ], [ 'neon', 'Неон' ], [ 'sunset', 'Закат' ], [ 'ocean', 'Океан' ], [ 'snow', 'Снег' ], [ 'rain', 'Дождь' ], [ 'tod', 'День/ночь' ], [ 'weather', 'Погода' ], [ 'garland', 'Гирлянда' ], [ 'leaves', 'Листопад' ], [ 'mountains', 'Горы' ], [ 'city', 'Город' ], [ 'space', 'Космос' ], [ 'lava', 'Лава' ], [ 'cyber', 'Синтвейв' ] ];
 
 	var ACCENTS = [
 		[ '', 'Синий (по умолчанию)', '#0067c0' ],
@@ -1003,7 +1011,7 @@
 		root.setAttribute('data-nf-glass', g);
 		root.setAttribute('data-nf-login-clock', on(prefs.loginClock));
 		root.setAttribute('data-nf-login-info', on(prefs.loginInfo));
-		root.setAttribute('data-nf-login-bg', pick(prefs.loginBg, [ 'mica', 'flat', 'aurora', 'waves', 'tod', 'rain', 'sunset', 'photo' ], 'mica'));
+		root.setAttribute('data-nf-login-bg', pick(prefs.loginBg, [ 'mica', 'flat', 'aurora', 'waves', 'tod', 'rain', 'sunset', 'mountains', 'city', 'space', 'lava', 'cyber', 'photo' ], 'mica'));
 		root.setAttribute('data-nf-tod', todPart());
 		root.setAttribute('data-nf-ov-wide', prefs.ovWide ? 'on' : 'off');
 		root.setAttribute('data-nf-ov-cols', pick(String(prefs.ovCols), [ '0', '1', '2', '3' ], '0'));
@@ -1299,7 +1307,7 @@
 		var more = h('div', { 'class': 'nf-pop-sec' }, [
 			h('div', { 'class': 'nf-pop-l', text: 'Экран входа' }),
 			sw('loginClock', 'Часы и дата'), sw('loginInfo', 'Сводка о роутере'), sw('constLogin', 'Анимированный фон')
-		].concat(seg2('constKind', 'Вид анимации', [ [ 'net', 'Созвездия' ], [ 'fire', 'Светлячки' ], [ 'bubbles', 'Пузыри' ], [ 'snow', 'Снег' ], [ 'meteors', 'Звёзды' ] ], true)).concat(seg2('loginBg', 'Фон входа', [ [ 'mica', 'Как у темы' ], [ 'flat', 'Однотонный' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'tod', 'По времени' ], [ 'rain', 'Дождь' ], [ 'sunset', 'Закат' ], [ 'photo', 'Своё фото' ] ], true)).concat(loginExtras()));
+		].concat(seg2('constKind', 'Вид анимации', [ [ 'net', 'Созвездия' ], [ 'fire', 'Светлячки' ], [ 'bubbles', 'Пузыри' ], [ 'snow', 'Снег' ], [ 'meteors', 'Звёзды' ] ], true)).concat(seg2('loginBg', 'Фон входа', [ [ 'mica', 'Как у темы' ], [ 'flat', 'Однотонный' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'tod', 'По времени' ], [ 'rain', 'Дождь' ], [ 'sunset', 'Закат' ], [ 'mountains', 'Горы' ], [ 'city', 'Город' ], [ 'space', 'Космос' ], [ 'lava', 'Лава' ], [ 'cyber', 'Синтвейв' ], [ 'photo', 'Своё фото' ] ], true)).concat(loginExtras()));
 		function desk(nodes) { nodes = [].concat(nodes); nodes.forEach(function (n) { if (n && n.classList) n.classList.add('nf-desk'); }); return nodes; }   /* пункты только для компьютера: на телефоне скрыты */
 		var ov = h('div', { 'class': 'nf-pop-sec' }, [
 			h('div', { 'class': 'nf-pop-l', text: 'Что показывать на «Обзоре»' }),
@@ -1415,8 +1423,8 @@
 					]),
 					refs.syncNote,
 					h('div', { 'class': 'nf-pop-io' }, [
-						h('button', { type: 'button', text: 'Сохранить в файл', onclick: exportPrefs }),
-						h('button', { type: 'button', text: 'Загрузить из файла', onclick: function () { refs.file.click(); } }),
+						h('button', { type: 'button', text: 'В файл', onclick: exportPrefs }),
+						h('button', { type: 'button', text: 'Из файла', onclick: function () { refs.file.click(); } }),
 						refs.file = h('input', { type: 'file', accept: 'application/json,.json', hidden: true, onchange: function (ev) { importPrefs(ev.target.files && ev.target.files[0]); ev.target.value = ''; } })
 					]),
 					refs.ioNote = h('div', { 'class': 'nf-pop-ionote', role: 'status' })

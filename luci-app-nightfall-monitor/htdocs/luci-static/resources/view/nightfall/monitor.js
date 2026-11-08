@@ -456,6 +456,11 @@ const CSS = `
 @media (max-width: 860px) { .nfm-g21 { grid-template-columns: 1fr; } }
 .nfm-card { background: var(--nfm-card); border: 1px solid var(--nfm-border); border-radius: var(--nfm-r); padding: 16px 18px; min-width: 0;
   box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.nfm-card { position: relative; overflow: hidden; transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
+.nfm-card::after { content: ''; position: absolute; inset: 0 0 auto 0; height: 90px; pointer-events: none; background: linear-gradient(180deg, color-mix(in srgb, var(--nfm-accent) 9%, transparent), transparent); }
+.nfm-card > * { position: relative; z-index: 1; }
+.nfm-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--nfm-accent) 38%, var(--nfm-border)); box-shadow: 0 10px 28px -12px color-mix(in srgb, var(--nfm-accent) 45%, transparent); }
+@media (hover: none), (prefers-reduced-motion: reduce) { .nfm-card:hover { transform: none; } }
 .nfm-card-title { margin: 0 0 12px; padding: 0 0 0 10px; border: 0; font-size: 14px; font-weight: 600; line-height: 1.3; display: flex; align-items: center; gap: 8px; position: relative; }
 .nfm-card-title::before { content: ''; position: absolute; left: 0; top: 2px; bottom: 2px; width: 3px; border-radius: 3px; background: var(--nfm-accent); }
 .nfm-card-title .nfm-spacer { flex: 1; }
