@@ -102,19 +102,28 @@ wifi)
 	printf ',"info":'; info_json
 	printf '}\n' ;;
 wifi-check)
-	# самопроверка «Качества Wi-Fi»: видит ли роутер радиомодули и клиентов, работает ли сборщик
-	run=0; ps 2>/dev/null | grep '[n]ightfall-collector' >/dev/null 2>&1 && run=1
+	# самопроверка «Качества Wi-Fi»: те же шаги, что у сборщика, но с подсчётом на каждом этапе
+	run=0
+	if [ -x /etc/init.d/nightfall-collector ] && /etc/init.d/nightfall-collector running >/dev/null 2>&1; then run=1
+	elif ps w 2>/dev/null | grep '[n]ightfall-collector' >/dev/null 2>&1; then run=1; fi
 	have=0; command -v ubus >/dev/null 2>&1 && ubus list iwinfo >/dev/null 2>&1 && have=1
 	lines=0; [ -r "$DIR/wifi.fine" ] && lines=$(wc -l < "$DIR/wifi.fine" | tr -d ' ')
 	hist=$(sed -n 's/^wifi_hist=//p' "$DIR/info" 2>/dev/null | head -n 1)
-	printf '{"collector":%s,"iwinfo":%s,"hist":"%s","lines":%s,"devs":[' "$run" "$have" "${hist:-}" "${lines:-0}"
+	age=-1
+	if [ -f "$DIR/hist.fine" ]; then t=$(stat -c %Y "$DIR/hist.fine" 2>/dev/null); [ -n "$t" ] && age=$(( $(date +%s) - t )); fi
+	printf '{"collector":%s,"iwinfo":%s,"hist":"%s","lines":%s,"age":%s,"devs":[' "$run" "$have" "${hist:-}" "${lines:-0}" "$age"
+	sample=
 	if [ "$have" = 1 ]; then
+		sep=
 		for d in $(ubus call iwinfo devices 2>/dev/null | awk -F'"' 'NF >= 3 && $2 != "devices" { print $2 }'); do
-			c=$(ubus call iwinfo assoclist "{\"device\":\"$d\"}" 2>/dev/null | grep -c '"mac"')
-			printf '%s["%s",%s]' "$([ -n "$sep" ] && echo ,)" "$d" "${c:-0}"; sep=1
+			raw=$(ubus call iwinfo assoclist "{\"device\":\"$d\"}" 2>/dev/null)
+			c=$(printf '%s\n' "$raw" | grep -c '"mac"')
+			n=$(printf '%s\n' "$raw" | awk -F'"' '$2 == "mac" { m = $4 } $2 == "signal" && m != "" { s = $3; gsub(/[^-0-9]/, "", s); if (s != "") k++; m = "" } END { print k + 0 }')
+			[ "$c" -gt 0 ] && [ "$n" = 0 ] && [ -z "$sample" ] && sample=$(printf '%s\n' "$raw" | head -n 8 | tr -cd 'A-Za-z0-9_:,.{}[ -' | tr '\n' ' ')
+			printf '%s["%s",%s,%s]' "$sep" "$d" "${c:-0}" "${n:-0}"; sep=,
 		done
 	fi
-	printf ']}\n' ;;
+	printf '],"sample":"%s"}\n' "$sample" ;;
 traffic)
 	printf '{"now":%s,"persist":%s,"rows":[' "$now" "$([ -n "$(sed -n 's/^PERSIST_DIR=\(.\)/\1/p' /etc/nightfall-monitor.conf 2>/dev/null | head -n 1)" ] && echo 1 || echo 0)"
 	[ -r "$DIR/traffic.daily" ] && awk 'NF >= 3 && $1 ~ /^[0-9]{8}$/ { printf "%s[\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3 }' "$DIR/traffic.daily"

@@ -3,6 +3,7 @@
 #   nightfall-config get                    — текущие значения и значения по умолчанию (JSON)
 #   nightfall-config set KEY=VAL [KEY=VAL…] — проверить, записать и перезапустить сборщик
 #   nightfall-config reset                  — вернуть настройки по умолчанию
+#   nightfall-config disks                  — подключённые накопители (JSON)
 CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
 DEF=${NF_DEF:-/usr/share/nightfall/nightfall-monitor.conf.default}
 KEYS="TEMP_WARN TEMP_CRIT MEM_MIN_PCT FLASH_MAX_PCT CT_MAX_PCT CPU_MAX_PCT CPU_MINUTES PING_TARGET PING_TARGET2 PERSIST_DIR PERSIST_HOURS PERSIST_ANY JOURNAL WIFI_HIST SPEED_HOURS SPEED_URL SPEED_STREAMS APPS NEWDEV TG TG_ALERTS TG_TOKEN TG_CHAT TG_PROXY TG_IFACE TG_BOT TG_REPORT"
@@ -120,11 +121,30 @@ set)
 	mv "$CONF.tmp" "$CONF" || fail "не удалось записать конфигурацию"
 	restart
 	printf '{"ok":true}\n' ;;
+disks)
+	# подключённые USB-накопители, SD-карты и диски (не системный раздел роутера), куда можно сохранять историю
+	M=${NF_MOUNTS:-/proc/mounts}; DFB=${NF_DF:-df}
+	rd=$($DFB -P / 2>/dev/null | awk 'NR == 2 { print $1 }'); od=$($DFB -P /overlay 2>/dev/null | awk 'NR == 2 { print $1 }')
+	printf '{"disks":['; n=0
+	while read -r dev mnt fs opts _; do
+		case "$dev" in /dev/sd[a-z]*|/dev/nvme*|/dev/mmcblk*|/dev/vd[a-z]*) ;; *) continue ;; esac
+		case "$mnt" in /|/overlay|/overlay/*|/rom|/rom/*|/boot|/boot/*|/tmp|/tmp/*|/proc|/sys|/dev|/dev/*|/etc|/etc/*) continue ;; esac
+		case "$mnt" in *[!A-Za-z0-9._/-]*) continue ;; esac
+		[ "$dev" = "$rd" ] && continue
+		[ "$dev" = "$od" ] && continue
+		case ",$opts," in *,rw,*) ;; *) continue ;; esac
+		kb=$($DFB -kP "$mnt" 2>/dev/null | awk 'NR == 2 { print $2, $4 }')
+		[ -n "$kb" ] || continue
+		[ "$n" -gt 0 ] && printf ','
+		printf '{"dev":"%s","mount":"%s","fs":"%s","size_kb":%s,"free_kb":%s}' "$dev" "$mnt" "$fs" "${kb% *}" "${kb#* }"
+		n=$((n + 1))
+	done < "$M"
+	printf ']}\n' ;;
 reset)
 	cp "$DEF" "$CONF" || fail "не удалось записать конфигурацию"
 	restart
 	printf '{"ok":true}\n' ;;
 *)
-	echo "usage: nightfall-config get | set KEY=VAL… | reset" >&2
+	echo "usage: nightfall-config get | set KEY=VAL… | reset | disks" >&2
 	exit 1 ;;
 esac
