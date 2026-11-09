@@ -1,0 +1,50 @@
+#!/bin/sh
+# Nightfall: Wake-on-LAN. Отправляет «магический пакет», чтобы включить компьютер, NAS или приставку по MAC-адресу.
+#   nightfall-wol send MAC   — разбудить устройство (JSON: {"ok":true,"method":"…"})
+#   nightfall-wol check      — какой способ отправки доступен на этом роутере
+# Способы по порядку: etherwake, ether-wake (BusyBox), wol, nc (UDP), ucode.
+UCI=${NF_UCI:-uci}
+
+fail() { printf '{"ok":false,"error":"%s"}\n' "$1"; exit 1; }
+ok() { printf '{"ok":true,"method":"%s"}\n' "$1"; exit 0; }
+lan_if() { d=$($UCI -q get network.lan.device 2>/dev/null); [ -n "$d" ] || d=$($UCI -q get network.lan.ifname 2>/dev/null); echo "${d:-br-lan}"; }
+valid_mac() { echo "$1" | grep -Eq '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+methods() {
+	have etherwake && echo etherwake
+	have ether-wake && echo ether-wake
+	have wol && echo wol
+	have nc && echo nc
+	have ucode && echo ucode
+}
+
+send_nc() {   # пакет: 6 байт 0xFF и 16 раз MAC; байты пишем восьмеричными кодами, чтобы пережить нулевые байты
+	esc=$(echo "$1" | awk -F: '{ for (i = 1; i <= 6; i++) { v = 0; h = tolower($i); for (j = 1; j <= 2; j++) { c = index("0123456789abcdef", substr(h, j, 1)) - 1; v = v * 16 + c }
+		printf "\\%d%d%d", int(v / 64), int(v / 8) % 8, v % 8 } }')
+	{
+		printf '\377\377\377\377\377\377'
+		n=0; while [ $n -lt 16 ]; do printf "$esc"; n=$((n + 1)); done
+	} | nc -u -w1 255.255.255.255 9 >/dev/null 2>&1
+}
+
+send_ucode() {
+	ucode -e "import * as s from 'socket'; let m = split('$1', ':'), p = '', b = ''; for (let i = 0; i < 6; i++) p += chr(0xff); for (let x in m) b += chr(hex(x)); for (let i = 0; i < 16; i++) p += b; let k = s.create(s.AF_INET, s.SOCK_DGRAM); k.setopt(s.SOL_SOCKET, s.SO_BROADCAST, 1); k.send(p, 0, { address: '255.255.255.255', port: 9 }); k.close();" >/dev/null 2>&1
+}
+
+case "$1" in
+check)
+	m=$(methods | tr '\n' ' ')
+	printf '{"ok":true,"methods":[%s]}\n' "$(for x in $m; do printf '"%s",' "$x"; done | sed 's/,$//')" ;;
+send)
+	valid_mac "$2" || fail "неверный MAC-адрес"
+	mac=$2; i=$(lan_if)
+	have etherwake && etherwake -i "$i" "$mac" >/dev/null 2>&1 && ok etherwake
+	have ether-wake && ether-wake -b -i "$i" "$mac" >/dev/null 2>&1 && ok ether-wake
+	have wol && wol -i 255.255.255.255 "$mac" >/dev/null 2>&1 && ok wol
+	have nc && send_nc "$mac" && ok nc
+	have ucode && send_ucode "$mac" && ok ucode
+	fail "нет способа отправить пакет: установите пакет etherwake (opkg install etherwake или apk add etherwake)" ;;
+*)
+	echo "usage: nightfall-wol send MAC | check" >&2; exit 1 ;;
+esac

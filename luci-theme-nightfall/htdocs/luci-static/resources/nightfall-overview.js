@@ -1497,6 +1497,7 @@ function appsCard() {
 
 const BLOCKBIN = '/usr/libexec/nightfall-block';
 const GUESTBIN = '/usr/libexec/nightfall-guest';
+const WOLBIN = '/usr/libexec/nightfall-wol';
 
 function blockCard() {
 	const body = E('div', { class: 'nf-blk-b' }, E('div', { class: 'nf-empty' }, 'Собираю данные…'));
@@ -1557,6 +1558,8 @@ function blockCard() {
 				E('div', { class: 'nf-blk-a' }, [
 					E('button', { type: 'button', class: 'cbi-button ' + (d.active ? 'cbi-button-action' : 'cbi-button-remove'),
 						click: () => act([ d.active ? 'unblock' : 'block', d.mac, nm ], d.active ? nm + ': интернет возвращён.' : nm + ': интернет отключён.') }, d.active ? 'Вернуть' : 'Отключить'),
+					!d.online ? E('button', { type: 'button', class: 'cbi-button nf-wol', title: 'Включить по сети (Wake-on-LAN): в компьютере или NAS должна быть включена эта функция', 'aria-label': 'Включить ' + nm,
+						click: ev => { const b = ev.currentTarget; b.disabled = true; fs.exec(WOLBIN, [ 'send', d.mac ]).then(r => { let j = null; try { j = JSON.parse(r.stdout); } catch (e) { /* пусто */ } note = j && j.ok ? nm + ': сигнал на включение отправлен. Компьютеру нужно 10–30 секунд.' : ((j && j.error) || 'Нет ответа от роутера. Обновите тему и войдите в LuCI снова.'); render(); }).catch(() => { note = 'Не получилось отправить сигнал.'; render(); }); } }, '⚡') : '',
 					E('button', { type: 'button', class: 'cbi-button', 'aria-expanded': String(open === d.mac), click: () => { open = open === d.mac ? null : d.mac; render(); } }, '⏰')
 				])
 			]);
