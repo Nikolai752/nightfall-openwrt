@@ -637,6 +637,8 @@ return view.extend({
 		for (const mac in hints)
 			for (const ip of (hints[mac].ipaddrs || []))
 				names[ip] = hints[mac].name || ip;
+		/* собственные адреса роутера (LAN и WAN) подписываем «Роутер» */
+		for (const i of ifdump) for (const a of (i['ipv4-address'] || [])) if (a.address && !names[a.address]) names[a.address] = 'Роутер';
 
 		/* device -> logical interface, default-route device */
 		const devRole = {};
@@ -866,7 +868,7 @@ return view.extend({
 			[ 'CPU_MINUTES', '…и держится дольше', 'мин' ],
 			[ 'PING_TARGET', 'Проверка интернета: адрес 1', '', 'text' ], [ 'PING_TARGET2', 'Проверка интернета: адрес 2', '', 'text' ],
 			[ 'PERSIST_DIR', 'Папка для сохранения истории', '', 'text', '— только в памяти —' ],
-			[ 'PERSIST_HOURS', 'Сохранять историю на накопитель', 'ч' ], [ 'JOURNAL', 'Журнал обрывов и перезагрузок (0/1)', '' ], [ 'WIFI_HIST', 'История сигнала Wi-Fi (0/1)', '' ],
+			[ 'PERSIST_HOURS', 'Сохранять историю на накопитель', 'ч' ], [ 'PERSIST_ANY', 'Разрешить сохранение на встроенный накопитель (0/1)', '' ], [ 'JOURNAL', 'Журнал обрывов и перезагрузок (0/1)', '' ], [ 'WIFI_HIST', 'История сигнала Wi-Fi (0/1)', '' ],
 			[ 'SPEED_URL', 'Файл для замера скорости', '', 'text' ], [ 'SPEED_STREAMS', 'Потоков при замере скорости (1–8)', '' ],
 			[ 'NEWDEV', 'Сообщать о новых устройствах (0/1)', '' ],
 			[ 'TG', 'Отправлять уведомления в Telegram (0/1)', '' ], [ 'TG_ALERTS', 'Слать предупреждения и перезагрузки (0/1)', '' ], [ 'TG_BOT', 'Бот с кнопками: меню, блокировка, перезагрузка (0/1)', '' ], [ 'TG_REPORT', 'Ежедневный отчёт в Telegram, время', '', 'text', 'например 21:00, пусто = выкл' ],
@@ -898,7 +900,7 @@ return view.extend({
 				[ 'Температура и память', [ 'TEMP_WARN', 'TEMP_CRIT', 'MEM_MIN_PCT', 'FLASH_MAX_PCT' ] ],
 				[ 'Процессор и соединения', [ 'CPU_MAX_PCT', 'CPU_MINUTES', 'CT_MAX_PCT' ] ],
 				[ 'Проверка интернета', [ 'PING_TARGET', 'PING_TARGET2' ] ],
-				[ 'Хранение истории', [ 'PERSIST_DIR', 'PERSIST_HOURS', 'JOURNAL', 'WIFI_HIST' ] ],
+				[ 'Хранение истории', [ 'PERSIST_DIR', 'PERSIST_HOURS', 'PERSIST_ANY', 'JOURNAL', 'WIFI_HIST' ] ],
 				[ 'Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ] ],
 				[ 'Новые устройства', [ 'NEWDEV' ] ],
 				[ 'Уведомления в Telegram', [ 'TG', 'TG_ALERTS', 'TG_BOT', 'TG_REPORT', 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY', 'TG_IFACE' ], tgTools ]
@@ -1575,7 +1577,14 @@ return view.extend({
 			const col = i => rows.map(r => r[i]).filter(v => v != null && v >= 0);
 			const max = a => a.length ? Math.max(...a) : null, avg = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
 			const sum = (list, k) => (list || []).reduce((s, x) => s + (x[k] || 0), 0);
-			const dd = sum(D.d && D.d.day, 1), du = sum(D.d && D.d.day, 2), yd = sum(D.d && D.d.yday, 1) + sum(D.d && D.d.yday, 2);
+			let dd = sum(D.d && D.d.day, 1), du = sum(D.d && D.d.day, 2), yd = sum(D.d && D.d.yday, 1) + sum(D.d && D.d.yday, 2);
+			/* итоги дня берём по счётчикам порта WAN: они точные, в отличие от суммы по устройствам */
+			{
+				const ymd = k => { const x = new Date(); x.setDate(x.getDate() - k); return String(x.getFullYear() * 10000 + (x.getMonth() + 1) * 100 + x.getDate()); };
+				const rt = ((S.tr && S.tr.rows) || []).find(r => r[0] === ymd(0)), ry = ((S.tr && S.tr.rows) || []).find(r => r[0] === ymd(1));
+				if (rt) { dd = rt[1]; du = rt[2]; }
+				if (ry) yd = ry[1] + ry[2];
+			}
 
 			let drops = 0, down = 0;
 			for (const e of D.h.events || []) {
@@ -1799,7 +1808,7 @@ return view.extend({
 			const est = i.persist === '1' && kb ? kb * 24 / hrs : 0;
 			flashBox.replaceChildren(
 				...(i.persist_blocked === '1' ? [ E('div', { class: 'nfm-hint', style: 'border-color:#e5484d' }, [ E('b', { class: 'nfm-warn' }, 'Запись заблокирована. '),
-					`Папка ${i.persist_dir} находится на встроенной флеш-памяти роутера, её нельзя изнашивать. Укажите папку на USB или SD-карте.` ]) ] : []),
+					`Папка ${i.persist_dir} находится на встроенной флеш-памяти роутера, её нельзя изнашивать. Укажите папку на USB или SD-карте. Если это eMMC, SSD или SD-карта, которую можно писать, поставьте «Разрешить сохранение на встроенный накопитель» в 1.` ]) ] : []),
 				E('div', { class: 'nfm-lst' }, rows.map(([ a, b ]) => E('div', {}, [ E('b', {}, a), E('div', { class: 'nfm-note-s' }, b) ]))),
 				E('div', { class: 'nfm-note-s', style: 'margin-top:10px' }, est
 					? `Оценка записи на накопитель: около ${nf0.format(est / 1024 > 1 ? est / 1024 : est)} ${est / 1024 > 1 ? 'МБ' : 'КБ'} в сутки.`

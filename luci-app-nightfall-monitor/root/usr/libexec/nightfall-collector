@@ -19,7 +19,7 @@ CT=${NF_CT:-$PROC/net/nf_conntrack}
 TEMP_WARN=80; TEMP_CRIT=90; MEM_MIN_PCT=10; FLASH_MAX_PCT=90; CT_MAX_PCT=80
 CPU_MAX_PCT=90; CPU_MINUTES=3
 PING_TARGET=1.1.1.1; PING_TARGET2=77.88.8.8
-PERSIST_DIR=; PERSIST_HOURS=6; JOURNAL=1; WIFI_HIST=1; SPEED_HOURS=0; APPS=0; NEWDEV=1; TG=0; TG_ALERTS=1; TG_REPORT=
+PERSIST_DIR=; PERSIST_HOURS=6; PERSIST_ANY=0; JOURNAL=1; WIFI_HIST=1; SPEED_HOURS=0; APPS=0; NEWDEV=1; TG=0; TG_ALERTS=1; TG_REPORT=
 NOTIFY=${NF_NOTIFY:-/usr/libexec/nightfall-notify}
 KNOWN=${NF_KNOWN:-/etc/nightfall-known.list}
 LEASES=${NF_LEASES:-/tmp/dhcp.leases}
@@ -256,6 +256,11 @@ do_devices() {  # трафик по устройствам: разница сч�
 			: > "$DIR/dev.day"
 		fi
 	fi
+	# учёт по устройствам до версии 1.12.1 мог завышаться: один раз обнуляем накопленные суточные итоги
+	if [ "$(cat "$DIR/acct.v" 2>/dev/null)" != 2 ]; then
+		: > "$DIR/dev.day"; : > "$DIR/dev.yday"; : > "$DIR/apps.day"; : > "$DIR/apps.hist"; rm -f "$DIR/ct.state"
+		echo 2 > "$DIR/acct.v"
+	fi
 	first=0; [ -s "$DIR/ct.state" ] || first=1
 	rm -f "$DIR/ct.state.new"
 	head -n 40000 "$CT" 2>/dev/null | awk -v statef="$DIR/ct.state" -v newf="$DIR/ct.state.new" -v dayf="$DIR/dev.day" \
@@ -302,13 +307,22 @@ do_devices() {  # трафик по устройствам: разница сч�
 		if (!isprivate(src) && $1 == "ipv4") next          # соединение извне, не устройство локальной сети
 		if (isprivate(src) && isprivate(dst)) next          # трафик внутри сети/до роутера — не интернет
 		key = $1 "|" $3 "|" src ">" dst ":" sp ">" dp
+		# одинаковые «адрес:порт» бывают у нескольких записей (старая в TIME_WAIT и новая): складываем их счётчики,
+		# иначе одна запись «уменьшалась» и каждый цикл засчитывалась заново целиком (завышение в сотни раз)
+		if (key in so) { so[key] += ob; sr[key] += rb; next }
+		so[key] = ob; sr[key] = rb; sa[key] = src; sd[key] = dst; sp3[key] = $3; sdp[key] = dp
+	}
+	function account(key,   ob, rb, src, dst, do_, dr_, sk, dk, ak) {
+		ob = so[key]; rb = sr[key]; src = sa[key]; dst = sd[key]
 		printf "%s %.0f %.0f\n", key, ob, rb > newf
-		if (first) next
+		if (first) return
 		if (key in po) { do_ = ob - po[key]; dr_ = rb - pr[key]; if (do_ < 0) do_ = ob; if (dr_ < 0) dr_ = rb }
 		else { do_ = ob; dr_ = rb }
+		# за один цикл по одному соединению не может пройти больше ~2 Гбит/с: всё, что выше, это сбой счётчика
+		if (do_ + dr_ > cap) return
 		cu[src] += do_; cd[src] += dr_
 		if (do_ + dr_ > 0) {
-			sk = src " " $3 " " (dp == "" ? "-" : dp); sv_d[sk] += dr_; sv_u[sk] += do_
+			sk = src " " sp3[key] " " (sdp[key] == "" ? "-" : sdp[key]); sv_d[sk] += dr_; sv_u[sk] += do_
 			if (!isprivate(dst)) {
 				dk = src " " dst; ds_d[dk] += dr_; ds_u[dk] += do_
 				if (apps == 1) { ak = src "|" appof(tolower(dst)); adl[ak] += dr_; aul[ak] += do_ }
@@ -316,6 +330,8 @@ do_devices() {  # трафик по устройствам: разница сч�
 		}
 	}
 	END {
+		cap = (dt > 0 ? dt : 10) * 250000000
+		for (k in so) account(k)
 		print ts > ratef
 		for (ip in cd) {
 			if (cd[ip] + cu[ip] <= 0) continue
@@ -361,6 +377,7 @@ write_info() {
 		echo "persist_dir=$PERSIST_DIR"
 		echo "persist_blocked=$([ -n "$PERSIST_DIR" ] && [ "$persist_ok" = 0 ] && echo 1 || echo 0)"
 		echo "persist_hours=$PERSIST_HOURS"
+		echo "persist_any=$PERSIST_ANY"
 		echo "persist_kb=${persist_kb:-0}"
 		echo "persist_last=${persist_last:-0}"
 		echo "journal=$JOURNAL"
@@ -374,6 +391,9 @@ write_info() {
 on_flash() {    # 0, если каталог находится на встроенной флеш-памяти роутера (её нельзя изнашивать)
 	d=$1; mkdir -p "$d" 2>/dev/null || return 1
 	fd=$(df -P "$d" 2>/dev/null | awk 'NR == 2 { print $1 }')
+	[ "$PERSIST_ANY" = 1 ] && return 1                  # владелец сам разрешил (например, eMMC или SSD с общим разделом)
+	# SD-карта, USB-диск, SSD и NVMe (Raspberry Pi, x86): это не сырая флеш-память роутера, запись раз в несколько часов им не вредит
+	case "$fd" in /dev/mmcblk*|/dev/sd[a-z]*|/dev/nvme*|/dev/vd[a-z]*|/dev/loop*) return 1 ;; esac
 	for r in /overlay / /rom; do
 		[ -d "$r" ] || continue
 		fr=$(df -P "$r" 2>/dev/null | awk 'NR == 2 { print $1 }')
@@ -383,7 +403,7 @@ on_flash() {    # 0, если каталог находится на встро�
 	return 1
 }
 
-PFILES="hist.coarse events.log dev.day dev.yday day.date speed.log apps.day apps.hist traffic.daily"
+PFILES="hist.coarse events.log dev.day dev.yday day.date speed.log apps.day apps.hist traffic.daily acct.v"
 persist() {
 	[ -n "$PERSIST_DIR" ] && [ "$persist_ok" = 1 ] || return 0
 	mkdir -p "$PERSIST_DIR" 2>/dev/null || return 0

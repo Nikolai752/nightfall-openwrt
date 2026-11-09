@@ -1278,7 +1278,7 @@ function topCard() {
 	const modeBtns = [ [ 'now', 'Сейчас' ], [ 'day', 'За сутки' ] ].map(([ k, t ]) => E('button', { type: 'button', class: 'nf-linkbtn' + (k === mode ? ' on' : ''), 'data-m': k,
 		click: ev => { ev.stopPropagation(); mode = k; try { localStorage.setItem('nightfall-top-mode', k); } catch (e) { /* ignore */ } modeBtns.forEach(b => b.classList.toggle('on', b.getAttribute('data-m') === k)); render(last); } }, t));
 	const el = E('div', { class: 'cbi-section nf-top fade-in' }, [
-		E('div', { class: 'cbi-title nf-top-t' }, [ E('h3', {}, 'Топ клиентов'), E('span', { class: 'nf-top-m' }, modeBtns) ]), body ]);
+		E('div', { class: 'cbi-title nf-top-t' }, [ E('h3', {}, 'Топ клиентов'), E('span', { class: 'nf-top-m', role: 'group', 'aria-label': 'Период' }, modeBtns) ]), body ]);
 	let names = null, timer = null;
 
 	let last = null;
@@ -1326,7 +1326,7 @@ function topCard() {
 				nbox,
 				E('div', { class: 'nf-top-bar' }, E('i', { style: 'width:' + Math.max(2, Math.round(val(r) / mx * 100)) + '%' })),
 				E('div', { class: 'nf-top-v' }, [ E('span', {}, '↓ ' + dn[0] + ' ' + dn[1]), E('span', {}, '↑ ' + up[0] + ' ' + up[1]) ]),
-				E('div', { class: 'nf-top-d' }, [ 'за день ', E('b', {}, fmtBytes(r.dd + r.du)), mode === 'day' ? ' · ' + Math.max(1, Math.round((r.dd + r.du) / dayTot * 100)) + '%' : '' ])
+				E('div', { class: 'nf-top-d' }, [ E('b', {}, fmtBytes(r.dd + r.du)), E('span', {}, 'за день' + (mode === 'day' ? ' · ' + Math.max(1, Math.round((r.dd + r.du) / dayTot * 100)) + '%' : '')) ])
 			]);
 		}));
 	}

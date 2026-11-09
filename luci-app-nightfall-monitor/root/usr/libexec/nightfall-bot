@@ -12,6 +12,7 @@ LEASES=${NF_LEASES:-/tmp/dhcp.leases}
 NOTIFY=${NF_NOTIFY:-/usr/libexec/nightfall-notify}
 BLOCK=${NF_BLOCKBIN:-/usr/libexec/nightfall-block}
 WOL=${NF_WOLBIN:-/usr/libexec/nightfall-wol}
+DF=${NF_DF:-df}
 REBOOT=${NF_REBOOT:-reboot}
 DATE_NOW=${NF_DATE_NOW:-}
 CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
@@ -48,12 +49,17 @@ cmd_status() {
 		net=$(awk -v n="$netms" 'BEGIN { if (n + 0 >= 0 && n ~ /^[0-9.]+$/) printf "есть, %.0f мс", n; else print "НЕТ СВЯЗИ" }')
 	fi
 	t=$(awk -v n="$temp" 'BEGIN { if (n ~ /^[0-9]+(\.[0-9]+)?$/ && n + 0 >= 0) printf "%.1f °C", n; else print "н/д" }')   # температура дробная (67.8): целочисленный test её не принимал
+	fp=/; [ -d /overlay ] && fp=/overlay
+	rom=$($DF -kP "$fp" 2>/dev/null | awk 'function sz(k) { if (k >= 1048576) return sprintf("%.1f ГБ", k / 1048576); return sprintf("%.1f МБ", k / 1024) }
+		NR == 2 && $2 > 0 { printf "%d%% занято, %s из %s (свободно %s)", 100 * $3 / $2, sz($3), sz($2), sz($2 - $3) }')
+	[ -n "$rom" ] || rom="нет данных"
 	rate=$(awk -v rx="${5:-0}" -v tx="${6:-0}" 'BEGIN { printf "↓ %.1f Мбит/с, ↑ %.1f Мбит/с", rx * 8 / 1e6, tx * 8 / 1e6 }')
 	reply "📊 $HOST
 Интернет: $net
 Скорость сейчас: $rate
 Процессор: ${2:-?}%   Температура: $t
 Память: $mem
+ПЗУ: $rom
 Нагрузка: $ld
 Работает: $(dur "${up:-0}")"
 }
