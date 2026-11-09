@@ -464,6 +464,14 @@ const CSS = `
 .nfm-wk-t b { font-size: 20px; line-height: 1.2; overflow-wrap: anywhere; }
 .nfm-wk-l { font-size: 11.5px; opacity: .7; text-transform: uppercase; letter-spacing: .04em; }
 @media (max-width: 640px) { .nfm-wk { grid-template-columns: 1fr; } }
+.nfm-cmp-t { display: grid; grid-template-columns: minmax(120px, 1.2fr) 1fr 1fr 90px; gap: 0; font-size: 13px; }
+.nfm-cmp-t > div { padding: 9px 10px; border-bottom: 1px solid var(--nfm-border); min-width: 0; overflow-wrap: anywhere; }
+.nfm-cmp-t .h { color: var(--nfm-dim); font-size: 12px; padding-top: 2px; }
+.nfm-cmp-t .h small { display: block; opacity: .8; }
+.nfm-cmp-t .n { text-align: right; font-variant-numeric: tabular-nums; }
+.nfm-cmp-t .up { color: #d7a13b; } .nfm-cmp-t .dn { color: #4ec9a0; } .nfm-cmp-t .eq { color: var(--nfm-dim); }
+.nfm-exp { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+@media (max-width: 640px) { .nfm-cmp-t { grid-template-columns: 1.2fr 1fr 1fr 64px; font-size: 12px; } .nfm-cmp-t > div { padding: 7px 4px; } }
 .nfm-heat-grid { display: grid; grid-template-columns: 26px repeat(24, 1fr); gap: 3px; align-items: center; }
 .nfm-heat-h, .nfm-heat-d { font-size: 10.5px; opacity: .65; text-align: center; }
 .nfm-heat-d.today { opacity: 1; font-weight: 700; }
@@ -1096,12 +1104,107 @@ return view.extend({
 			if (!T.persist) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Итоги хранятся в памяти и обнулятся при перезагрузке роутера. Чтобы копить месяцы, укажите папку на флешке в настройках сборщика (PERSIST_DIR).'));
 			monBody.replaceChildren(...kids);
 		}
+		/* ---- Сравнение периодов: недели и месяцы по суточным итогам WAN ---- */
+		const cmpBody = E('div', { class: 'nfm-cmp' });
+		const CMP = { w: 'Неделя к прошлой', m: 'Месяц к прошлому' };
+		const cmpTabs = E('div', { class: 'nfm-tabs' }, Object.keys(CMP).map(k =>
+			E('button', { class: 'nfm-tab' + (k === 'w' ? ' on' : ''), type: 'button', click: ev => { S.cmp = k; for (const b of cmpTabs.children) b.classList.toggle('on', b === ev.currentTarget); renderCmp(); } }, CMP[k])));
+		function renderCmp() {
+			const T = S.tr; if (!T) { cmpBody.replaceChildren(E('div', { class: 'nfm-empty' }, 'Загружаю…')); return; }
+			const mode = S.cmp || 'w', by = {};
+			for (const r of T.rows || []) by[r[0]] = r;
+			const key = d => String(d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate());
+			const shift = (d, k) => { const x = new Date(d); x.setDate(x.getDate() + k); return x; };
+			const ddmm = d => String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0');
+			const now = new Date(); now.setHours(12, 0, 0, 0);
+			let cur = [], prev = [], hc, hp;
+			if (mode === 'w') {
+				for (let i = 6; i >= 0; i--) { cur.push(shift(now, -i)); prev.push(shift(now, -i - 7)); }
+				hc = [ 'Последние 7 дней', ddmm(cur[0]) + '–' + ddmm(cur[6]) ]; hp = [ 'Предыдущие 7 дней', ddmm(prev[0]) + '–' + ddmm(prev[6]) ];
+			} else {
+				const y = now.getFullYear(), m = now.getMonth(), n = now.getDate(), pm = new Date(y, m - 1, 1, 12), pdim = new Date(y, m, 0).getDate();
+				for (let d = 1; d <= n; d++) cur.push(new Date(y, m, d, 12));
+				for (let d = 1; d <= Math.min(n, pdim); d++) prev.push(new Date(pm.getFullYear(), pm.getMonth(), d, 12));
+				const mn = d => d.toLocaleDateString('ru-RU', { month: 'long' }), cap = x => x.charAt(0).toUpperCase() + x.slice(1);
+				hc = [ cap(mn(cur[0])), '1–' + n + ' число' ]; hp = [ cap(mn(pm)), '1–' + Math.min(n, pdim) + ' число' ];
+			}
+			const agg = list => {
+				let rx = 0, tx = 0, n = 0, mx = null;
+				for (const d of list) { const r = by[key(d)]; if (!r) continue; n++; rx += r[1]; tx += r[2]; if (!mx || r[1] + r[2] > mx[1]) mx = [ d, r[1] + r[2] ]; }
+				return { rx, tx, n, tot: rx + tx, avg: n ? (rx + tx) / n : 0, mx };
+			};
+			const a = agg(cur), b = agg(prev);
+			const chg = (x, y) => {
+				if (!b.n || !y) return [ '—', 'eq' ];
+				const p = (x - y) / y * 100;
+				if (Math.abs(p) < 1) return [ '≈ 0%', 'eq' ];
+				return [ (p > 0 ? '↑ +' : '↓ −') + Math.round(Math.abs(p)) + '%', p > 0 ? 'up' : 'dn' ];
+			};
+			const rows = [ [ 'Всего', a.tot, b.tot ], [ 'Принято', a.rx, b.rx ], [ 'Отправлено', a.tx, b.tx ], [ 'В среднем за день', a.avg, b.avg ] ];
+			const cells = [ E('div', { class: 'h' }, ''), E('div', { class: 'h n' }, [ hc[0], E('small', {}, hc[1]) ]), E('div', { class: 'h n' }, [ hp[0], E('small', {}, hp[1]) ]), E('div', { class: 'h n' }, 'Разница') ];
+			for (const [ t, x, y ] of rows) {
+				const c = chg(x, y);
+				cells.push(E('div', {}, t), E('div', { class: 'n' }, a.n ? fmtBytes(x) : '—'), E('div', { class: 'n' }, b.n ? fmtBytes(y) : '—'), E('div', { class: 'n ' + c[1] }, c[0]));
+			}
+			const hv = o => o.mx ? ddmm(o.mx[0]) + ' · ' + fmtBytes(o.mx[1]) : '—';
+			cells.push(E('div', {}, 'Самый тяжёлый день'), E('div', { class: 'n' }, hv(a)), E('div', { class: 'n' }, hv(b)), E('div', { class: 'n eq' }, ''));
+			const note = !a.n ? 'За этот период суточных итогов ещё нет.' : !b.n ? 'За прошлый период данных нет: сборщик ведёт суточные итоги с момента установки, сравнение появится позже.'
+				: (a.n < cur.length || b.n < prev.length) ? 'Дней с данными: ' + a.n + ' из ' + cur.length + ' и ' + b.n + ' из ' + prev.length + '. Итоги считаются только по ним.' : 'Трафик через WAN: принято и отправлено провайдеру. ↑ больше, чем раньше, ↓ меньше.';
+			cmpBody.replaceChildren(E('div', { class: 'nfm-cmp-t' }, cells), E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, note));
+		}
+
+		/* ---- Экспорт данных в CSV (разделитель «;», кодировка UTF-8 с BOM: открывается в Excel) ---- */
+		const expNote = E('span', { class: 'nfm-note-s' });
+		function csvText(rows) {
+			return '﻿' + rows.map(r => r.map(v => { v = v == null ? '' : String(v); return /[;"\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(';')).join('\r\n') + '\r\n';
+		}
+		function saveCsv(name, rows) {
+			const url = URL.createObjectURL(new Blob([ csvText(rows) ], { type: 'text/csv;charset=utf-8' }));
+			const a = E('a', { href: url, download: name, style: 'display:none' });
+			document.body.appendChild(a); a.click();
+			setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+		}
+		const isoD = s => /^\d{8}$/.test(String(s)) ? String(s).slice(0, 4) + '-' + String(s).slice(4, 6) + '-' + String(s).slice(6, 8) : String(s);
+		const isoT = ts => { const d = new Date(ts * 1000), z = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()) + ':' + z(d.getSeconds()); };
+		const nonneg = v => (v == null || v < 0) ? '' : v;
+		const stamp = () => isoD(new Date().getFullYear() * 10000 + (new Date().getMonth() + 1) * 100 + new Date().getDate());
+		const EXPORTS = [
+			[ 'Трафик по дням', () => {
+				const r = S.tr && S.tr.rows; if (!r || !r.length) return null;
+				return [ 'nightfall-traffic-' + stamp() + '.csv', [ [ 'Дата', 'Принято, байт', 'Отправлено, байт', 'Всего, байт' ] ].concat(r.map(x => [ isoD(x[0]), x[1], x[2], x[1] + x[2] ])) ];
+			} ],
+			[ 'Приложения', () => {
+				const A = S.wkA; if (!A || !(A.hist || A.day || []).length) return null;
+				const nm = {}; for (const mac in hints) for (const ip of (hints[mac].ipaddrs || [])) nm[ip] = hints[mac].name || '';
+				const t = /^\d{8}$/.test(String(A.today || '')) ? isoD(A.today) : stamp();
+				const out = [ [ 'Дата', 'Устройство (IP)', 'Имя', 'Приложение', 'Принято, байт', 'Отправлено, байт' ] ];
+				for (const [ dt, ip, app, d, u ] of A.hist || []) out.push([ isoD(dt), ip, nm[ip] || '', app, d, u ]);
+				for (const [ ip, app, d, u ] of A.day || []) out.push([ t, ip, nm[ip] || '', app, d, u ]);
+				return [ 'nightfall-apps-' + stamp() + '.csv', out ];
+			} ],
+			[ 'Графики (выбранный период)', () => {
+				const r = S.hist && S.hist.rows; if (!r || !r.length) return null;
+				return [ 'nightfall-metrics-' + stamp() + '.csv', [ [ 'Время', 'Процессор, %', 'Память, %', 'Температура, °C', 'Загрузка, байт/с', 'Отдача, байт/с', 'Пинг до шлюза, мс', 'Пинг до интернета, мс' ] ]
+					.concat(r.map(x => [ isoT(x[0]), nonneg(x[1]), nonneg(x[2]), nonneg(x[3]), nonneg(x[4]), nonneg(x[5]), nonneg(x[6]), nonneg(x[7]) ])) ];
+			} ],
+			[ 'Журнал обрывов и перезагрузок', () => {
+				const r = S.jrn && S.jrn.rows; if (!r || !r.length) return null;
+				return [ 'nightfall-journal-' + stamp() + '.csv', [ [ 'Время', 'Событие', 'Длительность, с' ] ].concat(r.slice().sort((a, b) => a[0] - b[0]).map(x => [ isoT(x[0]), x[1] === 'outage' ? 'обрыв интернета' : x[1] === 'boot' ? 'перезагрузка' : x[1], x[2] == null ? '' : x[2] ])) ];
+			} ]
+		];
+		const expBtns = EXPORTS.map(([ label, make ]) => E('button', { type: 'button', class: 'nfm-btn', click: () => {
+			let r = null; try { r = make(); } catch (e) { r = null; }
+			if (!r) { expNote.textContent = '«' + label + '»: данных пока нет.'; return; }
+			saveCsv(r[0], r[1]); expNote.textContent = 'Сохранён файл ' + r[0] + ' (записей: ' + (r[1].length - 1) + ').';
+		} }, '⬇ ' + label));
+
 		const hist = E('div', { hidden: true }, [
 			histNote,
 			E('div', { class: 'nfm-grid' }, [ card([ 'Сводка за день', E('span', { class: 'nfm-spacer' }), E('span', { class: 'nfm-note-s' }, 'с 00:00 по данным сборщика') ], dayBody) ]),
 			E('div', { class: 'nfm-grid' }, [ card('Качество Wi‑Fi по клиентам', wqBody) ]),
 			E('div', { class: 'nfm-grid' }, [ card([ 'Сводка недели', E('span', { class: 'nfm-spacer' }), E('span', { class: 'nfm-note-s' }, 'последние 7 дней') ], wkBody) ]),
 			E('div', { class: 'nfm-grid' }, [ card('Трафик по месяцам', monBody) ]),
+			E('div', { class: 'nfm-grid' }, [ card([ 'Сравнение периодов', E('span', { class: 'nfm-spacer' }), cmpTabs ], cmpBody) ]),
 			E('div', { class: 'nfm-grid' }, [ card([ 'Тепловая карта по часам', E('span', { class: 'nfm-spacer' }), heatTabs ], heatBody) ]),
 			E('div', { class: 'nfm-grid' }, [
 				card([ 'Процессор, память, температура', E('span', { class: 'nfm-spacer' }),
@@ -1124,6 +1227,7 @@ return view.extend({
 				card([ 'Скорость интернета (замеры роутера)', E('span', { class: 'nfm-spacer' }), spdSrc, spdSel, spdBtn ], E('div', {}, [ spdTiles, spdChart.el, spdList, spdNote ])),
 				card('Хранение истории и износ флеш-памяти', flashBox)
 			]),
+			E('div', { class: 'nfm-grid' }, [ card([ 'Экспорт данных в CSV', E('span', { class: 'nfm-spacer' }), E('span', { class: 'nfm-note-s' }, 'открывается в Excel и Google Таблицах') ], E('div', {}, [ E('div', { class: 'nfm-exp' }, expBtns), E('div', { style: 'margin-top:8px' }, expNote) ])) ]),
 			E('div', { class: 'nfm-grid' }, [ cfgCard ])
 		]);
 
@@ -1999,7 +2103,7 @@ return view.extend({
 			renderAlerts();
 			if (S.tab === 'net') { renderDevices(); renderChannel(); }
 			if (S.tab === 'svcs') renderServices();
-			if (S.tab === 'hist') { renderHist(); renderDay(); renderHeat(); renderWeek(); renderMon(); renderWq(); renderJournal(); renderSpeed(); renderFlash(); }
+			if (S.tab === 'hist') { renderHist(); renderDay(); renderHeat(); renderWeek(); renderCmp(); renderMon(); renderWq(); renderJournal(); renderSpeed(); renderFlash(); }
 
 			/* overheating banner */
 			const hot = hotInfo();

@@ -12,6 +12,9 @@
 				"/usr/libexec/nightfall-guest": [
 					"exec"
 				],
+				"/usr/libexec/nightfall-wol": [
+					"exec"
+				],
 				"/usr/libexec/nightfall-config": [
 					"exec"
 				],

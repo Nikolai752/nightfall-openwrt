@@ -11,6 +11,7 @@ PROC=${NF_PROC:-/proc}
 LEASES=${NF_LEASES:-/tmp/dhcp.leases}
 NOTIFY=${NF_NOTIFY:-/usr/libexec/nightfall-notify}
 BLOCK=${NF_BLOCKBIN:-/usr/libexec/nightfall-block}
+WOL=${NF_WOLBIN:-/usr/libexec/nightfall-wol}
 REBOOT=${NF_REBOOT:-reboot}
 DATE_NOW=${NF_DATE_NOW:-}
 CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
@@ -19,7 +20,7 @@ CHAT=$(cfg TG_CHAT)
 HOST=$(cat "$PROC/sys/kernel/hostname" 2>/dev/null || echo router)
 
 # кнопки под сообщением (inline-клавиатура); ответ без явного второго параметра получает главное меню
-KB_MAIN='{"inline_keyboard":[[{"text":"📊 Статус","callback_data":"status"},{"text":"🖥 Клиенты","callback_data":"clients"}],[{"text":"📈 Трафик","callback_data":"traffic"},{"text":"📱 Приложения","callback_data":"apps"}],[{"text":"⚡ Скорость","callback_data":"speed"},{"text":"🚫 Блокировка","callback_data":"block"}],[{"text":"💾 Резервная копия","callback_data":"bk"},{"text":"🔄 Перезагрузка","callback_data":"rb"}]]}'
+KB_MAIN='{"inline_keyboard":[[{"text":"📊 Статус","callback_data":"status"},{"text":"🖥 Клиенты","callback_data":"clients"}],[{"text":"📈 Трафик","callback_data":"traffic"},{"text":"📱 Приложения","callback_data":"apps"}],[{"text":"⚡ Скорость","callback_data":"speed"},{"text":"🚫 Блокировка","callback_data":"block"}],[{"text":"⏻ Включить устройство","callback_data":"wk"}],[{"text":"💾 Резервная копия","callback_data":"bk"},{"text":"🔄 Перезагрузка","callback_data":"rb"}]]}'
 KB_REBOOT='{"inline_keyboard":[[{"text":"✅ Да, перезагрузить","callback_data":"rb:yes"},{"text":"Отмена","callback_data":"menu"}]]}'
 MID=""   # id сообщения с нажатой кнопкой: если он есть, ответ правит это сообщение, а не шлёт новое
 reply() {
@@ -173,6 +174,33 @@ cb_newdev() {  # cb_newdev ok|bk|ub MAC_без_двоеточий
 	esac
 }
 
+# Wake-on-LAN: выключенные устройства с кнопками, нажатие отправляет сигнал на включение
+cmd_wake() {  # cmd_wake [СООБЩЕНИЕ]
+	rows=$("$BLOCK" list 2>/dev/null | sed 's/},{"mac"/}\n{"mac"/g' | awk '
+		function g(k) { if (match($0, "\"" k "\":\"[^\"]*\"")) return substr($0, RSTART + length(k) + 4, RLENGTH - length(k) - 5); return "" }
+		/"mac":"/ {
+			if ($0 ~ /"online":true/) next
+			m = g("mac"); nm = g("name"); ip = g("ip"); if (nm == "") nm = ip; if (nm == "") nm = m
+			gsub(/:/, "", m); printf "[{\"text\":\"⏻ %s\",\"callback_data\":\"wk:%s\"}]\n", nm, m
+		}' | head -n 12 | paste -sd, -)
+	if [ -z "$rows" ]; then reply "${1:+$1
+
+}Сейчас все известные устройства в сети, включать нечего." '{"inline_keyboard":[[{"text":"« Меню","callback_data":"menu"}]]}'; return; fi
+	reply "${1:+$1
+
+}⏻ Нажмите на устройство, чтобы включить его по сети (Wake-on-LAN). Функция должна быть включена в самом устройстве: в BIOS и в настройках сетевой карты." "{\"inline_keyboard\":[$rows,[{\"text\":\"« Меню\",\"callback_data\":\"menu\"}]]}"
+}
+
+cb_wake() {  # cb_wake MAC без двоеточий
+	mac=$(printf '%s' "$1" | sed 's/^\(..\)\(..\)\(..\)\(..\)\(..\)\(..\)$/\1:\2:\3:\4:\5:\6/')
+	printf '%s' "$mac" | grep -qE '^([0-9a-f]{2}:){5}[0-9a-f]{2}$' || { cmd_wake "Неверный адрес устройства."; return; }
+	r=$("$WOL" send "$mac" 2>/dev/null)
+	case "$r" in
+	*'"ok":true'*) cmd_wake "✅ Сигнал на включение отправлен ($mac). Компьютеру нужно 10–30 секунд." ;;
+	*) cmd_wake "Не получилось: $(printf '%s' "$r" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p')" ;;
+	esac
+}
+
 cmd_blocklog() {
 	out=$("$BLOCK" log plain 2>/dev/null | while IFS='|' read -r ts nm ev why; do
 		[ "$ev" = on ] && ev="🔴 отключён" || ev="🟢 возвращён"
@@ -232,7 +260,7 @@ $([ "$evn" -gt 0 ] && printf 'Предупреждений за сутки: %s\n
 
 cmd_help() {
 	reply "Бот $HOST. Всё управляется кнопками под сообщениями: /menu открывает меню.
-Команды тоже работают: /status /clients /traffic /apps /speed /block /reboot /report"
+Команды тоже работают: /status /clients /traffic /apps /speed /block /wake /reboot /report"
 }
 
 run() {  # run КОМАНДА (из текста «/status» или из кнопки «status»)
@@ -245,6 +273,8 @@ run() {  # run КОМАНДА (из текста «/status» или из кно�
 		speed) cmd_speed ;;
 		block) cmd_block ;;
 		bl) cmd_blocklog ;;
+		wk|wake) cmd_wake ;;
+		wk:*) cb_wake "${1#wk:}" ;;
 		gr) cmd_groups ;;
 		gt:*) cb_gtoggle "${1#gt:}" ;;
 		bk) cmd_backup ;;

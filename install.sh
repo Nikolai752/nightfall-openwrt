@@ -21,7 +21,7 @@ for p in /proc/[0-9]*; do
 done
 sleep 1
 tar -xzf "$T" -C /
-chmod 755 /usr/libexec/nightfall-stats /usr/libexec/nightfall-history /usr/libexec/nightfall-collector /usr/libexec/nightfall-config /usr/libexec/nightfall-speed /usr/libexec/nightfall-update /usr/libexec/nightfall-apps /usr/libexec/nightfall-notify /usr/libexec/nightfall-bot /usr/libexec/nightfall-block /usr/libexec/nightfall-diag /usr/libexec/nightfall-guest /etc/init.d/nightfall-collector
+chmod 755 /usr/libexec/nightfall-stats /usr/libexec/nightfall-history /usr/libexec/nightfall-collector /usr/libexec/nightfall-config /usr/libexec/nightfall-speed /usr/libexec/nightfall-update /usr/libexec/nightfall-apps /usr/libexec/nightfall-notify /usr/libexec/nightfall-bot /usr/libexec/nightfall-block /usr/libexec/nightfall-diag /usr/libexec/nightfall-guest /usr/libexec/nightfall-wol /etc/init.d/nightfall-collector
 for f in /etc/uci-defaults/30_luci-theme-nightfall /etc/uci-defaults/40_nightfall-collector; do
 	[ -f "$f" ] && { sh "$f"; rm -f "$f"; }
 done
