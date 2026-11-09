@@ -464,6 +464,8 @@ const CSS = `
 .nfm-wk-t b { font-size: 20px; line-height: 1.2; overflow-wrap: anywhere; }
 .nfm-wk-l { font-size: 11.5px; opacity: .7; text-transform: uppercase; letter-spacing: .04em; }
 @media (max-width: 640px) { .nfm-wk { grid-template-columns: 1fr; } }
+.nfm-dsk { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 0; border-bottom: 1px solid var(--nfm-border); }
+.nfm-dsk:last-child { border-bottom: 0; } .nfm-dsk-i { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .nfm-cmp-t { display: grid; grid-template-columns: minmax(120px, 1.2fr) 1fr 1fr 90px; gap: 0; font-size: 13px; }
 .nfm-cmp-t > div { padding: 9px 10px; border-bottom: 1px solid var(--nfm-border); min-width: 0; overflow-wrap: anywhere; }
 .nfm-cmp-t .h { color: var(--nfm-dim); font-size: 12px; padding-top: 2px; }
@@ -895,6 +897,35 @@ return view.extend({
 				E('button', { class: 'nfm-act', click: () => tgRun('test').then(r => { if (r) tgMsg.textContent = r.ok ? 'Сообщение отправлено, проверьте Telegram.' : 'Не отправлено: ' + r.error; }) }, 'Отправить проверку'),
 				E('button', { class: 'nfm-act', click: () => tgRun('backup').then(r => { if (r) tgMsg.textContent = r.ok ? 'Резервная копия отправлена в Telegram файлом (без токена бота).' : 'Не отправлено: ' + r.error; }) }, 'Резервная копия в Telegram') ]),
 			tgMsg ]);
+		/* ---- Накопители: найти флешку / SD-карту и одним нажатием хранить на ней историю ---- */
+		const dskBody = E('div', {}, E('div', { class: 'nfm-empty' }, 'Ищу накопители…'));
+		const dskMsg = E('div', { class: 'nfm-note-s', style: 'margin-top:8px' });
+		function loadDisks() { return callCfg([ 'disks' ]).then(r => { S.dsk = r || null; renderDisks(); }).catch(() => { S.dsk = null; renderDisks(); }); }
+		function setPersist(dir, hours, msg) {
+			dskMsg.textContent = 'Применяю…';
+			callCfg(dir ? [ 'set', 'PERSIST_DIR=' + dir, 'PERSIST_HOURS=' + hours ] : [ 'set', 'PERSIST_DIR=' ]).then(r => {
+				if (!(r && r.ok)) { dskMsg.textContent = 'Не сохранено: ' + ((r && r.error) || 'нет ответа'); return; }
+				dskMsg.textContent = msg; S.at.alerts = 0; S.at.hist = 0;
+				callCfg([ 'get' ]).then(c => { S.cfg = c; if (c) fillCfg(c.values); renderDisks(); });
+			});
+		}
+		function renderDisks() {
+			const d = S.dsk, cur = ((S.cfg && S.cfg.values) || {}).PERSIST_DIR || '';
+			if (d === undefined) return;
+			if (!d || !Array.isArray(d.disks)) { dskBody.replaceChildren(E('div', { class: 'nfm-hint' }, 'Не удалось получить список накопителей: обновите тему на роутере до последней версии.')); return; }
+			if (!d.disks.length) {
+				dskBody.replaceChildren(E('div', { class: 'nfm-hint' }, 'Внешних накопителей не найдено. Подключите флешку или SD-карту и убедитесь, что роутер её смонтировал (обычно в /mnt/sda1). В OpenWrt для этого нужны пакеты kmod-usb-storage и block-mount, а в «Система → Точки монтирования» включите автомонтирование.'));
+				return;
+			}
+			dskBody.replaceChildren(...d.disks.map(k => {
+				const dir = k.mount.replace(/\/$/, '') + '/nightfall', used = cur === dir || cur.indexOf(k.mount.replace(/\/$/, '') + '/') === 0;
+				return E('div', { class: 'nfm-dsk' }, [
+					E('div', { class: 'nfm-dsk-i' }, [ E('b', {}, k.mount), E('span', { class: 'nfm-note-s' }, k.dev + ' · ' + k.fs + ' · ' + fmtBytes(k.size_kb * 1024) + ', свободно ' + fmtBytes(k.free_kb * 1024)) ]),
+					used ? E('button', { type: 'button', class: 'nfm-btn', click: () => setPersist('', 0, 'Сохранение истории на накопитель выключено, история снова только в памяти.') }, '✓ История здесь · отключить')
+						: E('button', { type: 'button', class: 'nfm-btn', click: () => setPersist(dir, 1, 'Готово: история сохраняется в ' + dir + ' раз в час и переживёт перезагрузку роутера.') }, 'Хранить историю здесь') ]);
+			}));
+		}
+
 		const cfgCard = card('Настройки предупреждений', E('div', {}, [
 			E('div', { class: 'nfm-cfg-groups' }, [
 				[ 'Температура и память', [ 'TEMP_WARN', 'TEMP_CRIT', 'MEM_MIN_PCT', 'FLASH_MAX_PCT' ] ],
@@ -942,16 +973,18 @@ return view.extend({
 		const dayBody = E('div', { class: 'nfm-day' }, E('div', { class: 'nfm-empty' }, 'Загружаю…'));
 		const wqBody = E('div', { class: 'nfm-wq' });
 		function wqVerdict(c) {
-			if (!c || typeof c !== 'object') return 'Нет ответа от роутера. Обновите тему и войдите в LuCI заново.';
-			const devs = c.devs || [], n = devs.reduce((a, d) => a + (+d[1] || 0), 0);
+			if (!c || typeof c !== 'object') return 'Нет ответа от роутера. Обновите тему на роутере до последней версии.';
+			const devs = c.devs || [], n = devs.reduce((a, d) => a + (+d[1] || 0), 0), ok = devs.reduce((a, d) => a + (+d[2] || 0), 0);
 			if (c.hist === '0') return 'Запись истории Wi-Fi выключена: поставьте WIFI_HIST=1 в настройках сборщика (вкладка «История», внизу) и сохраните.';
 			if (!c.iwinfo) return 'Роутер не отдаёт данные радиомодулей (нет ubus iwinfo). Проверьте, что Wi-Fi включён, и установите пакет rpcd-mod-iwinfo.';
 			if (!devs.length) return 'Радиомодули не найдены: ни один Wi-Fi интерфейс сейчас не включён. Включите Wi-Fi в «Сеть → Беспроводная сеть».';
 			if (!n) return 'Wi-Fi работает (' + devs.map(d => d[0]).join(', ') + '), но сейчас к нему никто не подключён. Подключите телефон, первые точки появятся примерно через минуту. Проводные устройства здесь не учитываются.';
-			if (!c.collector) return 'Клиенты Wi-Fi есть (' + n + '), но сборщик не запущен. Перезапустите его: /etc/init.d/nightfall-collector restart, либо перезагрузите роутер.';
-			if (!c.lines) return 'Клиенты Wi-Fi есть (' + n + '), сборщик работает, записей ещё нет. Подождите 1–2 минуты и обновите страницу.';
+			if (!ok) return 'Клиентов Wi-Fi: ' + n + ', но уровень сигнала разобрать не удалось. Пришлите это сообщение разработчику: ' + (c.sample || 'пример недоступен');
+			if (c.collector === 0 && (c.age < 0 || c.age > 180)) return 'Клиенты Wi-Fi есть (' + n + '), но сборщик не работает. Перезапустите его: /etc/init.d/nightfall-collector restart, либо перезагрузите роутер.';
+			if (!c.lines) return 'Клиенты Wi-Fi есть (' + n + '), сигнал читается (' + ok + '), сборщик работает' + (c.collector ? '' : ' (данные свежие)') + ', но записей в истории нет. Подождите 1–2 минуты и обновите страницу. Если не помогло: /etc/init.d/nightfall-collector restart.';
 			return 'Записей в истории: ' + c.lines + '. Обновите страницу.';
 		}
+
 		function renderWq() {
 			const R = S.wq;
 			if (R === undefined) { wqBody.replaceChildren(E('div', { class: 'nfm-empty' }, 'Загружаю…')); return; }
@@ -1230,6 +1263,7 @@ return view.extend({
 				card('Хранение истории и износ флеш-памяти', flashBox)
 			]),
 			E('div', { class: 'nfm-grid' }, [ card([ 'Экспорт данных в CSV', E('span', { class: 'nfm-spacer' }), E('span', { class: 'nfm-note-s' }, 'открывается в Excel и Google Таблицах') ], E('div', {}, [ E('div', { class: 'nfm-exp' }, expBtns), E('div', { style: 'margin-top:8px' }, expNote) ])) ]),
+			E('div', { class: 'nfm-grid' }, [ card([ 'Накопители', E('span', { class: 'nfm-spacer' }), E('button', { type: 'button', class: 'nfm-btn', click: () => { dskBody.replaceChildren(E('div', { class: 'nfm-empty' }, 'Ищу накопители…')); loadDisks(); } }, 'Обновить') ], E('div', {}, [ dskBody, dskMsg, E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'История (графики, трафик по дням и приложениям, журнал) сохраняется на накопитель раз в час и не пропадает при перезагрузке. Флешка не изнашивает память роутера.') ])) ]),
 			E('div', { class: 'nfm-grid' }, [ cfgCard ])
 		]);
 
@@ -1399,7 +1433,8 @@ return view.extend({
 			if (S.tab === 'hist' && due('jrn', 30)) jobs.push(callHistory([ 'journal' ]).then(r => { S.jrn = r; }));
 			if (S.tab === 'hist' && due('spd', S.spdRun ? 3 : 30)) jobs.push(callHistory([ 'speed' ]).then(r => { S.spd = r; if (S.spdRun && Date.now() - (S.spdT || 0) > 4000 && (!r || !r.running)) { S.spdRun = false; if (r === false) ui.addNotification(null, E('p', {}, 'Замер завершён, но результат не прочитан: ' + MISSING), 'danger'); } }));
 			if (S.tab === 'svcs' && due('svc', 6)) jobs.push(Promise.all([ L.resolveDefault(callInitList(), null), L.resolveDefault(callServiceList(), null) ]).then(r => { S.svc = { init: r[0], run: r[1] }; }));
-			if (S.tab === 'hist' && S.cfg === undefined) { S.cfg = null; jobs.push(callCfg([ 'get' ]).then(r => { S.cfg = r; fillCfg(r && r.values); })); }
+			if (S.tab === 'hist' && S.cfg === undefined) { S.cfg = null; jobs.push(callCfg([ 'get' ]).then(r => { S.cfg = r; fillCfg(r && r.values); renderDisks(); })); }
+			if (S.tab === 'hist' && S.dsk === undefined) { S.dsk = null; jobs.push(loadDisks()); }
 			return Promise.all(jobs);
 		}
 
