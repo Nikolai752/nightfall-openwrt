@@ -640,7 +640,8 @@ return view.extend({
 			for (const ip of (hints[mac].ipaddrs || []))
 				names[ip] = hints[mac].name || ip;
 		/* собственные адреса роутера (LAN и WAN) подписываем «Роутер» */
-		for (const i of ifdump) for (const a of (i['ipv4-address'] || [])) if (a.address && !names[a.address]) names[a.address] = 'Роутер';
+		const routerIps = new Set();
+		for (const i of ifdump) for (const a of (i['ipv4-address'] || [])) if (a.address) { routerIps.add(a.address); if (!names[a.address] || names[a.address] === a.address) names[a.address] = 'Роутер'; }
 
 		/* device -> logical interface, default-route device */
 		const devRole = {};
@@ -914,7 +915,20 @@ return view.extend({
 			if (d === undefined) return;
 			if (!d || !Array.isArray(d.disks)) { dskBody.replaceChildren(E('div', { class: 'nfm-hint' }, 'Не удалось получить список накопителей: обновите тему на роутере до последней версии.')); return; }
 			if (!d.disks.length) {
-				dskBody.replaceChildren(E('div', { class: 'nfm-hint' }, 'Внешних накопителей не найдено. Подключите флешку или SD-карту и убедитесь, что роутер её смонтировал (обычно в /mnt/sda1). В OpenWrt для этого нужны пакеты kmod-usb-storage и block-mount, а в «Система → Точки монтирования» включите автомонтирование.'));
+				const parts = (d.parts || []).filter(x => /^\/dev\/(sd|nvme|vd|mmcblk)/.test(x.dev)), fsl = d.fs || [], msg = [];
+				const need = { vfat: 'kmod-fs-vfat', exfat: 'kmod-fs-exfat', ntfs: 'kmod-fs-ntfs3', ext4: 'kmod-fs-ext4', f2fs: 'kmod-fs-f2fs', btrfs: 'kmod-fs-btrfs' };
+				if (parts.length) {
+					msg.push('Роутер видит раздел: ' + parts.map(x => x.dev + ' (' + fmtBytes(x.size_kb * 1024) + (x.type ? ', ' + x.type : '') + ')').join(', ') + ', но он не смонтирован.');
+					const bad = parts.filter(x => x.type && need[x.type] && !fsl.includes(x.type) && !(x.type === 'ntfs' && fsl.includes('ntfs3')));
+					if (bad.length) msg.push('Не хватает драйвера файловой системы: установите ' + [ ...new Set(bad.map(x => need[x.type])) ].join(', ') + ' и перезагрузите роутер.');
+					msg.push('Затем откройте «Система → Точки монтирования», нажмите «Добавить», выберите этот раздел, точка монтирования /mnt/sda1, включите и нажмите «Сохранить и применить». Если там уже есть запись с пометкой «не существует», удалите её и добавьте заново.');
+				} else if (d.usb_storage === 0) {
+					msg.push('Драйвер USB-накопителей не загружен. Установите kmod-usb-storage (для USB 3.0 ещё kmod-usb-storage-uas) и перезагрузите роутер.');
+				} else {
+					msg.push('Роутер не видит флешку как диск. Проверьте, что она вставлена до конца, попробуйте другой порт или другую флешку (некоторым не хватает питания). Запись в «Точках монтирования» с пометкой «не существует» значит то же самое: раздел с таким UUID сейчас не найден. Подробности на роутере: dmesg | grep -i usb.');
+				}
+				msg.push('Когда накопитель смонтируется, нажмите «Обновить»: он появится здесь.');
+				dskBody.replaceChildren(...msg.map(t => E('div', { class: 'nfm-hint', style: 'margin-bottom:6px' }, t)));
 				return;
 			}
 			dskBody.replaceChildren(...d.disks.map(k => {
@@ -1077,7 +1091,7 @@ return view.extend({
 				const from = base.getFullYear() * 10000 + (base.getMonth() + 1) * 100 + base.getDate(), tot = {};
 				for (const [ ip, , d, u ] of A.day || []) tot[ip] = (tot[ip] || 0) + d + u;
 				for (const [ dt, ip, , d, u ] of A.hist || []) if (+dt >= from) tot[ip] = (tot[ip] || 0) + d + u;
-				const ips = Object.keys(tot).sort((x, y) => tot[y] - tot[x]);
+				const ips = Object.keys(tot).filter(ip => !routerIps.has(ip)).sort((x, y) => tot[y] - tot[x]);
 				if (ips.length) {
 					let nmv = ips[0];
 					for (const mac in hints) if ((hints[mac].ipaddrs || []).indexOf(ips[0]) >= 0) nmv = hints[mac].name || ips[0];
@@ -1607,6 +1621,7 @@ return view.extend({
 				dayBody.replaceChildren(E('div', { class: 'nfm-empty' }, D ? 'Сборщик истории не запущен — сводки нет.' : 'Загружаю…'));
 				return;
 			}
+			const hwFlow = !!(D.h && D.h.info && D.h.info.flow_hw === '1');
 			const mid = new Date().setHours(0, 0, 0, 0) / 1000;
 			const rows = (D.h.rows || []).filter(r => r[0] >= mid);
 			const col = i => rows.map(r => r[i]).filter(v => v != null && v >= 0);
@@ -1619,6 +1634,14 @@ return view.extend({
 				const rt = ((S.tr && S.tr.rows) || []).find(r => r[0] === ymd(0)), ry = ((S.tr && S.tr.rows) || []).find(r => r[0] === ymd(1));
 				if (rt) { dd = rt[1]; du = rt[2]; }
 				if (ry) yd = ry[1] + ry[2];
+			}
+			/* свой трафик роутера (прокси, VPN, обновления) считаем отдельно, чтобы он не выдавал себя за устройство */
+			let selfB = 0, cliD = 0, cliU = 0;
+			for (const [ ip, d, u ] of (D.d && D.d.day) || []) { if (routerIps.has(ip)) selfB += d + u; else { cliD += d; cliU += u; } }
+			let srcNote = 'Скачано и отдано: по счётчикам порта WAN.', swDev = false;
+			if (cliD + cliU > 1.5 * (dd + du) && cliD + cliU > 50e6) {
+				dd = cliD; du = cliU; swDev = true;
+				srcNote = 'Счётчики порта WAN показывают заметно меньше, чем прошло через устройства, поэтому «Скачано» и «Отдано» взяты по данным устройств.' + (hwFlow ? ' Причина: на роутере включено аппаратное ускорение пакетов (Сеть → Межсетевой экран), оно скрывает часть трафика от счётчиков порта.' : ' Вероятная причина: аппаратное ускорение пакетов (Сеть → Межсетевой экран) скрывает трафик от счётчиков порта.');
 			}
 
 			let drops = 0, down = 0;
@@ -1634,14 +1657,14 @@ return view.extend({
 			const tile = (k, v, s) => E('div', { class: 'nfm-tile' }, [ k, E('b', {}, v), s ? E('span', { class: 'nfm-note-s' }, s) : '' ]);
 
 			const top = {};
-			for (const [ ip, d, u ] of (D.d && D.d.day) || []) top[ip] = (top[ip] || 0) + d + u;
+			for (const [ ip, d, u ] of (D.d && D.d.day) || []) if (!routerIps.has(ip)) top[ip] = (top[ip] || 0) + d + u;
 			const list = Object.keys(top).map(ip => [ ip, top[ip] ]).sort((a, b) => b[1] - a[1]).slice(0, 3);
 			const mx = list.length ? list[0][1] : 1;
 
 			dayBody.replaceChildren(
 				E('div', { class: 'nfm-tiles d4' }, [
 					tile('Скачано', fmtBytes(dd), 'отдано ' + fmtBytes(du)),
-					tile('Вчера всего', yd ? fmtBytes(yd) : '–', yd ? 'сегодня ' + nf0.format(100 * (dd + du) / yd) + '% от вчера' : ''),
+					tile('Вчера всего', yd ? fmtBytes(yd) : '–', yd ? (swDev ? 'по счётчикам порта WAN' : 'сегодня ' + nf0.format(100 * (dd + du) / yd) + '% от вчера') : ''),
 					tile('Обрывов интернета', String(drops), drops ? 'без связи ' + dur(down) : 'всё стабильно'),
 					tile('Средний пинг', pk(avg(col(7)), v => nf0.format(v) + ' мс'), pk(max(col(7)), v => 'пик ' + nf0.format(v) + ' мс')),
 					tile('Пик процессора', pk(max(col(1)), v => nf0.format(v) + '%'), pk(avg(col(1)), v => 'в среднем ' + nf0.format(v) + '%')),
@@ -1650,7 +1673,8 @@ return view.extend({
 				]),
 				list.length ? E('div', { class: 'nfm-day-top' }, [ E('div', { class: 'nfm-k' }, 'Больше всего трафика сегодня') ].concat(list.map(([ ip, b ]) =>
 					E('div', { class: 'nfm-host' }, [ E('span', {}, [ names[ip] || ip, names[ip] ? E('small', {}, ip) : '' ]), E('b', {}, fmtBytes(b)),
-						E('div', { class: 'nfm-bar' }, E('div', { class: 'nfm-bar-fill c-down', style: `width:${100 * b / mx}%` })) ])))) : '');
+						E('div', { class: 'nfm-bar' }, E('div', { class: 'nfm-bar-fill c-down', style: `width:${100 * b / mx}%` })) ])))) : '',
+				E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, srcNote + (selfB > 0 ? ' Собственный трафик роутера: ' + fmtBytes(selfB) + ' (обновления, DNS, замер скорости, прокси или VPN на роутере). В список устройств он не входит.' : '')));
 		}
 
 		function renderHist() {

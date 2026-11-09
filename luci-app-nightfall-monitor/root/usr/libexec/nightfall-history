@@ -96,7 +96,17 @@ speed)
 	printf '}\n' ;;
 wifi)
 	printf '{"now":%s,"rows":' "$now"
-	[ -r "$DIR/wifi.fine" ] && awk -v mac="$2" 'BEGIN { printf "[" } mac == "" || $2 == mac { printf "%s[%s,\"%s\",%s,\"%s\"]", (n++ ? "," : ""), $1, $2, $3, $4 } END { printf "]" }' "$DIR/wifi.fine" || printf '[]'
+	# сырые точки только за последний час, всё старше усредняется по 5 минутам: ответ остаётся небольшим даже при 8000 записях
+	if [ -r "$DIR/wifi.fine" ]; then
+		awk -v mac="$2" -v lim=$((now - 3600)) '
+			function flush(   k, a) { for (k in sm) { split(k, a, SUBSEP); printf "%s[%d,\"%s\",%d,\"%s\"]", (n++ ? "," : ""), mt[k], a[1], sm[k] / ct[k], dv[k] } delete sm; delete ct; delete mt; delete dv }
+			BEGIN { printf "["; cur = "" }
+			mac != "" && $2 != mac { next }
+			$3 !~ /^-?[0-9]+$/ { next }
+			$1 >= lim { if (cur != "") { flush(); cur = "" } printf "%s[%s,\"%s\",%s,\"%s\"]", (n++ ? "," : ""), $1, $2, $3, $4; next }
+			{ b = int($1 / 300); if (b != cur) { if (cur != "") flush(); cur = b } k = $2; sm[k] += $3; ct[k]++; mt[k] = $1; dv[k] = $4 }
+			END { if (cur != "") flush(); printf "]" }' "$DIR/wifi.fine"
+	else printf '[]'; fi
 	printf ',"events":'
 	if [ -r "$DIR/wifi.ev" ]; then tail -n 200 "$DIR/wifi.ev" | awk -v mac="$2" 'BEGIN { printf "[" } mac == "" || $2 == mac { printf "%s[%s,\"%s\",\"%s\",\"%s\"]", (n++ ? "," : ""), $1, $2, $3, $4 } END { printf "]" }'; else printf '[]'; fi
 	printf ',"info":'; info_json

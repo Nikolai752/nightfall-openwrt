@@ -139,7 +139,26 @@ disks)
 		printf '{"dev":"%s","mount":"%s","fs":"%s","size_kb":%s,"free_kb":%s}' "$dev" "$mnt" "$fs" "${kb% *}" "${kb#* }"
 		n=$((n + 1))
 	done < "$M"
-	printf ']}\n' ;;
+	printf '],"parts":['
+	# разделы, которые видит ядро, но которые не смонтированы (для подсказки «почему список пуст»)
+	n=0
+	while read -r _ _ blocks name; do
+		case "$name" in sd[a-z][0-9]*|nvme[0-9]*n[0-9]*p[0-9]*|mmcblk[0-9]*p[0-9]*|vd[a-z][0-9]*) ;; *) continue ;; esac
+		grep -q "^/dev/$name " "$M" 2>/dev/null && continue
+		bt=; command -v blkid >/dev/null 2>&1 && bt=$(blkid -o value -s TYPE "/dev/$name" 2>/dev/null | head -n 1 | tr -cd 'A-Za-z0-9_')
+		[ "$n" -gt 0 ] && printf ','
+		printf '{"dev":"/dev/%s","size_kb":%s,"type":"%s"}' "$name" "${blocks:-0}" "$bt"
+		n=$((n + 1))
+	done < "${NF_PARTS:-/proc/partitions}"
+	printf '],"fs":['
+	n=0
+	for f in ext4 vfat exfat ntfs3 ntfs f2fs btrfs; do
+		grep -qw "$f" "${NF_FSF:-/proc/filesystems}" 2>/dev/null || continue
+		[ "$n" -gt 0 ] && printf ','
+		printf '"%s"' "$f"; n=$((n + 1))
+	done
+	us=0; { [ -d "${NF_USBMOD:-/sys/module/usb_storage}" ] || grep -q '^usb_storage ' "${NF_MODS:-/proc/modules}" 2>/dev/null; } && us=1
+	printf '],"usb_storage":%s}\n' "$us" ;;
 reset)
 	cp "$DEF" "$CONF" || fail "не удалось записать конфигурацию"
 	restart
