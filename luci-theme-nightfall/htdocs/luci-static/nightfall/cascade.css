@@ -5973,3 +5973,36 @@ html[data-nf-ring="on"] .nf-tile[data-lvl=""]::after { display: none; }
 @keyframes nf-vt-out { to { opacity: 0; transform: translateY(-4px); } }
 @keyframes nf-vt-in { from { opacity: 0; transform: translateY(8px); } }
 html[data-nf-motion="off"]::view-transition-group(*), html[data-nf-motion="off"]::view-transition-old(*), html[data-nf-motion="off"]::view-transition-new(*) { animation: none !important; }
+
+/* ======== v1.11.1 ======== */
+/* «Скругление углов» работает и у стиля macOS: его собственные значения раньше перебивали выбор «Острые / Круглые» */
+html[data-nf-style="mac"][data-nf-radius="sharp"] { --nf-radius: 2px; --nf-radius-sm: 1px; --nf-radius-in: 2px; }
+html[data-nf-style="mac"][data-nf-radius="round"] { --nf-radius: 22px; --nf-radius-sm: 10px; --nf-radius-in: 14px; }
+html[data-nf-radius="sharp"] .nf-tile, html[data-nf-radius="sharp"] .nf-newdev, html[data-nf-radius="sharp"] .nfm .nfm-card, html[data-nf-radius="sharp"] .nfm .nfm-tile, html[data-nf-radius="sharp"] .nf-pop { border-radius: var(--nf-radius); }
+html[data-nf-radius="sharp"] .nf-linkbtn, html[data-nf-radius="sharp"] .nf-live-acts .nf-linkbtn { border-radius: 2px; }
+
+/* названия тем в панели «Персонализация» переносятся на вторую строку, а не обрезаются */
+.nf-pop .nf-seg.nf-presets button, .nf-pop .nf-seg.nf-seg-grid button { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.15; height: auto; min-height: 34px; padding: 5px 4px; overflow-wrap: break-word; word-break: normal; }
+.nf-pop .nf-seg.nf-presets { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* плашка «Новое устройство»: кнопки — мягкие «таблетки», без серого прямоугольника при наведении */
+html .nf-newdev .nf-linkbtn {
+	padding: 5px 12px; border-radius: 999px; border: 1px solid transparent; text-decoration: none; box-shadow: none; outline: none; white-space: nowrap;
+	background: color-mix(in srgb, var(--nf-accent) 10%, transparent) !important; color: var(--nf-accent); cursor: pointer;
+	transition: background .2s ease, border-color .2s ease, transform .15s ease;
+}
+html .nf-newdev .nf-linkbtn.nf-bad { background: color-mix(in srgb, #d13438 12%, transparent) !important; color: var(--nf-g-bad, #d13438); }
+html .nf-newdev .nf-linkbtn:hover { text-decoration: none; background: color-mix(in srgb, var(--nf-accent) 20%, transparent) !important; border-color: color-mix(in srgb, var(--nf-accent) 40%, transparent); }
+html .nf-newdev .nf-linkbtn.nf-bad:hover { background: color-mix(in srgb, #d13438 22%, transparent) !important; border-color: color-mix(in srgb, #d13438 45%, transparent); }
+html .nf-newdev .nf-linkbtn:active { transform: scale(.96); }
+html .nf-newdev .nf-linkbtn:focus-visible { border-color: var(--nf-accent); }
+html .nf-newdev .nf-linkbtn[disabled] { opacity: .5; cursor: default; }
+html[data-nf-radius="sharp"] .nf-newdev .nf-linkbtn { border-radius: 2px; }
+
+/* «Сейчас» на телефоне: заголовок и кнопки не вылезают за экран, кнопки переносятся */
+@media (max-width: 899px) {
+	html body .nf-live, html body .nf-live-h { max-width: 100%; min-width: 0; }
+	html body .nf-live-h { flex-direction: column; align-items: stretch; gap: 6px; }
+	html body .nf-live-acts { justify-content: flex-start; flex-wrap: wrap; gap: 6px; width: 100%; min-width: 0; }
+	html body .nf-live-acts .nf-linkbtn { flex: 0 1 auto; min-width: 0; padding: 5px 10px; white-space: normal; text-align: center; line-height: 1.2; }
+}

@@ -430,7 +430,7 @@ const CSS = `
 .nfm-btn:hover { background: var(--nfm-card2); }
 .nfm-ti::before { content:''; display:inline-block; width:14px; height:14px; margin-right:6px; vertical-align:-2px; background:currentColor; -webkit-mask:var(--ic) center/contain no-repeat; mask:var(--ic) center/contain no-repeat; opacity:.85; }
 .nfm-ti[data-ic='overview'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='7' height='9' rx='1'/%3E%3Crect x='14' y='3' width='7' height='5' rx='1'/%3E%3Crect x='14' y='12' width='7' height='9' rx='1'/%3E%3Crect x='3' y='16' width='7' height='5' rx='1'/%3E%3C/svg%3E"); }
-.nfm-ti[data-ic='net'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0'/%3E%3Ccircle cx='12' cy='19' r='1'/%3E%3C/svg%3E"); }
+.nfm-ti[data-ic='net'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 8.8a15 15 0 0 1 20 0M5 12.6a10 10 0 0 1 14 0M8.5 16.3a5 5 0 0 1 7 0'/%3E%3Ccircle cx='12' cy='19' r='1'/%3E%3C/svg%3E"); }
 .nfm-ti[data-ic='procs'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='6' y='6' width='12' height='12' rx='2'/%3E%3Cpath d='M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4'/%3E%3C/svg%3E"); }
 .nfm-ti[data-ic='svcs'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2v10'/%3E%3Cpath d='M18.4 6.6a9 9 0 1 1-12.8 0'/%3E%3C/svg%3E"); }
 .nfm-ti[data-ic='hist'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 1 0 3-6.7L3 8'/%3E%3Cpath d='M3 3v5h5M12 7v5l3 2'/%3E%3C/svg%3E"); }
@@ -931,11 +931,31 @@ return view.extend({
 		const flashBox = E('div');
 		const dayBody = E('div', { class: 'nfm-day' }, E('div', { class: 'nfm-empty' }, 'Загружаю…'));
 		const wqBody = E('div', { class: 'nfm-wq' });
+		function wqVerdict(c) {
+			if (!c || typeof c !== 'object') return 'Нет ответа от роутера. Обновите тему и войдите в LuCI заново.';
+			const devs = c.devs || [], n = devs.reduce((a, d) => a + (+d[1] || 0), 0);
+			if (c.hist === '0') return 'Запись истории Wi-Fi выключена: поставьте WIFI_HIST=1 в настройках сборщика (вкладка «История», внизу) и сохраните.';
+			if (!c.iwinfo) return 'Роутер не отдаёт данные радиомодулей (нет ubus iwinfo). Проверьте, что Wi-Fi включён, и установите пакет rpcd-mod-iwinfo.';
+			if (!devs.length) return 'Радиомодули не найдены: ни один Wi-Fi интерфейс сейчас не включён. Включите Wi-Fi в «Сеть → Беспроводная сеть».';
+			if (!n) return 'Wi-Fi работает (' + devs.map(d => d[0]).join(', ') + '), но сейчас к нему никто не подключён. Подключите телефон, первые точки появятся примерно через минуту. Проводные устройства здесь не учитываются.';
+			if (!c.collector) return 'Клиенты Wi-Fi есть (' + n + '), но сборщик не запущен. Перезапустите его: /etc/init.d/nightfall-collector restart, либо перезагрузите роутер.';
+			if (!c.lines) return 'Клиенты Wi-Fi есть (' + n + '), сборщик работает, записей ещё нет. Подождите 1–2 минуты и обновите страницу.';
+			return 'Записей в истории: ' + c.lines + '. Обновите страницу.';
+		}
 		function renderWq() {
 			const R = S.wq;
 			if (R === undefined) { wqBody.replaceChildren(E('div', { class: 'nfm-empty' }, 'Загружаю…')); return; }
 			const rows = R && R.rows || [];
-			if (!rows.length) { wqBody.replaceChildren(E('div', { class: 'nfm-hint' }, 'Данных пока нет: история сигнала копится раз в минуту с запуска сборщика.' + ((R && R.info && R.info.wifi_hist === '0') ? ' Запись истории Wi-Fi выключена в настройках (WIFI_HIST=0).' : ''))); return; }
+			if (!rows.length) {
+				const verdict = E('div', { class: 'nfm-note-s' });
+				const btn = E('button', { type: 'button', class: 'nfm-btn', click: () => {
+					btn.disabled = true; verdict.textContent = 'Проверяю…';
+					callHistory([ 'wifi-check' ]).then(c => { btn.disabled = false; verdict.textContent = wqVerdict(c); }).catch(() => { btn.disabled = false; verdict.textContent = 'Не удалось выполнить проверку: обновите тему на роутере до последней версии.'; });
+				} }, 'Почему пусто? Проверить');
+				wqBody.replaceChildren(E('div', { class: 'nfm-hint' }, 'Данных пока нет: история сигнала копится раз в минуту с запуска сборщика, только для клиентов Wi-Fi.' + ((R && R.info && R.info.wifi_hist === '0') ? ' Запись истории Wi-Fi выключена в настройках (WIFI_HIST=0).' : '')),
+					E('div', { class: 'nfm-row', style: 'display:flex;margin-top:8px;gap:10px;align-items:center;flex-wrap:wrap' }, [ btn, verdict ]));
+				return;
+			}
 			const by = {};
 			for (const x of rows) { const m = String(x[1]).toLowerCase(), v = +x[2]; if (!isFinite(v)) continue; const e = by[m] = by[m] || { v: [], last: 0, lastT: 0 }; e.v.push(v); if (x[0] >= e.lastT) { e.lastT = x[0]; e.last = v; } }
 			const leaves = {}, from = rows[0][0];

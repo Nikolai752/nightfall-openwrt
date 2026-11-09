@@ -101,6 +101,20 @@ wifi)
 	if [ -r "$DIR/wifi.ev" ]; then tail -n 200 "$DIR/wifi.ev" | awk -v mac="$2" 'BEGIN { printf "[" } mac == "" || $2 == mac { printf "%s[%s,\"%s\",\"%s\",\"%s\"]", (n++ ? "," : ""), $1, $2, $3, $4 } END { printf "]" }'; else printf '[]'; fi
 	printf ',"info":'; info_json
 	printf '}\n' ;;
+wifi-check)
+	# самопроверка «Качества Wi-Fi»: видит ли роутер радиомодули и клиентов, работает ли сборщик
+	run=0; ps 2>/dev/null | grep '[n]ightfall-collector' >/dev/null 2>&1 && run=1
+	have=0; command -v ubus >/dev/null 2>&1 && ubus list iwinfo >/dev/null 2>&1 && have=1
+	lines=0; [ -r "$DIR/wifi.fine" ] && lines=$(wc -l < "$DIR/wifi.fine" | tr -d ' ')
+	hist=$(sed -n 's/^wifi_hist=//p' "$DIR/info" 2>/dev/null | head -n 1)
+	printf '{"collector":%s,"iwinfo":%s,"hist":"%s","lines":%s,"devs":[' "$run" "$have" "${hist:-}" "${lines:-0}"
+	if [ "$have" = 1 ]; then
+		for d in $(ubus call iwinfo devices 2>/dev/null | awk -F'"' 'NF >= 3 && $2 != "devices" { print $2 }'); do
+			c=$(ubus call iwinfo assoclist "{\"device\":\"$d\"}" 2>/dev/null | grep -c '"mac"')
+			printf '%s["%s",%s]' "$([ -n "$sep" ] && echo ,)" "$d" "${c:-0}"; sep=1
+		done
+	fi
+	printf ']}\n' ;;
 traffic)
 	printf '{"now":%s,"persist":%s,"rows":[' "$now" "$([ -n "$(sed -n 's/^PERSIST_DIR=\(.\)/\1/p' /etc/nightfall-monitor.conf 2>/dev/null | head -n 1)" ] && echo 1 || echo 0)"
 	[ -r "$DIR/traffic.daily" ] && awk 'NF >= 3 && $1 ~ /^[0-9]{8}$/ { printf "%s[\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3 }' "$DIR/traffic.daily"
@@ -112,6 +126,6 @@ alerts)
 	printf ',"info":'; info_json
 	printf '}\n' ;;
 *)
-	echo "usage: nightfall-history series fine|coarse | devices | apps | channel | journal | speed | wifi [MAC] | traffic | alerts" >&2
+	echo "usage: nightfall-history series fine|coarse | devices | apps | channel | journal | speed | wifi [MAC] | wifi-check | traffic | alerts" >&2
 	exit 1 ;;
 esac

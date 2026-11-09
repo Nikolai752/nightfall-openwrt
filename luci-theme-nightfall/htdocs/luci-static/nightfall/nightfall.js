@@ -17,7 +17,7 @@
 	var PRESETS = [
 		[ 'win11', 'Windows 11', { style: '', accent: '', bg: 'mica', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
 		[ 'glass', 'Liquid Glass', { style: 'glass', accent: '#0a84ff', bg: 'mica', density: 'normal', font: 'md', radius: 'round', glass: 'on', motion: true } ],
-		[ 'macos', 'macOS', { style: 'mac', accent: '#007aff', bg: 'flat', density: 'normal', font: 'md', radius: 'round', glass: 'on', motion: true, cusOn: false } ],
+		[ 'macos', 'macOS', { style: 'mac', accent: '#007aff', bg: 'flat', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true, cusOn: false } ],
 		[ 'night', 'Ночь', { style: '', mode: 'dark', accent: '#4f6bed', bg: 'stars', density: 'normal', font: 'md', radius: 'md', glass: 'on', motion: true } ],
 		[ 'aurora', 'Аврора', { style: 'glass', mode: 'dark', accent: '#038387', bg: 'aurora', density: 'normal', font: 'md', radius: 'round', glass: 'on', motion: true } ],
 		[ 'graphite', 'Графит', { style: '', mode: 'dark', accent: '#69797e', bg: 'flat', density: 'compact', font: 'md', radius: 'sharp', glass: 'on', motion: true } ],
@@ -761,7 +761,7 @@
 		cst = null;
 	}
 
-	var CONST_KINDS = [ 'net', 'fire', 'bubbles', 'snow', 'meteors' ];
+	var CONST_KINDS = [ 'net', 'fire', 'bubbles', 'snow', 'meteors', 'rain', 'sparks', 'matrix', 'petals', 'ripples', 'orbits', 'confetti' ];
 
 	function startConst(mode, kind) {
 		var cv = document.createElement('canvas'), ctx = cv.getContext && cv.getContext('2d');
@@ -780,6 +780,12 @@
 			if (kind === 'bubbles') return { x: x, y: first ? y : H + 40, r: 5 + rnd() * (login ? 30 : 22), vy: .25 + rnd() * .7, ph: rnd() * 6.28, wob: .25 + rnd() * .6 };
 			if (kind === 'snow') { var r = .8 + rnd() * 2.4; return { x: x, y: first ? y : -10, r: r, vy: .3 + r * .28, ph: rnd() * 6.28, sw: .3 + rnd() * .6 }; }
 			if (kind === 'meteors') return { x: x, y: y, r: .6 + rnd() * 1.4, ph: rnd() * 6.28, tw: .5 + rnd() * 1.6 };
+			if (kind === 'rain') return { x: x, y: first ? y : -30, len: 10 + rnd() * 18, vy: 9 + rnd() * 8, a: .25 + rnd() * .45 };
+			if (kind === 'sparks') return { x: x, y: first ? y : H + 10, r: .8 + rnd() * 1.8, vy: .5 + rnd() * 1.3, ph: rnd() * 6.28, sw: .4 + rnd() * .9 };
+			if (kind === 'matrix') return { x: pts.length * 16 + 8, y: first ? rnd() * H : -rnd() * H * .5, sp: 1.6 + rnd() * 2.6, len: 8 + Math.round(rnd() * 12), g: [], t: 0 };
+			if (kind === 'petals') return { x: x, y: first ? y : -14, r: 4 + rnd() * 5, vy: .5 + rnd() * .8, ph: rnd() * 6.28, sw: .5 + rnd(), rot: rnd() * 6.28, vr: (rnd() - .5) * .05 };
+			if (kind === 'orbits') return { rad: 60 + rnd() * Math.min(W, H) * .5, a: rnd() * 6.28, sp: (.0004 + rnd() * .0012) * (rnd() < .5 ? -1 : 1), r: .9 + rnd() * 1.7, k: .45 + rnd() * .4, tilt: rnd() * 3.14 };
+			if (kind === 'confetti') return { x: x, y: first ? y : -12, w: 4 + rnd() * 5, h: 2 + rnd() * 3, vy: .8 + rnd() * 1.4, ph: rnd() * 6.28, sw: .5 + rnd(), rot: rnd() * 6.28, vr: (rnd() - .5) * .12, hue: Math.round(rnd() * 360) };
 			return { x: x, y: y, vx: (rnd() - .5) * .3, vy: (rnd() - .5) * .3, r: .9 + rnd() * 1.5 };
 		}
 
@@ -793,6 +799,13 @@
 			else if (kind === 'bubbles') n = Math.max(12, Math.min(34, Math.round(area / 55000)));
 			else if (kind === 'snow') n = Math.max(50, Math.min(170, Math.round(area / 12000)));
 			else if (kind === 'meteors') n = Math.max(40, Math.min(130, Math.round(area / 16000)));
+			else if (kind === 'rain') n = Math.max(60, Math.min(200, Math.round(area / 9000)));
+			else if (kind === 'sparks') n = Math.max(40, Math.min(120, Math.round(area / 18000)));
+			else if (kind === 'matrix') n = Math.ceil(W / 16);
+			else if (kind === 'petals') n = Math.max(16, Math.min(46, Math.round(area / 45000)));
+			else if (kind === 'orbits') n = Math.max(50, Math.min(130, Math.round(area / 14000)));
+			else if (kind === 'confetti') n = Math.max(30, Math.min(90, Math.round(area / 22000)));
+			else if (kind === 'ripples') n = 0;
 			else n = Math.max(28, Math.min(login ? 110 : 55, Math.round(area / 15000)));
 			while (pts.length < n) pts.push(mk(true));
 			pts.length = n;
@@ -907,7 +920,114 @@
 			}
 		}
 
-		var DRAW = { net: frameNet, fire: frameFire, bubbles: frameBubbles, snow: frameSnow, meteors: frameMeteors }[kind] || frameNet;
+		/* rain: thin slanted streaks; the cursor leaves a small splash ring */
+		function frameRain() {
+			var rgb = isDark() ? '200,220,255' : col.join(','), i, a;
+			ctx.lineWidth = 1; ctx.lineCap = 'round';
+			for (i = 0; i < pts.length; i++) {
+				a = pts[i]; a.y += a.vy; a.x -= a.vy * .12;
+				if (a.y > H + 30) { pts[i] = mk(false); pts[i].x = rnd() * (W + 120); continue; }
+				ctx.strokeStyle = 'rgba(' + rgb + ',' + (a.a * (login ? .8 : .45)).toFixed(3) + ')';
+				ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x + a.len * .12, a.y - a.len); ctx.stroke();
+			}
+		}
+
+		/* sparks: warm embers rise, sway and fade out towards the top */
+		function frameSparks(t) {
+			var i, a, f, al, g;
+			for (i = 0; i < pts.length; i++) {
+				a = pts[i]; a.y -= a.vy; a.x += Math.sin(t * .0009 * a.sw + a.ph) * .5;
+				if (a.y < -10) { pts[i] = mk(false); continue; }
+				f = a.y / H; al = Math.max(0, Math.min(1, f * 1.3)) * (login ? .95 : .6);
+				g = ctx.createRadialGradient(a.x, a.y, 0, a.x, a.y, a.r * 4);
+				g.addColorStop(0, 'rgba(255,' + Math.round(150 + 90 * f) + ',70,' + al.toFixed(3) + ')');
+				g.addColorStop(.4, 'rgba(255,' + Math.round(90 + 60 * f) + ',40,' + (al * .35).toFixed(3) + ')');
+				g.addColorStop(1, 'rgba(255,80,30,0)');
+				ctx.fillStyle = g; ctx.beginPath(); ctx.arc(a.x, a.y, a.r * 4, 0, 6.2832); ctx.fill();
+			}
+		}
+
+		/* matrix: columns of falling glyphs with a bright head and a fading tail */
+		var GLY = '01アイウエオカキクケコサシスセソ<>/=+*#$';
+		function frameMatrix(t) {
+			var rgb = col.join(','), i, j, a, y, al;
+			ctx.font = '14px monospace'; ctx.textAlign = 'center';
+			for (i = 0; i < pts.length; i++) {
+				a = pts[i]; a.y += a.sp;
+				if (t - a.t > 140 || !a.g.length) { a.t = t; a.g.unshift(GLY.charAt(Math.floor(rnd() * GLY.length))); if (a.g.length > a.len) a.g.pop(); }
+				if (a.y - a.len * 16 > H) { pts[i] = mk(false); pts[i].x = i * 16 + 8; pts[i].y = 0; continue; }
+				for (j = 0; j < a.g.length; j++) {
+					y = a.y - j * 16; if (y < -16 || y > H + 16) continue;
+					al = (1 - j / a.len) * (login ? .9 : .5);
+					ctx.fillStyle = j === 0 ? 'rgba(235,255,240,' + al.toFixed(3) + ')' : 'rgba(' + rgb + ',' + al.toFixed(3) + ')';
+					ctx.fillText(a.g[j], a.x, y);
+				}
+			}
+		}
+
+		/* petals: soft leaves tumble down while turning */
+		function framePetals(t) {
+			var rgb = col.join(','), i, a;
+			for (i = 0; i < pts.length; i++) {
+				a = pts[i]; a.y += a.vy; a.x += Math.sin(t * .0007 * a.sw + a.ph) * .7 + .15; a.rot += a.vr;
+				if (a.y > H + 14 || a.x > W + 20) { pts[i] = mk(false); continue; }
+				ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.rot);
+				ctx.fillStyle = 'rgba(' + rgb + ',' + (login ? .55 : .32) + ')';
+				ctx.beginPath(); ctx.ellipse(0, 0, a.r, a.r * .55, 0, 0, 6.2832); ctx.fill();
+				ctx.strokeStyle = 'rgba(' + rgb + ',' + (login ? .7 : .4) + ')'; ctx.lineWidth = .8;
+				ctx.beginPath(); ctx.moveTo(-a.r, 0); ctx.lineTo(a.r, 0); ctx.stroke();
+				ctx.restore();
+			}
+		}
+
+		/* ripples: rings spread out on their own and under the cursor */
+		var rings = [], nextRing = 0, lastMx = -1;
+		function frameRipples(t) {
+			var rgb = col.join(','), i, r, k;
+			if (t > nextRing) { nextRing = t + 900 + rnd() * 1500; rings.push({ x: rnd() * W, y: rnd() * H, r: 0, max: 90 + rnd() * 120 }); }
+			if (mouse.x > -1e3 && Math.abs(mouse.x - lastMx) > 140) { lastMx = mouse.x; rings.push({ x: mouse.x, y: mouse.y, r: 0, max: 110 }); }
+			if (rings.length > 24) rings.shift();
+			ctx.lineWidth = 1.4;
+			for (i = rings.length - 1; i >= 0; i--) {
+				r = rings[i]; r.r += 1.1; k = 1 - r.r / r.max;
+				if (k <= 0) { rings.splice(i, 1); continue; }
+				ctx.strokeStyle = 'rgba(' + rgb + ',' + (k * (login ? .6 : .32)).toFixed(3) + ')';
+				ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, 6.2832); ctx.stroke();
+				if (r.r > 18) { ctx.strokeStyle = 'rgba(' + rgb + ',' + (k * (login ? .35 : .18)).toFixed(3) + ')'; ctx.beginPath(); ctx.arc(r.x, r.y, r.r - 16, 0, 6.2832); ctx.stroke(); }
+			}
+		}
+
+		/* orbits: dots circle a centre that slowly follows the cursor */
+		var ocx = 0, ocy = 0;
+		function frameOrbits(t) {
+			var rgb = col.join(','), i, a, tx = mouse.x > -1e3 ? mouse.x : W / 2, ty = mouse.y > -1e3 ? mouse.y : H / 2, x, y, c, s;
+			if (!ocx) { ocx = tx; ocy = ty; }
+			ocx += (tx - ocx) * .04; ocy += (ty - ocy) * .04;
+			for (i = 0; i < pts.length; i++) {
+				a = pts[i]; a.a += a.sp * 16;
+				c = Math.cos(a.tilt); s = Math.sin(a.tilt);
+				x = Math.cos(a.a) * a.rad; y = Math.sin(a.a) * a.rad * a.k;
+				ctx.fillStyle = 'rgba(' + rgb + ',' + (login ? .8 : .45) + ')';
+				ctx.beginPath(); ctx.arc(ocx + x * c - y * s, ocy + x * s + y * c, a.r, 0, 6.2832); ctx.fill();
+			}
+			ctx.strokeStyle = 'rgba(' + rgb + ',' + (login ? .12 : .07) + ')'; ctx.lineWidth = 1;
+			for (i = 0; i < 4; i++) { ctx.beginPath(); ctx.ellipse(ocx, ocy, 90 + i * 90, (90 + i * 90) * .62, i * .8, 0, 6.2832); ctx.stroke(); }
+		}
+
+		/* confetti: small coloured flakes spin down, hues spread around the accent */
+		function frameConfetti(t) {
+			var i, a;
+			for (i = 0; i < pts.length; i++) {
+				a = pts[i]; a.y += a.vy; a.x += Math.sin(t * .0008 * a.sw + a.ph) * .6; a.rot += a.vr;
+				if (a.y > H + 12) { pts[i] = mk(false); continue; }
+				ctx.save(); ctx.translate(a.x, a.y); ctx.rotate(a.rot);
+				ctx.fillStyle = 'hsla(' + a.hue + ',80%,' + (isDark() ? 65 : 52) + '%,' + (login ? .8 : .5) + ')';
+				ctx.fillRect(-a.w / 2, -a.h / 2, a.w, a.h * Math.abs(Math.cos(t * .003 * a.sw + a.ph)) + .6);
+				ctx.restore();
+			}
+		}
+
+		var DRAW = { net: frameNet, fire: frameFire, bubbles: frameBubbles, snow: frameSnow, meteors: frameMeteors, rain: frameRain, sparks: frameSparks, matrix: frameMatrix, petals: framePetals, ripples: frameRipples, orbits: frameOrbits, confetti: frameConfetti }[kind] || frameNet;
 
 		function frame(t) {
 			S.raf = window.requestAnimationFrame(frame);
@@ -1146,6 +1266,7 @@
 	function set(key, value) {
 		if (key !== 'wxLat' && key !== 'wxLon') themeFade();
 		prefs[key] = value;
+		if (key === 'radius') prefs.cusRadius = 0;
 		if (key !== 'preset' && key !== 'schedule' && key !== 'nightFrom' && key !== 'dayFrom' && key !== 'mode' && key !== 'navMini' && key !== 'netBar' && key !== 'swipe' && key !== 'fontFam' && key !== 'icStyle' && key.indexOf('login') !== 0 && key.indexOf('const') !== 0 && key.indexOf('ov') !== 0) prefs.preset = '';
 		save();
 		applyAll();
@@ -1320,7 +1441,7 @@
 		var more = h('div', { 'class': 'nf-pop-sec' }, [
 			h('div', { 'class': 'nf-pop-l', text: 'Экран входа' }),
 			sw('loginClock', 'Часы и дата'), sw('loginInfo', 'Сводка о роутере'), sw('constLogin', 'Анимированный фон')
-		].concat(seg2('constKind', 'Вид анимации', [ [ 'net', 'Созвездия' ], [ 'fire', 'Светлячки' ], [ 'bubbles', 'Пузыри' ], [ 'snow', 'Снег' ], [ 'meteors', 'Звёзды' ] ], true)).concat(seg2('loginBg', 'Фон входа', [ [ 'mica', 'Как у темы' ], [ 'flat', 'Однотонный' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'tod', 'По времени' ], [ 'rain', 'Дождь' ], [ 'sunset', 'Закат' ], [ 'mountains', 'Горы' ], [ 'city', 'Город' ], [ 'space', 'Космос' ], [ 'lava', 'Лава' ], [ 'cyber', 'Синтвейв' ], [ 'rainglass', 'Ливень' ], [ 'forest', 'Лес' ], [ 'fogmount', 'Туман' ], [ 'underwater', 'Глубина' ], [ 'photo', 'Своё фото' ] ], true)).concat(loginExtras()));
+		].concat(seg2('constKind', 'Вид анимации', [ [ 'net', 'Созвездия' ], [ 'fire', 'Светлячки' ], [ 'bubbles', 'Пузыри' ], [ 'snow', 'Снег' ], [ 'meteors', 'Звёзды' ], [ 'rain', 'Дождь' ], [ 'sparks', 'Искры' ], [ 'matrix', 'Код' ], [ 'petals', 'Лепестки' ], [ 'ripples', 'Круги' ], [ 'orbits', 'Орбиты' ], [ 'confetti', 'Конфетти' ] ], true)).concat(seg2('loginBg', 'Фон входа', [ [ 'mica', 'Как у темы' ], [ 'flat', 'Однотонный' ], [ 'aurora', 'Аврора' ], [ 'waves', 'Волны' ], [ 'tod', 'По времени' ], [ 'rain', 'Дождь' ], [ 'sunset', 'Закат' ], [ 'mountains', 'Горы' ], [ 'city', 'Город' ], [ 'space', 'Космос' ], [ 'lava', 'Лава' ], [ 'cyber', 'Синтвейв' ], [ 'rainglass', 'Ливень' ], [ 'forest', 'Лес' ], [ 'fogmount', 'Туман' ], [ 'underwater', 'Глубина' ], [ 'photo', 'Своё фото' ] ], true)).concat(loginExtras()));
 		function desk(nodes) { nodes = [].concat(nodes); nodes.forEach(function (n) { if (n && n.classList) n.classList.add('nf-desk'); }); return nodes; }   /* пункты только для компьютера: на телефоне скрыты */
 		var ov = h('div', { 'class': 'nf-pop-sec' }, [
 			h('div', { 'class': 'nf-pop-l', text: 'Что показывать на «Обзоре»' }),
