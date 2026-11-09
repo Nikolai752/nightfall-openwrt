@@ -6023,3 +6023,11 @@ html .nf-top-b .nf-top-d span { font-size: calc(11px * var(--nf-fsz, 1)); color:
 	html .nf-top-b .nf-top-r { grid-template-columns: 1fr auto; }
 	html .nf-top-b .nf-top-d { grid-column: 1 / -1; flex-direction: row; align-items: baseline; justify-content: flex-start; gap: 6px; }
 }
+
+/* ======== v1.13.0 ======== */
+/* окно «Нет изменений для применения» и другие статусные окна LuCI: пустой заголовок не занимает строку, значок стоит в одну линию с текстом */
+html #modal_overlay > .modal.alert-message { padding: 14px 20px 14px 52px; min-height: 0; display: flex; flex-direction: column; justify-content: center; }
+html #modal_overlay > .modal.alert-message > h4:empty { display: none; }
+html #modal_overlay > .modal.alert-message::before { top: 50%; margin-top: -10px; }
+html #modal_overlay > .modal.alert-message > p { margin: 0; line-height: 1.45; }
+html #modal_overlay > .modal.alert-message > p + p { margin-top: 6px; }

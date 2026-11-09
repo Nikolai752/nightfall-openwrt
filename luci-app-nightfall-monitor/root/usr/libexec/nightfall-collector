@@ -371,6 +371,7 @@ write_info() {
 		echo "gateway=$gw"
 		echo "targets=$PING_TARGET $PING_TARGET2"
 		echo "acct=${acct:-0}"
+		echo "flow_hw=$FLOW_HW"
 		echo "offload=${off:-0}"
 		echo "router_ips=$(ip -4 addr show 2>/dev/null | awk '/inet / { split($2, a, "/"); printf "%s ", a[1] }')"
 		echo "persist=$([ -n "$PERSIST_DIR" ] && [ "$persist_ok" = 1 ] && echo 1 || echo 0)"
@@ -479,6 +480,8 @@ do_report() {
 now=$(date +%s); started=$now
 persist_ok=1
 if [ -n "$PERSIST_DIR" ] && on_flash "$PERSIST_DIR"; then persist_ok=0; fi
+# аппаратное ускорение пакетов (HW flow offloading) прячет трафик от счётчиков сетевых портов
+FLOW_HW=0; command -v uci >/dev/null 2>&1 && [ "$(uci -q get firewall.@defaults[0].flow_offloading_hw 2>/dev/null)" = 1 ] && FLOW_HW=1
 case "$PERSIST_HOURS" in ''|*[!0-9]*) PERSIST_HOURS=6 ;; esac; [ "$PERSIST_HOURS" -ge 1 ] || PERSIST_HOURS=1
 restore
 read -r up0 _ < "$PROC/uptime" 2>/dev/null; up0=${up0%.*}; case "$up0" in ''|*[!0-9]*) up0=99999 ;; esac
