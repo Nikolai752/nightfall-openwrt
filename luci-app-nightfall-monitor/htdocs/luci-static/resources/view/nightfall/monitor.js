@@ -1179,7 +1179,11 @@ return view.extend({
 			const sum = [], cnt = [];
 			for (let i = 0; i < 168; i++) { sum[i] = 0; cnt[i] = 0; }
 			const now = new Date();
-			for (const r of D.h.rows || []) {
+			/* подробные данные хранятся 7 суток; всё, что старше, берём из длинной истории (шаг 30 минут), если она уже накопилась */
+			const fine = D.h.rows || [], t0 = fine.length ? fine[0][0] : Infinity;
+			const old = ((S.lg && S.lg.rows) || []).filter(r => r[0] < t0);
+			const all = old.concat(fine), span = all.length ? Math.max(1, Math.round((D.h.now - all[0][0]) / 86400)) : 0;
+			for (const r of all) {
 				const v = H[1](r); if (v == null || v < 0) continue;
 				const d = new Date(r[0] * 1000), i = ((d.getDay() + 6) % 7) * 24 + d.getHours();
 				sum[i] += v; cnt[i]++;
@@ -1197,7 +1201,7 @@ return view.extend({
 					grid.appendChild(E('span', { class: 'nfm-heat-c', style: v == null ? '' : `--hv:${Math.round(100 * v / mx)}%`, title: days[d] + ', ' + h + ':00 — ' + (v == null ? 'нет данных' : H[2](v)) }));
 				}
 			}
-			heatBody.replaceChildren(grid, E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Среднее за последние 7 дней по часам. Тёмнее — меньше, ярче — больше (максимум ' + H[2](mx) + ').'));
+			heatBody.replaceChildren(grid, E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Среднее по часам за ' + (span > 7 ? 'последние ' + span + ' дн.' : 'последние 7 дней') + '. Тёмнее — меньше, ярче — больше (максимум ' + H[2](mx) + ').' + (avg.some(v => v == null) ? ' Пустые клетки — время, за которое истории ещё нет: подробные данные хранятся 7 суток, а длинная история (до ' + ((D.h.info && D.h.info.hist_days) || 30) + ' суток) копится с момента обновления до v1.14.0 и со временем заполнит карту.' : '')));
 		}
 		/* ---- Сводка недели: пиковые часы, самое «тяжёлое» устройство, средний пинг ---- */
 		const wkBody = E('div', { class: 'nfm-wk' });
