@@ -198,10 +198,19 @@ function nfPlot(segs, H) {
 			for (let i = 1; i < p.length; i++) d += 'L' + f(p[i][0]) + ' ' + f(p[i - 1][1]) + 'L' + f(p[i][0]) + ' ' + f(p[i][1]);
 		}
 		else if (smooth && p.length > 2) {
-			for (let i = 0; i < p.length - 1; i++) {
-				const a = p[Math.max(0, i - 1)], b = p[i], c = p[i + 1], e = p[Math.min(p.length - 1, i + 2)];
-				const y1 = Math.max(0, Math.min(H, b[1] + (c[1] - a[1]) / 6)), y2 = Math.max(0, Math.min(H, c[1] - (e[1] - b[1]) / 6));
-				d += 'C' + f(b[0] + (c[0] - a[0]) / 6) + ' ' + f(y1) + ' ' + f(c[0] - (e[0] - b[0]) / 6) + ' ' + f(y2) + ' ' + f(c[0]) + ' ' + f(c[1]);
+			/* монотонная кубическая кривая: не выходит за пределы данных и не петляет там, где точки стоят неравномерно (пропуски в истории) */
+			const n = p.length, dx = [], m = [], t = [];
+			for (let i = 0; i < n - 1; i++) { dx[i] = p[i + 1][0] - p[i][0]; m[i] = dx[i] > 0 ? (p[i + 1][1] - p[i][1]) / dx[i] : 0; }
+			t[0] = m[0]; t[n - 1] = m[n - 2];
+			for (let i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2;
+			for (let i = 0; i < n - 1; i++) {
+				if (m[i] === 0) { t[i] = 0; t[i + 1] = 0; continue; }
+				const a = t[i] / m[i], b = t[i + 1] / m[i], s = a * a + b * b;
+				if (s > 9) { const k = 3 / Math.sqrt(s); t[i] = k * a * m[i]; t[i + 1] = k * b * m[i]; }
+			}
+			for (let i = 0; i < n - 1; i++) {
+				const h = dx[i] / 3, b = p[i], c = p[i + 1];
+				d += 'C' + f(b[0] + h) + ' ' + f(Math.max(0, Math.min(H, b[1] + t[i] * h))) + ' ' + f(c[0] - h) + ' ' + f(Math.max(0, Math.min(H, c[1] - t[i + 1] * h))) + ' ' + f(c[0]) + ' ' + f(c[1]);
 			}
 		}
 		else for (let i = 1; i < p.length; i++) d += 'L' + f(p[i][0]) + ' ' + f(p[i][1]);
@@ -477,6 +486,8 @@ const CSS = `
 .nfm-cmp-t .up { color: #d7a13b; } .nfm-cmp-t .dn { color: #4ec9a0; } .nfm-cmp-t .eq { color: var(--nfm-dim); }
 .nfm-exp { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 @media (max-width: 640px) { .nfm-cmp-t { grid-template-columns: 1.2fr 1fr 1fr 64px; font-size: 12px; } .nfm-cmp-t > div { padding: 7px 4px; } }
+.nfm-mon-d.has { cursor: pointer; } .nfm-mon-d.has:hover, .nfm-mon-d.has:focus-visible { outline: 2px solid var(--nfm-accent, #0a84ff); outline-offset: -2px; }
+.nfm-dr .nfm-table td:first-child { max-width: 320px; }
 .nfm-dv-i { display: inline-flex; vertical-align: -3px; margin-right: 6px; color: var(--nfm-dim); }
 .nfm-dv-i svg { width: 16px; height: 16px; }
 .nfm-dv-i.priv { color: color-mix(in srgb, var(--nfm-dim) 65%, #e0a800); }
@@ -1267,8 +1278,9 @@ return view.extend({
 			for (let i = 0; i < first; i++) grid.appendChild(E('span'));
 			for (let d = 1; d <= dim; d++) {
 				const r = by[d], v = r ? r[1] + r[2] : 0;
-				grid.appendChild(E('span', { class: 'nfm-mon-d' + (cur && d === now.getDate() ? ' today' : '') + (r ? ' has' : ''), style: r ? `--hv:${Math.max(8, Math.round(100 * v / mx))}%` : '',
-					title: r ? `${d}: ↓ ${fmtBytes(r[1])}, ↑ ${fmtBytes(r[2])}` : `${d}: нет данных` }, [ E('b', {}, String(d)), E('i', {}, r ? fmtBytes(v) : '') ]));
+				grid.appendChild(E('span', Object.assign({ class: 'nfm-mon-d' + (cur && d === now.getDate() ? ' today' : '') + (r ? ' has' : ''), style: r ? `--hv:${Math.max(8, Math.round(100 * v / mx))}%` : '',
+					title: r ? `${d}: ↓ ${fmtBytes(r[1])}, ↑ ${fmtBytes(r[2])}. Нажмите, чтобы увидеть, кто сколько скачал` : `${d}: нет данных` },
+					r ? { role: 'button', tabindex: '0', click: () => dayReport(r[0]), keydown: ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); dayReport(r[0]); } } } : {}), [ E('b', {}, String(d)), E('i', {}, r ? fmtBytes(v) : '') ]));
 			}
 			const kids = [
 				E('div', { class: 'nfm-mon-h' }, [
@@ -1290,6 +1302,64 @@ return view.extend({
 			kids.push(grid);
 			if (!T.persist) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Итоги хранятся в памяти и обнулятся при перезагрузке роутера. Чтобы копить месяцы, укажите папку на флешке в настройках сборщика (PERSIST_DIR).'));
 			monBody.replaceChildren(...kids);
+		}
+		/* ---- отчёт за день: кто сколько скачал и отдал (по нажатию на день в календаре) ---- */
+		function dayReport(ymd) {
+			const dt = new Date(+ymd.slice(0, 4), +ymd.slice(4, 6) - 1, +ymd.slice(6, 8));
+			const title = 'Трафик за ' + dt.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+			const body = E('div', { class: 'nfm nfm-dr' }, E('div', { class: 'nfm-empty' }, 'Собираю отчёт…'));
+			ui.showModal(title, [ body, E('div', { class: 'button-row' }, [ E('button', { class: 'btn', click: ui.hideModal }, 'Закрыть') ]) ]);
+			const J = a => callHistory(a).catch(() => null);
+			Promise.all([ J([ 'devdaily' ]), J([ 'devices' ]), J([ 'devhr' ]) ]).then(([ dd, dv, hr ]) => {
+				const norm = ip => String(ip).toLowerCase(), ipMac = {};
+				for (const mac in hints) for (const ip of (hints[mac].ipaddrs || []).concat(hints[mac].ip6addrs || [])) ipMac[norm(ip)] = mac;
+				for (const [ ip, mac ] of (dv && dv.neigh) || []) if (!ipMac[norm(ip)]) ipMac[norm(ip)] = String(mac).toUpperCase();
+				const routerIps = ((dv && dv.info && dv.info.router_ips) || '').split(/\s+/).filter(Boolean);
+				const ymdOf = d => d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+				const nowD = new Date(), today = ymdOf(nowD), yest = ymdOf(new Date(nowD.getTime() - 86400000));
+				let src = [], how = '';
+				const arch = ((dd && dd.rows) || []).filter(r => r[0] === ymd);
+				if (arch.length) { src = arch.map(r => [ r[1], r[2], r[3], r[4] !== '-' ? r[4].toUpperCase() : '' ]); how = 'Итоги за сутки, сохранённые сборщиком.'; }
+				else if (ymd === today && dv && dv.day && dv.day.length) { src = dv.day.map(r => [ r[0], r[1], r[2], '' ]); how = 'Сегодняшний день ещё не закончен: цифры растут.'; }
+				else if (ymd === yest && dv && dv.yday && dv.yday.length) { src = dv.yday.map(r => [ r[0], r[1], r[2], '' ]); how = 'Итоги за сутки по данным сборщика.'; }
+				else {
+					const by = {};
+					for (const r of (hr && hr.rows) || []) if (ymdOf(new Date(r[0] * 1000)) === ymd) { const e = by[r[1]] || (by[r[1]] = [ r[1], 0, 0, '' ]); e[1] += +r[2]; e[2] += +r[3]; }
+					src = Object.values(by);
+					if (src.length) how = 'Собрано из почасовых итогов: точность до часа.';
+				}
+				const acc = {};
+				for (const [ ip, rx, tx, mac0 ] of src) {
+					const mac = mac0 || ipMac[norm(ip)] || '', k = routerIps.includes(ip) ? 'router' : mac || (String(ip).indexOf(':') >= 0 ? 'v6' : ip);
+					const e = acc[k] || (acc[k] = { k, mac, ip, rx: 0, tx: 0 });
+					e.rx += +rx; e.tx += +tx;
+				}
+				const list = Object.values(acc).sort((a, b) => (b.rx + b.tx) - (a.rx + a.tx));
+				const wan = ((S.tr && S.tr.rows) || []).find(r => r[0] === ymd);
+				const sumRx = list.reduce((a, e) => a + e.rx, 0), sumTx = list.reduce((a, e) => a + e.tx, 0), mx = Math.max(1, ...list.map(e => e.rx + e.tx));
+				const kids = [];
+				if (wan) kids.push(E('div', { class: 'nfm-mon-sum' }, [
+					E('div', {}, [ E('span', {}, 'Всего через WAN'), E('b', {}, fmtBytes(wan[1] + wan[2])) ]),
+					E('div', {}, [ E('span', {}, '↓ принято'), E('b', {}, fmtBytes(wan[1])) ]),
+					E('div', {}, [ E('span', {}, '↑ отправлено'), E('b', {}, fmtBytes(wan[2])) ]) ]));
+				if (!list.length) kids.push(E('div', { class: 'nfm-hint' }, 'По устройствам за этот день данных нет. Подробные итоги по устройствам копятся с версии 1.15 (в архив уходят сутки, закончившиеся после обновления), а почасовых данных хватает примерно на две недели. Чтобы они переживали перезагрузку, подключите накопитель (История → «Накопители»).'));
+				else {
+					kids.push(E('table', { class: 'nfm-table' }, [
+						E('thead', {}, E('tr', {}, [ E('th', {}, 'Устройство'), E('th', { class: 'r' }, '↓ скачано'), E('th', { class: 'r' }, '↑ отдано'), E('th', { class: 'r' }, 'Всего') ])),
+						E('tbody', {}, list.slice(0, 40).map(e => {
+							const h = e.mac ? (hints[e.mac] || {}) : {}, id = e.mac ? devId(e.mac, h.name) : null;
+							const label = e.k === 'router' ? 'Сам роутер (VPN, DNS, обновления)' : e.k === 'v6' ? 'Другие адреса IPv6' : (h.name || (id && id.known ? [ id.label || 'Устройство', id.vendor && id.vendor !== id.label ? id.vendor : '' ].filter(Boolean).join(' ') : '') || e.ip);
+							return E('tr', {}, [
+								E('td', {}, [ id ? devIcon(id) : '', label, e.k !== 'router' && e.k !== 'v6' && label !== e.ip ? E('span', { class: 'nfm-chip' }, e.ip) : '',
+									E('div', { class: 'nfm-mon-bar', 'data-lvl': 'ok', style: 'margin-top:4px;height:4px' }, E('i', { style: 'width:' + Math.max(2, Math.round(100 * (e.rx + e.tx) / mx)) + '%' })) ]),
+								E('td', { class: 'r' }, fmtBytes(e.rx)), E('td', { class: 'r' }, fmtBytes(e.tx)), E('td', { class: 'r' }, E('b', {}, fmtBytes(e.rx + e.tx))) ]);
+						})) ]));
+					if (list.length > 40) kids.push(E('div', { class: 'nfm-note-s' }, 'Показаны 40 самых активных из ' + list.length + '.'));
+					if (wan && (wan[1] + wan[2]) > (sumRx + sumTx) * 1.15) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Сумма по устройствам (' + fmtBytes(sumRx + sumTx) + ') меньше счётчика WAN: часть трафика не приписывается устройствам (аппаратное ускорение пакетов, служебный трафик, устройства вне первой сотни записей).'));
+				}
+				if (how) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, how));
+				body.replaceChildren(...kids);
+			});
 		}
 		/* ---- Сравнение периодов: недели и месяцы по суточным итогам WAN ---- */
 		const cmpBody = E('div', { class: 'nfm-cmp' });

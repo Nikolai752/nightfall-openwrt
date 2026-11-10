@@ -190,6 +190,10 @@ traffic)
 	printf '{"now":%s,"persist":%s,"rows":[' "$now" "$([ -n "$(sed -n 's/^PERSIST_DIR=\(.\)/\1/p' /etc/nightfall-monitor.conf 2>/dev/null | head -n 1)" ] && echo 1 || echo 0)"
 	[ -r "$DIR/traffic.daily" ] && awk 'NF >= 3 && $1 ~ /^[0-9]{8}$/ { printf "%s[\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3 }' "$DIR/traffic.daily"
 	printf ']}\n' ;;
+devdaily)   # итоги по устройствам за прошлые сутки: [день, ip, принято, отправлено, mac]
+	printf '{"now":%s,"rows":[' "$now"
+	[ -r "$DIR/dev.daily" ] && awk 'NF >= 4 && $1 ~ /^[0-9]{8}$/ { printf "%s[\"%s\",\"%s\",%d,%d,\"%s\"]", (n++ ? "," : ""), $1, $2, $3, $4, ($5 == "" ? "-" : $5) }' "$DIR/dev.daily"
+	printf ']}\n' ;;
 alerts)
 	printf '{"now":%s,"active":' "$now"
 	active_json
@@ -197,6 +201,6 @@ alerts)
 	printf ',"info":'; info_json
 	printf '}\n' ;;
 *)
-	echo "usage: nightfall-history series fine|coarse|long | devices | apps | channel | journal | speed | wifi [MAC] | wifi-hr [MAC] | devhr | wifi-check | airscan | traffic | alerts" >&2
+	echo "usage: nightfall-history series fine|coarse|long | devices | apps | channel | journal | speed | wifi [MAC] | wifi-hr [MAC] | devhr | devdaily | wifi-check | airscan | traffic | alerts" >&2
 	exit 1 ;;
 esac

@@ -9,7 +9,7 @@
 
 	var KEY = 'nightfall-prefs-v1';
 	var root = document.documentElement;
-	var DEFAULTS = { fontFam: '', icStyle: 'line', ovThrCpu: '60,85', ovThrTemp: '70,85', ovThrMem: '70,88', ovOrder: 'net,wan,cpu,temp,mem,ct,up,cli', ovHide: 'ct,up,cli', ovLay: '', swipe: true, mode: 'auto', accent: '', motion: true, liteAuto: true, loginCells: [ 'net', 'up', 'fw' ], loginLogo: false, ovWide: false, ovCols: '0', bg: 'mica', bgScale: 100,
+	var DEFAULTS = { fontFam: '', icStyle: 'line', ovThrCpu: '60,85', ovThrTemp: '70,85', ovThrMem: '70,88', ovOrder: 'net,wan,cpu,temp,mem,ct,up,cli,loss,sig,day,stor', ovHide: 'ct,up,cli,loss,sig,day,stor', ovTv: 2, ovLay: 'std', swipe: true, mode: 'auto', accent: '', motion: true, liteAuto: true, loginCells: [ 'net', 'up', 'fw' ], loginLogo: false, ovWide: false, ovCols: '0', bg: 'mica', bgScale: 100,
 		density: 'normal', font: 'md', radius: 'md', glass: 'on', loginClock: true, loginInfo: true, loginBg: 'mica', ovLive: true, ovBadges: true,
 		style: '', preset: 'win11', navMini: false, schedule: false, nightFrom: '20:00', dayFrom: '07:00', netBar: true, constLogin: true, constApp: false, constKind: 'net',
 		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, chart: 'area', chartSmooth: true, chartPal: 'accent', chartW: '2', chartGrid: true, chartThr: false, chartShine: true, ovRing: true, wxLat: '', wxLon: '', cusOn: false, cusBg: '', cusCard: '', cusText: '', cusRadius: 0, cusFont: '', cusShadow: '', loginPhoto: false, ovTop: true, ovApps: true, ovBlock: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
@@ -56,9 +56,23 @@
 		[ '#038387', 'Бирюзовый' ], [ '#69797e', 'Графит' ]
 	];
 
+	/* плитки «Потери пакетов», «Сигнал Wi‑Fi», «Трафик за сутки», «Хранилище» (v1.15): у тех, кто уже настраивал плитки, они скрыты, пока их не включат */
+	function tilesV2(p) {
+		if (p && typeof p === 'object' && p.ovTv !== 2) {
+			if (typeof p.ovHide === 'string') {
+				var h = p.ovHide.split(',').filter(Boolean);
+				[ 'loss', 'sig', 'day', 'stor' ].forEach(function (k) { if (h.indexOf(k) < 0) h.push(k); });
+				p.ovHide = h.join(',');
+				if (!p.ovLay && p.ovHide === 'ct,up,cli,loss,sig,day,stor') p.ovLay = 'std';
+			}
+			p.ovTv = 2;
+		}
+		return p;
+	}
+
 	function load() {
 		try {
-			var p = JSON.parse(window.localStorage.getItem(KEY) || 'null');
+			var p = tilesV2(JSON.parse(window.localStorage.getItem(KEY) || 'null'));
 			return Object.assign({}, DEFAULTS, p && typeof p === 'object' ? p : {});
 		} catch (e) {
 			return Object.assign({}, DEFAULTS);
@@ -117,7 +131,7 @@
 			if (d && typeof d.t === 'number' && d.p && typeof d.p === 'object') {
 				if (d.t > lt || force === true) {
 					fromRouter = true;
-					prefs = Object.assign({}, DEFAULTS, d.p);
+					prefs = Object.assign({}, DEFAULTS, tilesV2(d.p));
 					try { window.localStorage.setItem(KEY, JSON.stringify(prefs)); } catch (e) { /* ignore */ }
 					setLocalT(d.t); fromRouter = false;
 					applyAll(); refreshPanel();
@@ -1071,12 +1085,13 @@
 
 
 	/* ---- фон «Время суток» и «Погода» ---- */
-	var TILE_NAMES = { net: 'Интернет', wan: 'Трафик WAN', cpu: 'Процессор', temp: 'Температура', mem: 'Память', ct: 'Соединения', up: 'Аптайм', cli: 'Wi‑Fi клиенты' };
+	var TILE_NAMES = { net: 'Интернет', wan: 'Трафик WAN', cpu: 'Процессор', temp: 'Температура', mem: 'Память', ct: 'Соединения', up: 'Аптайм', cli: 'Wi‑Fi клиенты', loss: 'Потери пакетов', sig: 'Сигнал Wi‑Fi', day: 'Трафик за сутки', stor: 'Хранилище' };
 	/* раскладки «Сейчас» одной кнопкой: какие плитки видны, в каком порядке и сколько столбцов у карточек */
 	var LAYOUTS = [
-		[ 'home', 'Дом', { ovOrder: 'net,wan,cli,up,temp,cpu,mem,ct', ovHide: 'cpu,mem,ct', ovCols: '0', ovSize: 'md' } ],
-		[ 'min', 'Минимал', { ovOrder: 'net,wan,cpu,temp,mem,ct,up,cli', ovHide: 'temp,mem,ct,up,cli', ovCols: '2', ovSize: 'sm' } ],
-		[ 'admin', 'Админ', { ovOrder: 'net,wan,cpu,temp,mem,ct,cli,up', ovHide: '', ovCols: '3', ovSize: 'md' } ]
+		[ 'std', 'Стандарт', { ovOrder: DEFAULTS.ovOrder, ovHide: DEFAULTS.ovHide, ovCols: '0', ovSize: 'md' } ],
+		[ 'home', 'Дом', { ovOrder: 'net,wan,day,cli,up,temp,cpu,mem,ct,loss,sig,stor', ovHide: 'cpu,mem,ct,loss,sig,stor', ovCols: '0', ovSize: 'md' } ],
+		[ 'min', 'Минимал', { ovOrder: 'net,wan,cpu,temp,mem,ct,up,cli,loss,sig,day,stor', ovHide: 'temp,mem,ct,up,cli,loss,sig,day,stor', ovCols: '2', ovSize: 'sm' } ],
+		[ 'admin', 'Админ', { ovOrder: 'net,wan,cpu,temp,mem,ct,up,cli,loss,sig,day,stor', ovHide: '', ovCols: '3', ovSize: 'md' } ]
 	];
 	var WX_CITIES = [ [ 'Белгород', '50.60', '36.59' ], [ 'Строитель (Яковлевский р-н)', '50.79', '36.49' ], [ 'Москва', '55.75', '37.62' ], [ 'Санкт-Петербург', '59.94', '30.31' ], [ 'Новосибирск', '55.03', '82.92' ], [ 'Екатеринбург', '56.84', '60.61' ], [ 'Казань', '55.79', '49.12' ],
 		[ 'Нижний Новгород', '56.33', '44.0' ], [ 'Челябинск', '55.16', '61.4' ], [ 'Самара', '53.2', '50.15' ], [ 'Омск', '54.99', '73.37' ], [ 'Ростов-на-Дону', '47.24', '39.71' ], [ 'Уфа', '54.74', '55.97' ],
@@ -1165,6 +1180,7 @@
 		Object.keys(TILE_NAMES).forEach(function (k) { if (ord.indexOf(k) < 0) ord.push(k); });
 		ord.forEach(function (k, i) { root.style.setProperty('--nf-ord-' + k, String(i)); });
 		root.setAttribute('data-nf-hide', ' ' + String(prefs.ovHide == null ? DEFAULTS.ovHide : prefs.ovHide).split(',').filter(function (k) { return TILE_NAMES[k]; }).join(' ') + ' ');
+		root.setAttribute('data-nf-lay', prefs.ovLay || '');
 		root.setAttribute('data-nf-ring', prefs.ovRing === false ? 'off' : 'on');
 		skyUpdate();
 		root.setAttribute('data-nf-chart-smooth', prefs.chartSmooth === false ? 'off' : 'on');
