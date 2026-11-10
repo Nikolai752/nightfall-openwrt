@@ -1604,8 +1604,35 @@ const WOLBIN = '/usr/libexec/nightfall-wol';
 
 function blockCard() {
 	const body = E('div', { class: 'nf-blk-b' }, E('div', { class: 'nf-empty' }, 'Собираю данные…'));
-	const el = xcard('nf-block', 'Доступ в интернет', body);
+	const head = E('div', { class: 'nf-blk-h', hidden: true });
+	const el = xcard('nf-block', 'Доступ в интернет', E('div', {}, [ head, body ]));
 	let timer = null, devs = null, busy = false, open = null, note = '', logOn = false, logRows = null;
+	let tab = 'all', qs = '', more = false, checking = false, checkedAt = 0, DEVID = null;
+	try { tab = localStorage.getItem('nightfall-blk-tab') || 'all'; } catch (e) { /* ignore */ }
+	L.require('nightfall-devid').then(m => { DEVID = m; if (devs) render(); }).catch(() => { /* пакет монитора без модуля: без значков */ });
+	const search = E('input', { type: 'search', class: 'nf-blk-q', placeholder: 'Найти устройство', 'aria-label': 'Найти устройство', input: () => { qs = search.value.trim().toLowerCase(); more = false; render(); } });
+	const tabsEl = E('div', { class: 'nf-blk-tabs', role: 'group', 'aria-label': 'Показать устройства' });
+	const chkBtn = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Роутер заново проверит, кто сейчас подключён: Wi-Fi по подключению к точке доступа, кабельные по ответу на запрос ARP', click: () => { if (checking) return; checking = true; renderHead(); load(true); } }, 'Проверить сейчас');
+	const chkNote = E('span', { class: 'nf-blk-chk' });
+	head.append(tabsEl, E('div', { class: 'nf-blk-tools' }, [ search, chkBtn, chkNote ]));
+	const nmOf = d => {
+		const id = DEVID && d.mac ? DEVID.identify(d.mac, d.name) : null;
+		return { id, nm: d.name || (id && id.known ? [ id.label || 'Устройство', id.vendor && id.vendor !== id.label ? id.vendor : '' ].filter(Boolean).join(' ') : '') || d.ip || d.mac };
+	};
+	const hasRule = d => !!(d.active || d.from || d.quota || d.manual);
+	function renderHead() {
+		const all = devs || [];
+		const groups = Array.from(new Set(all.map(d => d.group).filter(Boolean))).sort();
+		const defs = [ [ 'all', 'Все', all.length ], [ 'on', 'В сети', all.filter(d => d.online).length ], [ 'off', 'Не в сети', all.filter(d => !d.online).length ], [ 'rule', 'С правилами', all.filter(hasRule).length ] ]
+			.concat(groups.map(g => [ 'g:' + g, g, all.filter(d => d.group === g).length ]));
+		const shown = defs.filter(x => x[0] === 'all' || x[0] === tab || x[2] > 0);
+		tabsEl.replaceChildren(...shown.map(x => E('button', { type: 'button', class: 'nf-linkbtn' + (tab === x[0] ? ' on' : ''), 'aria-pressed': String(tab === x[0]),
+			click: () => { tab = x[0]; more = false; try { localStorage.setItem('nightfall-blk-tab', tab); } catch (e) { /* ignore */ } render(); } }, [ x[1], E('i', {}, String(x[2])) ])));
+		search.hidden = all.length < 8 && !qs;
+		chkBtn.disabled = checking; chkBtn.textContent = checking ? 'Проверяю…' : 'Проверить сейчас';
+		chkNote.textContent = checkedAt ? 'проверено в ' + new Date(checkedAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+		head.hidden = !all.length;
+	}
 
 	const run = args => fs.exec(BLOCKBIN, args).then(r => { try { return JSON.parse(r.stdout); } catch (e) { return null; } });
 
@@ -1649,14 +1676,19 @@ function blockCard() {
 			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Нет данных'), E('span', {}, 'Не удалось получить список устройств. Если вы только что обновили тему, выйдите и войдите в LuCI снова.') ]));
 			return;
 		}
-		const rows = devs.slice().sort((a, b) => ((b.active ? 1 : 0) - (a.active ? 1 : 0)) || ((b.from || b.quota ? 1 : 0) - (a.from || a.quota ? 1 : 0)) || (b.online - a.online) || (a.name || a.ip || a.mac).localeCompare(b.name || b.ip || b.mac)).slice(0, 30);
+		renderHead();
+		const pass = d => (tab === 'all' || (tab === 'on' && d.online) || (tab === 'off' && !d.online) || (tab === 'rule' && hasRule(d)) || tab === 'g:' + d.group)
+			&& (!qs || [ d.name, d.ip, d.mac, d.group, nmOf(d).nm ].some(v => v && String(v).toLowerCase().indexOf(qs) >= 0));
+		const found = devs.filter(pass).sort((a, b) => ((b.active ? 1 : 0) - (a.active ? 1 : 0)) || ((b.from || b.quota ? 1 : 0) - (a.from || a.quota ? 1 : 0)) || (b.online - a.online) || nmOf(a).nm.localeCompare(nmOf(b).nm));
+		const rows = more ? found : found.slice(0, 30);
 		const list = rows.map(d => {
-			const nm = d.name || d.ip || d.mac;
+			const { id, nm } = nmOf(d);
 			const q = d.quota ? ' · 📉 ' + fmtBytes(d.used) + ' из ' + fmtBytes(d.quota * 1048576) : '';
 			const st = d.active ? E('span', { class: 'nf-blk-st bad' }, (d.reason === 'quota' ? 'лимит исчерпан' : d.reason === 'sched' ? 'по расписанию' : 'отключено') + q)
-				: E('span', { class: 'nf-blk-st ' + (d.online && !d.from && !d.quota ? 'ok' : '') }, (d.from ? '⏰ ' + d.from + '–' + d.to + (d.snoozed ? ' (пропуск до завтра)' : '') + ' · ' : '') + (d.online ? 'в сети' : 'не в сети') + q);
+				: E('span', { class: 'nf-blk-st ' + (d.online && !d.from && !d.quota ? 'ok' : '') }, (d.from ? '⏰ ' + d.from + '–' + d.to + (d.snoozed ? ' (пропуск до завтра)' : '') + ' · ' : '') + (d.online ? (d.wifi ? 'в сети · Wi-Fi' : 'в сети') : 'не в сети') + q);
 			const line = E('div', { class: 'nf-blk-r' + (d.active ? ' off' : '') }, [
-				E('div', { class: 'nf-blk-n' }, [ E('b', {}, nm), E('span', {}, (d.ip ? d.ip + ' · ' : '') + d.mac) ]),
+				E('div', { class: 'nf-blk-n' }, [ E('b', { title: id && id.hint ? id.hint : '' }, [ id ? (() => { const ic = E('i', { class: 'nf-dv-i' + (id.priv ? ' priv' : '') }); ic.innerHTML = DEVID.icon(id.kind); return ic; })() : '', E('span', { class: 'nf-dv-t' }, nm) ]),
+					E('span', {}, [ d.ip !== nm ? d.ip : '', d.mac, !d.name && id && id.vendor ? id.vendor : '', id && id.priv ? 'частный MAC' : '' ].filter(Boolean).join(' · ')) ]),
 				st,
 				E('div', { class: 'nf-blk-a' }, [
 					E('button', { type: 'button', class: 'cbi-button ' + (d.active ? 'cbi-button-action' : 'cbi-button-remove'),
@@ -1670,7 +1702,8 @@ function blockCard() {
 		});
 		body.replaceChildren(
 			note ? E('div', { class: 'nf-blk-note' }, note) : '',
-			...(list.length ? list : [ E('div', { class: 'nf-empty' }, 'Устройств не видно.') ]),
+			...(list.length ? list : [ E('div', { class: 'nf-empty' }, devs.length ? 'В этой вкладке никого нет.' : 'Устройств не видно.') ]),
+			found.length > rows.length ? E('button', { type: 'button', class: 'nf-link nf-blk-more', click: () => { more = true; render(); } }, 'Показать ещё ' + (found.length - rows.length)) : '',
 			logOn ? E('div', { class: 'nf-blk-log' }, (logRows && logRows.length ? logRows.map(r => E('div', {}, [ E('span', {}, new Date(r[0] * 1000).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })), E('b', {}, r[2] || r[1]), E('span', { class: r[3] === 'on' ? 'bad' : 'ok' }, r[3] === 'on' ? 'отключён' : 'возвращён'), E('i', {}, r[4]) ])) : [ E('div', { class: 'nf-empty' }, 'Записей пока нет.') ])) : '',
 			E('div', { class: 'nf-apps-f' }, [ E('span', {}, 'Устройству отключается выход в интернет (по MAC-адресу). Роутер и локальная сеть остаются доступными, поэтому вернуть доступ можно всегда. Устройства со «случайным» Wi-Fi адресом лучше отключить в настройках самого телефона. То же можно делать кнопками в Telegram-боте.'),
 				E('button', { type: 'button', class: 'nf-link', click: () => { logOn = !logOn; if (logOn) run([ 'log' ]).then(r => { logRows = r && r.ok ? r.log : []; render(); }); else render(); } }, logOn ? 'Скрыть журнал' : 'Журнал блокировок') ]));
@@ -1678,7 +1711,7 @@ function blockCard() {
 
 	function load(force) {
 		if (!force && (idle(el) || busy || EDITING || open)) return;
-		run([ 'list' ]).then(r => { devs = r && r.ok ? r.devices : null; render(); }).catch(() => { devs = null; render(); });
+		run([ 'list' ]).then(r => { devs = r && r.ok ? r.devices : null; if (devs) checkedAt = Date.now(); checking = false; render(); }).catch(() => { devs = null; checking = false; render(); });
 	}
 
 	return { el, contains: n => el.contains(n), start() { load(true); timer = window.setInterval(load, 20000); } };

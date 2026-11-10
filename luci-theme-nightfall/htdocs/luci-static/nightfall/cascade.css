@@ -6071,3 +6071,23 @@ html .nf-top-b .nf-top-r { grid-template-columns: minmax(130px, 2fr) minmax(44px
 	html .nf-top-b .nf-top-d { grid-column: 1 / -1; order: 4; flex-direction: row; align-items: baseline; justify-content: flex-start; gap: 6px; }
 }
 @media (max-width: 640px) { .nf-top-g { grid-column: 1 / -1; order: 3; } html .nf-top-b .nf-top-r { grid-template-columns: minmax(0, 1fr) auto; } html .nf-top-b .nf-top-r > .nf-top-g { grid-column: 1 / -1; } }
+
+/* v1.14.1: «Доступ в интернет» — вкладки по состоянию и группам, поиск, ручная проверка */
+.nf-blk-h { display: flex; flex-direction: column; gap: 8px; padding: 2px 0 8px; }
+.nf-blk-tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.nf-blk-tabs .nf-linkbtn { display: inline-flex; align-items: center; gap: 6px; }
+.nf-blk-tabs .nf-linkbtn i { font-style: normal; font-size: .85em; opacity: .7; font-variant-numeric: tabular-nums; }
+.nf-blk-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.nf-blk-q { flex: 1 1 160px; min-width: 0; max-width: 280px; height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--nf-stroke); background: color-mix(in srgb, var(--nf-text) 5%, transparent); color: inherit; font: inherit; font-size: calc(13px * var(--nf-fsz, 1)); }
+.nf-blk-q[hidden] { display: none; }
+.nf-blk-chk { color: var(--nf-text-dim); font-size: calc(12px * var(--nf-fsz, 1)); }
+.nf-blk-more { display: block; margin: 8px auto 0; }
+.nf-blk-n b { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.nf-blk-n b .nf-dv-t { color: inherit; font-size: inherit; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* карточка узкая (три столбца «Обзора»): строка устройства перестраивается по ширине карточки, кнопки не уходят за край */
+.nf-block { container-type: inline-size; container-name: nfblk; }
+@container nfblk (max-width: 520px) {
+	html .nf-blk-r { grid-template-columns: minmax(0, 1fr) auto; }
+	html .nf-blk-st { grid-column: 1; grid-row: 2; }
+	html .nf-blk-a { grid-column: 2; grid-row: 1 / span 2; }
+}

@@ -166,6 +166,45 @@ apply() {
 }
 
 
+# ---------- кто в сети сейчас ----------
+# Запись в таблице ARP живёт и у ушедших устройств, и пропадает у простаивающих (телефон со случайным MAC молчит, и роутер
+# про него «забывает»). Поэтому: клиенты Wi-Fi определяются по подключению к точке доступа, остальные проверяются живым
+# ARP-запросом (запись сбрасывается, роутер отправляет пинг и ждёт ответ). Ответ на ARP приходит и у устройств, которые
+# не отвечают на ping.
+wifi_macs() {
+	if [ -n "$NF_WIFI" ]; then cat "$NF_WIFI" 2>/dev/null; return 0; fi
+	command -v ubus >/dev/null 2>&1 || return 0
+	for d in $(ubus call iwinfo devices 2>/dev/null | awk -F'"' 'NF >= 3 && $2 != "devices" { print $2 }'); do
+		ubus call iwinfo assoclist "{\"device\":\"$d\"}" 2>/dev/null | awk -F'"' '$2 == "mac" { print tolower($4) }'
+	done
+}
+neigh_dump() { if [ -n "$NF_NEIGH" ]; then cat "$NF_NEIGH" 2>/dev/null; else ${NF_IP:-ip} -4 neigh show 2>/dev/null; fi; }
+live_list() {   # строки «W mac» (Wi-Fi) и «A mac ip интерфейс» (ответили по ARP)
+	wm=$(wifi_macs | tr 'A-F' 'a-f' | sort -u)
+	[ -n "$wm" ] && printf '%s\n' "$wm" | awk '{ print "W", $1 }'
+	if [ -z "$NF_NEIGH" ] && ! command -v "${NF_IP:-ip}" >/dev/null 2>&1; then
+		[ -r "$PROC/net/arp" ] && awk 'NR > 1 && $3 == "0x2" && $4 != "00:00:00:00:00:00" { print "A", tolower($4), $1, $6 }' "$PROC/net/arp"
+		return 0
+	fi
+	mkdir -p "$DIR" 2>/dev/null
+	neigh_dump > "$DIR/neigh.cur"
+	cand=$( { [ -r "$LEASES" ] && awk '{ print "L", tolower($2), $3 }' "$LEASES"
+		awk '/lladdr/ { for (i = 1; i < NF; i++) if ($i == "lladdr") print "N", tolower($(i + 1)), $1, $NF }' "$DIR/neigh.cur"; } 2>/dev/null |
+		awk -v wm=" $(printf '%s ' $wm)" '
+			$1 == "N" && $4 == "REACHABLE" { fresh[$2] = 1 }
+			{ l[NR] = $0 }
+			END { for (i = 1; i <= NR; i++) { split(l[i], f, " "); m = f[2]; if (index(wm, " " m " ") || (m in fresh) || f[3] !~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ || (f[3] in seen)) continue; seen[f[3]] = 1; print f[3] } }' | head -n 40 )
+	if [ -n "$cand" ]; then
+		for ip in $cand; do
+			${NF_IP:-ip} neigh flush to "$ip" >/dev/null 2>&1
+			${NF_PING:-ping} -c 1 -W 1 "$ip" >/dev/null 2>&1 &
+		done
+		wait
+		neigh_dump > "$DIR/neigh.cur"
+	fi
+	awk '/lladdr/ && $NF == "REACHABLE" { m = ""; d = ""; for (i = 1; i < NF; i++) { if ($i == "lladdr") m = tolower($(i + 1)); if ($i == "dev") d = $(i + 1) } if (m != "") print "A", m, $1, d }' "$DIR/neigh.cur"
+}
+
 # unblock устройства, отключённого группой вручную, невозможен: нужно вернуть группу
 grp_ok() { [ -n "$(grow "$1")" ] || fail "такой группы нет"; }
 
@@ -175,32 +214,34 @@ list)
 	{ [ -s "$DEVF" ] && awk -F'|' '$1 != "" { print "D|" $1 "|" $3 "|" $4 "|" $2 }' "$DEVF"
 	  [ -s "$LIST" ] && awk -F'|' '{ print "B", $1, ($3 == "" ? 0 : $3), ($4 == "" ? "-" : $4), ($5 == "" ? "-" : $5), ($6 == "" ? "-" : $6), ($7 == "" ? "-" : $7), $2 }' "$LIST"
 	  [ -r "$LEASES" ] && awk '{ print "L", tolower($2), $3, ($4 == "*" ? "" : $4) }' "$LEASES"
-	  [ -r "$PROC/net/arp" ] && awk 'NR > 1 && $3 == "0x2" && $4 != "00:00:00:00:00:00" { print "A", tolower($4), $1, $6 }' "$PROC/net/arp"
+	  live_list
 	} 2>/dev/null | awk -v own="$(own_macs | tr '\n' ' ')" -v wan="$(sed -n 's/^wan_dev=//p' "$DIR/info" 2>/dev/null | head -n 1)" '
 		function esc(s) { gsub(/["\\|]/, "", s); return s }
 		BEGIN { n = split(tolower(own), o, " "); for (i = 1; i <= n; i++) mine[o[i]] = 1 }
 		index($0, "D|") == 1 { split($0, p, "|"); m = p[2]; di[m] = p[3]; dg[m] = p[4]; dn[m] = p[5]; seen[m] = 1; next }
 		$1 == "B" { m = $2; man[m] = $3; sf[m] = ($4 == "-" ? "" : $4); st[m] = ($5 == "-" ? "" : $5); qq[m] = ($6 == "-" ? "" : $6); sn[m] = ($7 == "-" ? "" : $7); x = ""; for (i = 8; i <= NF; i++) x = x (i > 8 ? " " : "") $i; bn[m] = x; seen[m] = 1 }
 		$1 == "L" { m = $2; ip[m] = $3; nm[m] = $4; seen[m] = 1 }
+		$1 == "W" { m = $2; wf[m] = 1; on[m] = 1; seen[m] = 1 }
 		$1 == "A" { m = $2; if ($4 == wan) next; ip[m] = $3; on[m] = 1; seen[m] = 1 }
 		END {
 			for (m in seen) {
 				if (m in mine) continue
 				name = (dn[m] != "" ? dn[m] : (nm[m] != "" ? nm[m] : bn[m]))
-				printf "%s|%s|%s|%d|%d|%s|%s|%s|%s|%s|%s\n", m, esc(ip[m]), esc(name), (m in on ? 1 : 0), man[m] + 0, sf[m], st[m], qq[m], sn[m], esc(di[m]), esc(dg[m])
+				printf "%s|%s|%s|%d|%d|%s|%s|%s|%s|%s|%s|%d\n", m, esc(ip[m]), esc(name), (m in on ? 1 : 0), man[m] + 0, sf[m], st[m], qq[m], sn[m], esc(di[m]), esc(dg[m]), (m in wf ? 1 : 0)
 			}
 		}' | {
 		printf '{"ok":true,"devices":['
 		c=0
-		while IFS='|' read -r m ipa nm on man f t q sn ic gr; do
+		while IFS='|' read -r m ipa nm on man f t q sn ic gr wfi; do
 			rs=$(reason_all "$m")
 			[ -n "$q" ] || q=$(grow "$gr" | cut -d'|' -f5)
 			[ -n "$q" ] && u=$(used_of "$m") || u=0
 			[ "$on" = 1 ] && on=true || on=false
 			[ "$man" = 1 ] && man=true || man=false
+			[ "$wfi" = 1 ] && wfi=true || wfi=false
 			[ "$c" = 0 ] || printf ','
 			c=1
-			printf '{"mac":"%s","ip":"%s","name":"%s","online":%s,"manual":%s,"from":"%s","to":"%s","quota":%s,"used":%s,"active":%s,"reason":"%s","snoozed":%s,"icon":"%s","group":"%s"}' "$m" "$ipa" "$nm" "$on" "$man" "$f" "$t" "${q:-0}" "${u:-0}" "$([ -n "$rs" ] && echo true || echo false)" "$rs" "$([ "$sn" = "$(today)" ] && echo true || echo false)" "$ic" "$gr"
+			printf '{"mac":"%s","ip":"%s","name":"%s","online":%s,"manual":%s,"from":"%s","to":"%s","quota":%s,"used":%s,"active":%s,"reason":"%s","snoozed":%s,"icon":"%s","group":"%s","wifi":%s}' "$m" "$ipa" "$nm" "$on" "$man" "$f" "$t" "${q:-0}" "${u:-0}" "$([ -n "$rs" ] && echo true || echo false)" "$rs" "$([ "$sn" = "$(today)" ] && echo true || echo false)" "$ic" "$gr" "$wfi"
 		done
 		printf ']}\n'
 	} ;;
