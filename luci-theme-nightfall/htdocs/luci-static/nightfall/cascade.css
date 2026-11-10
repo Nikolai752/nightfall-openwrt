@@ -5653,6 +5653,18 @@ html[data-nf-motion="off"][data-nf-bg="garland"] body::after, html[data-nf-motio
 .nf-live-grid .nf-tile[data-tile="cpu"] { order: var(--nf-ord-cpu, 2); }
 .nf-live-grid .nf-tile[data-tile="temp"] { order: var(--nf-ord-temp, 3); }
 .nf-live-grid .nf-tile[data-tile="mem"] { order: var(--nf-ord-mem, 4); }
+.nf-live-grid .nf-tile[data-tile="ct"] { order: var(--nf-ord-ct, 5); }
+.nf-live-grid .nf-tile[data-tile="up"] { order: var(--nf-ord-up, 6); }
+.nf-live-grid .nf-tile[data-tile="cli"] { order: var(--nf-ord-cli, 7); }
+/* скрытые плитки (настройка «Плитки Сейчас»): список в атрибуте через пробел */
+html[data-nf-hide~="net"] .nf-live-grid .nf-tile[data-tile="net"], html[data-nf-hide~="wan"] .nf-live-grid .nf-tile[data-tile="wan"],
+html[data-nf-hide~="cpu"] .nf-live-grid .nf-tile[data-tile="cpu"], html[data-nf-hide~="temp"] .nf-live-grid .nf-tile[data-tile="temp"],
+html[data-nf-hide~="mem"] .nf-live-grid .nf-tile[data-tile="mem"], html[data-nf-hide~="ct"] .nf-live-grid .nf-tile[data-tile="ct"],
+html[data-nf-hide~="up"] .nf-live-grid .nf-tile[data-tile="up"], html[data-nf-hide~="cli"] .nf-live-grid .nf-tile[data-tile="cli"] { display: none; }
+/* без атрибута (старый кэш) новые плитки скрыты по умолчанию */
+html:not([data-nf-hide]) .nf-live-grid .nf-tile[data-tile="ct"], html:not([data-nf-hide]) .nf-live-grid .nf-tile[data-tile="up"], html:not([data-nf-hide]) .nf-live-grid .nf-tile[data-tile="cli"] { display: none; }
+.nf-pop .nf-ord-vis { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; }
+.nf-pop .nf-ord-vis input { width: 16px; height: 16px; flex: none; accent-color: var(--nf-accent); }
 .nf-pop .nf-ord-row, .nf-pop .nf-thr-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
 .nf-pop .nf-ord-row > span, .nf-pop .nf-thr-row > span { flex: 1 1 auto; min-width: 0; font-size: 13px; }
 .nf-pop .nf-ord-row button { flex: 0 0 34px; height: 30px; padding: 0; border-radius: 8px; border: 1px solid var(--nf-border, rgba(128,128,128,.3)); background: transparent; color: inherit; cursor: pointer; }
@@ -6031,3 +6043,31 @@ html #modal_overlay > .modal.alert-message > h4:empty { display: none; }
 html #modal_overlay > .modal.alert-message::before { top: 50%; margin-top: -10px; }
 html #modal_overlay > .modal.alert-message > p { margin: 0; line-height: 1.45; }
 html #modal_overlay > .modal.alert-message > p + p { margin-top: 6px; }
+
+/* v1.14.0: «Сейчас» — раскладки, «Топ клиентов» с мини-графиками и значками устройств */
+@media (max-width: 899px) { .nf-colsel.nf-laysel { display: inline-flex !important; } }
+.nf-top-g { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.nf-top-sp { height: 22px; min-width: 0; }
+.nf-top-sp:empty { height: 0; }
+.nf-msp { display: block; width: 100%; height: 22px; color: var(--nf-accent); overflow: visible; }
+.nf-msp.h { color: var(--nf-g-up, #2ea043); }
+.nf-msp .l { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.nf-msp .a { fill: currentColor; opacity: .14; stroke: none; }
+.nf-top-n b { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.nf-dv-i { display: inline-flex; flex: none; width: 18px; height: 18px; color: var(--nf-text-dim); }
+.nf-dv-i svg { width: 18px; height: 18px; }
+.nf-dv-i.priv { color: color-mix(in srgb, var(--nf-text-dim) 70%, #f59e0b); }
+html .nf-top-b .nf-top-r > .nf-top-g { min-width: 60px; }
+.nf-top-n b .nf-dv-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; font-size: inherit; }
+.nf-top-n b .nf-edit { flex: none; margin-left: 0; }
+html .nf-top-b .nf-top-r { grid-template-columns: minmax(130px, 2fr) minmax(44px, .8fr) 104px 76px; column-gap: 12px; }
+/* карточка узкая (три столбца «Обзора», планшет): строка перестраивается по ширине самой карточки, а не окна */
+.nf-top { container-type: inline-size; container-name: nftop; }
+@container nftop (max-width: 480px) {
+	html .nf-top .nf-top-t { flex-wrap: wrap; gap: 6px 10px; }
+	html .nf-top .nf-top-t h3 { white-space: nowrap; }
+	html .nf-top-b .nf-top-r { grid-template-columns: minmax(0, 1fr) auto; }
+	html .nf-top-b .nf-top-r > .nf-top-g { grid-column: 1 / -1; order: 3; }
+	html .nf-top-b .nf-top-d { grid-column: 1 / -1; order: 4; flex-direction: row; align-items: baseline; justify-content: flex-start; gap: 6px; }
+}
+@media (max-width: 640px) { .nf-top-g { grid-column: 1 / -1; order: 3; } html .nf-top-b .nf-top-r { grid-template-columns: minmax(0, 1fr) auto; } html .nf-top-b .nf-top-r > .nf-top-g { grid-column: 1 / -1; } }

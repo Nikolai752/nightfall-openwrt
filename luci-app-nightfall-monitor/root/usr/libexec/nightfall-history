@@ -1,6 +1,7 @@
 #!/bin/sh
 # Nightfall history: отдаёт данные сборщика (nightfall-collector) одним JSON-объектом.
-#   nightfall-history series fine|coarse   — графики + события + предупреждения
+#   nightfall-history series fine|coarse|long — графики + события + предупреждения (long — до 90 суток, шаг 30 мин)
+#   nightfall-history wifi-hr / devhr      — почасовой сигнал клиентов Wi-Fi / трафик по устройствам
 #   nightfall-history devices              — трафик по устройствам
 #   nightfall-history alerts               — активные предупреждения и последняя точка
 #   nightfall-history apps                 — трафик по приложениям: сегодня и за прошлые сутки
@@ -37,6 +38,13 @@ devs_json() {   # devs_json FILE [skip-first-line]
 	printf ']'
 }
 
+neigh_json() {  # соседи по сети: «адрес → MAC» (IPv4 и IPv6), чтобы привязывать трафик к устройству, а не к адресу
+	printf '['
+	{ if [ -n "$NF_NEIGH" ]; then cat "$NF_NEIGH"; else ip neigh show 2>/dev/null; fi; } | awk '
+		/lladdr/ && $NF != "FAILED" && $NF != "INCOMPLETE" && $1 !~ /^fe80:/ { m = ""; for (i = 1; i < NF; i++) if ($i == "lladdr") m = tolower($(i + 1)); if (m ~ /^[0-9a-f][0-9a-f](:[0-9a-f][0-9a-f])+$/) printf "%s[\"%s\",\"%s\"]", (n++ ? "," : ""), $1, m }'
+	printf ']'
+}
+
 journal_json() {
 	f=${NF_JOURNAL:-/etc/nightfall-journal.log}
 	printf '['
@@ -53,7 +61,7 @@ pairs_json() {  # pairs_json FILE NCOLS_AFTER_TS: строки «ip proto port d
 now=$(date +%s)
 case "$1" in
 series)
-	if [ "$2" = coarse ]; then f=hist.coarse; lim=2016; else f=hist.fine; lim=240; fi
+	case "$2" in coarse) f=hist.coarse; lim=2016 ;; long) f=hist.long; lim=4320 ;; *) f=hist.fine; lim=240 ;; esac
 	printf '{"now":%s,"range":"%s","rows":' "$now" "${2:-fine}"
 	rows_json "$DIR/$f" "$lim"
 	printf ',"events":'; events_json
@@ -66,6 +74,7 @@ devices)
 	devs_json "$DIR/dev.rate" 1
 	printf ',"day":'; devs_json "$DIR/dev.day"
 	printf ',"yday":'; devs_json "$DIR/dev.yday"
+	printf ',"neigh":'; neigh_json
 	printf ',"info":'; info_json
 	printf '}\n' ;;
 channel)
@@ -134,6 +143,49 @@ wifi-check)
 		done
 	fi
 	printf '],"sample":"%s"}\n' "$sample" ;;
+wifi-hr)
+	printf '{"now":%s,"rows":[' "$now"
+	[ -r "$DIR/wifi.hr" ] && awk -v mac="$2" 'NF >= 3 && (mac == "" || $2 == mac) { printf "%s[%s,\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3, $4 }' "$DIR/wifi.hr"
+	printf ']}\n' ;;
+devhr)
+	printf '{"now":%s,"rows":[' "$now"
+	[ -r "$DIR/dev.hr" ] && awk -v lim=$((now - 93600)) 'NF >= 4 && $1 >= lim { printf "%s[%s,\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3, $4 }' "$DIR/dev.hr"
+	printf ']}\n' ;;
+airscan)
+	# эфир вокруг роутера: собственные радиоинтерфейсы и соседние сети (для «Загруженности каналов»)
+	IW=${NF_IWINFO:-iwinfo}
+	if [ -n "$NF_IWDEVS" ]; then devs=$NF_IWDEVS
+	else devs=$(ubus call iwinfo devices 2>/dev/null | awk -F'"' 'NF >= 3 && $2 != "devices" { print $2 }'); fi
+	printf '{"now":%s,"radios":[' "$now"
+	sep=
+	for d in $devs; do
+		info=$("$IW" "$d" info 2>/dev/null)
+		[ -n "$info" ] || continue
+		ph=$(printf '%s\n' "$info" | sed -n 's/.*PHY name: *\(phy[0-9]*\).*/\1/p' | head -n 1)
+		ht=; ch0=
+		if [ -n "$ph" ] && command -v uci >/dev/null 2>&1; then ht=$(uci -q get "wireless.radio${ph#phy}.htmode" 2>/dev/null); ch0=$(uci -q get "wireless.radio${ph#phy}.channel" 2>/dev/null); fi
+		printf '%s\n' "$info" | tr -d '\000-\010\013-\037' | awk -v dev="$d" -v ht="$ht" -v ch0="$ch0" -v sep="$sep" '
+			/ESSID:/ { q = index($0, "\""); if (q) { t = substr($0, q + 1); e = index(t, "\""); ess = (e ? substr(t, 1, e - 1) : t); gsub(/["\\]/, "", ess) } }
+			/Access Point:/ { bs = tolower($NF) }
+			/Channel:/ { if (match($0, /Channel: *[0-9]+/)) { ch = substr($0, RSTART, RLENGTH); gsub(/[^0-9]/, "", ch) } if (match($0, /\([0-9.]+ GHz\)/)) { fq = substr($0, RSTART + 1, RLENGTH - 2); gsub(/[^0-9.]/, "", fq) } }
+			/Tx-Power:/ { if (match($0, /Tx-Power: *[0-9]+/)) { tp = substr($0, RSTART, RLENGTH); gsub(/[^0-9]/, "", tp) } }
+			END { printf "%s{\"dev\":\"%s\",\"ssid\":\"%s\",\"bssid\":\"%s\",\"ch\":%d,\"ghz\":%s,\"txp\":%d,\"ht\":\"%s\",\"cfg\":\"%s\"}", sep, dev, ess, bs, ch + 0, (fq == "" ? 0 : fq), tp + 0, ht, ch0 }'
+		sep=,
+	done
+	printf '],"aps":['
+	sep=
+	for d in $devs; do
+		{ if command -v timeout >/dev/null 2>&1; then timeout 8 "$IW" "$d" scan; else "$IW" "$d" scan; fi; } 2>/dev/null | tr -d '\000-\010\013-\037' | awk -v dev="$d" -v sep="$sep" '
+			function flush() { if (b != "") { printf "%s[\"%s\",\"%s\",\"%s\",%d,%d]", (n++ ? "," : sep), dev, ss, b, ch, sg } b = ""; ss = ""; ch = 0; sg = -100 }
+			/^Cell [0-9]+ - Address:/ { flush(); b = tolower($NF); next }
+			/ESSID:/ { q = index($0, "\""); if (q) { t = substr($0, q + 1); e = index(t, "\""); ss = (e ? substr(t, 1, e - 1) : t); gsub(/["\\]/, "", ss) } next }
+			/Channel:/ { if (match($0, /Channel: *[0-9]+/)) { c = substr($0, RSTART, RLENGTH); gsub(/[^0-9]/, "", c); ch = c + 0 } next }
+			/Signal:/ { if (match($0, /Signal: *-?[0-9]+/)) { c = substr($0, RSTART, RLENGTH); gsub(/[^-0-9]/, "", c); sg = c + 0 } next }
+			END { flush() }' > "$DIR/airscan.tmp"
+		[ -s "$DIR/airscan.tmp" ] && { printf '%s' "$(cat "$DIR/airscan.tmp")"; sep=,; }
+	done
+	rm -f "$DIR/airscan.tmp"
+	printf ']}\n' ;;
 traffic)
 	printf '{"now":%s,"persist":%s,"rows":[' "$now" "$([ -n "$(sed -n 's/^PERSIST_DIR=\(.\)/\1/p' /etc/nightfall-monitor.conf 2>/dev/null | head -n 1)" ] && echo 1 || echo 0)"
 	[ -r "$DIR/traffic.daily" ] && awk 'NF >= 3 && $1 ~ /^[0-9]{8}$/ { printf "%s[\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3 }' "$DIR/traffic.daily"
@@ -145,6 +197,6 @@ alerts)
 	printf ',"info":'; info_json
 	printf '}\n' ;;
 *)
-	echo "usage: nightfall-history series fine|coarse | devices | apps | channel | journal | speed | wifi [MAC] | wifi-check | traffic | alerts" >&2
+	echo "usage: nightfall-history series fine|coarse|long | devices | apps | channel | journal | speed | wifi [MAC] | wifi-hr [MAC] | devhr | wifi-check | airscan | traffic | alerts" >&2
 	exit 1 ;;
 esac
