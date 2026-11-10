@@ -6,7 +6,7 @@
 #   nightfall-config disks                  — подключённые накопители (JSON)
 CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
 DEF=${NF_DEF:-/usr/share/nightfall/nightfall-monitor.conf.default}
-KEYS="TEMP_WARN TEMP_CRIT MEM_MIN_PCT FLASH_MAX_PCT CT_MAX_PCT CPU_MAX_PCT CPU_MINUTES PING_TARGET PING_TARGET2 PERSIST_DIR PERSIST_HOURS PERSIST_ANY JOURNAL WIFI_HIST SPEED_HOURS SPEED_URL SPEED_STREAMS APPS NEWDEV TG TG_ALERTS TG_TOKEN TG_CHAT TG_PROXY TG_IFACE TG_BOT TG_REPORT"
+KEYS="TEMP_WARN TEMP_CRIT MEM_MIN_PCT FLASH_MAX_PCT CT_MAX_PCT CPU_MAX_PCT CPU_MINUTES PING_TARGET PING_TARGET2 PERSIST_DIR PERSIST_HOURS HIST_DAYS PERSIST_ANY JOURNAL WIFI_HIST SPEED_HOURS SPEED_URL SPEED_STREAMS APPS NEWDEV TG TG_ALERTS TG_TOKEN TG_CHAT TG_PROXY TG_IFACE TG_BOT TG_REPORT"
 
 val() {     # val FILE KEY
 	[ -r "$1" ] && sed -n "s/^$2=\"\{0,1\}\([^ #\"]*\).*/\1/p" "$1" | head -n 1
@@ -80,6 +80,7 @@ set)
 			case "$v" in ''|*[!A-Za-z0-9._:-]*) [ -z "$v" ] || fail "$k: недопустимые символы" ;; esac
 			[ ${#v} -le 64 ] || fail "$k: слишком длинное значение" ;;
 		PERSIST_HOURS) range "$k" "$v" 1 24 ;;
+		HIST_DAYS) range "$k" "$v" 7 90 ;;
 		TG_TOKEN)
 			[ "$v" = "***" ] && continue       # интерфейс не менял токен
 			[ -z "$v" ] || printf '%s' "$v" | grep -qE '^[0-9]{5,}:[A-Za-z0-9_-]{20,}$' || fail "TG_TOKEN: ожидался токен вида 123456:ABC… от @BotFather" ;;

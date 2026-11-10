@@ -151,9 +151,10 @@ const DETAIL = {
 	wan: { title: 'Трафик WAN', cols: [ [ 4, 'Загрузка', 'nf-c-down' ], [ 5, 'Отдача', 'nf-c-up' ] ], fmt: v => fmtRate(v).join(' '), ceil: v => niceCeil(Math.max(12500, v)) },
 	cpu: { title: 'Процессор', cols: [ [ 1, 'Загрузка', 'nf-c-cpu' ] ], fmt: v => nf0.format(v) + '%', ceil: () => 100 },
 	temp: { title: 'Температура', cols: [ [ 3, 'Процессор', 'nf-c-temp' ] ], fmt: v => nf1.format(v) + ' °C', ceil: v => Math.max(100, niceCeil(v)), floor: 30 },
-	mem: { title: 'Память', cols: [ [ 2, 'Занято', 'nf-c-mem' ] ], fmt: v => nf0.format(v) + '%', ceil: () => 100 }
+	mem: { title: 'Память', cols: [ [ 2, 'Занято', 'nf-c-mem' ] ], fmt: v => nf0.format(v) + '%', ceil: () => 100 },
+	ct: { title: 'Соединения', cols: [ [ 9, 'Соединений', 'nf-c-mem' ] ], fmt: v => nf0.format(v), ceil: v => niceCeil(Math.max(50, v)) }
 };
-const DRANGE = { h: [ 'fine', 3600, 'Час' ], d: [ 'coarse', 86400, 'Сутки' ], w: [ 'coarse', 604800, 'Неделя' ] };
+const DRANGE = { h: [ 'fine', 3600, 'Час' ], d: [ 'coarse', 86400, 'Сутки' ], w: [ 'coarse', 604800, 'Неделя' ], m: [ 'long', 2592000, 'Месяц' ], q: [ 'long', 7776000, '3 мес.' ] };
 
 function openDetail(key, from) {
 	const cfg = DETAIL[key];
@@ -261,14 +262,14 @@ function openDetail(key, from) {
 
 function liveStrip() {
 	const S = {
-		t: [], cpu: [], mem: [], temp: [], rx: [], tx: [], ping: [],
+		t: [], cpu: [], mem: [], temp: [], rx: [], tx: [], ping: [], ct: [], cli: null,
 		last: null, wan: null, online: null, gw: null, net: null, loss: null
 	};
 	const R = {};   /* DOM refs */
 
 	const sp = {
 		net: spark([ 'nf-c-down' ]), wan: spark([ 'nf-c-down', 'nf-c-up' ]), cpu: spark([ 'nf-c-cpu' ]),
-		temp: spark([ 'nf-c-temp' ]), mem: spark([ 'nf-c-mem' ])
+		temp: spark([ 'nf-c-temp' ]), mem: spark([ 'nf-c-mem' ]), ct: spark([ 'nf-c-mem' ])
 	};
 
 	const tile = (key, title, extra, ...rows) => E('div', { class: 'nf-tile', 'data-tile': key }, [
@@ -281,6 +282,7 @@ function liveStrip() {
 			E('span', {}, 'Сейчас'),
 			E('span', { class: 'nf-live-acts' }, [
 				R.cols = E('span', { class: 'nf-colsel', title: 'Сколько столбцов карточек на «Обзоре»; карточки плотно, без пустых мест' }, [ E('span', {}, 'Столбцы:') ].concat([ [ '0', 'Авто' ], [ '1', '1' ], [ '2', '2' ], [ '3', '3' ] ].map(c => E('button', { type: 'button', class: 'nf-linkbtn', 'data-c': c[0] }, c[1])))),
+				R.lay = E('span', { class: 'nf-colsel nf-laysel', title: 'Какие плитки показывать и как расположить карточки: одной кнопкой' }, [ E('span', {}, 'Раскладка:') ].concat([ [ 'home', 'Дом' ], [ 'min', 'Минимал' ], [ 'admin', 'Админ' ] ].map(c => E('button', { type: 'button', class: 'nf-linkbtn', 'data-l': c[0] }, c[1])))),
 				R.reset = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Вернуть порядок карточек по умолчанию' }, 'Сбросить порядок карточек'),
 				R.qrBtn = E('button', { type: 'button', class: 'nf-linkbtn', title: 'QR-код для подключения к Wi-Fi' }, 'QR Wi-Fi'),
 				R.boardBtn = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Полноэкранное табло: время, скорость, пинг, нагрузка' }, 'Табло')
@@ -296,7 +298,13 @@ function liveStrip() {
 			tile('temp', 'Температура', R.tempBadge,
 				R.tempV = E('div', { class: 'nf-tile-v' }, '–'), R.tempS = E('div', { class: 'nf-tile-s' }, ' '), sp.temp.el),
 			tile('mem', 'Память', null,
-				R.memV = E('div', { class: 'nf-tile-v' }, '–'), R.memS = E('div', { class: 'nf-tile-s' }, ' '), sp.mem.el)
+				R.memV = E('div', { class: 'nf-tile-v' }, '–'), R.memS = E('div', { class: 'nf-tile-s' }, ' '), sp.mem.el),
+			tile('ct', 'Соединения', null,
+				R.ctV = E('div', { class: 'nf-tile-v' }, '–'), R.ctS = E('div', { class: 'nf-tile-s' }, ' '), sp.ct.el),
+			tile('up', 'Аптайм', null,
+				R.upV = E('div', { class: 'nf-tile-v' }, '–'), R.upS = E('div', { class: 'nf-tile-s' }, ' ')),
+			tile('cli', 'Wi‑Fi клиенты', null,
+				R.cliV = E('div', { class: 'nf-tile-v' }, '–'), R.cliS = E('div', { class: 'nf-tile-s' }, ' '))
 		])
 	]);
 
@@ -407,6 +415,9 @@ function liveStrip() {
 	const paintCols = () => { const cur = document.documentElement.getAttribute('data-nf-ov-cols') || '0'; R.cols.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.getAttribute('data-c') === cur)); };
 	R.cols.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('button[data-c]'); if (!b) return; if (window.Nightfall && window.Nightfall.set) window.Nightfall.set('ovCols', b.getAttribute('data-c')); paintCols(); window.setTimeout(() => window.dispatchEvent(new Event('resize')), 60); });
 	new MutationObserver(paintCols).observe(document.documentElement, { attributes: true, attributeFilter: [ 'data-nf-ov-cols' ] }); paintCols();
+	const paintLay = () => { const cur = (window.Nightfall && window.Nightfall.prefs && window.Nightfall.prefs().ovLay) || ''; R.lay.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.getAttribute('data-l') === cur)); };
+	R.lay.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('button[data-l]'); if (!b) return; if (window.Nightfall && window.Nightfall.layout) window.Nightfall.layout(b.getAttribute('data-l')); paintLay(); });
+	new MutationObserver(paintLay).observe(document.documentElement, { attributes: true, attributeFilter: [ 'data-nf-hide', 'data-nf-ov-cols', 'data-nf-ov-size' ] }); paintLay();
 	strip.addEventListener('click', ev => {
 		const t = ev.target.closest && ev.target.closest('.nf-tile[data-tile]');
 		if (t) openDetail(t.getAttribute('data-tile'), t);
@@ -415,11 +426,11 @@ function liveStrip() {
 		const t = ev.target.closest && ev.target.closest('.nf-tile[data-tile]');
 		if (t && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); openDetail(t.getAttribute('data-tile'), t); }
 	});
-	strip.querySelectorAll('.nf-tile').forEach(t => { t.setAttribute('tabindex', '0'); t.setAttribute('role', 'button'); t.setAttribute('title', 'Нажмите, чтобы открыть график'); });
+	strip.querySelectorAll('.nf-tile').forEach(t => { if (!DETAIL[t.getAttribute('data-tile')]) return; t.setAttribute('tabindex', '0'); t.setAttribute('role', 'button'); t.setAttribute('title', 'Нажмите, чтобы открыть график'); });
 
 	function trim(now) {
 		while (S.t.length && S.t[0] < now - WIN) {
-			S.t.shift(); S.cpu.shift(); S.mem.shift(); S.temp.shift(); S.rx.shift(); S.tx.shift(); S.ping.shift();
+			S.t.shift(); S.cpu.shift(); S.mem.shift(); S.temp.shift(); S.rx.shift(); S.tx.shift(); S.ping.shift(); S.ct.shift();
 		}
 	}
 
@@ -461,6 +472,7 @@ function liveStrip() {
 		S.temp.push(pickTemp(d.temps));
 		S.rx.push(rx); S.tx.push(tx);
 		S.ping.push(S.net != null && S.net >= 0 ? S.net : null);
+		S.ct.push(d.ct && d.ct[0] >= 0 ? d.ct[0] : null);
 		trim(now);
 	}
 
@@ -479,8 +491,8 @@ function liveStrip() {
 		const rx = lastOf(S.rx), tx = lastOf(S.tx);
 		if (rx != null) {
 			const r = fmtRate(rx), u = fmtRate(tx || 0);
-			R.wanV.textContent = '↓ ' + r[0] + ' ' + r[1];
-			R.wanS.textContent = '↑ ' + u[0] + ' ' + u[1];
+			setNum(R.wanV, '↓ ' + r[0] + ' ' + r[1]);
+			setNum(R.wanS, '↑ ' + u[0] + ' ' + u[1]);
 		}
 		else R.wanV.textContent = S.wan ? '–' : 'WAN не найден';
 		sp.wan.update(S.t, [ S.rx, S.tx ], niceCeil(Math.max(12500, ...S.rx.filter(v => v != null), ...S.tx.filter(v => v != null))));
@@ -509,6 +521,18 @@ function liveStrip() {
 		R.memS.textContent = nf0.format(used / 1024) + ' МБ из ' + nf0.format(m.total / 1024) + ' МБ';
 		setLvl(R.memV, 100 * used / m.total, ...thr('mem', 70, 88));
 		sp.mem.update(S.t, [ S.mem ], 100);
+
+		/* соединения, аптайм, клиенты Wi‑Fi: необязательные плитки (включаются в настройках «Сейчас») */
+		const ct = d.ct && d.ct[1] > 0 ? d.ct : null;
+		setNum(R.ctV, ct ? nf0.format(ct[0]) : '–');
+		R.ctS.textContent = ct ? 'из ' + nf0.format(ct[1]) + ' (' + nf0.format(100 * ct[0] / ct[1]) + '%)' : 'нет данных';
+		setLvl(R.ctV, ct ? 100 * ct[0] / ct[1] : null, 70, 90);
+		sp.ct.update(S.t, [ S.ct ], niceCeil(Math.max(50, ...S.ct.filter(v => v != null))));
+		const us = d.up || 0, ud = Math.floor(us / 86400), uh = Math.floor(us % 86400 / 3600), um = Math.floor(us % 3600 / 60);
+		R.upV.textContent = ud > 0 ? ud + ' д ' + uh + ' ч' : uh > 0 ? uh + ' ч ' + um + ' мин' : um + ' мин';
+		R.upS.textContent = 'нагрузка ' + d.load.map(v => nf2.format(v)).join(' · ');
+		setNum(R.cliV, S.cli != null ? String(S.cli) : '–');
+		R.cliS.textContent = S.cli == null ? 'считаю…' : 'подключено по Wi‑Fi';
 
 		SHARED.t = Date.now(); SHARED.cpu = cpu; SHARED.mem = 100 * used / m.total; SHARED.temp = t;
 		SHARED.online = S.online; SHARED.ping = S.net; SHARED.loss = S.loss;
@@ -549,7 +573,15 @@ function liveStrip() {
 				S.t.push(r[0]); S.cpu.push(r[1] >= 0 ? r[1] : null); S.mem.push(r[2] >= 0 ? r[2] : null);
 				S.temp.push(r[3] >= 0 ? r[3] : null); S.rx.push(r[4] >= 0 ? r[4] : null); S.tx.push(r[5] >= 0 ? r[5] : null);
 				S.ping.push(r[7] >= 0 ? r[7] : null);
+				S.ct.push(r[9] != null && r[9] >= 0 ? r[9] : null);
 			}
+		}).catch(() => {});
+	}
+
+	function clients() {
+		if ((document.documentElement.getAttribute('data-nf-hide') || '').indexOf(' cli ') >= 0) return Promise.resolve();
+		return L.resolveDefault(callIwDevs(), []).then(devs => Promise.all((devs || []).map(dv => L.resolveDefault(callAssoc(dv), [])))).then(lists => {
+			S.cli = lists.reduce((t, l) => t + (Array.isArray(l) ? l.length : 0), 0);
 		}).catch(() => {});
 	}
 
@@ -566,7 +598,7 @@ function liveStrip() {
 	function tick() {
 		if (document.hidden || window.getComputedStyle(strip).display === 'none') return;
 		sample().then(() => {
-			if (n++ % ALERTS_EVERY === 0) return history().then(render);
+			if (n++ % ALERTS_EVERY === 0) return Promise.all([ history(), clients() ]).then(render);
 		}).catch(() => {
 			/* stats script not available (no ACL or package missing): drop the strip */
 			if (!S.last) { strip.remove(); window.clearInterval(timer); }
@@ -874,9 +906,10 @@ function setLvl(el, v, mid, bad) {
 function setNum(el, text) {
 	const m = /^(\D*)(-?\d+(?:[.,]\d+)?)(.*)$/.exec(text), off = document.documentElement.getAttribute('data-nf-motion') === 'off';
 	if (el._nfR) { cancelAnimationFrame(el._nfR); el._nfR = 0; }
-	const to = m ? parseFloat(m[2].replace(',', '.')) : null, from = el._nfN;
-	el._nfN = to;
-	if (!m || off || from == null || from === to || Math.abs(to - from) > 1e6) { el.textContent = text; return; }
+	const to = m ? parseFloat(m[2].replace(',', '.')) : null, from = el._nfN, sfx = m ? m[1] + '|' + m[3] : '';
+	const same = el._nfS === sfx;      /* единица или приставка сменилась (Кбит → Мбит): число не докручиваем */
+	el._nfN = to; el._nfS = sfx;
+	if (!m || off || from == null || from === to || !same || Math.abs(to - from) > 1e6) { el.textContent = text; return; }
 	const dec = (m[2].split(/[.,]/)[1] || '').length, sep = m[2].indexOf(',') >= 0 ? ',' : '.', t0 = performance.now(), D = 500;
 	const step = now => {
 		const k = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - k, 3);
@@ -1271,6 +1304,22 @@ function normIp(ip) {
 	return a.concat(mid, b).map(g => g.padStart(4, '0')).join(':');
 }
 
+/* мини-график строки: values — массив чисел (старые слева); рисуется ломаной с заливкой */
+function miniSpark(vals, cls) {
+	const W = 100, H = 22, n = vals.length;
+	if (n < 2) return '';
+	const mx = Math.max(1, ...vals);
+	const pts = vals.map((v, i) => [ (i / (n - 1) * W).toFixed(1), (H - 2 - (v / mx) * (H - 4)).toFixed(1) ]);
+	const line = 'M' + pts.map(p => p.join(' ')).join('L');
+	return '<svg class="nf-msp ' + cls + '" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true"><path class="a" d="' + line + 'L' + W + ' ' + H + 'L0 ' + H + 'Z"/><path class="l" d="' + line + '"/></svg>';
+}
+
+/* порядок дочерних узлов без лишнего «выдёргивания»: на месте стоящие строки не пересоздаются, их числа и графики обновляются плавно */
+function syncChildren(parent, nodes) {
+	nodes.forEach((nd, i) => { if (parent.children[i] !== nd) parent.insertBefore(nd, parent.children[i] || null); });
+	while (parent.children.length > nodes.length) parent.lastElementChild.remove();
+}
+
 function topCard() {
 	const body = E('div', { class: 'nf-top-b' }, E('div', { class: 'nf-empty' }, 'Собираю данные…'));
 	let mode = 'now';
@@ -1279,7 +1328,10 @@ function topCard() {
 		click: ev => { ev.stopPropagation(); mode = k; try { localStorage.setItem('nightfall-top-mode', k); } catch (e) { /* ignore */ } modeBtns.forEach(b => b.classList.toggle('on', b.getAttribute('data-m') === k)); render(last); } }, t));
 	const el = E('div', { class: 'cbi-section nf-top fade-in' }, [
 		E('div', { class: 'cbi-title nf-top-t' }, [ E('h3', {}, 'Топ клиентов'), E('span', { class: 'nf-top-m', role: 'group', 'aria-label': 'Период' }, modeBtns) ]), body ]);
-	let names = null, timer = null;
+	let names = null, timer = null, DEVID = null, hrRows = null, hrAt = 0;
+	const live = {};            /* ключ устройства → последние замеры скорости (байт/с), для мини-графика «Сейчас» */
+	const rowsEl = new Map();   /* ключ → { el, parts }: строки живут между обновлениями */
+	L.require('nightfall-devid').then(m => { DEVID = m; if (last) render(last); }).catch(() => { /* пакет монитора без модуля: без значков */ });
 
 	let last = null;
 
@@ -1287,54 +1339,105 @@ function topCard() {
 		if (EDITING) return;
 		last = dv;
 		if (!dv || !Array.isArray(dv.rate)) {
+			rowsEl.clear();
 			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Нет данных'), E('span', {}, 'Сбор статистики по устройствам не запущен.') ]));
 			return;
 		}
 		const ipName = {};
 		for (const mac in names || {})
 			for (const ip of (names[mac].ipaddrs || []).concat(names[mac].ip6addrs || []))
-				ipName[normIp(ip)] = { n: names[mac].name || mac, k: mac };
+				ipName[normIp(ip)] = { n: names[mac].name || mac, k: mac.toUpperCase(), h: names[mac].name || '' };
+		/* адрес → MAC по таблице соседей роутера (ip neigh): узнаём устройства без имени в DHCP и с временными адресами IPv6 */
+		const neigh = {};
+		for (const [ ip, mac ] of dv.neigh || []) neigh[normIp(ip)] = mac.toUpperCase();
 		const routerIps = ((dv.info && dv.info.router_ips) || '').split(/\s+/).filter(Boolean);
 		const rows = {};
-		const row = ip => {
-			const nm = ipName[normIp(ip)], k = routerIps.includes(ip) ? 'router' : nm ? nm.k : ip;
-			return rows[k] || (rows[k] = { k, name: routerIps.includes(ip) ? 'Роутер' : nm ? nm.n : ip, ip, rd: 0, ru: 0, dd: 0, du: 0 });
+		const keyOf = ip => {
+			if (routerIps.includes(ip)) return 'router';
+			const nm = ipName[normIp(ip)];
+			return nm ? nm.k : neigh[normIp(ip)] || ip;
 		};
-		if (dv.now - dv.ts <= 60) for (const [ ip, d, u ] of dv.rate) { const r = row(ip); r.rd += d; r.ru += u; }
+		const row = ip => {
+			const k = keyOf(ip), nm = ipName[normIp(ip)];
+			return rows[k] || (rows[k] = { k, name: k === 'router' ? 'Роутер' : nm ? nm.n : ip, host: nm ? nm.h : '', ip, rd: 0, ru: 0, dd: 0, du: 0 });
+		};
+		const fresh = dv.now - dv.ts <= 60;
+		if (fresh) for (const [ ip, d, u ] of dv.rate) { const r = row(ip); r.rd += d; r.ru += u; }
 		for (const [ ip, d, u ] of dv.day || []) { const r = row(ip); r.dd += d; r.du += u; }
+		/* замеры для мини-графика «Сейчас»: каждое обновление — одна точка, у кого трафика нет — ноль */
+		for (const k in live) if (!rows[k]) live[k].push(0);
+		for (const k in rows) (live[k] || (live[k] = [])).push(rows[k].rd + rows[k].ru);
+		for (const k in live) { if (live[k].length > 40) live[k].shift(); if (!rows[k] && live[k].every(v => v === 0)) delete live[k]; }
+		/* по часам за сутки: из почасовых итогов сборщика (devhr), номер часа считаем от текущего момента */
+		const hourly = {};
+		for (const [ ts, ip, d, u ] of hrRows || []) {
+			const i = Math.floor((dv.now - ts) / 3600);
+			if (i < 0 || i > 23) continue;
+			const a = hourly[keyOf(ip)] || (hourly[keyOf(ip)] = new Array(24).fill(0));
+			a[23 - i] += d + u;
+		}
 		const all = Object.values(rows).filter(r => r.rd + r.ru + r.dd + r.du > 0), dayTot = all.reduce((t, r) => t + r.dd + r.du, 0) || 1;
 		const list = mode === 'day'
 			? all.sort((a, b) => (b.dd + b.du) - (a.dd + a.du) || (b.rd + b.ru) - (a.rd + a.ru)).slice(0, 8)
 			: all.sort((a, b) => (b.rd + b.ru) - (a.rd + a.ru) || (b.dd + b.du) - (a.dd + a.du)).slice(0, 5);
 		if (!list.length) {
+			rowsEl.clear();
 			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Пока тихо'), E('span', {}, 'Сейчас нет заметного трафика от устройств.') ]));
 			return;
 		}
+		if (body.firstElementChild && body.firstElementChild.classList.contains('nf-empty')) body.replaceChildren();
 		const val = r => mode === 'day' ? r.dd + r.du : r.rd + r.ru, mx = Math.max(1, ...list.map(val));
-		body.replaceChildren(...list.map(r => {
-			const dn = fmtRate(r.rd), up = fmtRate(r.ru);
-			const canName = r.k !== 'router' && /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(r.k);
+		const seen = new Set();
+		const nodes = list.map(r => {
+			seen.add(r.k);
+			let rw = rowsEl.get(r.k);
+			if (!rw) {
+				rw = { nbox: E('div', { class: 'nf-top-n' }), sp: E('div', { class: 'nf-top-sp' }), bar: E('i'), dn: E('span'), up: E('span'), tot: E('b'), lbl: E('span') };
+				rw.el = E('div', { class: 'nf-top-r' }, [
+					rw.nbox,
+					E('div', { class: 'nf-top-g' }, [ rw.sp, E('div', { class: 'nf-top-bar' }, rw.bar) ]),
+					E('div', { class: 'nf-top-v' }, [ rw.dn, rw.up ]),
+					E('div', { class: 'nf-top-d' }, [ rw.tot, rw.lbl ]) ]);
+				rowsEl.set(r.k, rw);
+			}
+			const canName = r.k !== 'router' && /^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/.test(r.k);
 			const custom = canName ? loadNames()[nameKey(r.k)] : '';
-			const nbox = E('div', { class: 'nf-top-n' });
-			const draw = () => {
-				nbox.replaceChildren(E('b', { title: r.k }, custom || r.name), E('span', {}, (custom ? r.name + ' · ' : '') + (r.name === r.ip ? '' : r.ip)));
-				if (canName) nbox.firstChild.appendChild(E('button', { type: 'button', class: 'nf-edit', title: 'Своё имя', 'aria-label': 'Переименовать «' + (custom || r.name) + '»',
-					click: ev => { ev.stopPropagation(); editName(nbox, r.k, r.name, () => render(last)); } }));
-			};
-			draw();
-			return E('div', { class: 'nf-top-r' }, [
-				nbox,
-				E('div', { class: 'nf-top-bar' }, E('i', { style: 'width:' + Math.max(2, Math.round(val(r) / mx * 100)) + '%' })),
-				E('div', { class: 'nf-top-v' }, [ E('span', {}, '↓ ' + dn[0] + ' ' + dn[1]), E('span', {}, '↑ ' + up[0] + ' ' + up[1]) ]),
-				E('div', { class: 'nf-top-d' }, [ E('b', {}, fmtBytes(r.dd + r.du)), E('span', {}, 'за день' + (mode === 'day' ? ' · ' + Math.max(1, Math.round((r.dd + r.du) / dayTot * 100)) + '%' : '')) ])
-			]);
-		}));
+			const id = DEVID && canName ? DEVID.identify(r.k, r.host) : null;
+			/* имя: своё → из DHCP → вид устройства по MAC → адрес */
+			const shown = custom || (r.name !== r.ip ? r.name : (id && id.label && id.known ? id.label : r.name));
+			const sub = [ custom ? r.name : '', shown === r.ip ? '' : r.ip, id && id.vendor ? id.vendor : '', id && id.priv ? 'частный MAC' : '' ].filter(Boolean);
+			const sig = [ shown, sub.join('|'), canName ? 1 : 0, id ? id.kind : '' ].join('\n');
+			if (rw.sig !== sig || !rw.nbox.firstChild || rw.nbox.querySelector('.nf-rename')) {
+				rw.sig = sig;
+				const nameEl = E('b', { title: (id && id.hint ? id.hint + '\n' : '') + r.k }, E('span', { class: 'nf-dv-t' }, shown));
+				if (id) {
+					const ic = E('i', { class: 'nf-dv-i' + (id.priv ? ' priv' : '') }); ic.innerHTML = DEVID.icon(id.kind);
+					nameEl.insertBefore(ic, nameEl.firstChild);
+				}
+				rw.nbox.replaceChildren(nameEl, E('span', {}, sub.join(' · ')));
+				if (canName) nameEl.appendChild(E('button', { type: 'button', class: 'nf-edit', title: 'Своё имя', 'aria-label': 'Переименовать «' + shown + '»',
+					click: ev => { ev.stopPropagation(); editName(rw.nbox, r.k, r.name, () => { rw.sig = ''; render(last); }); } }));
+			}
+			rw.bar.style.width = Math.max(2, Math.round(val(r) / mx * 100)) + '%';
+			const dn = fmtRate(r.rd), up = fmtRate(r.ru);
+			setNum(rw.dn, '↓ ' + dn[0] + ' ' + dn[1]); setNum(rw.up, '↑ ' + up[0] + ' ' + up[1]);
+			setNum(rw.tot, fmtBytes(r.dd + r.du));
+			rw.lbl.textContent = 'за день' + (mode === 'day' ? ' · ' + Math.max(1, Math.round((r.dd + r.du) / dayTot * 100)) + '%' : '');
+			const series = mode === 'day' ? hourly[r.k] : live[r.k];
+			rw.sp.innerHTML = series && series.some(v => v > 0) ? miniSpark(series, mode === 'day' ? 'h' : 'n') : '';
+			rw.sp.title = mode === 'day' ? 'Трафик по часам за сутки' : 'Скорость за последние минуты';
+			return rw.el;
+		});
+		for (const k of Array.from(rowsEl.keys())) if (!seen.has(k)) rowsEl.delete(k);
+		syncChildren(body, nodes);
 	}
 
 	function load() {
 		if (document.hidden || window.getComputedStyle(el).display === 'none') return;
-		Promise.all([ fs.exec(HIST, [ 'devices' ]), names ? null : L.resolveDefault(callHints(), {}) ]).then(r => {
+		const needHr = Date.now() - hrAt > 300000;
+		Promise.all([ fs.exec(HIST, [ 'devices' ]), names ? null : L.resolveDefault(callHints(), {}), needHr ? L.resolveDefault(fs.exec(HIST, [ 'devhr' ]), null) : null ]).then(r => {
 			if (r[1]) names = r[1];
+			if (needHr) { hrAt = Date.now(); try { hrRows = JSON.parse(r[2].stdout).rows; } catch (e) { /* старый сборщик без devhr */ } }
 			let dv = null;
 			try { dv = JSON.parse(r[0].stdout); } catch (e) { /* no collector */ }
 			render(dv);
