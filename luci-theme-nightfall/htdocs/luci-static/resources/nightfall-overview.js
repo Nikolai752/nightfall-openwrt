@@ -88,10 +88,19 @@ function nfPlot(segs, H) {
 			for (let i = 1; i < p.length; i++) d += 'L' + f(p[i][0]) + ' ' + f(p[i - 1][1]) + 'L' + f(p[i][0]) + ' ' + f(p[i][1]);
 		}
 		else if (smooth && p.length > 2) {
-			for (let i = 0; i < p.length - 1; i++) {
-				const a = p[Math.max(0, i - 1)], b = p[i], c = p[i + 1], e = p[Math.min(p.length - 1, i + 2)];
-				const y1 = Math.max(0, Math.min(H, b[1] + (c[1] - a[1]) / 6)), y2 = Math.max(0, Math.min(H, c[1] - (e[1] - b[1]) / 6));
-				d += 'C' + f(b[0] + (c[0] - a[0]) / 6) + ' ' + f(y1) + ' ' + f(c[0] - (e[0] - b[0]) / 6) + ' ' + f(y2) + ' ' + f(c[0]) + ' ' + f(c[1]);
+			/* монотонная кубическая кривая: не выходит за пределы данных и не петляет там, где точки стоят неравномерно (пропуски в истории) */
+			const n = p.length, dx = [], m = [], t = [];
+			for (let i = 0; i < n - 1; i++) { dx[i] = p[i + 1][0] - p[i][0]; m[i] = dx[i] > 0 ? (p[i + 1][1] - p[i][1]) / dx[i] : 0; }
+			t[0] = m[0]; t[n - 1] = m[n - 2];
+			for (let i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2;
+			for (let i = 0; i < n - 1; i++) {
+				if (m[i] === 0) { t[i] = 0; t[i + 1] = 0; continue; }
+				const a = t[i] / m[i], b = t[i + 1] / m[i], s = a * a + b * b;
+				if (s > 9) { const k = 3 / Math.sqrt(s); t[i] = k * a * m[i]; t[i + 1] = k * b * m[i]; }
+			}
+			for (let i = 0; i < n - 1; i++) {
+				const h = dx[i] / 3, b = p[i], c = p[i + 1];
+				d += 'C' + f(b[0] + h) + ' ' + f(Math.max(0, Math.min(H, b[1] + t[i] * h))) + ' ' + f(c[0] - h) + ' ' + f(Math.max(0, Math.min(H, c[1] - t[i + 1] * h))) + ' ' + f(c[0]) + ' ' + f(c[1]);
 			}
 		}
 		else for (let i = 1; i < p.length; i++) d += 'L' + f(p[i][0]) + ' ' + f(p[i][1]);
@@ -152,11 +161,26 @@ const DETAIL = {
 	cpu: { title: 'Процессор', cols: [ [ 1, 'Загрузка', 'nf-c-cpu' ] ], fmt: v => nf0.format(v) + '%', ceil: () => 100 },
 	temp: { title: 'Температура', cols: [ [ 3, 'Процессор', 'nf-c-temp' ] ], fmt: v => nf1.format(v) + ' °C', ceil: v => Math.max(100, niceCeil(v)), floor: 30 },
 	mem: { title: 'Память', cols: [ [ 2, 'Занято', 'nf-c-mem' ] ], fmt: v => nf0.format(v) + '%', ceil: () => 100 },
-	ct: { title: 'Соединения', cols: [ [ 9, 'Соединений', 'nf-c-mem' ] ], fmt: v => nf0.format(v), ceil: v => niceCeil(Math.max(50, v)) }
+	ct: { title: 'Соединения', cols: [ [ 9, 'Соединений', 'nf-c-mem' ] ], fmt: v => nf0.format(v), ceil: v => niceCeil(Math.max(50, v)) },
+	loss: { title: 'Потери пакетов', icon: 'net', cols: [ [ 8, 'Потери', 'nf-c-temp' ] ], fmt: v => nf1.format(v) + '%', ceil: v => niceCeil(Math.max(5, v)) },
+	/* сигнал Wi‑Fi: средний и худший по всем клиентам; за час, сутки и неделю из «wifi», за месяц и больше из почасовых «wifi-hr» */
+	sig: { title: 'Сигнал Wi‑Fi', icon: 'wifi', neg: true, cols: [ [ 1, 'Средний', 'nf-c-down' ], [ 2, 'Худший', 'nf-c-up' ] ], fmt: v => nf0.format(v) + ' дБм', ceil: () => -30, floor: -95,
+		load: range => fs.exec(HIST, [ range === 'm' || range === 'q' ? 'wifi-hr' : 'wifi' ]).then(res => {
+			const h = JSON.parse(res.stdout), step = range === 'm' || range === 'q' ? 3600 : 60, g = new Map();
+			for (const r of h.rows || []) {
+				const v = +r[2]; if (!isFinite(v) || v >= 0 || v < -120) continue;
+				const t = Math.round(r[0] / step) * step, e = g.get(t) || [ 0, 0, 0 ];
+				e[0] += v; e[1]++; e[2] = e[1] === 1 ? v : Math.min(e[2], v); g.set(t, e);
+			}
+			return { now: h.now, info: h.info, rows: Array.from(g.entries()).sort((a, b) => a[0] - b[0]).map(([ t, e ]) => [ t, e[0] / e[1], e[2] ]) };
+		})
+	}
 };
+const INFO = { up: 1, cli: 1, day: 1, stor: 1 };
 const DRANGE = { h: [ 'fine', 3600, 'Час' ], d: [ 'coarse', 86400, 'Сутки' ], w: [ 'coarse', 604800, 'Неделя' ], m: [ 'long', 2592000, 'Месяц' ], q: [ 'long', 7776000, '3 мес.' ] };
 
 function openDetail(key, from) {
+	if (INFO[key] && !document.querySelector('.nf-dlg-bg')) return openInfo(key, from);
 	const cfg = DETAIL[key];
 	if (!cfg || document.querySelector('.nf-dlg-bg')) return;
 	const two = v => String(v).padStart(2, '0');
@@ -179,7 +203,7 @@ function openDetail(key, from) {
 	const close = () => { document.removeEventListener('keydown', onKey); bg.classList.remove('on'); window.setTimeout(() => { bg.remove(); if (from && from.focus) from.focus(); }, 200); };
 	const onKey = ev => { if (ev.key === 'Escape') close(); };
 	const dlg = E('div', { class: 'nf-dlg', role: 'dialog', 'aria-modal': 'true', 'aria-label': cfg.title }, [
-		E('div', { class: 'nf-dlg-h' }, [ E('h4', {}, [ E('i', { class: 'nf-ci', 'data-i': key === 'wan' || key === 'net' ? 'net' : key === 'cpu' ? 'system' : key }), cfg.title ]), seg,
+		E('div', { class: 'nf-dlg-h' }, [ E('h4', {}, [ E('i', { class: 'nf-ci', 'data-i': cfg.icon || (key === 'wan' || key === 'net' ? 'net' : key === 'cpu' ? 'system' : key) }), cfg.title ]), seg,
 			E('button', { type: 'button', class: 'nf-dlg-x', 'aria-label': 'Закрыть', click: close }, '×') ]),
 		stats, legend, wrap, xl, note ]);
 	bg.appendChild(dlg);
@@ -198,7 +222,7 @@ function openDetail(key, from) {
 		const rows = data.rows.filter(r => end - r[0] <= win);
 		if (rows.length < 2) { note.textContent = 'Пока мало данных за этот период.'; stats.replaceChildren(); return; }
 		note.textContent = '';
-		const series = cfg.cols.map(x => rows.map(r => r[x[0]] != null && r[x[0]] >= 0 ? r[x[0]] : null));
+		const series = cfg.cols.map(x => rows.map(r => r[x[0]] != null && (cfg.neg ? isFinite(r[x[0]]) : r[x[0]] >= 0) ? r[x[0]] : null));
 		const all = [].concat(...series).filter(v => v != null);
 		const hi = cfg.ceil(all.length ? Math.max(...all) : 1), lo = cfg.floor || 0, span = (hi - lo) || 1;
 		const t0 = end - win;
@@ -249,27 +273,99 @@ function openDetail(key, from) {
 
 	function load() {
 		draw();
-		fs.exec(HIST, [ 'series', DRANGE[range][0] ]).then(res => {
-			try { data = JSON.parse(res.stdout); } catch (e) { data = false; }
-			if (data && data.info && !data.info.started) data = false;
-			draw();
-		}).catch(() => { data = false; draw(); });
+		const src = cfg.load ? cfg.load(range) : fs.exec(HIST, [ 'series', DRANGE[range][0] ]).then(res => JSON.parse(res.stdout));
+		src.then(d => { data = d; if (data && data.info && !data.info.started) data = false; draw(); }).catch(() => { data = false; draw(); });
 	}
 	load();
+}
+
+/* ---------- окна без графика: аптайм, Wi‑Fi клиенты, трафик за сутки, хранилище ---------- */
+function openInfo(key, from) {
+	const T = { up: [ 'Аптайм и перезагрузки', 'system' ], cli: [ 'Wi‑Fi клиенты', 'wifi' ], day: [ 'Трафик за сутки', 'net' ], stor: [ 'Хранилище', 'system' ] }[key];
+	const body = E('div', { class: 'nf-info' }, E('div', { class: 'nf-empty' }, 'Загружаю…'));
+	const bg = E('div', { class: 'nf-dlg-bg' });
+	const onKey = ev => { if (ev.key === 'Escape') close(); };
+	const close = () => { document.removeEventListener('keydown', onKey); bg.classList.remove('on'); window.setTimeout(() => { bg.remove(); if (from && from.focus) from.focus(); }, 200); };
+	bg.appendChild(E('div', { class: 'nf-dlg nf-dlg-info', role: 'dialog', 'aria-modal': 'true', 'aria-label': T[0] }, [
+		E('div', { class: 'nf-dlg-h' }, [ E('h4', {}, [ E('i', { class: 'nf-ci', 'data-i': T[1] }), T[0] ]), E('button', { type: 'button', class: 'nf-dlg-x', 'aria-label': 'Закрыть', click: close }, '×') ]),
+		body ]));
+	bg.addEventListener('mousedown', ev => { if (ev.target === bg) close(); });
+	document.addEventListener('keydown', onKey);
+	document.body.appendChild(bg);
+	window.requestAnimationFrame(() => bg.classList.add('on'));
+	bg.querySelector('.nf-dlg-x').focus();
+	const two = v => String(v).padStart(2, '0');
+	const when = ts => { const d = new Date(ts * 1000); return two(d.getDate()) + '.' + two(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + two(d.getHours()) + ':' + two(d.getMinutes()); };
+	const row = (a, b, bar) => E('div', { class: 'nf-info-row' }, [ E('span', {}, a), bar != null ? E('span', { class: 'nf-info-bar' }, E('i', { class: bar > 90 ? 'low' : bar > 75 ? 'mid' : '', style: 'width:' + Math.max(2, Math.min(100, bar)) + '%' })) : '', E('b', {}, b) ]);
+	const head = t => E('div', { class: 'nf-info-h' }, t);
+	const fill = (...n) => body.replaceChildren(...n.flat().filter(Boolean));
+	const dur = sec => { const d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60); return (d ? d + ' д ' : '') + (d || h ? h + ' ч ' : '') + m + ' мин'; };
+	const J = f => fs.exec(HIST, f).then(r => JSON.parse(r.stdout)).catch(() => null);
+
+	if (key === 'up') {
+		Promise.all([ fs.exec(STATS, []).then(r => JSON.parse(r.stdout)).catch(() => null), J([ 'journal' ]) ]).then(([ d, j ]) => {
+			if (!d) { fill(E('div', { class: 'nf-empty' }, 'Нет данных.')); return; }
+			const boots = ((j && j.rows) || []).filter(r => r[1] === 'boot').sort((a, b) => b[0] - a[0]).slice(0, 8);
+			fill(row('Работает без перезагрузки', dur(d.up)), row('Включён', when(Date.now() / 1000 - d.up)),
+				row('Нагрузка за 1 / 5 / 15 минут', d.load.map(v => nf2.format(v)).join(' · ')),
+				head('Последние перезагрузки'),
+				boots.length ? boots.map(r => row(when(r[0]), 'перезагрузка')) : E('div', { class: 'nf-info-row' }, 'Журнал пока пуст: сборщик записывает перезагрузки с момента установки.'),
+				E('div', { class: 'nf-dnote' }, 'Полный журнал обрывов и перезагрузок: Монитор ресурсов → История.'));
+		});
+	}
+	else if (key === 'cli') {
+		Promise.all([ L.resolveDefault(callIwDevs(), []), L.resolveDefault(callHints(), {}), L.require('nightfall-devid').catch(() => null) ]).then(([ devs, hints, DEVID ]) =>
+			Promise.all((devs || []).map(dv => L.resolveDefault(callAssoc(dv), []).then(l => (Array.isArray(l) ? l : []).map(c => Object.assign({ dev: dv }, c))))).then(lists => {
+				const cl = [].concat(...lists).sort((a, b) => (a.signal || -200) - (b.signal || -200));
+				if (!cl.length) { fill(E('div', { class: 'nf-empty' }, 'Сейчас по Wi‑Fi никто не подключён.')); return; }
+				const q = v => v >= -60 ? 'отлично' : v >= -67 ? 'хорошо' : v >= -75 ? 'слабовато' : 'плохо';
+				fill(cl.map(c => {
+					const mac = String(c.mac || '').toUpperCase(), h = hints[mac] || {}, id = DEVID && mac ? DEVID.identify(mac, h.name || '') : null;
+					const name = h.name || (id && id.known ? [ id.label || 'Устройство', id.vendor && id.vendor !== id.label ? id.vendor : '' ].filter(Boolean).join(' ') : '') || (h.ipaddrs || [])[0] || mac;
+					const rate = c.rx && c.rx.rate ? ' · ↓ ' + nf0.format(c.rx.rate / 1000) + ' Мбит/с' : '';
+					return row(name + ' · ' + c.dev + (id && id.priv ? ' · частный MAC' : ''), (c.signal != null ? c.signal + ' дБм · ' + q(c.signal) : '–') + rate, c.signal != null ? Math.max(0, Math.min(100, (c.signal + 95) * 100 / 50)) : null);
+				}), E('div', { class: 'nf-dnote' }, 'Сверху самые слабые. Цвет полосы: чем длиннее, тем лучше сигнал. График по часам: Монитор → История → «Сигнал Wi‑Fi по часам».'));
+			}));
+	}
+	else if (key === 'day') {
+		J([ 'traffic' ]).then(t => {
+			const rows = ((t && t.rows) || []).slice().sort((a, b) => a[0].localeCompare(b[0]));
+			if (!rows.length) { fill(E('div', { class: 'nf-empty' }, 'Счётчики пока не накопились.')); return; }
+			const d0 = new Date(), key0 = d => d.getFullYear() + two(d.getMonth() + 1) + two(d.getDate());
+			const by = {}; rows.forEach(r => { by[r[0]] = r; });
+			const days = []; for (let i = 0; i < 14; i++) { const d = new Date(d0.getTime() - i * 86400000), r = by[key0(d)]; days.push([ d, r ? r[1] : 0, r ? r[2] : 0 ]); }
+			const sum = (n, k) => days.slice(0, n).reduce((a, x) => a + x[k], 0), mx = Math.max(1, ...days.map(x => x[1] + x[2]));
+			fill(row('Сегодня', '↓ ' + fmtBytes(days[0][1]) + ' · ↑ ' + fmtBytes(days[0][2])), row('Вчера', '↓ ' + fmtBytes(days[1][1]) + ' · ↑ ' + fmtBytes(days[1][2])),
+				row('За 7 дней', '↓ ' + fmtBytes(sum(7, 1)) + ' · ↑ ' + fmtBytes(sum(7, 2))), row('За 14 дней', '↓ ' + fmtBytes(sum(14, 1)) + ' · ↑ ' + fmtBytes(sum(14, 2))),
+				head('По дням (скачано + отдано)'),
+				days.map(x => row(x[0].toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' }), fmtBytes(x[1] + x[2]), 100 * (x[1] + x[2]) / mx)),
+				E('div', { class: 'nf-dnote' }, 'Счётчики порта WAN. Разбивка по устройствам и месяцам: Монитор → История → «Трафик по месяцам».'));
+		});
+	}
+	else {
+		fs.exec(STATS, []).then(r => JSON.parse(r.stdout)).then(d => {
+			const m = d.mem, used = m.total - m.avail, fm = kb => fmtBytes(kb * 1024);
+			fill(d.flash ? row('Флеш-память (настройки и пакеты)', fm(d.flash[1]) + ' из ' + fm(d.flash[0]), 100 * d.flash[1] / d.flash[0]) : '',
+				d.flash ? row('Свободно во флеш-памяти', fm(d.flash[0] - d.flash[1])) : '',
+				d.tmp ? row('/tmp (оперативная память: история, журналы)', fm(d.tmp[1]) + ' из ' + fm(d.tmp[0]), 100 * d.tmp[1] / d.tmp[0]) : '',
+				row('Оперативная память', fm(used) + ' из ' + fm(m.total), 100 * used / m.total),
+				E('div', { class: 'nf-dnote' }, 'Подключённые флешки и SD-карты, на которые можно сохранять историю: Монитор → История → «Накопители».'));
+		}).catch(() => fill(E('div', { class: 'nf-empty' }, 'Нет данных.')));
+	}
 }
 
 /* ---------- live tiles ---------- */
 
 function liveStrip() {
 	const S = {
-		t: [], cpu: [], mem: [], temp: [], rx: [], tx: [], ping: [], ct: [], cli: null,
+		t: [], cpu: [], mem: [], temp: [], rx: [], tx: [], ping: [], ct: [], lo: [], cli: null, sig: null, day: null,
 		last: null, wan: null, online: null, gw: null, net: null, loss: null
 	};
 	const R = {};   /* DOM refs */
 
 	const sp = {
 		net: spark([ 'nf-c-down' ]), wan: spark([ 'nf-c-down', 'nf-c-up' ]), cpu: spark([ 'nf-c-cpu' ]),
-		temp: spark([ 'nf-c-temp' ]), mem: spark([ 'nf-c-mem' ]), ct: spark([ 'nf-c-mem' ])
+		temp: spark([ 'nf-c-temp' ]), mem: spark([ 'nf-c-mem' ]), ct: spark([ 'nf-c-mem' ]), lo: spark([ 'nf-c-temp' ])
 	};
 
 	const tile = (key, title, extra, ...rows) => E('div', { class: 'nf-tile', 'data-tile': key }, [
@@ -282,7 +378,7 @@ function liveStrip() {
 			E('span', {}, 'Сейчас'),
 			E('span', { class: 'nf-live-acts' }, [
 				R.cols = E('span', { class: 'nf-colsel', title: 'Сколько столбцов карточек на «Обзоре»; карточки плотно, без пустых мест' }, [ E('span', {}, 'Столбцы:') ].concat([ [ '0', 'Авто' ], [ '1', '1' ], [ '2', '2' ], [ '3', '3' ] ].map(c => E('button', { type: 'button', class: 'nf-linkbtn', 'data-c': c[0] }, c[1])))),
-				R.lay = E('span', { class: 'nf-colsel nf-laysel', title: 'Какие плитки показывать и как расположить карточки: одной кнопкой' }, [ E('span', {}, 'Раскладка:') ].concat([ [ 'home', 'Дом' ], [ 'min', 'Минимал' ], [ 'admin', 'Админ' ] ].map(c => E('button', { type: 'button', class: 'nf-linkbtn', 'data-l': c[0] }, c[1])))),
+				R.lay = E('span', { class: 'nf-colsel nf-laysel', title: 'Какие плитки показывать и как расположить карточки: одной кнопкой' }, [ E('span', {}, 'Раскладка:') ].concat([ [ 'std', 'Стандарт' ], [ 'home', 'Дом' ], [ 'min', 'Минимал' ], [ 'admin', 'Админ' ] ].map(c => E('button', { type: 'button', class: 'nf-linkbtn', 'data-l': c[0] }, c[1])))),
 				R.reset = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Вернуть порядок карточек по умолчанию' }, 'Сбросить порядок карточек'),
 				R.qrBtn = E('button', { type: 'button', class: 'nf-linkbtn', title: 'QR-код для подключения к Wi-Fi' }, 'QR Wi-Fi'),
 				R.boardBtn = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Полноэкранное табло: время, скорость, пинг, нагрузка' }, 'Табло')
@@ -304,7 +400,15 @@ function liveStrip() {
 			tile('up', 'Аптайм', null,
 				R.upV = E('div', { class: 'nf-tile-v' }, '–'), R.upS = E('div', { class: 'nf-tile-s' }, ' ')),
 			tile('cli', 'Wi‑Fi клиенты', null,
-				R.cliV = E('div', { class: 'nf-tile-v' }, '–'), R.cliS = E('div', { class: 'nf-tile-s' }, ' '))
+				R.cliV = E('div', { class: 'nf-tile-v' }, '–'), R.cliS = E('div', { class: 'nf-tile-s' }, ' ')),
+			tile('loss', 'Потери пакетов', null,
+				R.lossV = E('div', { class: 'nf-tile-v' }, '–'), R.lossS = E('div', { class: 'nf-tile-s' }, ' '), sp.lo.el),
+			tile('sig', 'Сигнал Wi‑Fi', null,
+				R.sigV = E('div', { class: 'nf-tile-v' }, '–'), R.sigS = E('div', { class: 'nf-tile-s' }, ' ')),
+			tile('day', 'Трафик за сутки', null,
+				R.dayV = E('div', { class: 'nf-tile-v' }, '–'), R.dayS = E('div', { class: 'nf-tile-s' }, ' ')),
+			tile('stor', 'Хранилище', null,
+				R.storV = E('div', { class: 'nf-tile-v' }, '–'), R.storS = E('div', { class: 'nf-tile-s' }, ' '))
 		])
 	]);
 
@@ -426,11 +530,11 @@ function liveStrip() {
 		const t = ev.target.closest && ev.target.closest('.nf-tile[data-tile]');
 		if (t && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); openDetail(t.getAttribute('data-tile'), t); }
 	});
-	strip.querySelectorAll('.nf-tile').forEach(t => { if (!DETAIL[t.getAttribute('data-tile')]) return; t.setAttribute('tabindex', '0'); t.setAttribute('role', 'button'); t.setAttribute('title', 'Нажмите, чтобы открыть график'); });
+	strip.querySelectorAll('.nf-tile').forEach(t => { const k = t.getAttribute('data-tile'); if (!DETAIL[k] && !INFO[k]) return; t.setAttribute('tabindex', '0'); t.setAttribute('role', 'button'); t.setAttribute('title', 'Нажмите, чтобы открыть график'); });
 
 	function trim(now) {
 		while (S.t.length && S.t[0] < now - WIN) {
-			S.t.shift(); S.cpu.shift(); S.mem.shift(); S.temp.shift(); S.rx.shift(); S.tx.shift(); S.ping.shift(); S.ct.shift();
+			S.t.shift(); S.cpu.shift(); S.mem.shift(); S.temp.shift(); S.rx.shift(); S.tx.shift(); S.ping.shift(); S.ct.shift(); S.lo.shift();
 		}
 	}
 
@@ -473,6 +577,7 @@ function liveStrip() {
 		S.rx.push(rx); S.tx.push(tx);
 		S.ping.push(S.net != null && S.net >= 0 ? S.net : null);
 		S.ct.push(d.ct && d.ct[0] >= 0 ? d.ct[0] : null);
+		S.lo.push(S.loss);
 		trim(now);
 	}
 
@@ -534,6 +639,26 @@ function liveStrip() {
 		setNum(R.cliV, S.cli != null ? String(S.cli) : '–');
 		R.cliS.textContent = S.cli == null ? 'считаю…' : 'подключено по Wi‑Fi';
 
+		/* потери, сигнал Wi‑Fi, трафик за сутки, хранилище */
+		setNum(R.lossV, S.loss != null ? nf1.format(S.loss) + '%' : '–');
+		R.lossS.textContent = S.net != null && S.net >= 0 ? 'пинг ' + nf0.format(S.net) + ' мс' : 'нет данных';
+		setLvl(R.lossV, S.loss, 2, 5);
+		sp.lo.update(S.t, [ S.lo ], niceCeil(Math.max(5, ...S.lo.filter(v => v != null))));
+		if (S.sig) {
+			setNum(R.sigV, nf0.format(S.sig.avg) + ' дБм');
+			R.sigS.textContent = 'худший ' + nf0.format(S.sig.worst) + ' дБм · клиентов ' + S.sig.n;
+			setLvl(R.sigV, S.sig.avg >= -67 ? 0 : 100 - Math.max(0, S.sig.avg + 100) * 1.2, 40, 70);
+		}
+		else { R.sigV.textContent = '–'; R.sigS.textContent = S.cli === 0 ? 'нет клиентов Wi‑Fi' : 'считаю…'; setLvl(R.sigV, null, 40, 70); }
+		if (S.day) { setNum(R.dayV, '↓ ' + fmtBytes(S.day[0])); R.dayS.textContent = '↑ ' + fmtBytes(S.day[1]); }
+		else { R.dayV.textContent = '–'; R.dayS.textContent = 'счётчики не накоплены'; }
+		if (d.flash && d.flash[0] > 0) {
+			const fp = 100 * d.flash[1] / d.flash[0], fr = (d.flash[0] - d.flash[1]) / 1048576;
+			setNum(R.storV, nf0.format(fp) + '%'); R.storS.textContent = 'свободно ' + (fr >= 1 ? nf1.format(fr) + ' ГБ' : nf0.format(fr * 1024) + ' МБ');
+			setLvl(R.storV, fp, 75, 90);
+		}
+		else { R.storV.textContent = '–'; R.storS.textContent = 'нет данных'; }
+
 		SHARED.t = Date.now(); SHARED.cpu = cpu; SHARED.mem = 100 * used / m.total; SHARED.temp = t;
 		SHARED.online = S.online; SHARED.ping = S.net; SHARED.loss = S.loss;
 	}
@@ -574,14 +699,29 @@ function liveStrip() {
 				S.temp.push(r[3] >= 0 ? r[3] : null); S.rx.push(r[4] >= 0 ? r[4] : null); S.tx.push(r[5] >= 0 ? r[5] : null);
 				S.ping.push(r[7] >= 0 ? r[7] : null);
 				S.ct.push(r[9] != null && r[9] >= 0 ? r[9] : null);
+				S.lo.push(r[8] != null && r[8] >= 0 ? r[8] : null);
 			}
 		}).catch(() => {});
 	}
 
 	function clients() {
-		if ((document.documentElement.getAttribute('data-nf-hide') || '').indexOf(' cli ') >= 0) return Promise.resolve();
+		const hid = document.documentElement.getAttribute('data-nf-hide') || '';
+		if (hid.indexOf(' cli ') >= 0 && hid.indexOf(' sig ') >= 0) return Promise.resolve();
 		return L.resolveDefault(callIwDevs(), []).then(devs => Promise.all((devs || []).map(dv => L.resolveDefault(callAssoc(dv), [])))).then(lists => {
-			S.cli = lists.reduce((t, l) => t + (Array.isArray(l) ? l.length : 0), 0);
+			const all = [].concat(...lists.map(l => Array.isArray(l) ? l : []));
+			S.cli = all.length;
+			const sg = all.map(c => +c.signal).filter(v => isFinite(v) && v < 0 && v > -120);
+			S.sig = sg.length ? { avg: sg.reduce((a, b) => a + b, 0) / sg.length, worst: Math.min(...sg), n: sg.length } : null;
+		}).catch(() => {});
+	}
+
+	/* трафик за сегодня по счётчикам WAN (нужен плитке «Трафик за сутки») */
+	function today() {
+		if ((document.documentElement.getAttribute('data-nf-hide') || '').indexOf(' day ') >= 0) return Promise.resolve();
+		return fs.exec(HIST, [ 'traffic' ]).then(res => {
+			const h = JSON.parse(res.stdout), d = new Date(), k = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+			const r = (h.rows || []).find(x => x[0] === k);
+			S.day = r ? [ r[1], r[2] ] : null;
 		}).catch(() => {});
 	}
 
@@ -594,11 +734,14 @@ function liveStrip() {
 		}).catch(() => {});
 	}
 
+	/* плитку включили в настройках или сменили раскладку: данные для неё подгружаем сразу, а не через цикл опроса */
+	new MutationObserver(() => { Promise.all([ clients(), today() ]).then(render); }).observe(document.documentElement, { attributes: true, attributeFilter: [ 'data-nf-hide' ] });
+
 	let n = 0, timer = null;
 	function tick() {
 		if (document.hidden || window.getComputedStyle(strip).display === 'none') return;
 		sample().then(() => {
-			if (n++ % ALERTS_EVERY === 0) return Promise.all([ history(), clients() ]).then(render);
+			if (n++ % ALERTS_EVERY === 0) return Promise.all([ history(), clients(), today() ]).then(render);
 		}).catch(() => {
 			/* stats script not available (no ACL or package missing): drop the strip */
 			if (!S.last) { strip.remove(); window.clearInterval(timer); }
@@ -1629,7 +1772,7 @@ function blockCard() {
 		tabsEl.replaceChildren(...shown.map(x => E('button', { type: 'button', class: 'nf-linkbtn' + (tab === x[0] ? ' on' : ''), 'aria-pressed': String(tab === x[0]),
 			click: () => { tab = x[0]; more = false; try { localStorage.setItem('nightfall-blk-tab', tab); } catch (e) { /* ignore */ } render(); } }, [ x[1], E('i', {}, String(x[2])) ])));
 		search.hidden = all.length < 8 && !qs;
-		chkBtn.disabled = checking; chkBtn.textContent = checking ? 'Проверяю…' : 'Проверить сейчас';
+		chkBtn.disabled = checking; chkBtn.classList.toggle('spin', checking); chkBtn.textContent = checking ? 'Проверяю…' : 'Проверить сейчас';
 		chkNote.textContent = checkedAt ? 'проверено в ' + new Date(checkedAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
 		head.hidden = !all.length;
 	}
