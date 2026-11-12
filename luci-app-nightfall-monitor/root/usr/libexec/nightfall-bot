@@ -18,6 +18,8 @@ DATE_NOW=${NF_DATE_NOW:-}
 CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
 cfg() { [ -r "$CONF" ] && sed -n "s/^$1=\"\{0,1\}\([^ #\"]*\).*/\1/p" "$CONF" | head -n 1; }
 CHAT=$(cfg TG_CHAT)
+USERS=$(cfg TG_USERS)
+FROM=""; ADM=0
 HOST=$(cat "$PROC/sys/kernel/hostname" 2>/dev/null || echo router)
 
 # кнопки под сообщением (inline-клавиатура); ответ без явного второго параметра получает главное меню
@@ -223,8 +225,13 @@ cmd_backup() {
 	case "$r" in *'"ok":true'*) reply "💾 Резервная копия отправлена отдельным сообщением с файлом. Токен бота в неё не входит." ;; *) reply "Не получилось отправить копию: $(printf '%s' "$r" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p')" ;; esac
 }
 
-cmd_reboot() { reply "🔄 Перезагрузить $HOST? Интернет пропадёт примерно на 1–2 минуты." "$KB_REBOOT"; }
-do_reboot() { reply "🔄 Перезагружаю. Вернусь через пару минут." ""; ( sleep 2; $REBOOT ) >/dev/null 2>&1 & }
+cmd_reboot() { date +%s > "$DIR/reboot.ask"; reply "🔄 Перезагрузить $HOST? Интернет пропадёт примерно на 1–2 минуты. Подтвердите в течение минуты." "$KB_REBOOT"; }
+do_reboot() {
+	ask=$(cat "$DIR/reboot.ask" 2>/dev/null); rm -f "$DIR/reboot.ask"   # подтверждение одноразовое и живёт минуту
+	case "$ask" in ''|*[!0-9]*) reply "⌛ Подтверждение устарело. Запросите перезагрузку заново."; return ;; esac
+	[ $(( $(date +%s) - ask )) -le 60 ] || { reply "⌛ Подтверждение устарело. Запросите перезагрузку заново."; return; }
+	reply "🔄 Перезагружаю. Вернусь через пару минут." ""; ( sleep 2; $REBOOT ) >/dev/null 2>&1 &
+}
 
 # ежедневный отчёт: nightfall-bot report печатает текст (отправляет его сборщик в заданное время)
 cmd_report() {
@@ -270,7 +277,19 @@ cmd_help() {
 Команды тоже работают: /status /clients /traffic /apps /speed /block /wake /reboot /report"
 }
 
+# управлять ботом может владелец. В личном чате это сам TG_CHAT, в группе (id начинается с «-») только люди из TG_USERS:
+# в группе чат один на всех, и без этой проверки перезагрузить роутер мог бы любой её участник
+is_admin() {  # is_admin ID_ОТПРАВИТЕЛЯ
+	case "$CHAT" in -*) ;; *) [ "$1" = "$CHAT" ]; return ;; esac
+	case ",$USERS," in *",$1,"*) return 0 ;; esac
+	return 1
+}
+
 run() {  # run КОМАНДА (из текста «/status» или из кнопки «status»)
+	case "$1" in
+	block|wk|wake|wk:*|gr|gt:*|bk|backup|bk:*|ok:*|ub:*|tb:*|rb|reboot|rb:yes)
+		[ "$ADM" = 1 ] || { reply "🔒 Управление доступно только администраторам. Ваш id: ${FROM:-неизвестен}. Владелец может добавить его в настройку TG_USERS (Монитор → История → Настройки)." ""; return; } ;;
+	esac
 	case "$1" in
 		start|menu|help) if [ "$1" = help ]; then cmd_help; else cmd_menu; fi ;;
 		status) cmd_status ;;
@@ -303,12 +322,13 @@ handle() {  # handle ТЕКСТ
 	esac
 }
 
-# разбор ответа getUpdates: строки «update_id|chat_id|id_нажатия|данные_кнопки|id_сообщения|текст»
+# разбор ответа getUpdates: строки «update_id|chat_id|id_отправителя|id_нажатия|данные_кнопки|id_сообщения|текст»
 parse() {
 	tr '\n' ' ' | sed 's/{"update_id":/\n&/g' | awk '
 		/^\{"update_id":/ {
 			id = $0; sub(/^\{"update_id":/, "", id); sub(/[^0-9].*/, "", id)
 			chat = ""; if (match($0, /"chat":\{"id":-?[0-9]+/)) chat = substr($0, RSTART + 13, RLENGTH - 13)
+			frm = ""; if (match($0, /"from":\{"id":[0-9]+/)) frm = substr($0, RSTART + 13, RLENGTH - 13)   # первый «from» в обновлении это человек, а не бот
 			cb = ""; dt = ""; mid = ""
 			if (match($0, /"callback_query":\{"id":"[^"]*"/)) {
 				cb = substr($0, RSTART + 24, RLENGTH - 25)
@@ -317,7 +337,7 @@ parse() {
 			}
 			txt = ""
 			if (cb == "" && match($0, /"text":"[^"]*"/)) txt = substr($0, RSTART + 8, RLENGTH - 9)
-			print id "|" chat "|" cb "|" dt "|" mid "|" txt
+			print id "|" chat "|" frm "|" cb "|" dt "|" mid "|" txt
 		}'
 }
 
@@ -342,10 +362,11 @@ while :; do
 	*'"ok":true'*)
 		fails=0
 		printf '%s' "$r" | parse > "$DIR/bot.upd"
-		while IFS='|' read -r id chat cb dt mid txt; do
+		while IFS='|' read -r id chat frm cb dt mid txt; do
 			[ -n "$id" ] || continue
 			off=$((id + 1))
 			[ "$chat" = "$CHAT" ] || continue          # чужим не отвечаем
+			FROM=$frm; ADM=0; is_admin "$frm" && ADM=1
 			if [ -n "$cb" ]; then
 				"$NOTIFY" raw answerCallbackQuery -d "callback_query_id=$cb" >/dev/null 2>&1 &   # подтверждение нажатия в фоне, чтобы не задерживать ответ
 				MID=$mid; run "$dt"; MID=""
