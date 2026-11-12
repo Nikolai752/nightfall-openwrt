@@ -6132,3 +6132,25 @@ html[data-nf-motion="off"] .nf-blk-tools .nf-linkbtn.spin::before { animation: n
 .nf-info-bar { flex: 0 0 90px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--nf-text) 12%, transparent); overflow: hidden; }
 .nf-info-bar i { display: block; height: 100%; border-radius: 3px; background: var(--nf-accent); }
 .nf-info-bar i.mid { background: #e0a800; } .nf-info-bar i.low { background: #e5534b; }
+
+/* ======== v1.15.1: окна на iPhone ======== */
+/* Веб-приложение на iPhone занимает весь экран, включая зону под строкой состояния («чёлка») и индикатор «Домой». Раньше окно
+   прижималось к краю экрана, и шапка с названием и крестиком оказывалась под строкой состояния. Теперь у окон есть отступы
+   безопасной зоны, а шапка с крестиком закреплена и остаётся на виду при прокрутке. */
+.nf-dlg-bg, .nf-qr-ov, .nf-upd-modal {
+	padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+.nf-dlg { max-height: 100%; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.nf-dlg-h { position: sticky; top: -18px; z-index: 3; margin: -18px -22px 12px; padding: 18px 22px 10px; background: inherit; -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.nf-dlg-x { flex: none; width: 38px; height: 38px; font-size: 26px; }
+.nf-dlg-x:focus-visible { outline: 2px solid var(--nf-accent); outline-offset: 1px; }
+@media (max-width: 640px) {
+	.nf-dlg { padding: 18px 16px 20px; }
+	.nf-dlg-h { margin: -18px -16px 12px; padding: 18px 16px 10px; }
+	/* строки со списками (Wi‑Fi клиенты, дни): подпись на всю ширину, полоса и значение под ней */
+	.nf-info-row { flex-wrap: wrap; row-gap: 6px; }
+	.nf-info-row > span:first-child { flex: 1 1 8em; min-width: min(100%, 8em); }
+	.nf-info-row .nf-info-bar { flex: 1 1 70px; }
+	.nf-info-row b { white-space: normal; margin-left: auto; text-align: right; text-wrap: balance; }
+}
+.nf-qr-box, .nf-upd-box { max-height: 100%; overscroll-behavior: contain; }
