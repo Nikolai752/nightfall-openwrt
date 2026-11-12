@@ -1,6 +1,6 @@
 # Nightfall for OpenWrt
 
-[Русский](README.md) | **English**
+[Русский](README.md) | **English** | [FAQ (in Russian)](FAQ.md)
 
 [![Latest Release](https://img.shields.io/github/v/release/Nikolai752/nightfall-openwrt?style=flat-square&color=0078d4&label=release)](https://github.com/Nikolai752/nightfall-openwrt/releases)
 [![OpenWrt 25.12](https://img.shields.io/badge/OpenWrt-25.12-00a3b5?style=flat-square&logo=openwrt)](https://openwrt.org)
