@@ -12,11 +12,14 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: ./tools/check.sh
+      - name: Тесты бота (без Telegram)
+        run: sh tools/test-bot.sh
       - name: Дымовой тест (Playwright)
         run: |
           npm install --no-save playwright@1.49.0
           npx playwright install --with-deps chromium
           node tools/smoke.js
+          node tools/smoke-layout.js
       - uses: actions/upload-artifact@v4
         if: always()
         with:
