@@ -6169,3 +6169,56 @@ html[data-nf-motion="off"] .nf-blk-tools .nf-linkbtn.spin::before { animation: n
 	.modal.scan .table .td.cbi-section-actions, .modal.scan .table .th.cbi-section-actions { white-space: nowrap; width: 1%; }
 	.modal.scan .table .td[data-title="BSSID"], .modal.scan .table .td[data-title="Канал"] { white-space: nowrap; }
 }
+
+/* ======== v1.15.3: «Здесь пока что пусто» по центру, окна со списками на всю ширину, панель сохранения ======== */
+/* Пустая строка таблицы: блок внутри display:table занимал только ширину первого столбца, и надпись
+   смещалась влево. Подпись таблицы (caption) всегда растягивается на всю ширину таблицы. */
+.table .tr.placeholder { display: table-caption; caption-side: bottom; width: auto; height: auto; }
+.table .tr.placeholder > .td { width: 100% !important; box-sizing: border-box; }
+/* во время сканирования Wi-Fi вместо пустого значка крутится индикатор */
+.table .tr.placeholder > .td em:has(.spinning)::before { display: none; }
+.table .tr.placeholder .spinning { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 0; }
+
+/* Окно со списком (поиск сетей Wi‑Fi и т. п.): если в нём таблица из пяти и более столбцов, оно
+   растягивается как в родной теме. Сработает и пока идёт сканирование, когда строк ещё нет. */
+#modal_overlay > .modal:not(.login):not(.alert-message):has(.table .th:nth-child(5), .table .tr.placeholder .spinning) { --nf-mw: 1100px; }
+#modal_overlay > .modal:has(.table .th:nth-child(5)) .table { width: 100%; }
+#modal_overlay > .modal:has(.table .th:nth-child(5)) { overflow-x: auto; }
+
+/* Панель «Сохранить и применить / Сохранить / Сброс» на компьютере */
+@media (min-width: 900px) {
+	.cbi-page-actions {
+		display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px;
+		padding: 10px 14px; border-radius: 16px;
+	}
+	.cbi-page-actions > * { float: none !important; margin: 0 !important; }
+	.cbi-page-actions::after { display: none; }
+	.cbi-page-actions .cbi-button, .cbi-page-actions button, .cbi-page-actions .cbi-dropdown.btn {
+		min-height: 38px; border-radius: 999px; padding-left: 18px; padding-right: 18px; font-weight: 500;
+		transition: background-color .15s, border-color .15s, box-shadow .15s, transform .15s;
+	}
+	.cbi-page-actions .cbi-button-apply, .cbi-page-actions .cbi-dropdown.cbi-button-apply {
+		box-shadow: 0 4px 14px color-mix(in srgb, var(--nf-accent) 32%, transparent);
+	}
+	.cbi-page-actions .cbi-button-apply:hover, .cbi-page-actions .cbi-dropdown.cbi-button-apply:hover {
+		box-shadow: 0 6px 18px color-mix(in srgb, var(--nf-accent) 42%, transparent); transform: translateY(-1px);
+	}
+	.cbi-page-actions .cbi-button-apply:active, .cbi-page-actions .cbi-dropdown.cbi-button-apply:active { transform: none; box-shadow: none; }
+	/* вторичные кнопки: светлые, с небольшим значком */
+	.cbi-page-actions .cbi-button-save, .cbi-page-actions .cbi-button-reset, .cbi-page-actions .cbi-button-negative {
+		display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+		background: color-mix(in srgb, var(--nf-text) 5%, transparent);
+		border-color: color-mix(in srgb, var(--nf-text) 14%, transparent); border-bottom-color: color-mix(in srgb, var(--nf-text) 14%, transparent);
+	}
+	.cbi-page-actions .cbi-button-save:hover { background: color-mix(in srgb, var(--nf-accent) 12%, transparent); border-color: color-mix(in srgb, var(--nf-accent) 45%, transparent) !important; }
+	.cbi-page-actions .cbi-button-reset:hover, .cbi-page-actions .cbi-button-negative:hover {
+		background: color-mix(in srgb, var(--error-color-high, #c42b1c) 12%, transparent); border-color: color-mix(in srgb, var(--error-color-high, #c42b1c) 45%, transparent) !important;
+	}
+	.cbi-page-actions .cbi-button-save::before, .cbi-page-actions .cbi-button-reset::before, .cbi-page-actions .cbi-button-negative::before {
+		content: ""; flex: none; width: 15px; height: 15px; background: currentColor; opacity: .8;
+		-webkit-mask: var(--nf-pa-ico) center / contain no-repeat; mask: var(--nf-pa-ico) center / contain no-repeat;
+	}
+	.cbi-page-actions .cbi-button-save { --nf-pa-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z'/%3E%3Cpath d='M17 21v-8H7v8M7 3v5h8'/%3E%3C/svg%3E"); }
+	.cbi-page-actions .cbi-button-reset, .cbi-page-actions .cbi-button-negative { --nf-pa-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 1 0 3-6.7L3 8'/%3E%3Cpath d='M3 3v5h5'/%3E%3C/svg%3E"); }
+	.modal .cbi-page-actions { padding: 0; }
+}
