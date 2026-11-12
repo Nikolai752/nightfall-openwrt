@@ -6154,3 +6154,18 @@ html[data-nf-motion="off"] .nf-blk-tools .nf-linkbtn.spin::before { animation: n
 	.nf-info-row b { white-space: normal; margin-left: auto; text-align: right; text-wrap: balance; }
 }
 .nf-qr-box, .nf-upd-box { max-height: 100%; overscroll-behavior: contain; }
+
+/* ======== v1.15.2: окна LuCI на экране монитора (#83) ======== */
+/* Раньше все окна были шириной 540 px: поиск сетей Wi-Fi обрезался справа, кнопку «Подключение к сети» приходилось искать
+   прокруткой, а окна «Изменить» были тесными. Теперь ширина зависит от содержимого: подтверждения остаются компактными,
+   формы шире, окно со списком сетей ещё шире. На телефоне окно по-прежнему занимает всю ширину экрана. */
+#modal_overlay > .modal { --nf-mw: 540px; width: min(100%, var(--nf-mw)); max-width: none; }
+#modal_overlay > .modal.cbi-modal, #modal_overlay > .modal.uci-dialog,
+#modal_overlay > .modal:not(.login):has(.cbi-tabcontainer, .cbi-section-table, .cbi-map) { --nf-mw: 900px; }
+#modal_overlay > .modal.scan, #modal_overlay > .modal:not(.login):has(.table-wrapper .table) { --nf-mw: 1100px; }
+@media (min-width: 900px) {
+	#modal_overlay > .modal { max-height: calc(100% - 24px); }
+	.modal.scan .table .td, .modal.scan .table .th { padding-left: 12px; padding-right: 12px; }
+	.modal.scan .table .td.cbi-section-actions, .modal.scan .table .th.cbi-section-actions { white-space: nowrap; width: 1%; }
+	.modal.scan .table .td[data-title="BSSID"], .modal.scan .table .td[data-title="Канал"] { white-space: nowrap; }
+}

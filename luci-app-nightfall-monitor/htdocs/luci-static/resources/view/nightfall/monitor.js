@@ -1890,12 +1890,13 @@ return view.extend({
 			const max = a => a.length ? Math.max(...a) : null, avg = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
 			const sum = (list, k) => (list || []).reduce((s, x) => s + (x[k] || 0), 0);
 			let dd = sum(D.d && D.d.day, 1), du = sum(D.d && D.d.day, 2), yd = sum(D.d && D.d.yday, 1) + sum(D.d && D.d.yday, 2);
-			/* итоги дня берём по счётчикам порта WAN: они точные, в отличие от суммы по устройствам */
+			/* итоги дня берём из «Трафика по месяцам»: там уже выбран лучший источник (порт WAN или сумма по устройствам) */
+			let ryDev = false;
 			{
 				const ymd = k => { const x = new Date(); x.setDate(x.getDate() - k); return String(x.getFullYear() * 10000 + (x.getMonth() + 1) * 100 + x.getDate()); };
 				const rt = ((S.tr && S.tr.rows) || []).find(r => r[0] === ymd(0)), ry = ((S.tr && S.tr.rows) || []).find(r => r[0] === ymd(1));
 				if (rt) { dd = rt[1]; du = rt[2]; }
-				if (ry) yd = ry[1] + ry[2];
+				if (ry) { yd = ry[1] + ry[2]; ryDev = ry[3] === 1; }
 			}
 			/* свой трафик роутера (прокси, VPN, обновления) считаем отдельно, чтобы он не выдавал себя за устройство */
 			routerIps.learn(D.d && D.d.info);
@@ -1932,7 +1933,7 @@ return view.extend({
 			dayBody.replaceChildren(
 				E('div', { class: 'nfm-tiles d4' }, [
 					tile('Скачано', fmtBytes(dd), 'отдано ' + fmtBytes(du)),
-					tile('Вчера всего', yd ? fmtBytes(yd) : '–', yd ? (swDev ? 'по счётчикам порта WAN' : 'сегодня ' + nf0.format(100 * (dd + du) / yd) + '% от вчера') : ''),
+					tile('Вчера всего', yd ? fmtBytes(yd) : '–', yd ? (ryDev ? 'по данным устройств' : swDev ? 'по счётчикам порта WAN' : 'сегодня ' + nf0.format(100 * (dd + du) / yd) + '% от вчера') : ''),
 					tile('Обрывов интернета', String(drops), drops ? 'без связи ' + dur(down) : 'всё стабильно'),
 					tile('Средний пинг', pk(avg(col(7)), v => nf0.format(v) + ' мс'), pk(max(col(7)), v => 'пик ' + nf0.format(v) + ' мс')),
 					tile('Пик процессора', pk(max(col(1)), v => nf0.format(v) + '%'), pk(avg(col(1)), v => 'в среднем ' + nf0.format(v) + '%')),
