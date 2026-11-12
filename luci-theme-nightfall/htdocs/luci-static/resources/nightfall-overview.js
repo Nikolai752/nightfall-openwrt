@@ -339,7 +339,7 @@ function openInfo(key, from) {
 				row('За 7 дней', '↓ ' + fmtBytes(sum(7, 1)) + ' · ↑ ' + fmtBytes(sum(7, 2))), row('За 14 дней', '↓ ' + fmtBytes(sum(14, 1)) + ' · ↑ ' + fmtBytes(sum(14, 2))),
 				head('По дням (скачано + отдано)'),
 				days.map(x => row(x[0].toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' }), fmtBytes(x[1] + x[2]), 100 * (x[1] + x[2]) / mx)),
-				E('div', { class: 'nf-dnote' }, 'Счётчики порта WAN. Разбивка по устройствам и месяцам: Монитор → История → «Трафик по месяцам».'));
+				E('div', { class: 'nf-dnote' }, 'Итоги по счётчикам порта WAN, а если они занижены (аппаратное ускорение), по данным устройств. Разбивка по устройствам и месяцам: Монитор → История → «Трафик по месяцам».'));
 		});
 	}
 	else {
@@ -1493,10 +1493,14 @@ function topCard() {
 		/* адрес → MAC по таблице соседей роутера (ip neigh): узнаём устройства без имени в DHCP и с временными адресами IPv6 */
 		const neigh = {};
 		for (const [ ip, mac ] of dv.neigh || []) neigh[normIp(ip)] = mac.toUpperCase();
-		const routerIps = ((dv.info && dv.info.router_ips) || '').split(/\s+/).filter(Boolean);
+		/* адреса самого роутера: текущие, прежние внешние и вся внешняя подсеть провайдера (адрес меняется) */
+		const routerIps = String((dv.info && dv.info.router_ips) || '').split(/\s+/).filter(Boolean), routerNets = [];
+		const ip4 = ip => { const a = String(ip).split('.'); return a.length === 4 && a.every(x => /^\d+$/.test(x)) ? ((+a[0] * 256 + +a[1]) * 256 + +a[2]) * 256 + +a[3] : -1; };
+		String((dv.info && dv.info.router_nets) || '').split(/\s+/).filter(Boolean).forEach(c => { const [ ip, bits ] = c.split('/'), b = ip4(ip), sz = Math.pow(2, 32 - (+bits || 32)); if (b >= 0) routerNets.push([ b - b % sz, sz ]); });
+		const isRouter = ip => { if (routerIps.includes(ip)) return true; const x = ip4(ip); return x >= 0 && routerNets.some(([ b, sz ]) => x >= b && x < b + sz); };
 		const rows = {};
 		const keyOf = ip => {
-			if (routerIps.includes(ip)) return 'router';
+			if (isRouter(ip)) return 'router';
 			const nm = ipName[normIp(ip)];
 			return nm ? nm.k : neigh[normIp(ip)] || ip;
 		};
@@ -1519,7 +1523,8 @@ function topCard() {
 			const a = hourly[keyOf(ip)] || (hourly[keyOf(ip)] = new Array(24).fill(0));
 			a[23 - i] += d + u;
 		}
-		const all = Object.values(rows).filter(r => r.rd + r.ru + r.dd + r.du > 0), dayTot = all.reduce((t, r) => t + r.dd + r.du, 0) || 1;
+		/* трафик самого роутера (VPN, прокси) повторяет трафик устройств, поэтому в рейтинге «за сутки» и в долях его нет; в «Сейчас» он виден: так заметно, что роутер что-то качает */
+		const all = Object.values(rows).filter(r => r.rd + r.ru + r.dd + r.du > 0 && !(mode === 'day' && r.k === 'router')), dayTot = all.reduce((t, r) => t + r.dd + r.du, 0) || 1;
 		const list = mode === 'day'
 			? all.sort((a, b) => (b.dd + b.du) - (a.dd + a.du) || (b.rd + b.ru) - (a.rd + a.ru)).slice(0, 8)
 			: all.sort((a, b) => (b.rd + b.ru) - (a.rd + a.ru) || (b.dd + b.du) - (a.dd + a.du)).slice(0, 5);

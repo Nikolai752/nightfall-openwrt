@@ -32,6 +32,23 @@ active_json() {
 	printf ']'
 }
 
+router_ips() {   # адреса самого роутера через пробел: сохранённые сборщиком (в том числе прежние внешние) и текущие
+	{ sed -n 's/^router_ips=//p' "$DIR/info" 2>/dev/null | head -n 1
+	  ${NF_IP:-ip} -4 addr show 2>/dev/null | awk '/inet / { split($2, a, "/"); print a[1] }'; } | tr ' ' '\n' | awk 'NF && !s[$1]++ { printf "%s ", $1 }'
+}
+
+router_nets() { sed -n 's/^router_nets=//p' "$DIR/info" 2>/dev/null | head -n 1; }
+# общие функции awk: mine(ip) — адрес принадлежит самому роутеру (его адреса, в том числе прежние внешние, или внешняя подсеть)
+AWKR='function n_(ip,   a) { split(ip, a, "."); return ((a[1] * 256 + a[2]) * 256 + a[3]) * 256 + a[4] }
+function mine(ip,   i, x) {
+	if (index(rips, " " ip " ")) return 1
+	if (ip !~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) return 0
+	x = n_(ip); for (i = 1; i <= nn; i++) if (x >= nb[i] && x < nb[i] + ns[i]) return 1
+	return 0
+}
+BEGIN { nn = split(nets, nl, " "); for (i = 1; i <= nn; i++) { split(nl[i], pp, "/"); ns[i] = 2 ^ (32 - pp[2]); b = n_(pp[1]); nb[i] = b - (b % ns[i]) } }
+'
+
 devs_json() {   # devs_json FILE [skip-first-line]
 	printf '['
 	[ -r "$1" ] && awk -v skip="$2" 'NR == 1 && skip { next } NF >= 3 { printf "%s[\"%s\",%s,%s]", (n++ ? "," : ""), $1, $2, $3 }' "$1"
@@ -82,14 +99,15 @@ channel)
 	printf '{"now":%s,"ts":%s,"svc":' "$now" "${ts:-0}"
 	pairs_json "$DIR/svc.rate"
 	printf ',"dst":'; pairs_json "$DIR/dst.rate"
-	printf ',"router_ips":"%s"}\n' "$(sed -n 's/^router_ips=//p' "$DIR/info" 2>/dev/null | head -n 1)" ;;
+	printf ',"router_ips":"%s","router_nets":"%s"}\n' "$(sed -n 's/^router_ips=//p' "$DIR/info" 2>/dev/null | head -n 1)" "$(router_nets)" ;;
 apps)
 	en=$(sed -n 's/^APPS=\([01]\).*/\1/p' "${NF_CONF:-/etc/nightfall-monitor.conf}" 2>/dev/null | head -n 1)
 	dm=0; [ -r "$DIR/dns.map" ] && dm=$(wc -l < "$DIR/dns.map" | tr -d ' ')
 	printf '{"now":%s,"enabled":%s,"dnsmap":%s,"today":"%s","day":[' "$now" "${en:-0}" "${dm:-0}" "$(cat "$DIR/day.date" 2>/dev/null)"
-	[ -r "$DIR/apps.day" ] && awk -F'|' 'NF >= 4 { gsub(/["\\]/, "", $2); printf "%s[\"%s\",\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3, $4 }' "$DIR/apps.day"
+	rips=" $(router_ips) "; rnets=$(router_nets)   # трафик самого роутера (VPN, прокси) повторяет трафик устройств, в приложениях его не считаем
+	[ -r "$DIR/apps.day" ] && awk -F'|' -v rips="$rips" -v nets="$rnets" "$AWKR"'NF >= 4 && !mine($1) { gsub(/["\\]/, "", $2); printf "%s[\"%s\",\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3, $4 }' "$DIR/apps.day"
 	printf '],"hist":['
-	[ -r "$DIR/apps.hist" ] && awk -F'|' 'NF >= 5 { gsub(/["\\]/, "", $3); printf "%s[\"%s\",\"%s\",\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3, $4, $5 }' "$DIR/apps.hist"
+	[ -r "$DIR/apps.hist" ] && awk -F'|' -v rips="$rips" -v nets="$rnets" "$AWKR"'NF >= 5 && !mine($2) { gsub(/["\\]/, "", $3); printf "%s[\"%s\",\"%s\",\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3, $4, $5 }' "$DIR/apps.hist"
 	printf ']}\n' ;;
 journal)
 	printf '{"now":%s,"rows":' "$now"; journal_json
@@ -188,7 +206,42 @@ airscan)
 	printf ']}\n' ;;
 traffic)
 	printf '{"now":%s,"persist":%s,"rows":[' "$now" "$([ -n "$(sed -n 's/^PERSIST_DIR=\(.\)/\1/p' /etc/nightfall-monitor.conf 2>/dev/null | head -n 1)" ] && echo 1 || echo 0)"
-	[ -r "$DIR/traffic.daily" ] && awk 'NF >= 3 && $1 ~ /^[0-9]{8}$/ { printf "%s[\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3 }' "$DIR/traffic.daily"
+	# Итог за сутки берётся по счётчикам порта WAN. При аппаратном ускорении пакетов (MediaTek, Qualcomm и др.) порт не видит
+	# часть трафика, и итог оказывается в десятки раз меньше реального. Поэтому, если сумма по устройствам (без самого роутера,
+	# чей трафик повторяет трафик устройств через VPN или прокси) заметно больше, берём её. Источник суммы по устройствам:
+	# архив суток, затем итоги вчерашнего и сегодняшнего дня, затем почасовые итоги. Четвёртое число строки: 1 — итог по устройствам.
+	if [ -r "$DIR/traffic.daily" ]; then
+		dday=$(cat "$DIR/day.date" 2>/dev/null); today=$(date +%Y%m%d); yest=$(date -d "@$((now - 86400))" +%Y%m%d 2>/dev/null)
+		[ "$dday" = "$today" ] || yest=""
+		{ [ -r "$DIR/dev.daily" ] && sed 's/^/A /' "$DIR/dev.daily"
+		  [ -r "$DIR/dev.yday" ] && sed 's/^/Y /' "$DIR/dev.yday"
+		  [ -r "$DIR/dev.day" ] && sed 's/^/T /' "$DIR/dev.day"
+		  [ -r "$DIR/dev.hr" ] && sed 's/^/H /' "$DIR/dev.hr"
+		  sed 's/^/W /' "$DIR/traffic.daily"; } 2>/dev/null |
+		awk -v rips=" $(router_ips) " -v nets="$(router_nets)" -v tzs="$(date +%z 2>/dev/null)" -v dday="$dday" -v yest="$yest" "$AWKR"'
+			function ymd(ts,   z, era, doe, yoe, y, doy, mp, d, m) {   # местная дата по метке времени (часовой пояс как сейчас)
+				z = int((ts + tz) / 86400) + 719468; era = int(z / 146097); doe = z - era * 146097
+				yoe = int((doe - int(doe / 1460) + int(doe / 36524) - int(doe / 146096)) / 365)
+				y = yoe + era * 400; doy = doe - (365 * yoe + int(yoe / 4) - int(yoe / 100))
+				mp = int((5 * doy + 2) / 153); d = doy - int((153 * mp + 2) / 5) + 1; m = (mp < 10 ? mp + 3 : mp - 9)
+				if (m <= 2) y++
+				return sprintf("%04d%02d%02d", y, m, d)
+			}
+			BEGIN { tz = (substr(tzs, 1, 1) == "-" ? -1 : 1) * (substr(tzs, 2, 2) * 3600 + substr(tzs, 4, 2) * 60) }
+			$1 == "A" { if ($2 ~ /^[0-9]{8}$/ && !mine($3)) { ar[$2] += $4; at[$2] += $5; ah[$2] = 1 } next }
+			$1 == "Y" { if (!mine($2)) { yr += $3; yt += $4; yh = 1 } next }
+			$1 == "T" { if (!mine($2)) { tr += $3; tt += $4; th = 1 } next }
+			$1 == "H" { if (NF >= 5 && $2 ~ /^[0-9]+$/ && !mine($3)) { k = ymd($2); hr_[k] += $4; ht_[k] += $5; hh[k] = 1 } next }
+			$1 == "W" && NF >= 4 && $2 ~ /^[0-9]{8}$/ {
+				d = $2; wr = $3 + 0; wt = $4 + 0; src = 0; cr = -1; ct = 0
+				if (d in ah) { cr = ar[d]; ct = at[d] }
+				else if (d == yest && yh) { cr = yr; ct = yt }
+				else if (d == dday && th) { cr = tr; ct = tt }
+				else if (d in hh) { cr = hr_[d]; ct = ht_[d] }
+				if (cr >= 0 && cr + ct > 1.25 * (wr + wt) && cr + ct - wr - wt > 100000000) { wr = cr; wt = ct; src = 1 }
+				printf "%s[\"%s\",%.0f,%.0f,%d]", (n++ ? "," : ""), d, wr, wt, src
+			}'
+	fi
 	printf ']}\n' ;;
 devdaily)   # итоги по устройствам за прошлые сутки: [день, ip, принято, отправлено, mac]
 	printf '{"now":%s,"rows":[' "$now"

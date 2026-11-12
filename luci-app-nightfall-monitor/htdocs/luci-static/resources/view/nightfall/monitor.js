@@ -681,7 +681,21 @@ return view.extend({
 			for (const ip of (hints[mac].ipaddrs || []))
 				names[ip] = hints[mac].name || ip;
 		/* собственные адреса роутера (LAN и WAN) подписываем «Роутер» */
-		const routerIps = new Set();
+		/* адреса самого роутера: текущие, прежние внешние (провайдер их меняет) и вся внешняя подсеть. Их трафик повторяет трафик устройств (VPN, прокси)
+		   или служебный, поэтому в «устройства» не входит */
+		const routerIps = (() => {
+			const ips = new Set(), nets = [];
+			const n = ip => { const a = String(ip).split('.'); return a.length === 4 && a.every(x => /^\d+$/.test(x)) ? ((+a[0] * 256 + +a[1]) * 256 + +a[2]) * 256 + +a[3] : -1; };
+			return {
+				add: ip => ips.add(ip),
+				has: ip => { if (ips.has(ip)) return true; const x = n(ip); return x >= 0 && nets.some(([ b, sz ]) => x >= b && x < b + sz); },
+				learn: info => {
+					if (!info) return;
+					String(info.router_ips || '').split(/\s+/).filter(Boolean).forEach(ip => ips.add(ip));
+					String(info.router_nets || '').split(/\s+/).filter(Boolean).forEach(c => { const [ ip, bits ] = c.split('/'), b = n(ip), sz = Math.pow(2, 32 - (+bits || 32)); if (b >= 0 && !nets.some(x => x[0] === b - b % sz)) nets.push([ b - b % sz, sz ]); });
+				}
+			};
+		})();
 		for (const i of ifdump) for (const a of (i['ipv4-address'] || [])) if (a.address) { routerIps.add(a.address); if (!names[a.address] || names[a.address] === a.address) names[a.address] = 'Роутер'; }
 
 		/* device -> logical interface, default-route device */
@@ -1256,7 +1270,7 @@ return view.extend({
 			const tile = (ic, t, v, sub) => E('div', { class: 'nfm-wk-t' }, [ E('span', { class: 'nfm-wk-l' }, t), E('b', {}, v), E('span', { class: 'nfm-note-s' }, sub) ]);
 			wkBody.replaceChildren(tile('', 'Пик трафика', peak[0], peak[1]), tile('', 'Самое «тяжёлое» устройство', heavy[0], heavy[1]), tile('', 'Средний пинг', ping[0], ping[1]));
 		}
-		/* ---- Трафик по месяцам: календарь суточных итогов WAN ---- */
+		/* ---- Трафик по месяцам: календарь суточных итогов (счётчики WAN, а если они занижены, то сумма по устройствам) ---- */
 		const monBody = E('div', { class: 'nfm-mon' });
 		const lim = () => { try { return Math.max(0, parseFloat(localStorage.getItem('nfm-limit-gb')) || 0); } catch (e) { return 0; } };
 		function renderMon() {
@@ -1264,8 +1278,8 @@ return view.extend({
 			const now = new Date(); if (!S.mon) S.mon = { y: now.getFullYear(), m: now.getMonth() };
 			const { y, m } = S.mon, dim = new Date(y, m + 1, 0).getDate(), first = (new Date(y, m, 1).getDay() + 6) % 7;
 			const pre = String(y) + String(m + 1).padStart(2, '0'), by = {};
-			let rx = 0, tx = 0, mx = 1, days = 0;
-			for (const r of T.rows || []) if (r[0].indexOf(pre) === 0) { const d = +r[0].slice(6, 8); by[d] = r; rx += r[1]; tx += r[2]; mx = Math.max(mx, r[1] + r[2]); days++; }
+			let rx = 0, tx = 0, mx = 1, days = 0, viaDev = 0;
+			for (const r of T.rows || []) if (r[0].indexOf(pre) === 0) { const d = +r[0].slice(6, 8); by[d] = r; rx += r[1]; tx += r[2]; mx = Math.max(mx, r[1] + r[2]); days++; if (r[3] === 1) viaDev++; }
 			const cur = y === now.getFullYear() && m === now.getMonth(), elapsed = cur ? now.getDate() : dim, total = rx + tx;
 			const avg = days ? total / Math.max(1, Math.min(days, elapsed)) : 0, fc = cur ? total + avg * (dim - elapsed) : total;
 			const step = k => { const d = new Date(y, m + k, 1); S.mon = { y: d.getFullYear(), m: d.getMonth() }; renderMon(); };
@@ -1279,7 +1293,7 @@ return view.extend({
 			for (let d = 1; d <= dim; d++) {
 				const r = by[d], v = r ? r[1] + r[2] : 0;
 				grid.appendChild(E('span', Object.assign({ class: 'nfm-mon-d' + (cur && d === now.getDate() ? ' today' : '') + (r ? ' has' : ''), style: r ? `--hv:${Math.max(8, Math.round(100 * v / mx))}%` : '',
-					title: r ? `${d}: ↓ ${fmtBytes(r[1])}, ↑ ${fmtBytes(r[2])}. Нажмите, чтобы увидеть, кто сколько скачал` : `${d}: нет данных` },
+					title: r ? `${d}: ↓ ${fmtBytes(r[1])}, ↑ ${fmtBytes(r[2])}${r[3] === 1 ? ' (по данным устройств)' : ''}. Нажмите, чтобы увидеть, кто сколько скачал` : `${d}: нет данных` },
 					r ? { role: 'button', tabindex: '0', click: () => dayReport(r[0]), keydown: ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); dayReport(r[0]); } } } : {}), [ E('b', {}, String(d)), E('i', {}, r ? fmtBytes(v) : '') ]));
 			}
 			const kids = [
@@ -1300,6 +1314,7 @@ return view.extend({
 					E('div', { class: 'nfm-note-s' }, `Использовано ${Math.round(pc)}% лимита` + (cur && days ? `; по прогнозу к концу месяца ≈ ${Math.round(pf)}%` + (pf > 100 ? ' — лимит будет превышен' : '') : '')));
 			}
 			kids.push(grid);
+			if (viaDev) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'За ' + viaDev + ' ' + (viaDev === 1 ? 'день' : viaDev < 5 ? 'дня' : 'дней') + ' счётчики порта WAN показывали заметно меньше, чем прошло через устройства (аппаратное ускорение пакетов скрывает трафик от порта), поэтому итог взят по данным устройств, без трафика самого роутера. Они совпадают с отчётом по дню (нажмите на день).'));
 			if (!T.persist) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Итоги хранятся в памяти и обнулятся при перезагрузке роутера. Чтобы копить месяцы, укажите папку на флешке в настройках сборщика (PERSIST_DIR).'));
 			monBody.replaceChildren(...kids);
 		}
@@ -1314,7 +1329,7 @@ return view.extend({
 				const norm = ip => String(ip).toLowerCase(), ipMac = {};
 				for (const mac in hints) for (const ip of (hints[mac].ipaddrs || []).concat(hints[mac].ip6addrs || [])) ipMac[norm(ip)] = mac;
 				for (const [ ip, mac ] of (dv && dv.neigh) || []) if (!ipMac[norm(ip)]) ipMac[norm(ip)] = String(mac).toUpperCase();
-				const routerIps = ((dv && dv.info && dv.info.router_ips) || '').split(/\s+/).filter(Boolean);
+				routerIps.learn(dv && dv.info);
 				const ymdOf = d => d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
 				const nowD = new Date(), today = ymdOf(nowD), yest = ymdOf(new Date(nowD.getTime() - 86400000));
 				let src = [], how = '';
@@ -1330,7 +1345,7 @@ return view.extend({
 				}
 				const acc = {};
 				for (const [ ip, rx, tx, mac0 ] of src) {
-					const mac = mac0 || ipMac[norm(ip)] || '', k = routerIps.includes(ip) ? 'router' : mac || (String(ip).indexOf(':') >= 0 ? 'v6' : ip);
+					const mac = mac0 || ipMac[norm(ip)] || '', k = routerIps.has(ip) ? 'router' : mac || (String(ip).indexOf(':') >= 0 ? 'v6' : ip);
 					const e = acc[k] || (acc[k] = { k, mac, ip, rx: 0, tx: 0 });
 					e.rx += +rx; e.tx += +tx;
 				}
@@ -1339,7 +1354,7 @@ return view.extend({
 				const sumRx = list.reduce((a, e) => a + e.rx, 0), sumTx = list.reduce((a, e) => a + e.tx, 0), mx = Math.max(1, ...list.map(e => e.rx + e.tx));
 				const kids = [];
 				if (wan) kids.push(E('div', { class: 'nfm-mon-sum' }, [
-					E('div', {}, [ E('span', {}, 'Всего через WAN'), E('b', {}, fmtBytes(wan[1] + wan[2])) ]),
+					E('div', {}, [ E('span', {}, wan[3] === 1 ? 'Всего (по устройствам)' : 'Всего через WAN'), E('b', {}, fmtBytes(wan[1] + wan[2])) ]),
 					E('div', {}, [ E('span', {}, '↓ принято'), E('b', {}, fmtBytes(wan[1])) ]),
 					E('div', {}, [ E('span', {}, '↑ отправлено'), E('b', {}, fmtBytes(wan[2])) ]) ]));
 				if (!list.length) kids.push(E('div', { class: 'nfm-hint' }, 'По устройствам за этот день данных нет. Подробные итоги по устройствам копятся с версии 1.15 (в архив уходят сутки, закончившиеся после обновления), а почасовых данных хватает примерно на две недели. Чтобы они переживали перезагрузку, подключите накопитель (История → «Накопители»).'));
@@ -1355,6 +1370,7 @@ return view.extend({
 								E('td', { class: 'r' }, fmtBytes(e.rx)), E('td', { class: 'r' }, fmtBytes(e.tx)), E('td', { class: 'r' }, E('b', {}, fmtBytes(e.rx + e.tx))) ]);
 						})) ]));
 					if (list.length > 40) kids.push(E('div', { class: 'nfm-note-s' }, 'Показаны 40 самых активных из ' + list.length + '.'));
+					if (list.some(e => e.k === 'router')) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Строка «Сам роутер» (адрес вашего роутера у провайдера) — это трафик самого роутера: прокси или VPN на нём, обновления, DNS. Трафик устройств через такой прокси считается дважды: у устройства и у роутера. Поэтому в «Всего» и в календаре строка не входит.'));
 					if (wan && (wan[1] + wan[2]) > (sumRx + sumTx) * 1.15) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Сумма по устройствам (' + fmtBytes(sumRx + sumTx) + ') меньше счётчика WAN: часть трафика не приписывается устройствам (аппаратное ускорение пакетов, служебный трафик, устройства вне первой сотни записей).'));
 				}
 				if (how) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, how));
@@ -1829,11 +1845,11 @@ return view.extend({
 				const u = String(mac).toUpperCase();
 				if (!ipMac[norm(ip)]) ipMac[norm(ip)] = u;
 			}
-			const routerIps = ((dv.info && dv.info.router_ips) || '').split(/\s+/).filter(Boolean);
+			routerIps.learn(dv.info);
 
 			const rows = {};
 			const row = ip => {
-				const mac = ipMac[norm(ip)], k = routerIps.includes(ip) ? 'router' : mac || (ip.indexOf(':') >= 0 ? 'v6' : ip);
+				const mac = ipMac[norm(ip)], k = routerIps.has(ip) ? 'router' : mac || (ip.indexOf(':') >= 0 ? 'v6' : ip);
 				return rows[k] || (rows[k] = { k, mac, ip, rd: 0, ru: 0, dd: 0, du: 0 });
 			};
 			const fresh = dv.now - dv.ts <= 60;
@@ -1882,9 +1898,15 @@ return view.extend({
 				if (ry) yd = ry[1] + ry[2];
 			}
 			/* свой трафик роутера (прокси, VPN, обновления) считаем отдельно, чтобы он не выдавал себя за устройство */
+			routerIps.learn(D.d && D.d.info);
 			let selfB = 0, cliD = 0, cliU = 0;
 			for (const [ ip, d, u ] of (D.d && D.d.day) || []) { if (routerIps.has(ip)) selfB += d + u; else { cliD += d; cliU += u; } }
 			let srcNote = 'Скачано и отдано: по счётчикам порта WAN.', swDev = false;
+			const rtd = ((S.tr && S.tr.rows) || []).find(r => r[0] === (new Date().getFullYear() * 10000 + (new Date().getMonth() + 1) * 100 + new Date().getDate()) + '');
+			if (rtd && rtd[3] === 1) {
+				swDev = true;
+				srcNote = 'Счётчики порта WAN показывают заметно меньше, чем прошло через устройства, поэтому все итоги по трафику (здесь, в календаре и в сравнении периодов) берутся по данным устройств.' + (hwFlow ? ' Причина: на роутере включено аппаратное ускорение пакетов (Сеть → Межсетевой экран), оно скрывает часть трафика от счётчиков порта.' : ' Вероятная причина: аппаратное ускорение пакетов (Сеть → Межсетевой экран) скрывает трафик от счётчиков порта.');
+			}
 			if (cliD + cliU > 1.5 * (dd + du) && cliD + cliU > 50e6) {
 				dd = cliD; du = cliU; swDev = true;
 				srcNote = 'Счётчики порта WAN показывают заметно меньше, чем прошло через устройства, поэтому «Скачано» и «Отдано» взяты по данным устройств.' + (hwFlow ? ' Причина: на роутере включено аппаратное ускорение пакетов (Сеть → Межсетевой экран), оно скрывает часть трафика от счётчиков порта.' : ' Вероятная причина: аппаратное ускорение пакетов (Сеть → Межсетевой экран) скрывает трафик от счётчиков порта.');

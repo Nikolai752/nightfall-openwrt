@@ -194,15 +194,32 @@ live_list() {   # строки «W mac» (Wi-Fi) и «A mac ip интерфей�
 			$1 == "N" && $4 == "REACHABLE" { fresh[$2] = 1 }
 			{ l[NR] = $0 }
 			END { for (i = 1; i <= NR; i++) { split(l[i], f, " "); m = f[2]; if (index(wm, " " m " ") || (m in fresh) || f[3] !~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ || (f[3] in seen)) continue; seen[f[3]] = 1; print f[3] } }' | head -n 40 )
+	rm -f "$DIR/ping.ok"
 	if [ -n "$cand" ]; then
 		for ip in $cand; do
 			${NF_IP:-ip} neigh flush to "$ip" >/dev/null 2>&1
-			${NF_PING:-ping} -c 1 -W 1 "$ip" >/dev/null 2>&1 &
+			( ${NF_PING:-ping} -c 1 -W 1 "$ip" >/dev/null 2>&1 && echo "$ip" >> "$DIR/ping.ok" ) &
 		done
 		wait
 		neigh_dump > "$DIR/neigh.cur"
 	fi
-	awk '/lladdr/ && $NF == "REACHABLE" { m = ""; d = ""; for (i = 1; i < NF; i++) { if ($i == "lladdr") m = tolower($(i + 1)); if ($i == "dev") d = $(i + 1) } if (m != "") print "A", m, $1, d }' "$DIR/neigh.cur"
+	res=$( {
+		awk '/lladdr/ && $NF == "REACHABLE" { m = ""; d = ""; for (i = 1; i < NF; i++) { if ($i == "lladdr") m = tolower($(i + 1)); if ($i == "dev") d = $(i + 1) } if (m != "") print "A", m, $1, d }' "$DIR/neigh.cur"
+		# ответ на ping — прямое доказательство, что устройство включено (даже если запись ARP успела устареть)
+		if [ -s "$DIR/ping.ok" ]; then
+			{ sed 's/^/P /' "$DIR/ping.ok"
+			  awk '/lladdr/ { m = ""; d = ""; for (i = 1; i < NF; i++) { if ($i == "lladdr") m = tolower($(i + 1)); if ($i == "dev") d = $(i + 1) } if (m != "") print "N", $1, m, d }' "$DIR/neigh.cur"
+			  [ -r "$LEASES" ] && awk '{ print "L", $3, tolower($2) }' "$LEASES"; } |
+			awk '$1 == "N" { nm[$2] = $3; nd[$2] = $4; next } $1 == "L" { lm[$2] = $3; next } $1 == "P" { p[$2] = 1 }
+				END { for (ip in p) { m = (ip in nm ? nm[ip] : lm[ip]); if (m != "") print "A", m, ip, (ip in nd ? nd[ip] : "") } }'
+		fi; } )
+	# Запасной вариант: если проверка ничего не нашла (нет ip, ping или прав), показываем записи ARP, как раньше. Страницу открывает
+	# устройство из сети, так что «никого нет в сети» означает сбой проверки, а не реальность.
+	if [ -z "$res" ] && [ -z "$wm" ] && [ -r "$PROC/net/arp" ]; then
+		awk 'NR > 1 && $3 == "0x2" && $4 != "00:00:00:00:00:00" { print "A", tolower($4), $1, $6 }' "$PROC/net/arp"
+		return 0
+	fi
+	[ -n "$res" ] && printf '%s\n' "$res"
 }
 
 # unblock устройства, отключённого группой вручную, невозможен: нужно вернуть группу
@@ -222,7 +239,7 @@ list)
 		$1 == "B" { m = $2; man[m] = $3; sf[m] = ($4 == "-" ? "" : $4); st[m] = ($5 == "-" ? "" : $5); qq[m] = ($6 == "-" ? "" : $6); sn[m] = ($7 == "-" ? "" : $7); x = ""; for (i = 8; i <= NF; i++) x = x (i > 8 ? " " : "") $i; bn[m] = x; seen[m] = 1 }
 		$1 == "L" { m = $2; ip[m] = $3; nm[m] = $4; seen[m] = 1 }
 		$1 == "W" { m = $2; wf[m] = 1; on[m] = 1; seen[m] = 1 }
-		$1 == "A" { m = $2; if ($4 == wan) next; ip[m] = $3; on[m] = 1; seen[m] = 1 }
+		$1 == "A" { m = $2; if ($4 == wan && !(m in seen)) next; ip[m] = $3; on[m] = 1; seen[m] = 1 }   # на устройстве WAN пропускаем только чужих: если WAN и LAN на одном интерфейсе, клиенты известны по DHCP
 		END {
 			for (m in seen) {
 				if (m in mine) continue

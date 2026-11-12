@@ -67,9 +67,10 @@ cmd_status() {
 cmd_clients() {
 	[ -r "$PROC/net/arp" ] || { reply "Таблица ARP недоступна."; return; }
 	wan=$(sed -n 's/^wan_dev=//p' "$DIR/info" 2>/dev/null | head -n 1)
-	out=$( { names; echo ---; awk -v wan="$wan" 'NR > 1 && $3 == "0x2" && $6 != wan { print $1, $4 }' "$PROC/net/arp"; } | awk '
+	out=$( { names; echo ---; awk -v wan="$wan" 'NR > 1 && $3 == "0x2" { print $1, $4, $6 }' "$PROC/net/arp"; } | awk -v wan="$wan" '
 		/^---$/ { f = 1; next }
 		!f { nm[$1] = $2; next }
+		$3 == wan && !($1 in nm) { next }   # на WAN-интерфейсе только клиенты из аренд DHCP (схема «на одной ноге»)
 		{ n++; printf "• %s: %s (%s)\n", ($1 in nm && nm[$1] != "" ? nm[$1] : "без имени"), $1, $2 }
 		END { if (!n) print "Устройств не видно." }' | head -n 40)
 	reply "🖥 В сети сейчас:
@@ -247,7 +248,7 @@ cmd_report() {
 		evt=$(printf '%s\n' "$ev" | tail -n 5 | while IFS='|' read -r ts tx; do printf '• %s %s\n' "$(date -d "@$ts" '+%H:%M' 2>/dev/null)" "$tx"; done)
 	fi
 	tmax=$(awk -v s="$since" '$1 >= s && $4 >= 0 { if ($4 > m) m = $4; f = 1 } END { if (f) printf "%d °C", m; else print "н/д" }' "$DIR/hist.coarse" 2>/dev/null)
-	cl=$(awk -v w="$(sed -n 's/^wan_dev=//p' "$DIR/info" 2>/dev/null | head -n 1)" 'NR > 1 && $3 == "0x2" && $6 != w { n++ } END { print n + 0 }' "$PROC/net/arp" 2>/dev/null)
+	cl=$(awk -v w="$(sed -n 's/^wan_dev=//p' "$DIR/info" 2>/dev/null | head -n 1)" 'FILENAME == ARGV[1] { l[$3] = 1; next } FNR > 1 && $3 == "0x2" && ($6 != w || ($1 in l)) { n++ } END { print n + 0 }' "${LEASES:-/tmp/dhcp.leases}" "$PROC/net/arp" 2>/dev/null)
 	up=$(awk '{ print int($1) }' "$PROC/uptime" 2>/dev/null)
 	reply "🗓 Отчёт за сутки · $HOST
 Трафик сегодня: $tt
