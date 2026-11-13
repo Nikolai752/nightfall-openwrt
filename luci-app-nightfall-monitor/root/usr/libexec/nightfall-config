@@ -6,7 +6,7 @@
 #   nightfall-config disks                  — подключённые накопители (JSON)
 CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
 DEF=${NF_DEF:-/usr/share/nightfall/nightfall-monitor.conf.default}
-KEYS="TEMP_WARN TEMP_CRIT MEM_MIN_PCT FLASH_MAX_PCT CT_MAX_PCT CPU_MAX_PCT CPU_MINUTES PING_TARGET PING_TARGET2 PERSIST_DIR PERSIST_HOURS HIST_DAYS PERSIST_ANY JOURNAL WIFI_HIST SPEED_HOURS SPEED_URL SPEED_STREAMS APPS NEWDEV TG TG_ALERTS TG_TOKEN TG_CHAT TG_USERS TG_PROXY TG_IFACE TG_BOT TG_CLEAN TG_REPORT"
+KEYS="TEMP_WARN TEMP_CRIT MEM_MIN_PCT FLASH_MAX_PCT CT_MAX_PCT CPU_MAX_PCT CPU_MINUTES PING_TARGET PING_TARGET2 PERSIST_DIR PERSIST_HOURS HIST_DAYS PERSIST_ANY JOURNAL WIFI_HIST SPEED_HOURS SPEED_URL SPEED_STREAMS APPS NEWDEV TG TG_ALERTS TG_TOKEN TG_CHAT TG_USERS TG_PROXY TG_IFACE TG_BOT TG_CLEAN TG_WIDGETS TG_REPORT"
 
 val() {     # val FILE KEY
 	[ -r "$1" ] && sed -n "s/^$2=\"\{0,1\}\([^ #\"]*\).*/\1/p" "$1" | head -n 1
@@ -89,7 +89,7 @@ set)
 		TG_REPORT) [ -z "$v" ] || printf '%s' "$v" | grep -qE '^([01][0-9]|2[0-3]):[0-5][0-9]$' || fail "TG_REPORT: время вида 21:00 или пусто" ;;
 		TG_IFACE) [ -z "$v" ] || printf '%s' "$v" | grep -qE '^[A-Za-z0-9_.-]{1,15}$' || fail "TG_IFACE: нужно имя интерфейса, например wg0" ;;
 		TG_PROXY) [ -z "$v" ] || printf '%s' "$v" | grep -qE '^(http|https|socks5|socks5h)://[A-Za-z0-9._:@%-]{1,100}$' || fail "TG_PROXY: нужен адрес вида socks5h://127.0.0.1:1080 или http://host:port" ;;
-		JOURNAL|PERSIST_ANY|WIFI_HIST|APPS|NEWDEV|TG|TG_ALERTS|TG_BOT|TG_CLEAN) case "$v" in 0|1) ;; *) fail "$k: допустимо 0 или 1" ;; esac ;;
+		JOURNAL|PERSIST_ANY|WIFI_HIST|APPS|NEWDEV|TG|TG_ALERTS|TG_BOT|TG_CLEAN|TG_WIDGETS) case "$v" in 0|1) ;; *) fail "$k: допустимо 0 или 1" ;; esac ;;
 		SPEED_HOURS) range "$k" "$v" 0 168 ;;
 		SPEED_STREAMS) range "$k" "$v" 1 8 ;;
 		SPEED_URL)

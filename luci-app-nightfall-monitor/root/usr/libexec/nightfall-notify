@@ -76,6 +76,17 @@ raw)       # raw МЕТОД [аргументы curl]: служебный выз
 reply)     # reply ТЕКСТ [КНОПКИ_JSON]: ответ в чат без лимита и без приставки (для бота)
 	[ -n "$TOKEN" ] && [ -n "$CHAT" ] || exit 1
 	post "$2" "$3"; rc=$?; printf '%s\n' "$RESP"; exit $rc ;;   # ответ Telegram нужен боту, чтобы запомнить id сообщения
+widget)    # widget ФАЙЛ_HTML ПОДПИСЬ ДАННЫЕ [КНОПКИ_JSON]: интерактивное сообщение (Bot API 10.4), работает только в личном чате
+	[ -n "$TOKEN" ] && [ -n "$CHAT" ] || exit 1
+	[ -r "$2" ] || exit 1
+	t=$(mktemp 2>/dev/null || echo "$DIR/tg.msg"); printf '%s' "$3" > "$t"
+	d=$(mktemp 2>/dev/null || echo "$DIR/tg.data"); printf '%s' "$4" > "$d"
+	if [ -n "$5" ]; then RESP=$(api sendWidget --data-urlencode "chat_id=$CHAT" --data-urlencode "html@$2" --data-urlencode "caption@$t" --data-urlencode "chat_data@$d" -d allow_queries=true --data-urlencode "reply_markup=$5")
+	else RESP=$(api sendWidget --data-urlencode "chat_id=$CHAT" --data-urlencode "html@$2" --data-urlencode "caption@$t" --data-urlencode "chat_data@$d" -d allow_queries=true); fi
+	rm -f "$t" "$d"
+	printf '%s\n' "$RESP"
+	case "$RESP" in *'"ok":true'*) exit 0 ;; esac
+	exit 1 ;;
 edit)      # edit ID_СООБЩЕНИЯ ТЕКСТ [КНОПКИ_JSON]: заменить текст и кнопки существующего сообщения (быстрее и без россыпи сообщений)
 	[ -n "$TOKEN" ] && [ -n "$CHAT" ] || exit 1
 	t=$(mktemp 2>/dev/null || echo "$DIR/tg.msg"); printf '%s' "$3" > "$t"
