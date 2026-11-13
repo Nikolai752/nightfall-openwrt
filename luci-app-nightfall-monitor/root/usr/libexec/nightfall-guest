@@ -1,6 +1,7 @@
 #!/bin/sh
 # Nightfall: гостевая сеть Wi-Fi по таймеру. Включает выбранную беспроводную сеть на заданное время и сама выключает её.
 #   nightfall-guest status        — JSON: включённые по таймеру сети и когда они выключатся
+#   nightfall-guest cands         — список сетей для управления («ID|SSID|включена 1/0|выключится в»), для бота
 #   nightfall-guest on ID МИН     — включить сеть ID (раздел wifi-iface из /etc/config/wireless) на МИН минут (1…1440)
 #   nightfall-guest off ID        — выключить сейчас
 #   nightfall-guest tick          — выключить те, у кого время вышло (вызывает сборщик, переживает перезагрузку)
@@ -31,6 +32,28 @@ off)
 	valid "$2" || fail "сеть не найдена"
 	$UCI set "wireless.$2.disabled=1" && $UCI commit wireless || fail "не удалось сохранить настройки"
 	drop "$2"; reload; printf '{"ok":true}\n' ;;
+cands)
+	# сети, которыми можно управлять по таймеру (те же, что в окне QR-кодов): «ID|SSID|включена 1/0|выключится в»
+	$UCI -q show wireless 2>/dev/null | awk -v list="$LIST" '
+		BEGIN { while ((getline ln < list) > 0) { split(ln, a, "|"); if (a[1] != "") u[a[1]] = a[2] } }
+		{
+			p = index($0, "="); if (p == 0) next
+			lhs = substr($0, 1, p - 1); v = substr($0, p + 1); gsub(/^\x27|\x27$/, "", v)
+			if (lhs !~ /^wireless\./) next
+			lhs = substr(lhs, 10); q = 0
+			for (i = length(lhs); i > 0; i--) if (substr(lhs, i, 1) == ".") { q = i; break }
+			if (q == 0) { if (v == "wifi-iface") { t[lhs] = 1; ord[++n] = lhs } next }
+			id = substr(lhs, 1, q - 1); o[id, substr(lhs, q + 1)] = v
+		}
+		END {
+			for (i = 1; i <= n; i++) {
+				id = ord[i]; ss = o[id, "ssid"]; gsub(/["\\|]/, "", ss)
+				if (o[id, "mode"] == "sta" || ss == "") continue
+				off = (o[id, "disabled"] == "1")
+				if (!off && (o[id, "network"] " " ss) !~ /[Gg]uest|GUEST|[Гг]ост|ГОСТ/) continue
+				printf "%s|%s|%d|%s\n", id, ss, (off ? 0 : 1), (id in u ? u[id] : "")
+			}
+		}' ;;
 tick)
 	[ -r "$LIST" ] || exit 0
 	[ "$now" -gt 1700000000 ] || exit 0
@@ -42,5 +65,5 @@ tick)
 	done < "$LIST"
 	[ "$ch" = 1 ] && { $UCI commit wireless; reload; } ;;
 *)
-	echo "usage: nightfall-guest status|on ID МИН|off ID|tick" >&2; exit 1 ;;
+	echo "usage: nightfall-guest status|cands|on ID МИН|off ID|tick" >&2; exit 1 ;;
 esac
