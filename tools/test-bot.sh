@@ -19,13 +19,18 @@ txt=""; for a in "$@"; do case "$a" in text@*) txt="$txt $(cat "${a#text@}" 2>/d
 printf 'METHOD %s TEXT %s STDIN %s\n' "$m" "$txt" "$(printf '%s' "$in" | tr '\n' ' ')" >> "$T/calls"
 if [ "$m" = getUpdates ]; then
 	if [ -s "$T/updates" ] && ! printf '%s' "$*" | grep -q 'offset=-1'; then cat "$T/updates"; : > "$T/updates"; else echo '{"ok":true,"result":[]}'; fi
-else echo '{"ok":true,"result":{}}'; fi
+elif [ "$m" = sendMessage ]; then
+	n=$(( $(cat "$T/mid" 2>/dev/null || echo 100) + 1 )); echo $n > "$T/mid"; printf '{"ok":true,"result":{"message_id":%s,"chat":{"id":1}}}' "$n"
+else
+	case "$m" in deleteMessages|editMessageText) printf '%s %s\n' "$m" "$*" | sed 's/^deleteMessages/DEL/;s/^editMessageText/EDIT/' >> "$T/calls" ;; esac
+	echo '{"ok":true,"result":{}}'
+fi
 SH
 chmod +x "$T/curl"
 export T
 
-conf() {  # conf CHAT USERS [PROXY]
-	printf 'TG=1\nTG_TOKEN=123456:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nTG_CHAT=%s\nTG_USERS=%s\nTG_PROXY=%s\n' "$1" "$2" "$3" > "$T/conf"
+conf() {  # conf CHAT USERS [PROXY] [TG_CLEAN]
+	printf 'TG=1\nTG_TOKEN=123456:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nTG_CHAT=%s\nTG_USERS=%s\nTG_PROXY=%s\nTG_CLEAN=%s\n' "$1" "$2" "$3" "${4:-1}" > "$T/conf"
 }
 upd() {  # upd ЧАТ ОТПРАВИТЕЛЬ ТЕКСТ | upd cb ЧАТ ОТПРАВИТЕЛЬ ДАННЫЕ
 	if [ "$1" = cb ]; then
@@ -35,9 +40,16 @@ upd() {  # upd ЧАТ ОТПРАВИТЕЛЬ ТЕКСТ | upd cb ЧАТ ОТПР
 	fi
 }
 runbot() {
-	: > "$T/calls"; rm -f "$T/rebooted"
-	NF_CONF="$T/conf" NF_DIR="$T" NF_CURL="$T/curl" NF_NOSLEEP=1 NF_ONCE=1 NF_NOTIFY="$L/nightfall-notify" NF_REBOOT="touch $T/rebooted" NF_PROC="$T/proc" NF_LEASES="$T/leases" sh "$L/nightfall-bot" >/dev/null 2>&1
+	: > "$T/calls"; rm -f "$T/rebooted" "$T/wifi.done" "$T/speed.started" "$T/guest.calls"
+	NF_CONF="$T/conf" NF_DIR="$T" NF_CURL="$T/curl" NF_NOSLEEP=1 NF_ONCE=1 NF_NOTIFY="$L/nightfall-notify" NF_REBOOT="touch $T/rebooted" NF_PROC="$T/proc" NF_LEASES="$T/leases" \
+		NF_SPEEDBIN="$T/speedbin" NF_GUESTBIN="$T/guestbin" NF_WIFI="$T/wifibin" NF_INITD="$T/initd" sh "$L/nightfall-bot" >/dev/null 2>&1
 }
+# заглушки: замер скорости, гостевая сеть, wifi и init-скрипты
+printf '#!/bin/sh\ntouch "$T/speed.started"\n' > "$T/speedbin"
+printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "$T/guest.calls"\ncase "$1" in cands) printf "wifinet1|Guest|0|\\nwifinet2|Kids WiFi|1|1900000000\\n" ;; *) echo "{\\"ok\\":true}" ;; esac\n' > "$T/guestbin"
+printf '#!/bin/sh\ntouch "$T/wifi.done"\n' > "$T/wifibin"
+mkdir -p "$T/initd"; printf '#!/bin/sh\ntouch "$T/dns.done"\n' > "$T/initd/dnsmasq"
+chmod +x "$T/speedbin" "$T/guestbin" "$T/wifibin" "$T/initd/dnsmasq"
 mkdir -p "$T/proc/sys/kernel"; echo 100 > "$T/proc/uptime"; echo "0.1 0.1 0.1" > "$T/proc/loadavg"; echo testrouter > "$T/proc/sys/kernel/hostname"
 printf 'MemTotal: 1000 kB\nMemAvailable: 500 kB\n' > "$T/proc/meminfo"
 
@@ -82,5 +94,99 @@ r=$(NF_CONF="$T/c3" NF_DEF="$T/c2" NF_NORESTART=1 sh "$L/nightfall-config" set T
 case "$r" in *'"ok":true'*) ok "TG_USERS: верное значение принято" ;; *) bad "TG_USERS: верное значение отклонено: $r" ;; esac
 r=$(NF_CONF="$T/c3" NF_DEF="$T/c2" NF_NORESTART=1 sh "$L/nightfall-config" set 'TG_USERS=12;reboot')
 case "$r" in *'"ok":false'*) ok "TG_USERS: мусор отклонён" ;; *) bad "TG_USERS: мусор принят: $r" ;; esac
+
+# 6. очистка чата: ответ внизу, команда и старые ответы удаляются
+conf 111 ""; rm -f "$T/mid"; printf '41\n42\n' > "$T/bot.msgs"; upd 111 111 "/status"; runbot; sleep 1
+grep -E '^DEL .*message_ids=\[(5,41,42|41,42,5|5,42,41)\]|^DEL .*message_ids=\[[0-9,]*\]' "$T/calls" | grep -q '41' && grep '^DEL' "$T/calls" | grep -q '5,41,42' && ok "очистка: команда и старые ответы удалены" || bad "очистка: удаление не сработало: $(grep DEL "$T/calls")"
+[ "$(cat "$T/bot.msgs")" = "101" ] && ok "очистка: в списке остался только новый ответ" || bad "очистка: список сообщений: $(tr '\n' ' ' < "$T/bot.msgs")"
+conf 111 "" "" 0; rm -f "$T/mid"; printf '41\n' > "$T/bot.msgs"; upd 111 111 "/status"; runbot; sleep 1
+grep -q '^DEL' "$T/calls" && bad "TG_CLEAN=0: сообщения удалены" || ok "TG_CLEAN=0: ничего не удаляется"
+conf -100500 111; rm -f "$T/mid"; : > "$T/bot.msgs"; upd -100500 111 "/status"; runbot; sleep 1
+grep -q '^DEL' "$T/calls" && bad "группа: сообщения удалены автоматически" || ok "группа: автоматическая очистка выключена"
+# нажатие на последнем ответе правит его на месте, на старом приходит новое сообщение внизу
+conf 111 ""; printf '41\n42\n' > "$T/bot.msgs"; upd cb 111 111 "status"; sed -i 's/"message_id":5/"message_id":42/' "$T/updates"; runbot; sleep 1
+grep -q '^EDIT' "$T/calls" && ! grep -q '^DEL' "$T/calls" && ok "кнопка на последнем ответе: правка на месте" || bad "кнопка на последнем ответе: $(cat "$T/calls" | cut -c1-80)"
+conf 111 ""; rm -f "$T/mid"; printf '41\n42\n' > "$T/bot.msgs"; upd cb 111 111 "status"; sed -i 's/"message_id":5/"message_id":41/' "$T/updates"; runbot; sleep 1
+grep -q 'METHOD sendMessage' "$T/calls" && grep '^DEL' "$T/calls" | grep -q '41' && ok "кнопка на старом ответе: новое сообщение внизу, старые удалены" || bad "кнопка на старом ответе: $(cat "$T/calls" | cut -c1-80)"
+# кнопка на уведомлении (его бот не отслеживает) правит его на месте и ничего не удаляет
+conf 111 ""; printf '41\n' > "$T/bot.msgs"; upd cb 111 111 "status"; runbot; sleep 1
+grep -q '^EDIT' "$T/calls" && ! grep -q '^DEL' "$T/calls" && ok "кнопка на уведомлении: правка на месте, ничего не удаляется" || bad "кнопка на уведомлении"
+# «Очистить чат»
+conf 111 ""; rm -f "$T/mid"; printf '41\n42\n' > "$T/bot.msgs"; upd cb 111 111 "cl"; sed -i 's/"message_id":5/"message_id":42/' "$T/updates"; runbot; sleep 1
+grep '^DEL' "$T/calls" | grep -q '41' && grep -q 'Чат очищен' "$T/calls" && ok "«Очистить чат»: удалены все сообщения бота" || bad "«Очистить чат»: $(cat "$T/calls" | cut -c1-80)"
+conf -100500 111; upd -100500 222 "/clear"; runbot; sleep 1
+grep -q '^DEL' "$T/calls" && bad "группа: посторонний очистил чат" || ok "группа: посторонний не очищает чат"
+
+# 7. замер скорости по кнопке
+conf 111 ""; printf '1700000000 94.20 25000000 12.0 0 ok\n' > "$T/speed.log"; upd cb 111 111 "sp:run"; runbot; sleep 3
+[ -e "$T/speed.started" ] && ok "скорость: замер запущен" || bad "скорость: замер не запущен"
+grep -q 'Замеряю скорость' "$T/calls" && grep -q 'Последний замер скорости' "$T/calls" && ok "скорость: результат показан в том же сообщении" || bad "скорость: нет результата"
+grep -q 'sp:run' "$T/calls" || true
+conf -100500 111; upd -100500 222 "/speed"; runbot
+[ -e "$T/speed.started" ] && bad "скорость: просмотр запустил замер" || ok "скорость: просмотр не запускает замер"
+conf -100500 111; upd cb -100500 222 "sp:run"; runbot; sleep 1
+[ -e "$T/speed.started" ] && bad "скорость: посторонний в группе запустил замер" || ok "скорость: посторонний не запускает замер"
+
+# 8. гостевой Wi-Fi
+conf 111 ""; upd 111 111 "/guest"; runbot
+grep -q 'Guest' "$T/calls" && grep -q 'Kids WiFi: включена до' "$T/calls" && ok "гостевой Wi-Fi: список сетей" || bad "гостевой Wi-Fi: список: $(cat "$T/calls" | cut -c1-120)"
+conf 111 ""; upd cb 111 111 "gs:on:wifinet1:60"; runbot
+grep -qx 'on wifinet1 60' "$T/guest.calls" && ok "гостевой Wi-Fi: включение на час" || bad "гостевой Wi-Fi: включение: $(cat "$T/guest.calls" 2>/dev/null)"
+conf 111 ""; upd cb 111 111 "gs:off:wifinet2"; runbot
+grep -qx 'off wifinet2' "$T/guest.calls" && ok "гостевой Wi-Fi: выключение" || bad "гостевой Wi-Fi: выключение"
+conf 111 ""; upd cb 111 111 "gs:on:wifinet1:abc"; runbot
+grep -q '^on' "$T/guest.calls" 2>/dev/null && bad "гостевой Wi-Fi: принято неверное время" || ok "гостевой Wi-Fi: неверное время отклонено"
+conf -100500 111; upd cb -100500 222 "gs:on:wifinet1:60"; runbot
+[ -s "$T/guest.calls" ] && bad "гостевой Wi-Fi: посторонний в группе включил сеть" || ok "гостевой Wi-Fi: посторонний не управляет"
+
+# 9. перезапуск служб
+conf 111 ""; upd cb 111 111 "rs:wifi"; runbot
+grep -q 'Подтвердите в течение минуты' "$T/calls" && grep -q 'Перезапустить: Wi-Fi' "$T/calls" && ok "службы: просьба подтверждения" || bad "службы: нет подтверждения"
+[ -e "$T/wifi.done" ] && bad "службы: перезапуск без подтверждения"
+conf 111 ""; echo "wifi $(date +%s)" > "$T/restart.ask"; upd cb 111 111 "rs:y:wifi"; runbot; sleep 3
+[ -e "$T/wifi.done" ] && ok "службы: Wi-Fi перезапущен после подтверждения" || bad "службы: Wi-Fi не перезапущен"
+[ -e "$T/restart.ask" ] && bad "службы: подтверждение не одноразовое" || ok "службы: подтверждение одноразовое"
+conf 111 ""; echo "dns $(date +%s)" > "$T/restart.ask"; upd cb 111 111 "rs:y:wifi"; runbot; sleep 3
+[ -e "$T/wifi.done" ] && bad "службы: подтверждение чужой службы сработало" || ok "службы: подтверждение привязано к службе"
+conf 111 ""; echo "dns $(( $(date +%s) - 120 ))" > "$T/restart.ask"; upd cb 111 111 "rs:y:dns"; runbot; sleep 3
+[ -e "$T/dns.done" ] && bad "службы: устаревшее подтверждение сработало" || ok "службы: устаревшее подтверждение отклонено"
+conf 111 ""; rm -f "$T/restart.ask"; upd cb 111 111 "rs:y:dns"; runbot; sleep 3
+[ -e "$T/dns.done" ] && bad "службы: сработало без запроса" || ok "службы: без запроса не срабатывает"
+conf -100500 111; echo "wifi $(date +%s)" > "$T/restart.ask"; upd cb -100500 222 "rs:y:wifi"; runbot; sleep 3
+[ -e "$T/wifi.done" ] && bad "службы: посторонний в группе перезапустил Wi-Fi" || ok "службы: посторонний не перезапускает"
+
+# 10. список сетей для бота из настроек Wi-Fi (uci)
+cat > "$T/uci" <<'SH'
+#!/bin/sh
+cat <<'EOF'
+wireless.wifinet0=wifi-iface
+wireless.wifinet0.mode='ap'
+wireless.wifinet0.ssid='Home'
+wireless.wifinet0.network='lan'
+wireless.wifinet1=wifi-iface
+wireless.wifinet1.mode='ap'
+wireless.wifinet1.ssid='Guest "Net"'
+wireless.wifinet1.network='guest'
+wireless.wifinet1.disabled='1'
+wireless.wifinet2=wifi-iface
+wireless.wifinet2.mode='ap'
+wireless.wifinet2.ssid='Гости'
+wireless.wifinet2.network='lan'
+wireless.wifinet3=wifi-iface
+wireless.wifinet3.mode='sta'
+wireless.wifinet3.ssid='Uplink'
+wireless.wifinet3.disabled='1'
+wireless.@wifi-iface[4]=wifi-iface
+wireless.@wifi-iface[4].mode='ap'
+wireless.@wifi-iface[4].ssid='Spare'
+wireless.@wifi-iface[4].disabled='1'
+EOF
+SH
+chmod +x "$T/uci"; echo 'wifinet2|1900000000' > "$T/guest.list"
+c=$(NF_UCI="$T/uci" NF_GUESTF="$T/guest.list" sh "$L/nightfall-guest" cands)
+[ "$(printf '%s\n' "$c" | wc -l)" = 3 ] && ok "cands: найдено три сети (выключенная, с «гост» в названии и без привязки)" || bad "cands: $(printf '%s' "$c" | tr '\n' ';')"
+printf '%s\n' "$c" | grep -qx 'wifinet1|Guest Net|0|' && ok "cands: кавычки в имени сети убраны" || bad "cands: имя сети"
+printf '%s\n' "$c" | grep -qx 'wifinet2|Гости|1|1900000000' && ok "cands: включённая сеть с временем выключения" || bad "cands: включённая сеть"
+printf '%s\n' "$c" | grep -q 'Home\|Uplink' && bad "cands: попали обычная сеть или клиент" || ok "cands: обычная сеть и клиент не попали"
 
 [ $fail = 0 ] && echo "ВСЁ В ПОРЯДКЕ" || { echo "ЕСТЬ ОШИБКИ"; exit 1; }
