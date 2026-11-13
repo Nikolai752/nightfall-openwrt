@@ -1,0 +1,61 @@
+<style>
+body{margin:0;padding:12px 12px 10px;font:14px/1.3 system-ui,sans-serif;color:var(--tg-theme-text-color)}
+.h{display:flex;align-items:center;gap:7px;margin-bottom:10px}
+.h b{flex:1;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.d{width:9px;height:9px;border-radius:5px;background:#8e8e93}
+.d.o{background:#34c759}.d.x{background:#ff453a}
+.s{font-size:12px;color:var(--tg-theme-hint-color)}
+.r{display:flex;justify-content:space-between;margin-bottom:10px}
+.k{width:30%;text-align:center}
+.k svg{width:100%;height:auto;display:block}
+.k i{display:block;font-style:normal;font-size:12px;color:var(--tg-theme-hint-color)}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.t{padding:7px 10px;border-radius:10px;background:rgba(127,127,127,.15)}
+.t i{display:block;font-style:normal;font-size:11px;color:var(--tg-theme-hint-color)}
+.t b{font-size:17px}
+.f{margin-top:8px;text-align:center}
+.q{opacity:.55}
+</style>
+<div id=a>
+<div class=h><span class=d id=d></span><b id=hn>…</b><span class=s id=pg></span></div>
+<div class=r>
+<div class=k><svg viewBox="0 0 72 72"><circle cx=36 cy=36 r=30 fill=none stroke="rgba(127,127,127,.25)" stroke-width=7 /><circle id=c cx=36 cy=36 r=30 fill=none stroke-width=7 stroke-linecap=round stroke-dasharray="0 189" transform="rotate(-90 36 36)" /><text id=cv x=36 y=42 text-anchor=middle font-size=18 font-weight=700 fill="currentColor">–</text></svg><i>Процессор</i></div>
+<div class=k><svg viewBox="0 0 72 72"><circle cx=36 cy=36 r=30 fill=none stroke="rgba(127,127,127,.25)" stroke-width=7 /><circle id=m cx=36 cy=36 r=30 fill=none stroke-width=7 stroke-linecap=round stroke-dasharray="0 189" transform="rotate(-90 36 36)" /><text id=mv x=36 y=42 text-anchor=middle font-size=18 font-weight=700 fill="currentColor">–</text></svg><i>Память</i></div>
+<div class=k><svg viewBox="0 0 72 72"><circle cx=36 cy=36 r=30 fill=none stroke="rgba(127,127,127,.25)" stroke-width=7 /><circle id=r cx=36 cy=36 r=30 fill=none stroke-width=7 stroke-linecap=round stroke-dasharray="0 189" transform="rotate(-90 36 36)" /><text id=rv x=36 y=42 text-anchor=middle font-size=18 font-weight=700 fill="currentColor">–</text></svg><i>ПЗУ</i></div>
+</div>
+<div class=g>
+<div class=t><i>Температура</i><b id=t>–</b></div>
+<div class=t><i>Пинг</i><b id=p>–</b></div>
+<div class=t><i>Загрузка ↓</i><b id=dn>–</b></div>
+<div class=t><i>Отдача ↑</i><b id=u>–</b></div>
+</div>
+<div class="f s" id=f>&nbsp;</div>
+</div>
+<script>
+var T=window.TelegramWidget,C=188.5,$=function(i){return document.getElementById(i)};
+function col(v){return v<70?'#34c759':v<90?'#ff9f0a':'#ff453a'}
+function ring(i,v){v=Math.max(0,Math.min(100,+v||0));var e=$(i);e.setAttribute('stroke-dasharray',(v*C/100)+' '+C);e.setAttribute('stroke',col(v));$(i+'v').textContent=Math.round(v)+'%'}
+function z(n){return n<10?'0'+n:''+n}
+function up(s){var d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?d+' д '+h+' ч':h?h+' ч '+m+' мин':m+' мин'}
+function draw(d){
+if(!d)return;
+$('hn').textContent=d.h;
+ring('c',d.c);ring('m',d.m);ring('r',d.r);
+$('t').textContent=d.t<0?'н/д':Math.round(d.t)+' °C';
+$('t').style.color=d.t>=85?'#ff453a':d.t>=75?'#ff9f0a':'';
+$('p').textContent=d.p<0?'нет':Math.round(d.p)+' мс';
+$('d').className='d '+(d.p<0?'x':'o');
+$('dn').textContent=d.d.toFixed(1)+' Мбит/с';
+$('u').textContent=d.u.toFixed(1)+' Мбит/с';
+var n=new Date();
+$('f').textContent='Работает '+up(d.w)+' · '+z(n.getHours())+':'+z(n.getMinutes());
+$('a').className=''}
+function go(){T.request('s').then(function(a){draw(JSON.parse(a.result))},function(e){if(e.code!=='BUSY'&&e.code!=='RATE_LIMITED')$('a').className='q'})}
+if(T){
+try{draw(JSON.parse(T.chatData))}catch(e){}
+go();
+setInterval(function(){if(T.isActive)go()},6000);
+T.onEvent('activated',go);
+document.addEventListener('click',go);
+if(T.ready)T.ready()}
+</script>

@@ -16,6 +16,7 @@ SPEEDBIN=${NF_SPEEDBIN:-/usr/libexec/nightfall-speed}
 GUEST=${NF_GUESTBIN:-/usr/libexec/nightfall-guest}
 WIFI=${NF_WIFI:-wifi}
 INITD=${NF_INITD:-/etc/init.d}
+WDIR=${NF_WIDGETS:-/usr/share/nightfall/widgets}   # HTML-шаблоны виджетов
 DF=${NF_DF:-df}
 REBOOT=${NF_REBOOT:-reboot}
 DATE_NOW=${NF_DATE_NOW:-}
@@ -60,7 +61,7 @@ names() {   # печатает «ip имя» из аренд DHCP (для под
 	[ -r "$LEASES" ] && awk '{ print $3, ($4 == "*" ? "" : $4) }' "$LEASES"
 }
 
-cmd_status() {
+status_build() {   # собирает текст «Статуса» в $STXT
 	up=$(awk '{ print int($1) }' "$PROC/uptime" 2>/dev/null)
 	ld=$(awk '{ print $1 " " $2 " " $3 }' "$PROC/loadavg" 2>/dev/null)
 	mem=$(awk '/^MemTotal:/ { t = $2 } /^MemAvailable:/ { a = $2 } END { if (t) printf "%d%% занято из %d МБ", 100 * (t - a) / t, t / 1024 }' "$PROC/meminfo" 2>/dev/null)
@@ -77,7 +78,7 @@ cmd_status() {
 		NR == 2 && $2 > 0 { printf "%d%% занято, %s из %s (свободно %s)", 100 * $3 / $2, sz($3), sz($2), sz($2 - $3) }')
 	[ -n "$rom" ] || rom="нет данных"
 	rate=$(awk -v rx="${5:-0}" -v tx="${6:-0}" 'BEGIN { printf "↓ %.1f Мбит/с, ↑ %.1f Мбит/с", rx * 8 / 1e6, tx * 8 / 1e6 }')
-	reply "📊 $HOST
+	STXT="📊 $HOST
 Интернет: $net
 Скорость сейчас: $rate
 Процессор: ${2:-?}%   Температура: $t
@@ -85,6 +86,39 @@ cmd_status() {
 ПЗУ: $rom
 Нагрузка: $ld
 Работает: $(dur "${up:-0}")"
+}
+
+# те же данные числами, для виджета: {"h":имя,"c":процессор %,"m":память %,"r":ПЗУ %,"t":°C или -1,"p":пинг мс или -1,"d":↓ Мбит/с,"u":↑ Мбит/с,"w":секунд работы}
+status_json() {
+	hn=$(printf '%s' "$HOST" | tr -d '"\\' | cut -c1-24)
+	set -- $(tail -n 1 "$DIR/hist.fine" 2>/dev/null)
+	fp=/; [ -d /overlay ] && fp=/overlay
+	{ cat "$PROC/meminfo" 2>/dev/null; echo "@@"; $DF -kP "$fp" 2>/dev/null | sed 's/^/D /'; } | awk -v h="$hn" -v cpu="${2:-0}" -v t="${4:-}" -v p="${8:-}" -v rx="${5:-0}" -v tx="${6:-0}" -v w="$(awk '{ print int($1) }' "$PROC/uptime" 2>/dev/null)" '
+		/^MemTotal:/ { mt = $2 } /^MemAvailable:/ { ma = $2 }
+		/^D / && !/Filesystem/ && $3 > 0 { rt = $3; ru = $4 }
+		END {
+			if (cpu !~ /^[0-9.]+$/) cpu = 0
+			m = mt ? 100 * (mt - ma) / mt : 0; r = rt ? 100 * ru / rt : 0
+			tt = (t ~ /^[0-9]+(\.[0-9]+)?$/) ? t : -1; pp = (p ~ /^[0-9]+(\.[0-9]+)?$/) ? p : -1
+			printf "{\"h\":\"%s\",\"c\":%.0f,\"m\":%.0f,\"r\":%.0f,\"t\":%.1f,\"p\":%.0f,\"d\":%.1f,\"u\":%.1f,\"w\":%d}", h, cpu, m, r, tt, pp, rx * 8 / 1e6, tx * 8 / 1e6, w
+		}'
+}
+# виджеты работают только в личном чате и если включены в настройках
+widgets_on() { [ "$(cfg TG_WIDGETS)" = 1 ] && case "$CHAT" in -*) false ;; *) true ;; esac; }
+# send_widget ФАЙЛ ПОДПИСЬ ДАННЫЕ КНОПКИ: 0, если виджет отправлен (тогда нажатое сообщение с кнопкой убираем: виджет в него правкой не вписать)
+send_widget() {
+	[ -r "$1" ] || return 1
+	r=$("$NOTIFY" widget "$1" "$2" "$3" "$4" 2>/dev/null) || return 1
+	LASTID=$(printf '%s' "$r" | sed -n 's/.*"message_id":\([0-9][0-9]*\).*/\1/p' | head -n 1)
+	[ -n "$LASTID" ] || return 1
+	track "$LASTID"; echo "$LASTID" >> "$DIR/bot.widgets"; tail -n 30 "$DIR/bot.widgets" > "$DIR/bot.widgets.t" && mv "$DIR/bot.widgets.t" "$DIR/bot.widgets"
+	[ -z "$MID" ] || purge "$MID"
+	return 0
+}
+cmd_status() {
+	status_build
+	if widgets_on && send_widget "$WDIR/status.html" "$STXT" "$(status_json)" "$KB_BACK"; then return; fi
+	reply "$STXT"
 }
 
 cmd_clients() {
@@ -440,7 +474,7 @@ handle() {  # handle ТЕКСТ
 	esac
 }
 
-# разбор ответа getUpdates: строки «update_id|chat_id|id_отправителя|id_нажатия|данные_кнопки|id_сообщения|текст»
+# разбор ответа getUpdates: строки «update_id|chat_id|id_отправителя|id_нажатия|данные_кнопки|id_сообщения|id_запроса_виджета|текст»
 parse() {
 	tr '\n' ' ' | sed 's/{"update_id":/\n&/g' | awk '
 		/^\{"update_id":/ {
@@ -453,9 +487,15 @@ parse() {
 				if (match($0, /"data":"[^"]*"/)) dt = substr($0, RSTART + 8, RLENGTH - 9)
 			}
 			if (match($0, /"message":\{"message_id":[0-9]+/)) mid = substr($0, RSTART + 24, RLENGTH - 24)
+			wq = ""
+			if (match($0, /"widget_query":\{"id":"[^"]*"/)) {   # запрос из виджета: id, данные и сообщение
+				wq = substr($0, RSTART + 22, RLENGTH - 23)
+				if (match($0, /"data":"[^"]*"/)) dt = substr($0, RSTART + 8, RLENGTH - 9)
+				if (match($0, /"message_id":[0-9]+/)) mid = substr($0, RSTART + 13, RLENGTH - 13)
+			}
 			txt = ""
-			if (cb == "" && match($0, /"text":"[^"]*"/)) txt = substr($0, RSTART + 8, RLENGTH - 9)
-			print id "|" chat "|" frm "|" cb "|" dt "|" mid "|" txt
+			if (cb == "" && wq == "" && match($0, /"text":"[^"]*"/)) txt = substr($0, RSTART + 8, RLENGTH - 9)
+			print id "|" chat "|" frm "|" cb "|" dt "|" mid "|" wq "|" txt
 		}'
 }
 
@@ -475,16 +515,21 @@ last=$(printf '%s' "$r" | parse | tail -n 1 | cut -d'|' -f1)
 
 fails=0
 while :; do
-	r=$(NF_TMO=45 "$NOTIFY" raw getUpdates -d "offset=$off" -d timeout=30 -d 'allowed_updates=["message","callback_query"]' 2>/dev/null)
+	r=$(NF_TMO=45 "$NOTIFY" raw getUpdates -d "offset=$off" -d timeout=30 -d 'allowed_updates=["message","callback_query","widget_query"]' 2>/dev/null)
 	case "$r" in
 	*'"ok":true'*)
 		fails=0
 		printf '%s' "$r" | parse > "$DIR/bot.upd"
-		while IFS='|' read -r id chat frm cb dt mid txt; do
+		while IFS='|' read -r id chat frm cb dt mid wq txt; do
 			[ -n "$id" ] || continue
 			off=$((id + 1))
 			[ "$chat" = "$CHAT" ] || continue          # чужим не отвечаем
 			FROM=$frm; ADM=0; is_admin "$frm" && ADM=1
+			if [ -n "$wq" ]; then   # запрос из виджета: ответить надо в течение 15 секунд, состояние хранит бот
+				case "$dt" in s) ans=$(status_json) ;; *) ans="" ;; esac
+				"$NOTIFY" raw answerWidgetQuery -d "widget_query_id=$wq" --data-urlencode "data=$ans" >/dev/null 2>&1
+				continue
+			fi
 			# «убирать за собой»: в личном чате в чате остаётся один свежий ответ внизу (в группе чужие сообщения не трогаем)
 			CLEAN=1; [ "$(cfg TG_CLEAN)" = 0 ] && CLEAN=0; case "$CHAT" in -*) CLEAN=0 ;; esac
 			OLD=""
@@ -492,7 +537,8 @@ while :; do
 				"$NOTIFY" raw answerCallbackQuery -d "callback_query_id=$cb" >/dev/null 2>&1 &   # подтверждение нажатия в фоне, чтобы не задерживать ответ
 				MID=$mid; UMID=""
 				# кнопку нажали на старом ответе, который уже не внизу: присылаем новый, старый удаляем
-				if [ "$CLEAN" = 1 ] && grep -qx "$mid" "$MSGS" 2>/dev/null && [ "$(tail -n 1 "$MSGS")" != "$mid" ]; then OLD=$(cat "$MSGS"); : > "$MSGS"; MID=""; fi
+				if grep -qx "$mid" "$DIR/bot.widgets" 2>/dev/null; then OLD="$mid"; MID=""   # кнопка под виджетом: его правкой не заменить, присылаем новое сообщение
+				elif [ "$CLEAN" = 1 ] && grep -qx "$mid" "$MSGS" 2>/dev/null && [ "$(tail -n 1 "$MSGS")" != "$mid" ]; then OLD=$(cat "$MSGS"); : > "$MSGS"; MID=""; fi
 				run "$dt"; MID=""
 			else
 				UMID=$mid; [ -z "$UMID" ] || track "$UMID"

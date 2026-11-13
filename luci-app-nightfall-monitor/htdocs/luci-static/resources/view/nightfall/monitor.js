@@ -929,7 +929,7 @@ return view.extend({
 			[ 'PERSIST_HOURS', 'Сохранять историю на накопитель', 'ч' ], [ 'HIST_DAYS', 'Длинная история (шаг 30 мин), суток 7–90', 'сут' ], [ 'PERSIST_ANY', 'Разрешить сохранение на встроенный накопитель (0/1)', '' ], [ 'JOURNAL', 'Журнал обрывов и перезагрузок (0/1)', '' ], [ 'WIFI_HIST', 'История сигнала Wi-Fi (0/1)', '' ],
 			[ 'SPEED_URL', 'Файл для замера скорости', '', 'text' ], [ 'SPEED_STREAMS', 'Потоков при замере скорости (1–8)', '' ],
 			[ 'NEWDEV', 'Сообщать о новых устройствах (0/1)', '' ],
-			[ 'TG', 'Отправлять уведомления в Telegram (0/1)', '' ], [ 'TG_ALERTS', 'Слать предупреждения и перезагрузки (0/1)', '' ], [ 'TG_BOT', 'Бот с кнопками: меню, блокировка, перезагрузка (0/1)', '' ], [ 'TG_CLEAN', 'Бот убирает за собой: ответ всегда внизу, команды удаляются (0/1)', '' ], [ 'TG_REPORT', 'Ежедневный отчёт в Telegram, время', '', 'text', 'например 21:00, пусто = выкл' ],
+			[ 'TG', 'Отправлять уведомления в Telegram (0/1)', '' ], [ 'TG_ALERTS', 'Слать предупреждения и перезагрузки (0/1)', '' ], [ 'TG_BOT', 'Бот с кнопками: меню, блокировка, перезагрузка (0/1)', '' ], [ 'TG_CLEAN', 'Бот убирает за собой: ответ всегда внизу, команды удаляются (0/1)', '' ], [ 'TG_WIDGETS', 'Живые виджеты в боте: «Статус» с кольцами, только личный чат (0/1)', '' ], [ 'TG_REPORT', 'Ежедневный отчёт в Telegram, время', '', 'text', 'например 21:00, пусто = выкл' ],
 			[ 'TG_TOKEN', 'Токен бота (от @BotFather)', '', 'password', 'не задан' ], [ 'TG_CHAT', 'Chat id', '', 'text', 'число, определяется кнопкой' ],
 			[ 'TG_USERS', 'Кому управлять ботом в группе (id через запятую)', '', 'text', 'нужно, только если chat id группы' ],
 			[ 'TG_PROXY', 'Прокси для Telegram (если он закрыт)', '', 'text', 'например socks5h://127.0.0.1:1080' ],
@@ -1004,7 +1004,7 @@ return view.extend({
 				[ 'Хранение истории', [ 'PERSIST_DIR', 'PERSIST_HOURS', 'HIST_DAYS', 'PERSIST_ANY', 'JOURNAL', 'WIFI_HIST' ] ],
 				[ 'Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ] ],
 				[ 'Новые устройства', [ 'NEWDEV' ] ],
-				[ 'Уведомления в Telegram', [ 'TG', 'TG_ALERTS', 'TG_BOT', 'TG_CLEAN', 'TG_REPORT', 'TG_TOKEN', 'TG_CHAT', 'TG_USERS', 'TG_PROXY', 'TG_IFACE' ], tgTools ]
+				[ 'Уведомления в Telegram', [ 'TG', 'TG_ALERTS', 'TG_BOT', 'TG_CLEAN', 'TG_WIDGETS', 'TG_REPORT', 'TG_TOKEN', 'TG_CHAT', 'TG_USERS', 'TG_PROXY', 'TG_IFACE' ], tgTools ]
 			].map(([ title, keys, extra ]) => E('section', { class: 'nfm-cfg-g' }, [ E('h4', {}, title),
 				E('div', { class: 'nfm-cfg' }, keys.map(k => CFG_FIELDS.find(f => f[0] === k)).filter(Boolean).map(([ k, l, u, type, ph ]) => E('label', { class: 'nfm-cfg-i' }, [ l,
 					E('span', { class: 'nfm-cfg-f' }, [ cfgInputs[k] = E('input', { class: 'nfm-in', type: type || 'number', placeholder: ph || '' }), u ? E('em', {}, u) : '' ]) ]))),

@@ -15,22 +15,24 @@ cat > "$T/curl" <<'SH'
 in=$(cat)
 m=$(printf '%s' "$in" | sed -n 's|.*api.telegram.org/bot[^/]*/\([A-Za-z]*\).*|\1|p')
 printf '%s\n' "$*" >> "$T/args"
-txt=""; for a in "$@"; do case "$a" in text@*) txt="$txt $(cat "${a#text@}" 2>/dev/null | tr '\n' ' ')" ;; esac; done
+txt=""; for a in "$@"; do case "$a" in text@*|caption@*|chat_data@*) txt="$txt [${a%%@*}] $(cat "${a#*@}" 2>/dev/null | tr '\n' ' ')" ;; allow_queries=*|reply_markup=*) txt="$txt [$a]" ;; esac; done
 printf 'METHOD %s TEXT %s STDIN %s\n' "$m" "$txt" "$(printf '%s' "$in" | tr '\n' ' ')" >> "$T/calls"
 if [ "$m" = getUpdates ]; then
 	if [ -s "$T/updates" ] && ! printf '%s' "$*" | grep -q 'offset=-1'; then cat "$T/updates"; : > "$T/updates"; else echo '{"ok":true,"result":[]}'; fi
-elif [ "$m" = sendMessage ]; then
+elif [ "$m" = sendMessage ] || { [ "$m" = sendWidget ] && [ ! -e "$T/widget.fail" ]; }; then
 	n=$(( $(cat "$T/mid" 2>/dev/null || echo 100) + 1 )); echo $n > "$T/mid"; printf '{"ok":true,"result":{"message_id":%s,"chat":{"id":1}}}' "$n"
+elif [ "$m" = sendWidget ]; then
+	echo '{"ok":false,"error_code":400,"description":"Bad Request: widgets are not supported"}'
 else
-	case "$m" in deleteMessages|editMessageText) printf '%s %s\n' "$m" "$*" | sed 's/^deleteMessages/DEL/;s/^editMessageText/EDIT/' >> "$T/calls" ;; esac
+	case "$m" in deleteMessages|editMessageText|answerWidgetQuery) printf '%s %s\n' "$m" "$*" | sed 's/^deleteMessages/DEL/;s/^editMessageText/EDIT/;s/^answerWidgetQuery/ANS/' >> "$T/calls" ;; esac
 	echo '{"ok":true,"result":{}}'
 fi
 SH
 chmod +x "$T/curl"
 export T
 
-conf() {  # conf CHAT USERS [PROXY] [TG_CLEAN]
-	printf 'TG=1\nTG_TOKEN=123456:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nTG_CHAT=%s\nTG_USERS=%s\nTG_PROXY=%s\nTG_CLEAN=%s\n' "$1" "$2" "$3" "${4:-1}" > "$T/conf"
+conf() {  # conf CHAT USERS [PROXY] [TG_CLEAN] [TG_WIDGETS]
+	printf 'TG=1\nTG_TOKEN=123456:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nTG_CHAT=%s\nTG_USERS=%s\nTG_PROXY=%s\nTG_CLEAN=%s\nTG_WIDGETS=%s\n' "$1" "$2" "$3" "${4:-1}" "${5:-0}" > "$T/conf"
 }
 upd() {  # upd ЧАТ ОТПРАВИТЕЛЬ ТЕКСТ | upd cb ЧАТ ОТПРАВИТЕЛЬ ДАННЫЕ
 	if [ "$1" = cb ]; then
@@ -42,7 +44,7 @@ upd() {  # upd ЧАТ ОТПРАВИТЕЛЬ ТЕКСТ | upd cb ЧАТ ОТПР
 runbot() {
 	: > "$T/calls"; rm -f "$T/rebooted" "$T/wifi.done" "$T/speed.started" "$T/guest.calls"
 	NF_CONF="$T/conf" NF_DIR="$T" NF_CURL="$T/curl" NF_NOSLEEP=1 NF_ONCE=1 NF_NOTIFY="$L/nightfall-notify" NF_REBOOT="touch $T/rebooted" NF_PROC="$T/proc" NF_LEASES="$T/leases" \
-		NF_SPEEDBIN="$T/speedbin" NF_GUESTBIN="$T/guestbin" NF_WIFI="$T/wifibin" NF_INITD="$T/initd" sh "$L/nightfall-bot" >/dev/null 2>&1
+		NF_WIDGETS="${NF_W:-$T/widgets}" NF_SPEEDBIN="$T/speedbin" NF_GUESTBIN="$T/guestbin" NF_WIFI="$T/wifibin" NF_INITD="$T/initd" sh "$L/nightfall-bot" >/dev/null 2>&1
 }
 # заглушки: замер скорости, гостевая сеть, wifi и init-скрипты
 printf '#!/bin/sh\ntouch "$T/speed.started"\n' > "$T/speedbin"
@@ -154,6 +156,52 @@ conf 111 ""; rm -f "$T/restart.ask"; upd cb 111 111 "rs:y:dns"; runbot; sleep 3
 [ -e "$T/dns.done" ] && bad "службы: сработало без запроса" || ok "службы: без запроса не срабатывает"
 conf -100500 111; echo "wifi $(date +%s)" > "$T/restart.ask"; upd cb -100500 222 "rs:y:wifi"; runbot; sleep 3
 [ -e "$T/wifi.done" ] && bad "службы: посторонний в группе перезапустил Wi-Fi" || ok "службы: посторонний не перезапускает"
+
+# 11. виджет «Статус» (Bot API 10.4)
+mkdir -p "$T/widgets"; cp "$L/../share/nightfall/widgets/status.html" "$T/widgets/status.html"
+printf '1700000000 12 0 61.5 1250000 125000 0 12.3\n' > "$T/hist.fine"
+printf 'MemTotal: 1000 kB\nMemAvailable: 400 kB\n' > "$T/proc/meminfo"
+wq() {  # wq ЧАТ ДАННЫЕ
+	printf '{"ok":true,"result":[{"update_id":10,"widget_query":{"id":"wq77","from":{"id":111,"is_bot":false},"chat":{"id":%s,"type":"private"},"message_id":88,"data":"%s"}}]}' "$1" "$2" > "$T/updates"
+}
+conf 111 "" "" 1 0; rm -f "$T/mid"; upd 111 111 "/status"; runbot
+grep -q 'METHOD sendWidget' "$T/calls" && bad "виджет: отправлен при выключенной настройке" || ok "виджет: выключен по умолчанию, приходит обычный текст"
+conf 111 "" "" 1 1; rm -f "$T/mid" "$T/bot.widgets"; : > "$T/bot.msgs"; upd 111 111 "/status"; runbot
+grep -q 'METHOD sendWidget' "$T/calls" && ok "виджет: отправлен" || bad "виджет: не отправлен: $(cut -c1-80 "$T/calls")"
+grep 'METHOD sendWidget' "$T/calls" | grep -q 'allow_queries=true' && ok "виджет: разрешены запросы из виджета" || bad "виджет: нет allow_queries"
+grep 'METHOD sendWidget' "$T/calls" | grep -q '\[caption\] 📊 testrouter' && ok "виджет: подпись с текстом статуса для старых клиентов" || bad "виджет: нет подписи"
+cd=$(grep 'METHOD sendWidget' "$T/calls" | sed 's/.*\[chat_data\] \({[^}]*}\).*/\1/')
+printf '%s' "$cd" | python3 -I -c 'import sys,json; d=json.loads(sys.stdin.read()); assert d["h"]=="testrouter" and d["c"]==12 and d["m"]==60 and d["t"]==61.5 and d["p"]==12 and d["d"]==10.0 and d["u"]==1.0 and "r" in d and "w" in d' 2>/dev/null && ok "виджет: данные верные и это корректный JSON" || bad "виджет: данные: $cd"
+[ ${#cd} -lt 1024 ] && ok "виджет: данные меньше 1024 байт" || bad "виджет: данные слишком большие"
+[ "$(cat "$T/bot.widgets" 2>/dev/null)" = 101 ] && ok "виджет: сообщение запомнено" || bad "виджет: не запомнено: $(cat "$T/bot.widgets" 2>/dev/null)"
+conf 111 "" "" 1 1; rm -f "$T/mid"; upd cb 111 111 "status"; runbot; sleep 1
+grep -q 'METHOD sendWidget' "$T/calls" && grep '^DEL' "$T/calls" | grep -q 'message_ids=\[5\]' && ok "виджет: из меню присылается новый, сообщение с кнопкой убрано" || bad "виджет: из меню: $(cut -c1-90 "$T/calls")"
+touch "$T/widget.fail"; conf 111 "" "" 1 1; rm -f "$T/mid"; upd 111 111 "/status"; runbot
+grep -q 'METHOD sendMessage' "$T/calls" && grep 'METHOD sendMessage' "$T/calls" | grep -q '📊 testrouter' && ok "виджет: ошибка Telegram, пришёл обычный текст" || bad "виджет: нет запасного текста"
+rm -f "$T/widget.fail"
+NF_W="$T/nowidgets" conf 111 "" "" 1 1; rm -f "$T/mid"; upd 111 111 "/status"; NF_W="$T/nowidgets" runbot
+grep -q 'METHOD sendWidget' "$T/calls" && bad "виджет: отправлен без файла" || ok "виджет: нет файла шаблона, пришёл обычный текст"
+conf -100500 111 "" 1 1; upd -100500 111 "/status"; runbot
+grep -q 'METHOD sendWidget' "$T/calls" && bad "виджет: отправлен в группу" || ok "виджет: в группе не отправляется"
+# запрос из виджета
+conf 111 "" "" 1 1; wq 111 s; runbot
+a=$(grep '^ANS' "$T/calls" | sed 's/.*widget_query_id=wq77.*data=\({.*}\).*/\1/')
+printf '%s' "$a" | python3 -I -c 'import sys,json; d=json.loads(sys.stdin.read()); assert d["c"]==12 and d["m"]==60' 2>/dev/null && ok "виджет: запрос «s» получил свежие данные" || bad "виджет: ответ на запрос: $(grep '^ANS' "$T/calls")"
+conf 111 "" "" 1 1; wq 111 zzz; runbot
+grep '^ANS' "$T/calls" | grep -q 'widget_query_id=wq77' && ! grep '^ANS' "$T/calls" | grep -q '{' && ok "виджет: на незнакомый запрос ответ пустой, но ответ есть" || bad "виджет: неизвестный запрос"
+conf 111 "" "" 1 1; wq 999 s; runbot
+grep -q '^ANS' "$T/calls" && bad "виджет: ответ в чужой чат" || ok "виджет: запрос из чужого чата игнорируется"
+conf 111 "" "" 1 1; wq 111 s; runbot
+grep -q 'METHOD sendMessage\|METHOD sendWidget' "$T/calls" && bad "виджет: запрос породил сообщение в чате" || ok "виджет: запрос не плодит сообщения"
+# кнопка под виджетом: приходит новое сообщение, виджет удаляется
+conf 111 "" "" 1 1; rm -f "$T/mid"; echo 88 > "$T/bot.widgets"; printf '88\n' > "$T/bot.msgs"; upd cb 111 111 "menu"; sed -i 's/"message_id":5/"message_id":88/' "$T/updates"; runbot; sleep 1
+grep -q 'METHOD sendMessage' "$T/calls" && ! grep -q '^EDIT' "$T/calls" && grep '^DEL' "$T/calls" | grep -q '88' && ok "виджет: «Меню» под виджетом шлёт новое сообщение и удаляет виджет" || bad "виджет: меню под виджетом: $(cut -c1-90 "$T/calls")"
+# настройка
+printf 'TG_WIDGETS=0\n' > "$T/c3"
+r=$(NF_CONF="$T/c3" NF_DEF="$T/c3" NF_NORESTART=1 sh "$L/nightfall-config" set TG_WIDGETS=1); case "$r" in *'"ok":true'*) ok "TG_WIDGETS: значение принято" ;; *) bad "TG_WIDGETS: $r" ;; esac
+r=$(NF_CONF="$T/c3" NF_DEF="$T/c3" NF_NORESTART=1 sh "$L/nightfall-config" set TG_WIDGETS=5); case "$r" in *'"ok":false'*) ok "TG_WIDGETS: мусор отклонён" ;; *) bad "TG_WIDGETS: мусор принят" ;; esac
+# размер шаблона: после сжатия zlib не больше 4096 байт, сырой не больше 32768
+python3 -I -c 'import sys,zlib; d=open(sys.argv[1],"rb").read(); assert len(d)<=32768 and len(zlib.compress(d,9))<=4096, (len(d), len(zlib.compress(d,9)))' "$L/../share/nightfall/widgets/status.html" && ok "виджет: размер в пределах лимитов Telegram" || bad "виджет: превышен размер"
 
 # 10. список сетей для бота из настроек Wi-Fi (uci)
 cat > "$T/uci" <<'SH'
