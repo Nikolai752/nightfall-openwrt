@@ -237,4 +237,34 @@ printf '%s\n' "$c" | grep -qx 'wifinet1|Guest Net|0|' && ok "cands: кавычк
 printf '%s\n' "$c" | grep -qx 'wifinet2|Гости|1|1900000000' && ok "cands: включённая сеть с временем выключения" || bad "cands: включённая сеть"
 printf '%s\n' "$c" | grep -q 'Home\|Uplink' && bad "cands: попали обычная сеть или клиент" || ok "cands: обычная сеть и клиент не попали"
 
+# 12. сохранение всей формы настроек, когда в файле пользователя нет части параметров (ошибка «PERSIST_ANY: допустимо 0 или 1»)
+cp "$L/../share/nightfall/nightfall-monitor.conf.default" "$T/def"
+grep -v '^PERSIST_ANY=' "$T/def" > "$T/def.old"       # файл по умолчанию из версий, где этого параметра не было
+printf 'TG=1\nTG_CHAT=111\n' > "$T/user.conf"           # пользователь раньше сохранял только поля Telegram
+form() {   # form ФАЙЛ_ПО_УМОЛЧАНИЮ: форма как на странице (значение из файла пользователя, а если его нет, из файла по умолчанию)
+	for k in $(sed -n 's/^KEYS="\(.*\)"/\1/p' "$L/nightfall-config"); do
+		if grep -q "^$k=" "$T/user.conf"; then f="$T/user.conf"; else f="$1"; fi
+		v=$(sed -n "s/^$k=\"\{0,1\}\([^ #\"]*\).*/\1/p" "$f" | head -n 1)
+		[ "$k" = TG_TOKEN ] && v="***"
+		printf '%s=%s\n' "$k" "$v"
+	done
+}
+form "$T/def.old" | grep -qx 'PERSIST_ANY=' && ok "форма настроек (старый файл по умолчанию): PERSIST_ANY приходит пустым, как у пользователя" || bad "форма настроек: не воспроизвелась пустое поле"
+cp "$T/user.conf" "$T/user.keep"
+r=$(form "$T/def.old" | NF_CONF="$T/user.conf" NF_DEF="$T/def.old" NF_NORESTART=1 xargs -d '\n' sh "$L/nightfall-config" set)
+case "$r" in *'"ok":true'*) ok "форма настроек: сохраняется, хотя PERSIST_ANY пустой" ;; *) bad "форма настроек: $r" ;; esac
+grep -q '^PERSIST_ANY=0' "$T/user.conf" && ok "форма настроек: PERSIST_ANY получил 0" || bad "форма настроек: PERSIST_ANY не записан"
+cp "$T/user.keep" "$T/user.conf"
+r=$(form "$T/def" | NF_CONF="$T/user.conf" NF_DEF="$T/def" NF_NORESTART=1 xargs -d '\n' sh "$L/nightfall-config" set)
+case "$r" in *'"ok":true'*) ok "форма настроек: сохраняется и с новым файлом по умолчанию" ;; *) bad "форма настроек (новый файл): $r" ;; esac
+r=$(NF_CONF="$T/user.conf" NF_DEF="$T/def" NF_NORESTART=1 sh "$L/nightfall-config" set TG_WIDGETS=1 TG_CLEAN=)
+case "$r" in *'"ok":true'*) ok "TG_WIDGETS=1 вместе с пустым флажком сохраняется" ;; *) bad "TG_WIDGETS: $r" ;; esac
+grep -q '^TG_WIDGETS=1' "$T/user.conf" && grep -q '^TG_CLEAN=1' "$T/user.conf" && ok "виджеты включены, пустой TG_CLEAN получил значение по умолчанию 1" || bad "значения не записаны: $(tr '\n' ' ' < "$T/user.conf")"
+r=$(NF_CONF="$T/user.conf" NF_DEF="$T/def" NF_NORESTART=1 sh "$L/nightfall-config" set PERSIST_ANY=7)
+case "$r" in *'"ok":false'*) ok "неверное значение флажка (7) по-прежнему отклоняется" ;; *) bad "значение 7 принято: $r" ;; esac
+r=$(NF_CONF="$T/user.conf" NF_DEF="$T/def" NF_NORESTART=1 sh "$L/nightfall-config" set TEMP_WARN=)
+case "$r" in *'"ok":false'*) ok "пустое число (TEMP_WARN) по-прежнему отклоняется" ;; *) bad "пустое число принято: $r" ;; esac
+r=$(NF_CONF="$T/user.conf" NF_DEF="$T/def" sh "$L/nightfall-config" get)
+printf '%s' "$r" | grep -q '"PERSIST_ANY":"0"' && ok "страница получает PERSIST_ANY=0, а не пустое значение" || bad "get: PERSIST_ANY пустой"
+
 [ $fail = 0 ] && echo "ВСЁ В ПОРЯДКЕ" || { echo "ЕСТЬ ОШИБКИ"; exit 1; }

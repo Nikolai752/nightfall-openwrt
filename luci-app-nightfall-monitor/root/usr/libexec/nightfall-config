@@ -67,6 +67,17 @@ get)
 set)
 	shift
 	[ $# -gt 0 ] || fail "нет параметров"
+	# пустой флажок (0/1) считаем «не задан» и берём значение по умолчанию: так страница с полем, которого ещё нет в файле
+	# настроек, не получает отказ на всю форму (раньше «PERSIST_ANY: допустимо 0 или 1» мешал сохранить любую настройку)
+	n=$#
+	while [ "$n" -gt 0 ]; do
+		kv=$1; shift; n=$((n - 1)); k=${kv%%=*}; v=${kv#*=}
+		case "$k" in
+		JOURNAL|PERSIST_ANY|WIFI_HIST|APPS|NEWDEV|TG|TG_ALERTS|TG_BOT|TG_CLEAN|TG_WIDGETS)
+			if [ -z "$v" ]; then v=$(val "$DEF" "$k"); [ -n "$v" ] || v=0; kv="$k=$v"; fi ;;
+		esac
+		set -- "$@" "$kv"
+	done
 	for kv in "$@"; do
 		k=${kv%%=*}; v=${kv#*=}
 		case " $KEYS " in *" $k "*) ;; *) fail "неизвестный параметр: $k" ;; esac

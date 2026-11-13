@@ -41,6 +41,12 @@ for f in luci-app-nightfall-monitor/root/usr/libexec/* *.sh; do
   sh -n "$f" 2>/dev/null || err "sh: $f"
 done
 
+echo "== Параметры монитора: у каждого есть значение по умолчанию =="
+DEFC=luci-app-nightfall-monitor/root/usr/share/nightfall/nightfall-monitor.conf.default
+for k in $(sed -n 's/^KEYS="\(.*\)"/\1/p' luci-app-nightfall-monitor/root/usr/libexec/nightfall-config); do
+  grep -q "^$k=" "$DEFC" || err "в $DEFC нет строки $k (страница покажет пустое поле и не сохранится)"
+done
+
 echo "== Версия кэша =="
 b=$(grep -o '[0-9]\{8\}[a-z]' luci-theme-nightfall/ucode/template/themes/nightfall/header.ut | sort -u)
 echo "$b"
