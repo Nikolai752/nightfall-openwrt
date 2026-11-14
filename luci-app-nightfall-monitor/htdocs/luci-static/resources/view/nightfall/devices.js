@@ -136,13 +136,46 @@ return view.extend({
 		}
 
 		/* ---- карточка выбранного устройства ---- */
-		function sched(d) {
-			const f = E('input', { type: 'time', value: d.from || '23:00', 'aria-label': 'Отключать с' });
-			const t = E('input', { type: 'time', value: d.to || '07:00', 'aria-label': 'Включать в' });
-			return E('div', { class: 'nf-dv-row' }, [ E('span', {}, 'Отключать с'), f, E('span', {}, 'до'), t,
-				E('button', { class: 'cbi-button cbi-button-action', click: () => act([ 'sched', d.mac, f.value, t.value, d.name || '' ], 'Расписание сохранено.') }, 'Сохранить'),
-				d.from ? E('button', { class: 'cbi-button', click: () => act([ 'sched', d.mac, 'off' ], 'Расписание убрано.') }, 'Убрать') : '' ]);
+		/* ---- расписание: несколько окон, у каждого свои дни недели ---- */
+		const DAYN = [ 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс' ];
+		function daysText(dy) {
+			if (!dy) return 'каждый день';
+			if (dy === '12345') return 'будни';
+			if (dy === '67') return 'выходные';
+			return dy.split('').map(x => DAYN[+x - 1]).join(', ');
 		}
+		function winsOf(o) {   // окна объекта: первое лежит в from/to/days, остальные в rules «с-до@дни;…»
+			const w = [];
+			if (o.from && o.to) w.push({ from: o.from, to: o.to, days: o.days || '' });
+			(o.rules || '').split(';').forEach(r => { const m = /^(\d\d:\d\d)-(\d\d:\d\d)(?:@([1-7]*))?$/.exec(r); if (m) w.push({ from: m[1], to: m[2], days: m[3] || '' }); });
+			return w;
+		}
+		function schedBox(o, cmd) {   // cmd: [ 'sadd', mac ] или [ 'gsadd', группа ]
+			const grp = cmd[0] === 'gsadd', pre = grp ? 'gs' : 's';
+			const f = E('input', { type: 'time', value: '23:00', 'aria-label': 'Отключать с' });
+			const t = E('input', { type: 'time', value: '07:00', 'aria-label': 'Включать в' });
+			const chk = DAYN.map((n, i) => E('input', { type: 'checkbox', value: String(i + 1), checked: true, 'aria-label': n }));
+			const setDays = set => chk.forEach(c => { c.checked = set.indexOf(c.value) >= 0; });
+			const picked = () => { const v = chk.filter(c => c.checked).map(c => c.value).join(''); return v === '1234567' ? '' : v; };
+			const preset = (txt, set) => E('button', { type: 'button', class: 'cbi-button', click: () => setDays(set) }, txt);
+			const wins = winsOf(o);
+			const list = wins.map((w, i) => E('div', { class: 'nf-dv-row nf-dv-win' }, [
+				E('span', {}, w.from + '–' + w.to + ' · ' + daysText(w.days)),
+				E('button', { class: 'cbi-button', click: () => act([ pre + 'del', cmd[1], String(i + 1) ], 'Окно убрано.') }, 'Убрать') ]));
+			if (wins.length > 1) list.push(E('div', { class: 'nf-dv-row' }, [ E('button', { class: 'cbi-button', click: () => act([ grp ? 'gsched' : 'sched', cmd[1], 'off' ], 'Расписание убрано.') }, 'Убрать всё расписание') ]));
+			const add = () => {
+				if (!chk.some(c => c.checked)) { window.alert('Отметьте хотя бы один день недели.'); return; }
+				act([ cmd[0], cmd[1], f.value, t.value, picked() ], 'Окно добавлено.');
+			};
+			return E('div', { class: 'nf-dv-sched' }, [
+				E('small', {}, wins.length ? 'Отключать интернет по расписанию' : 'Расписание не задано'),
+				E('div', {}, list),
+				E('div', { class: 'nf-dv-row' }, [ E('span', {}, 'Отключать с'), f, E('span', {}, 'до'), t ]),
+				E('div', { class: 'nf-dv-row nf-dv-days' }, chk.map((c, i) => E('label', {}, [ c, DAYN[i] ]))),
+				E('div', { class: 'nf-dv-row' }, [ preset('Каждый день', '1234567'), preset('Будни', '12345'), preset('Выходные', '67'),
+					E('button', { class: 'cbi-button cbi-button-action', click: add }, 'Добавить окно') ]) ]);
+		}
+		function sched(d) { return schedBox(d, [ 'sadd', d.mac ]); }
 		function quota(d) {
 			const q = E('input', { type: 'number', min: '1', max: '1000000', value: d.quota || '', placeholder: 'МБ в сутки', 'aria-label': 'Лимит в сутки, МБ' });
 			return E('div', { class: 'nf-dv-row' }, [ E('span', {}, 'Лимит в сутки'), q, E('span', {}, 'МБ'),
@@ -175,19 +208,15 @@ return view.extend({
 		/* ---- группы ---- */
 		function groupRow(g) {
 			const members = S.devs.filter(d => d.group === g.name);
-			const f = E('input', { type: 'time', value: g.from || '21:00', 'aria-label': 'Отключать с' });
-			const t = E('input', { type: 'time', value: g.to || '07:00', 'aria-label': 'Включать в' });
 			const q = E('input', { type: 'number', min: '1', max: '1000000', value: g.quota || '', placeholder: 'МБ', 'aria-label': 'Лимит каждому в сутки, МБ' });
-			const rules = [ g.manual ? 'отключена' : '', g.from ? 'с ' + g.from + ' до ' + g.to : '', g.quota ? 'лимит ' + g.quota + ' МБ' : '' ].filter(Boolean).join(' · ') || 'без правил';
+			const rules = [ g.manual ? 'отключена' : '', winsOf(g).length ? winsOf(g).map(w => w.from + '–' + w.to + ' ' + daysText(w.days)).join('; ') : '', g.quota ? 'лимит ' + g.quota + ' МБ' : '' ].filter(Boolean).join(' · ') || 'без правил';
 			return E('div', { class: 'nf-dv-grp' + (S.filter === g.name ? ' on' : '') }, [
 				E('div', { class: 'nf-dv-h' }, [ E('span', { class: 'ic' }, glyph('group', 26)), E('div', {}, [ E('b', {}, g.name), E('small', {}, members.length + ' устр. · ' + rules) ]),
 					E('button', { class: 'cbi-button', click: () => { S.filter = S.filter === g.name ? '' : g.name; draw(); } }, S.filter === g.name ? 'Все устройства' : 'Показать') ]),
 				E('div', { class: 'nf-dv-row' }, [ g.manual
 					? E('button', { class: 'cbi-button cbi-button-positive', click: () => act([ 'gunblock', g.name ], 'Группа «' + g.name + '» снова в интернете.') }, 'Вернуть интернет группе')
 					: E('button', { class: 'cbi-button cbi-button-negative', click: () => act([ 'gblock', g.name ], 'Группа «' + g.name + '» отключена.') }, 'Отключить всю группу') ]),
-				E('div', { class: 'nf-dv-row' }, [ E('span', {}, 'Отключать с'), f, E('span', {}, 'до'), t,
-					E('button', { class: 'cbi-button cbi-button-action', click: () => act([ 'gsched', g.name, f.value, t.value ], 'Расписание группы сохранено.') }, 'Сохранить'),
-					g.from ? E('button', { class: 'cbi-button', click: () => act([ 'gsched', g.name, 'off' ], 'Расписание убрано.') }, 'Убрать') : '' ]),
+					schedBox(g, [ 'gsadd', g.name ]),
 				E('div', { class: 'nf-dv-row' }, [ E('span', {}, 'Лимит каждому'), q, E('span', {}, 'МБ/сутки'),
 					E('button', { class: 'cbi-button cbi-button-action', click: () => act([ 'gquota', g.name, q.value || 'off' ], q.value ? 'Лимит группы сохранён.' : 'Лимит убран.') }, 'Сохранить') ]),
 				E('div', { class: 'nf-dv-row' }, [ E('button', { class: 'cbi-button cbi-button-remove', click: () => { if (window.confirm('Удалить группу «' + g.name + '»? Устройства останутся без группы.')) { if (S.filter === g.name) S.filter = ''; act([ 'gdel', g.name ], 'Группа удалена.'); } } }, 'Удалить группу') ]) ]);

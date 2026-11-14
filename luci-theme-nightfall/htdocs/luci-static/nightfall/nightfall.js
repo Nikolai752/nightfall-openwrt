@@ -2208,3 +2208,32 @@
 	function start() { scan(); new MutationObserver(sched).observe(document.body, { childList: true, subtree: true }); }
 	if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
 })();
+
+/* Пустые строки таблиц на телефоне (v1.17.0): сообщение «Пока пусто» должно занимать всю ширину таблицы и стоять по центру,
+   даже если какие-то правила (в том числе mobile.css) сжимают ячейку. Запасной вариант: если ячейка заметно уже таблицы,
+   выставляем нужные значения прямо на элементе. */
+(function () {
+	'use strict';
+	var mq = window.matchMedia ? window.matchMedia('(max-width: 899px)') : null;
+	var raf = 0;
+	var S = { display: 'flex', position: 'static', height: 'auto', width: '100%', 'min-width': '0', 'max-width': '100%', flex: '0 0 100%', 'box-sizing': 'border-box', 'text-align': 'center', 'justify-content': 'center', 'align-items': 'center', 'flex-wrap': 'wrap', margin: '0', transform: 'none' };
+	function fix() {
+		raf = 0;
+		if (!mq || !mq.matches) return;
+		document.querySelectorAll('.table .tr.placeholder').forEach(function (tr) {
+			var td = tr.firstElementChild, tb = tr.closest('.table');
+			if (!td || !tb || tr.__nfFix) return;
+			var wt = tb.getBoundingClientRect().width, wd = td.getBoundingClientRect().width;
+			if (!wt || wd >= wt * 0.95) return;
+			tr.style.setProperty('display', 'block', 'important');
+			tr.style.setProperty('height', 'auto', 'important');
+			tr.style.setProperty('width', '100%', 'important');
+			for (var k in S) td.style.setProperty(k, S[k], 'important');
+			td.style.setProperty('padding', '26px 16px', 'important');
+			tr.__nfFix = 1;
+		});
+	}
+	function sched() { if (!raf) raf = requestAnimationFrame(fix); }
+	function start() { fix(); new MutationObserver(sched).observe(document.body, { childList: true, subtree: true }); window.addEventListener('resize', sched); }
+	if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+})();

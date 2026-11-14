@@ -6257,3 +6257,9 @@ body.nf-blank #modal_overlay > .modal.login { --nf-mw: 380px; width: 100%; max-w
 	html .table .tr.placeholder > .td { position: static !important; display: flex !important; flex-direction: column; align-items: center; justify-content: center; flex: 0 0 100% !important; width: 100% !important; max-width: none !important; height: auto !important; margin: 0 !important; padding: 26px 16px !important; box-sizing: border-box; text-align: center; }
 	html .table .tr.placeholder > .td em.spinning { padding: 10px 0 10px 32px !important; text-align: left; }
 }
+
+/* Расписание блокировки: окна с днями недели (v1.17.0) */
+.nf-dv-sched { margin: 10px 0 0; padding: 10px 0 0; border-top: 1px solid var(--nf-border, rgba(127,127,127,.25)); }
+.nf-dv-win > span { flex: 1 1 auto; }
+.nf-dv-days label { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 6px; cursor: pointer; }
+.nf-dv-days input { margin: 0; }

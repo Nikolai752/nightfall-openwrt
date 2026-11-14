@@ -87,6 +87,12 @@ let fail = 0; const bad = m => { console.log('ОШИБКА: ' + m); fail = 1; };
 	for (const k of ['карточка настроек', 'окно сканирования'])
 		if (mo[k].dx > 4 || mo[k].w < mo[k].tw - 30) bad('телефон, ' + k + ': «пусто» не по центру (сдвиг ' + Math.round(mo[k].dx) + ', ширина ' + Math.round(mo[k].w) + ' из ' + Math.round(mo[k].tw) + ')');
 	if (mo.spin.w > 24 || mo.spin.gap < 2) bad('телефон: индикатор сканирования: ' + Math.round(mo.spin.w) + ' px, зазор до текста ' + Math.round(mo.spin.gap) + ' px');
+	// запасной JS: даже если стили сжимают ячейку с !important на самом элементе-строке (специфичнее наших), nightfall.js растягивает её
+	const NJS = fs.readFileSync(path.join(__dirname, '..', 'luci-theme-nightfall', 'htdocs', 'luci-static', 'nightfall', 'nightfall.js'), 'utf8');
+	await mp.addStyleTag({ content: 'html body .table .tr.placeholder > .td { width: 40% !important; flex: 0 0 40% !important; display: inline-block !important; position: absolute !important; left: 0 !important; }' });
+	await mp.evaluate(src => { window.eval(src); }, NJS); await mp.waitForTimeout(300);
+	const fb = await mp.evaluate(() => [ '#t2', '#scan .table' ].map(q => { const t = document.querySelector(q), td = t.querySelector('.placeholder > .td'), a = t.getBoundingClientRect(), c = td.getBoundingClientRect(); return { dx: Math.abs((c.left + c.width / 2) - (a.left + a.width / 2)), w: c.width, tw: a.width }; }));
+	fb.forEach((r, i) => { if (r.dx > 4 || r.w < r.tw - 30) bad('телефон, запасной JS не выправил пустую строку #' + (i + 1) + ' (сдвиг ' + Math.round(r.dx) + ', ширина ' + Math.round(r.w) + ' из ' + Math.round(r.tw) + ')'); });
 	await mctx.close();
 	fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
 	await p.screenshot({ path: path.join(__dirname, 'out', 'layout.png') }).catch(() => {});

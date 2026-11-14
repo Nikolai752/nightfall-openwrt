@@ -3,24 +3,28 @@
 #   nightfall-block list                    — устройства и их состояние (JSON)
 #   nightfall-block block MAC [ИМЯ]         — отключить интернет устройству
 #   nightfall-block unblock MAC             — вернуть интернет
-#   nightfall-block sched MAC ЧЧ:ММ ЧЧ:ММ   — отключать каждый день с … до … (можно через полночь)
-#   nightfall-block sched MAC off           — убрать расписание
+#   nightfall-block sched MAC ЧЧ:ММ ЧЧ:ММ [ИМЯ [ДНИ]] — первое окно расписания: отключать с … до … (можно через полночь); ДНИ — цифры 1–7 (1 — понедельник), пусто или all — каждый день
+#   nightfall-block sadd MAC ЧЧ:ММ ЧЧ:ММ [ДНИ] — добавить ещё одно окно (например, отдельно будни и выходные)
+#   nightfall-block sdel MAC НОМЕР          — убрать окно по номеру (1 — первое)
+#   nightfall-block sched MAC off           — убрать всё расписание
 #   nightfall-block quota MAC МБ|off        — лимит трафика в сутки: при превышении интернет отключается до конца суток
 #   nightfall-block log                     — журнал блокировок (JSON)
 #   nightfall-block meta MAC ИМЯ ИКОНКА ГРУППА — своё имя, значок и группа устройства (пустые значения сбрасывают)
 #   nightfall-block groups                  — группы и их правила (JSON)
 #   nightfall-block gadd|gdel ГРУППА        — создать или удалить группу (при удалении участники остаются без группы)
 #   nightfall-block gblock|gunblock ГРУППА  — отключить интернет всем устройствам группы / вернуть
-#   nightfall-block gsched ГРУППА ЧЧ:ММ ЧЧ:ММ|off   — расписание группы
+#   nightfall-block gsched ГРУППА ЧЧ:ММ ЧЧ:ММ [ДНИ]|off — первое окно расписания группы; gsadd ГРУППА С ДО [ДНИ] и gsdel ГРУППА НОМЕР — остальные окна
 #   nightfall-block gquota ГРУППА МБ|off    — суточный лимит на каждое устройство группы
 #   nightfall-block apply                   — применить правила брандмауэра (вызывается сборщиком и при загрузке)
 # Правила живут в отдельной таблице nft «inet nightfall» (брандмауэр fw4 её не трогает): отбрасываются пакеты, идущие
 # от устройства в сеть (forward). Доступ к самому роутеру и локальной сети не ограничивается, поэтому разблокировать можно всегда.
-# Список хранится в /etc/nightfall-block.list: «mac|имя|вручную(0/1)|с|до|лимит МБ|пропуск на день ГГГГММДД».
+# Список хранится в /etc/nightfall-block.list: «mac|имя|вручную(0/1)|с|до|лимит МБ|пропуск на день ГГГГММДД|дни первого окна|остальные окна».
+# Остальные окна: «ЧЧ:ММ-ЧЧ:ММ@дни;…». Дни: цифры 1–7 (1 — понедельник), пусто — каждый день. Окно через полночь («Пт 23:00–09:00»)
+# относится к ночи с пятницы на субботу.
 # Свои имена, значки и группы: /etc/nightfall-devices.list («mac|имя|значок|группа»).
-# Правила групп: /etc/nightfall-groups.list («группа|вручную(0/1)|с|до|лимит МБ|пропуск на день»); действуют на каждого участника.
+# Правила групп: /etc/nightfall-groups.list («группа|вручную(0/1)|с|до|лимит МБ|пропуск на день|дни первого окна|остальные окна»); действуют на каждого участника.
 # Журнал (последние 200 записей) — /etc/nightfall-block.log: «время|mac|имя|on/off|причина».
-# Для тестов: NF_BLOCK (файл списка), NF_BLOCKLOG, NF_NOTIFY, NF_TODAY (ГГГГММДД), NF_BY (кто запросил: bot/ui), NF_NFT (команда nft), NF_PROC, NF_LEASES, NF_NOW (время ЧЧММ), NF_DIR.
+# Для тестов: NF_BLOCK (файл списка), NF_BLOCKLOG, NF_NOTIFY, NF_TODAY (ГГГГММДД), NF_BY (кто запросил: bot/ui), NF_NFT (команда nft), NF_PROC, NF_LEASES, NF_NOW (время ЧЧММ), NF_DOW (день недели 1–7), NF_DIR.
 LIST=${NF_BLOCK:-/etc/nightfall-block.list}
 NFT=${NF_NFT:-nft}
 PROC=${NF_PROC:-/proc}
@@ -47,34 +51,82 @@ own_macs() {   # свои MAC-адреса роутера: их блокиров
 
 today() { [ -n "$NF_TODAY" ] && echo "$NF_TODAY" || date +%Y%m%d; }
 
-# запись в список: set_row MAC ИМЯ ВРУЧНУЮ С ДО ЛИМИТ ПРОПУСК (строка нужна, если есть блокировка, расписание или лимит)
+# запись в список: set_row MAC ИМЯ ВРУЧНУЮ С ДО ЛИМИТ ПРОПУСК ДНИ ДОПОЛНИТЕЛЬНЫЕ_ОКНА (строка нужна, если есть блокировка, расписание или лимит)
 set_row() {
 	m=$(lower "$1")
 	touch "$LIST" 2>/dev/null || fail "не удалось записать список"
 	grep -v "^$m|" "$LIST" > "$LIST.tmp" 2>/dev/null
-	if [ "$3" = 1 ] || [ -n "$4" ] || [ -n "$6" ] || [ -n "$7" ]; then printf '%s|%s|%s|%s|%s|%s|%s\n' "$m" "$2" "$3" "$4" "$5" "$6" "$7" >> "$LIST.tmp"; fi
+	if [ "$3" = 1 ] || [ -n "$4" ] || [ -n "$6" ] || [ -n "$7" ]; then printf '%s|%s|%s|%s|%s|%s|%s|%s|%s\n' "$m" "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" >> "$LIST.tmp"; fi
 	mv "$LIST.tmp" "$LIST" 2>/dev/null || fail "не удалось записать список"
 }
 
 row() { grep "^$(lower "$1")|" "$LIST" 2>/dev/null | head -n 1; }
 
-# разобрать строку списка в R_NAME R_MAN R_F R_T R_Q R_SN
+# разобрать строку списка в R_NAME R_MAN R_F R_T R_Q R_SN R_D R_X
 load_row() {
 	r=$(row "$1")
 	R_NAME=$(printf '%s' "$r" | cut -d'|' -f2); R_MAN=$(printf '%s' "$r" | cut -d'|' -f3); R_F=$(printf '%s' "$r" | cut -d'|' -f4)
 	R_T=$(printf '%s' "$r" | cut -d'|' -f5); R_Q=$(printf '%s' "$r" | cut -d'|' -f6); R_SN=$(printf '%s' "$r" | cut -d'|' -f7)
+	R_D=$(printf '%s' "$r" | cut -d'|' -f8); R_X=$(printf '%s' "$r" | cut -d'|' -f9)
 	[ -n "$R_MAN" ] || R_MAN=0
 }
 
 now_hm() { [ -n "$NF_NOW" ] && echo "$NF_NOW" || date +%H%M; }
 
-# попадает ли сейчас время в окно расписания
-in_window() {  # in_window С ДО
+dow_now() { [ -n "$NF_DOW" ] && echo "$NF_DOW" || date +%u; }   # 1 — понедельник … 7 — воскресенье
+day_in() { [ -z "$1" ] || case "$1" in *"$2"*) return 0 ;; *) return 1 ;; esac; }   # день входит в набор (пустой набор — все дни)
+
+# попадает ли сейчас время в окно расписания; окно через полночь принадлежит дню, в который оно началось
+in_window() {  # in_window С ДО [ДНИ]
 	[ -n "$1" ] && [ -n "$2" ] || return 1
 	n=$(now_hm); f=$(printf '%s' "$1" | tr -d ':'); t=$(printf '%s' "$2" | tr -d ':')
 	n=$(printf '%s' "$n" | sed 's/^0*//'); f=$(printf '%s' "$f" | sed 's/^0*//'); t=$(printf '%s' "$t" | sed 's/^0*//')
 	n=${n:-0}; f=${f:-0}; t=${t:-0}
-	if [ "$f" -le "$t" ]; then [ "$n" -ge "$f" ] && [ "$n" -lt "$t" ]; else [ "$n" -ge "$f" ] || [ "$n" -lt "$t" ]; fi
+	d=$(dow_now); p=$(( (d + 5) % 7 + 1 ))
+	if [ "$f" -le "$t" ]; then
+		[ "$n" -ge "$f" ] && [ "$n" -lt "$t" ] && day_in "$3" "$d"
+	else
+		{ [ "$n" -ge "$f" ] && day_in "$3" "$d"; } || { [ "$n" -lt "$t" ] && day_in "$3" "$p"; }
+	fi
+}
+
+# окна расписания по строке на окно «с|до|дни»: первое окно лежит в полях С ДО ДНИ, остальные в ДОПОЛНИТЕЛЬНЫХ («с-до@дни;с-до@дни»)
+wins_of() {  # wins_of С ДО ДНИ ДОПОЛНИТЕЛЬНЫЕ
+	[ -n "$1" ] && [ -n "$2" ] && printf '%s|%s|%s\n' "$1" "$2" "$3"
+	[ -n "$4" ] && printf '%s\n' "$4" | tr ';' '\n' | awk -F'[-@]' 'NF >= 2 { printf "%s|%s|%s\n", $1, $2, $3 }'
+	return 0
+}
+in_any() {  # попадает ли сейчас время в любое окно
+	while IFS='|' read -r wf wt wd; do
+		[ -n "$wf" ] || continue
+		in_window "$wf" "$wt" "$wd" && return 0
+	done <<EOF
+$(wins_of "$1" "$2" "$3" "$4")
+EOF
+	return 1
+}
+# собрать поля из списка окон (строки «с|до|дни») в W_F W_T W_D W_X
+pack_wins() {
+	W_F=; W_T=; W_D=; W_X=; wi=0
+	while IFS='|' read -r wf wt wd; do
+		[ -n "$wf" ] || continue
+		wi=$((wi + 1))
+		if [ "$wi" = 1 ]; then W_F=$wf; W_T=$wt; W_D=$wd; else W_X="${W_X:+$W_X;}$wf-$wt${wd:+@$wd}"; fi
+	done <<EOF
+$1
+EOF
+}
+# проверить и привести к виду «цифры по возрастанию, без повторов»; пусто и all — каждый день; 1234567 — тоже каждый день
+norm_days() {
+	case "$1" in ''|all|ALL) ND=; return 0 ;; *[!1-7]*) return 1 ;; esac
+	ND=$(printf '%s' "$1" | grep -o . | sort -u | tr -d '\n')
+	[ "$ND" != 1234567 ] || ND=
+	return 0
+}
+win_ok() {  # win_ok С ДО ДНИ: проверка полей окна; результат дней в ND
+	time_ok "$1" && time_ok "$2" || fail "время нужно в формате ЧЧ:ММ"
+	[ "$1" != "$2" ] || fail "начало и конец не должны совпадать"
+	norm_days "$3" || fail "дни недели: цифры от 1 (понедельник) до 7 (воскресенье)"
 }
 
 # трафик устройства за сегодня (байт): по IP из ARP и dev.day
@@ -85,13 +137,13 @@ used_of() {
 }
 
 # причина, по которой интернет отключён сейчас: manual, quota, sched или пусто
-calc_reason() {  # calc_reason MAC ВРУЧНУЮ С ДО ЛИМИТ ПРОПУСК
+calc_reason() {  # calc_reason MAC ВРУЧНУЮ С ДО ЛИМИТ ПРОПУСК ДНИ ДОПОЛНИТЕЛЬНЫЕ_ОКНА
 	[ "$2" = 1 ] && { echo manual; return; }
 	[ "$6" = "$(today)" ] && return 0
 	if [ -n "$5" ] && [ "$5" -gt 0 ] 2>/dev/null; then
 		u=$(used_of "$1"); [ "${u:-0}" -ge $(($5 * 1048576)) ] && { echo quota; return; }
 	fi
-	in_window "$3" "$4" && echo sched
+	in_any "$3" "$4" "$7" "$8" && echo sched
 	return 0
 }
 
@@ -99,24 +151,25 @@ gclean() { printf '%s' "$1" | tr -d '"\\|' | tr '\n' ' ' | sed 's/^ *//; s/ *$//
 group_of() { [ -r "$DEVF" ] && awk -F'|' -v m="$1" '$1 == m { print $4; exit }' "$DEVF"; }
 grow() { [ -r "$GLIST" ] && awk -v g="$1" -F'|' '$1 == g { print; exit }' "$GLIST"; }
 dev_name() { [ -r "$DEVF" ] && awk -F'|' -v m="$1" '$1 == m { print $2; exit }' "$DEVF"; }
-# запись группы: gset ГРУППА ВРУЧНУЮ С ДО ЛИМИТ ПРОПУСК
+# запись группы: gset ГРУППА ВРУЧНУЮ С ДО ЛИМИТ ПРОПУСК ДНИ ДОПОЛНИТЕЛЬНЫЕ_ОКНА
 gset() {
 	touch "$GLIST" 2>/dev/null || fail "не удалось записать список групп"
 	# строка группы заменяется на месте (порядок групп не меняется: бот ссылается на них по номеру)
-	awk -F'|' -v g="$1" -v row="$1|$2|$3|$4|$5|$6" '$1 == g { print row; done = 1; next } { print } END { if (!done) print row }' "$GLIST" > "$GLIST.tmp" 2>/dev/null
+	awk -F'|' -v g="$1" -v row="$1|$2|$3|$4|$5|$6|$7|$8" '$1 == g { print row; done = 1; next } { print } END { if (!done) print row }' "$GLIST" > "$GLIST.tmp" 2>/dev/null
 	mv "$GLIST.tmp" "$GLIST" 2>/dev/null || fail "не удалось записать список групп"
 }
 # причина отключения с учётом правил группы: manual, gmanual, quota, sched или пусто
 reason_all() {  # reason_all MAC
 	load_row "$1"
-	rs=$(calc_reason "$1" "$R_MAN" "$R_F" "$R_T" "$R_Q" "$R_SN"); [ -n "$rs" ] && { echo "$rs"; return; }
+	rs=$(calc_reason "$1" "$R_MAN" "$R_F" "$R_T" "$R_Q" "$R_SN" "$R_D" "$R_X"); [ -n "$rs" ] && { echo "$rs"; return; }
 	g=$(group_of "$1"); [ -n "$g" ] || return 0
 	gr=$(grow "$g"); [ -n "$gr" ] || return 0
 	gm=$(printf '%s' "$gr" | cut -d'|' -f2); gf=$(printf '%s' "$gr" | cut -d'|' -f3); gt=$(printf '%s' "$gr" | cut -d'|' -f4)
 	gq=$(printf '%s' "$gr" | cut -d'|' -f5); gs=$(printf '%s' "$gr" | cut -d'|' -f6)
+	gd=$(printf '%s' "$gr" | cut -d'|' -f7); gx=$(printf '%s' "$gr" | cut -d'|' -f8)
 	[ "$gm" = 1 ] && { echo gmanual; return; }
 	[ "$R_SN" = "$(today)" ] && return 0
-	calc_reason "$1" 0 "$gf" "$gt" "$gq" "$gs"
+	calc_reason "$1" 0 "$gf" "$gt" "$gq" "$gs" "$gd" "$gx"
 }
 
 logev() {  # logev MAC ИМЯ on|off ПРИЧИНА
@@ -229,14 +282,14 @@ case "$1" in
 list)
 	# устройства: ARP (кто в сети сейчас) + аренды DHCP (имена, давно не видимые) + уже заблокированные
 	{ [ -s "$DEVF" ] && awk -F'|' '$1 != "" { print "D|" $1 "|" $3 "|" $4 "|" $2 }' "$DEVF"
-	  [ -s "$LIST" ] && awk -F'|' '{ print "B", $1, ($3 == "" ? 0 : $3), ($4 == "" ? "-" : $4), ($5 == "" ? "-" : $5), ($6 == "" ? "-" : $6), ($7 == "" ? "-" : $7), $2 }' "$LIST"
+	  [ -s "$LIST" ] && awk -F'|' '{ print "B", $1, ($3 == "" ? 0 : $3), ($4 == "" ? "-" : $4), ($5 == "" ? "-" : $5), ($6 == "" ? "-" : $6), ($7 == "" ? "-" : $7), ($8 == "" ? "-" : $8), ($9 == "" ? "-" : $9), $2 }' "$LIST"
 	  [ -r "$LEASES" ] && awk '{ print "L", tolower($2), $3, ($4 == "*" ? "" : $4) }' "$LEASES"
 	  live_list
 	} 2>/dev/null | awk -v own="$(own_macs | tr '\n' ' ')" -v wan="$(sed -n 's/^wan_dev=//p' "$DIR/info" 2>/dev/null | head -n 1)" '
 		function esc(s) { gsub(/["\\|]/, "", s); return s }
 		BEGIN { n = split(tolower(own), o, " "); for (i = 1; i <= n; i++) mine[o[i]] = 1 }
 		index($0, "D|") == 1 { split($0, p, "|"); m = p[2]; di[m] = p[3]; dg[m] = p[4]; dn[m] = p[5]; seen[m] = 1; next }
-		$1 == "B" { m = $2; man[m] = $3; sf[m] = ($4 == "-" ? "" : $4); st[m] = ($5 == "-" ? "" : $5); qq[m] = ($6 == "-" ? "" : $6); sn[m] = ($7 == "-" ? "" : $7); x = ""; for (i = 8; i <= NF; i++) x = x (i > 8 ? " " : "") $i; bn[m] = x; seen[m] = 1 }
+		$1 == "B" { m = $2; man[m] = $3; sf[m] = ($4 == "-" ? "" : $4); st[m] = ($5 == "-" ? "" : $5); qq[m] = ($6 == "-" ? "" : $6); sn[m] = ($7 == "-" ? "" : $7); sd[m] = ($8 == "-" ? "" : $8); sx[m] = ($9 == "-" ? "" : $9); x = ""; for (i = 10; i <= NF; i++) x = x (i > 10 ? " " : "") $i; bn[m] = x; seen[m] = 1 }
 		$1 == "L" { m = $2; ip[m] = $3; nm[m] = $4; seen[m] = 1 }
 		$1 == "W" { m = $2; wf[m] = 1; on[m] = 1; seen[m] = 1 }
 		$1 == "A" { m = $2; if ($4 == wan && !(m in seen)) next; ip[m] = $3; on[m] = 1; seen[m] = 1 }   # на устройстве WAN пропускаем только чужих: если WAN и LAN на одном интерфейсе, клиенты известны по DHCP
@@ -244,12 +297,12 @@ list)
 			for (m in seen) {
 				if (m in mine) continue
 				name = (dn[m] != "" ? dn[m] : (nm[m] != "" ? nm[m] : bn[m]))
-				printf "%s|%s|%s|%d|%d|%s|%s|%s|%s|%s|%s|%d\n", m, esc(ip[m]), esc(name), (m in on ? 1 : 0), man[m] + 0, sf[m], st[m], qq[m], sn[m], esc(di[m]), esc(dg[m]), (m in wf ? 1 : 0)
+				printf "%s|%s|%s|%d|%d|%s|%s|%s|%s|%s|%s|%d|%s|%s\n", m, esc(ip[m]), esc(name), (m in on ? 1 : 0), man[m] + 0, sf[m], st[m], qq[m], sn[m], esc(di[m]), esc(dg[m]), (m in wf ? 1 : 0), sd[m], sx[m]
 			}
 		}' | {
 		printf '{"ok":true,"devices":['
 		c=0
-		while IFS='|' read -r m ipa nm on man f t q sn ic gr wfi; do
+		while IFS='|' read -r m ipa nm on man f t q sn ic gr wfi dy xw; do
 			rs=$(reason_all "$m")
 			[ -n "$q" ] || q=$(grow "$gr" | cut -d'|' -f5)
 			[ -n "$q" ] && u=$(used_of "$m") || u=0
@@ -258,7 +311,7 @@ list)
 			[ "$wfi" = 1 ] && wfi=true || wfi=false
 			[ "$c" = 0 ] || printf ','
 			c=1
-			printf '{"mac":"%s","ip":"%s","name":"%s","online":%s,"manual":%s,"from":"%s","to":"%s","quota":%s,"used":%s,"active":%s,"reason":"%s","snoozed":%s,"icon":"%s","group":"%s","wifi":%s}' "$m" "$ipa" "$nm" "$on" "$man" "$f" "$t" "${q:-0}" "${u:-0}" "$([ -n "$rs" ] && echo true || echo false)" "$rs" "$([ "$sn" = "$(today)" ] && echo true || echo false)" "$ic" "$gr" "$wfi"
+			printf '{"mac":"%s","ip":"%s","name":"%s","online":%s,"manual":%s,"from":"%s","to":"%s","quota":%s,"used":%s,"active":%s,"reason":"%s","snoozed":%s,"icon":"%s","group":"%s","wifi":%s,"days":"%s","rules":"%s"}' "$m" "$ipa" "$nm" "$on" "$man" "$f" "$t" "${q:-0}" "${u:-0}" "$([ -n "$rs" ] && echo true || echo false)" "$rs" "$([ "$sn" = "$(today)" ] && echo true || echo false)" "$ic" "$gr" "$wfi" "$dy" "$xw"
 		done
 		printf ']}\n'
 	} ;;
@@ -267,36 +320,53 @@ block)
 	m=$(lower "$2")
 	own_macs | tr 'A-Z' 'a-z' | grep -qx "$m" && fail "это адрес самого роутера"
 	load_row "$m"; nn=$(clean "${3:-$R_NAME}")
-	set_row "$m" "$nn" 1 "$R_F" "$R_T" "$R_Q" ""; apply; printf '{"ok":true}\n' ;;
+	set_row "$m" "$nn" 1 "$R_F" "$R_T" "$R_Q" "" "$R_D" "$R_X"; apply; printf '{"ok":true}\n' ;;
 unblock)
 	mac_ok "$2" || fail "неверный MAC-адрес"
 	m=$(lower "$2"); load_row "$m"
 	[ "$(reason_all "$m")" = gmanual ] && fail "устройство отключено группой «$(group_of "$m")»: верните группу"
 	# если интернет отключён лимитом или расписанием, «вернуть» пропускает их до конца суток
-	rs=$(calc_reason "$m" 0 "$R_F" "$R_T" "$R_Q" "$R_SN"); sn=$R_SN
+	rs=$(calc_reason "$m" 0 "$R_F" "$R_T" "$R_Q" "$R_SN" "$R_D" "$R_X"); sn=$R_SN
 	if [ -z "$rs" ] && [ "$R_MAN" != 1 ]; then rs=$(reason_all "$m"); fi
 	[ -n "$rs" ] && sn=$(today)
-	set_row "$m" "$R_NAME" 0 "$R_F" "$R_T" "$R_Q" "$sn"; apply; printf '{"ok":true}\n' ;;
+	set_row "$m" "$R_NAME" 0 "$R_F" "$R_T" "$R_Q" "$sn" "$R_D" "$R_X"; apply; printf '{"ok":true}\n' ;;
 sched)
 	mac_ok "$2" || fail "неверный MAC-адрес"
 	m=$(lower "$2"); load_row "$m"
-	if [ "$3" = off ]; then set_row "$m" "$R_NAME" "$R_MAN" "" "" "$R_Q" "$R_SN"
+	if [ "$3" = off ]; then set_row "$m" "$R_NAME" "$R_MAN" "" "" "$R_Q" "$R_SN" "" ""
 	else
-		time_ok "$3" && time_ok "$4" || fail "время нужно в формате ЧЧ:ММ"
-		[ "$3" != "$4" ] || fail "начало и конец не должны совпадать"
+		win_ok "$3" "$4" "$6"
 		own_macs | tr 'A-Z' 'a-z' | grep -qx "$m" && fail "это адрес самого роутера"
-		set_row "$m" "$(clean "${5:-$R_NAME}")" "$R_MAN" "$3" "$4" "$R_Q" "$R_SN"
+		set_row "$m" "$(clean "${5:-$R_NAME}")" "$R_MAN" "$3" "$4" "$R_Q" "$R_SN" "$ND" "$R_X"   # первое окно заменяется, остальные остаются
 	fi
+	apply; printf '{"ok":true}\n' ;;
+sadd|sdel)
+	mac_ok "$2" || fail "неверный MAC-адрес"
+	m=$(lower "$2"); load_row "$m"
+	if [ "$1" = sadd ]; then
+		win_ok "$3" "$4" "$5"
+		own_macs | tr 'A-Z' 'a-z' | grep -qx "$m" && fail "это адрес самого роутера"
+		cur=$(wins_of "$R_F" "$R_T" "$R_D" "$R_X")
+		[ "$(printf '%s\n' "$cur" | grep -c .)" -lt 7 ] || fail "не больше 7 окон"
+		pack_wins "$cur
+$3|$4|$ND"
+	else
+		case "$3" in ''|*[!0-9]*) fail "номер окна нужен числом" ;; esac
+		cur=$(wins_of "$R_F" "$R_T" "$R_D" "$R_X")
+		[ "$3" -ge 1 ] && [ "$3" -le "$(printf '%s\n' "$cur" | grep -c .)" ] || fail "такого окна нет"
+		pack_wins "$(printf '%s\n' "$cur" | sed "${3}d")"
+	fi
+	set_row "$m" "$R_NAME" "$R_MAN" "$W_F" "$W_T" "$R_Q" "$R_SN" "$W_D" "$W_X"
 	apply; printf '{"ok":true}\n' ;;
 quota)
 	mac_ok "$2" || fail "неверный MAC-адрес"
 	m=$(lower "$2"); load_row "$m"
-	if [ "$3" = off ]; then set_row "$m" "$R_NAME" "$R_MAN" "$R_F" "$R_T" "" ""
+	if [ "$3" = off ]; then set_row "$m" "$R_NAME" "$R_MAN" "$R_F" "$R_T" "" "" "$R_D" "$R_X"
 	else
 		case "$3" in ''|*[!0-9]*) fail "лимит нужен числом мегабайт" ;; esac
 		[ "$3" -ge 1 ] && [ "$3" -le 1000000 ] || fail "лимит от 1 до 1000000 МБ"
 		own_macs | tr 'A-Z' 'a-z' | grep -qx "$m" && fail "это адрес самого роутера"
-		set_row "$m" "$(clean "${4:-$R_NAME}")" "$R_MAN" "$R_F" "$R_T" "$3" ""
+		set_row "$m" "$(clean "${4:-$R_NAME}")" "$R_MAN" "$R_F" "$R_T" "$3" "" "$R_D" "$R_X"
 	fi
 	apply; printf '{"ok":true}\n' ;;
 meta)
@@ -311,13 +381,13 @@ meta)
 	apply; printf '{"ok":true}\n' ;;
 groups)
 	printf '{"ok":true,"groups":['
-	[ -r "$GLIST" ] && awk -F'|' '{ gsub(/["\\]/, "", $1); printf "%s{\"name\":\"%s\",\"manual\":%s,\"from\":\"%s\",\"to\":\"%s\",\"quota\":%d,\"snoozed\":%s}", (NR > 1 ? "," : ""), $1, ($2 == 1 ? "true" : "false"), $3, $4, $5 + 0, ($6 == "'"$(today)"'" ? "true" : "false") }' "$GLIST"
+	[ -r "$GLIST" ] && awk -F'|' '{ gsub(/["\\]/, "", $1); printf "%s{\"name\":\"%s\",\"manual\":%s,\"from\":\"%s\",\"to\":\"%s\",\"quota\":%d,\"snoozed\":%s,\"days\":\"%s\",\"rules\":\"%s\"}", (NR > 1 ? "," : ""), $1, ($2 == 1 ? "true" : "false"), $3, $4, $5 + 0, ($6 == "'"$(today)"'" ? "true" : "false"), $7, $8 }' "$GLIST"
 	printf ']}\n' ;;
 gadd)
 	g=$(gclean "$2"); [ -n "$g" ] || fail "введите название группы"
 	[ -z "$(grow "$g")" ] || fail "такая группа уже есть"
 	[ "$({ wc -l < "$GLIST"; } 2>/dev/null || echo 0)" -lt 20 ] || fail "не больше 20 групп"
-	gset "$g" 0 "" "" "" ""; printf '{"ok":true}\n' ;;
+	gset "$g" 0 "" "" "" "" "" ""; printf '{"ok":true}\n' ;;
 gdel)
 	g=$(gclean "$2"); grp_ok "$g"
 	awk -F'|' -v g="$g" '$1 != g' "$GLIST" > "$GLIST.tmp" 2>/dev/null; mv "$GLIST.tmp" "$GLIST"
@@ -326,30 +396,48 @@ gdel)
 gblock|gunblock)
 	g=$(gclean "$2"); grp_ok "$g"; gr=$(grow "$g")
 	f=$(printf '%s' "$gr" | cut -d'|' -f3); t=$(printf '%s' "$gr" | cut -d'|' -f4); q=$(printf '%s' "$gr" | cut -d'|' -f5); sn=$(printf '%s' "$gr" | cut -d'|' -f6)
-	if [ "$1" = gblock ]; then gset "$g" 1 "$f" "$t" "$q" ""
+	gd=$(printf '%s' "$gr" | cut -d'|' -f7); gx=$(printf '%s' "$gr" | cut -d'|' -f8)
+	if [ "$1" = gblock ]; then gset "$g" 1 "$f" "$t" "$q" "" "$gd" "$gx"
 	else
-		rs=$(calc_reason zz:zz 0 "$f" "$t" "" "$sn"); [ -n "$rs" ] && sn=$(today)   # расписание группы пропускается до конца суток
-		gset "$g" 0 "$f" "$t" "$q" "$sn"
+		rs=$(calc_reason zz:zz 0 "$f" "$t" "" "$sn" "$gd" "$gx"); [ -n "$rs" ] && sn=$(today)   # расписание группы пропускается до конца суток
+		gset "$g" 0 "$f" "$t" "$q" "$sn" "$gd" "$gx"
 	fi
 	apply; printf '{"ok":true}\n' ;;
 gsched)
 	g=$(gclean "$2"); grp_ok "$g"; gr=$(grow "$g")
-	m=$(printf '%s' "$gr" | cut -d'|' -f2); q=$(printf '%s' "$gr" | cut -d'|' -f5); sn=$(printf '%s' "$gr" | cut -d'|' -f6)
-	if [ "$3" = off ]; then gset "$g" "$m" "" "" "$q" "$sn"
+	m=$(printf '%s' "$gr" | cut -d'|' -f2); q=$(printf '%s' "$gr" | cut -d'|' -f5); sn=$(printf '%s' "$gr" | cut -d'|' -f6); gx=$(printf '%s' "$gr" | cut -d'|' -f8)
+	if [ "$3" = off ]; then gset "$g" "$m" "" "" "$q" "$sn" "" ""
 	else
-		time_ok "$3" && time_ok "$4" || fail "время нужно в формате ЧЧ:ММ"
-		[ "$3" != "$4" ] || fail "начало и конец не должны совпадать"
-		gset "$g" "$m" "$3" "$4" "$q" "$sn"
+		win_ok "$3" "$4" "$5"
+		gset "$g" "$m" "$3" "$4" "$q" "$sn" "$ND" "$gx"
 	fi
+	apply; printf '{"ok":true}\n' ;;
+gsadd|gsdel)
+	g=$(gclean "$2"); grp_ok "$g"; gr=$(grow "$g")
+	m=$(printf '%s' "$gr" | cut -d'|' -f2); f=$(printf '%s' "$gr" | cut -d'|' -f3); t=$(printf '%s' "$gr" | cut -d'|' -f4); q=$(printf '%s' "$gr" | cut -d'|' -f5)
+	sn=$(printf '%s' "$gr" | cut -d'|' -f6); gd=$(printf '%s' "$gr" | cut -d'|' -f7); gx=$(printf '%s' "$gr" | cut -d'|' -f8)
+	cur=$(wins_of "$f" "$t" "$gd" "$gx")
+	if [ "$1" = gsadd ]; then
+		win_ok "$3" "$4" "$5"
+		[ "$(printf '%s\n' "$cur" | grep -c .)" -lt 7 ] || fail "не больше 7 окон"
+		pack_wins "$cur
+$3|$4|$ND"
+	else
+		case "$3" in ''|*[!0-9]*) fail "номер окна нужен числом" ;; esac
+		[ "$3" -ge 1 ] && [ "$3" -le "$(printf '%s\n' "$cur" | grep -c .)" ] || fail "такого окна нет"
+		pack_wins "$(printf '%s\n' "$cur" | sed "${3}d")"
+	fi
+	gset "$g" "$m" "$W_F" "$W_T" "$q" "$sn" "$W_D" "$W_X"
 	apply; printf '{"ok":true}\n' ;;
 gquota)
 	g=$(gclean "$2"); grp_ok "$g"; gr=$(grow "$g")
 	m=$(printf '%s' "$gr" | cut -d'|' -f2); f=$(printf '%s' "$gr" | cut -d'|' -f3); t=$(printf '%s' "$gr" | cut -d'|' -f4)
-	if [ "$3" = off ]; then gset "$g" "$m" "$f" "$t" "" ""
+	gd=$(printf '%s' "$gr" | cut -d'|' -f7); gx=$(printf '%s' "$gr" | cut -d'|' -f8)
+	if [ "$3" = off ]; then gset "$g" "$m" "$f" "$t" "" "" "$gd" "$gx"
 	else
 		case "$3" in ''|*[!0-9]*) fail "лимит нужен числом мегабайт" ;; esac
 		[ "$3" -ge 1 ] && [ "$3" -le 1000000 ] || fail "лимит от 1 до 1000000 МБ"
-		gset "$g" "$m" "$f" "$t" "$3" ""
+		gset "$g" "$m" "$f" "$t" "$3" "" "$gd" "$gx"
 	fi
 	apply; printf '{"ok":true}\n' ;;
 log)
@@ -363,6 +451,6 @@ log)
 apply)
 	apply ;;
 *)
-	echo "usage: nightfall-block list | block|unblock MAC | sched|quota MAC ... | meta MAC NAME ICON GROUP | groups | gadd|gdel|gblock|gunblock G | gsched G f t|off | gquota G MB|off | log | apply" >&2
+	echo "usage: nightfall-block list | block|unblock MAC | sched|sadd|sdel|quota MAC ... | meta MAC NAME ICON GROUP | groups | gadd|gdel|gblock|gunblock G | gsched G f t [days]|off | gsadd|gsdel G ... | gquota G MB|off | log | apply" >&2
 	exit 1 ;;
 esac
