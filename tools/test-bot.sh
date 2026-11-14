@@ -167,6 +167,7 @@ wq() {  # wq ЧАТ ДАННЫЕ
 conf 111 "" "" 1 0; rm -f "$T/mid"; upd 111 111 "/status"; runbot
 grep -q 'METHOD sendWidget' "$T/calls" && bad "виджет: отправлен при выключенной настройке" || ok "виджет: выключен по умолчанию, приходит обычный текст"
 conf 111 "" "" 1 1; rm -f "$T/mid" "$T/bot.widgets"; : > "$T/bot.msgs"; upd 111 111 "/status"; runbot
+[ ! -e "$T/bot.widget.err" ] && ok "виджет: после удачной отправки ошибка стёрта" || bad "виджет: старая ошибка осталась"
 grep -q 'METHOD sendWidget' "$T/calls" && ok "виджет: отправлен" || bad "виджет: не отправлен: $(cut -c1-80 "$T/calls")"
 grep 'METHOD sendWidget' "$T/calls" | grep -q 'allow_queries=true' && ok "виджет: разрешены запросы из виджета" || bad "виджет: нет allow_queries"
 grep 'METHOD sendWidget' "$T/calls" | grep -q '\[caption\] 📊 testrouter' && ok "виджет: подпись с текстом статуса для старых клиентов" || bad "виджет: нет подписи"
@@ -179,10 +180,27 @@ grep -q 'METHOD sendWidget' "$T/calls" && grep '^DEL' "$T/calls" | grep -q 'mess
 touch "$T/widget.fail"; conf 111 "" "" 1 1; rm -f "$T/mid"; upd 111 111 "/status"; runbot
 grep -q 'METHOD sendMessage' "$T/calls" && grep 'METHOD sendMessage' "$T/calls" | grep -q '📊 testrouter' && ok "виджет: ошибка Telegram, пришёл обычный текст" || bad "виджет: нет запасного текста"
 rm -f "$T/widget.fail"
+[ -s "$T/bot.widget.err" ] && ok "виджет: причина отказа записана в bot.widget.err" || bad "виджет: причина отказа не записана"
+conf 111 "" "" 1 1; rm -f "$T/mid"; upd 111 111 "/widget"; runbot
+grep 'METHOD sendMessage' "$T/calls" | grep -q 'Живые виджеты' && grep 'METHOD sendMessage' "$T/calls" | grep -q 'последняя ошибка' && ok "/widget: показывает последнюю ошибку" || bad "/widget: $(cut -c1-120 "$T/calls")"
+grep 'METHOD sendMessage' "$T/calls" | grep -q 'Настройка: включены' && ok "/widget: показывает, что виджеты включены" || bad "/widget: нет состояния настройки"
 NF_W="$T/nowidgets" conf 111 "" "" 1 1; rm -f "$T/mid"; upd 111 111 "/status"; NF_W="$T/nowidgets" runbot
 grep -q 'METHOD sendWidget' "$T/calls" && bad "виджет: отправлен без файла" || ok "виджет: нет файла шаблона, пришёл обычный текст"
 conf -100500 111 "" 1 1; upd -100500 111 "/status"; runbot
 grep -q 'METHOD sendWidget' "$T/calls" && bad "виджет: отправлен в группу" || ok "виджет: в группе не отправляется"
+conf 111 "" "" 1 0; rm -f "$T/mid"; upd 111 111 "/widget"; runbot
+grep 'METHOD sendMessage' "$T/calls" | grep -q 'Настройка: выключены' && ok "/widget: показывает, что виджеты выключены" || bad "/widget (выключены): $(cut -c1-120 "$T/calls")"
+# текст «Статуса»: полоски и цветные точки
+conf 111 "" "" 1 0; rm -f "$T/mid"; upd 111 111 "/status"; runbot
+st=$(grep 'METHOD sendMessage' "$T/calls")
+case "$st" in *'Процессор'*'▰▱▱▱▱▱▱▱▱▱'*'12%'*) ok "статус: полоска процессора (12% = 1 деление)" ;; *) bad "статус: нет полоски процессора: $st" ;; esac
+case "$st" in *'🟢 Память'*'▰▰▰▰▰▰▱▱▱▱'*'60%'*) ok "статус: память 60% (6 делений)" ;; *) bad "статус: память: $st" ;; esac
+case "$st" in *'🟢 Интернет: есть, 12 мс'*'🟢 Температура: 61.5'*) ok "статус: интернет и температура" ;; *) bad "статус: интернет/температура: $st" ;; esac
+printf '1700000000 95 0 88.0 1250000 125000 0 -1\n' > "$T/hist.fine"; rm -f "$T/mid"; upd 111 111 "/status"; runbot
+st=$(grep 'METHOD sendMessage' "$T/calls")
+case "$st" in *'🔴 Процессор'*'▰▰▰▰▰▰▰▰▰▰'*) ok "статус: высокая загрузка красная" ;; *) bad "статус: загрузка 95%: $st" ;; esac
+case "$st" in *'🔴 Температура: 88.0'*'🔴 Интернет: НЕТ СВЯЗИ'*|*'🔴 Интернет: НЕТ СВЯЗИ'*'🔴 Температура: 88.0'*) ok "статус: нет связи и жара красные" ;; *) bad "статус: красные: $st" ;; esac
+printf '1700000000 12 0 61.5 1250000 125000 0 12.3\n' > "$T/hist.fine"
 # запрос из виджета
 conf 111 "" "" 1 1; wq 111 s; runbot
 a=$(grep '^ANS' "$T/calls" | sed 's/.*widget_query_id=wq77.*data=\({.*}\).*/\1/')
