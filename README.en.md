@@ -140,19 +140,30 @@ SSH access to the router is required.
 ```sh
 wget -qO- https://raw.githubusercontent.com/Nikolai752/nightfall-openwrt/main/install-update.sh | sh
 ```
+The script finds the latest version itself, downloads that release, verifies its checksum and signature and prints which version is installed at the end. If `wget` cannot do HTTPS, use `curl -fsSL URL | sh` (`apk add curl ca-bundle`).
 
-**Manually:** download `nightfall-root.tar.gz` from [Releases](https://github.com/Nikolai752/nightfall-openwrt/releases/latest) and `install.sh`, put them in one folder and run:
+Options go after `sh -s --`, for example `... | sh -s -- --activate`:
+
+| Option | What it does |
+| --- | --- |
+| `--activate` | make Nightfall the default theme right away |
+| `--check` | only show the installed and the latest version |
+| `--force` | reinstall even if the version is already the latest |
+| `--version v1.16.2` | install a specific version (older ones too) |
+| `--file PATH` | install from a local archive |
+
+**Manually, without internet on the router:** download `nightfall-root.tar.gz` from [Releases](https://github.com/Nikolai752/nightfall-openwrt/releases/latest) and `install-update.sh`, put them in one folder and run:
 ```sh
-scp -O nightfall-root.tar.gz install.sh root@192.168.1.1:/tmp/
-ssh root@192.168.1.1 "cd /tmp && sh install.sh --activate"
+scp -O nightfall-root.tar.gz install-update.sh root@192.168.1.1:/tmp/
+ssh root@192.168.1.1 "cd /tmp && sh install-update.sh --activate"
 ```
-`--activate` enables the theme right away. Without it, select the theme under System → System → Language and Style.
+Without `--activate`, select the theme under System → System → Language and Style. Old archives left in `/tmp` are never used when installing from the internet.
 
 After installing, log out of LuCI and log in again, then press `Ctrl+F5`. On iPhone, close the home-screen app and reopen it.
 
 ## Updating
 
-Use the same one-line command as for installation, or run `install-update.sh` manually. Your settings are kept.
+Use the same command as for installation. Your settings are kept. If the version is already the latest, the script says so (`--force` reinstalls).
 
 ### Updating from the interface
 
@@ -162,11 +173,15 @@ The router needs **curl** to download the release (`apk add curl`, or `opkg inst
 
 ## Uninstalling
 
+Directly on the router (over SSH), one command:
 ```sh
-scp -O uninstall.sh root@192.168.1.1:/tmp/
-ssh root@192.168.1.1 "sh /tmp/uninstall.sh"          # switch back to the default theme
-ssh root@192.168.1.1 "sh /tmp/uninstall.sh --purge"  # and delete all Nightfall files
+wget -qO- https://raw.githubusercontent.com/Nikolai752/nightfall-openwrt/main/uninstall.sh | sh
 ```
+The script switches back to the default theme and removes everything: the theme, the resource monitor, the bot, the history collector, menu entries (including "Nightfall: all elements"), rpcd permissions, LuCI settings entries and caches. Your settings (`/etc/nightfall-*`) are kept so a reinstall restores everything. Options (after `sh -s --`):
+
+- `--wipe` delete everything, including settings, device lists, the journal and the bot token;
+- `--theme-only` only switch back to the default theme and leave the files.
+
 If LuCI will not open at all: `uci set luci.main.mediaurlbase=/luci-static/bootstrap; uci commit luci`.
 
 ## Configuration
@@ -199,7 +214,7 @@ If you installed the theme on another router, please tell us in [Issues](https:/
 - `luci-theme-nightfall/`: the theme (CSS, JS, templates).
 - `luci-app-nightfall-monitor/`: the monitor, history collector, per-application accounting, Telegram bot, updater, menu and access rights.
 - `CHANGELOG.md` — release notes (shown after an update).
-- `install.sh`, `install-update.sh`, `uninstall.sh`: install, update, roll back.
+- `install-update.sh` (install and update), `install.sh` (wrapper), `uninstall.sh`: install, update, uninstall.
 - `build-release.sh`: builds `dist/nightfall-root.tar.gz`.
 
 ## Making a release

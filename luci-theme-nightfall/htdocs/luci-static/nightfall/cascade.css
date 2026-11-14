@@ -6171,13 +6171,26 @@ html[data-nf-motion="off"] .nf-blk-tools .nf-linkbtn.spin::before { animation: n
 }
 
 /* ======== v1.15.3: «Здесь пока что пусто» по центру, окна со списками на всю ширину, панель сохранения ======== */
-/* Пустая строка таблицы: блок внутри display:table занимал только ширину первого столбца, и надпись
-   смещалась влево. Подпись таблицы (caption) всегда растягивается на всю ширину таблицы. */
-.table .tr.placeholder { display: table-caption; caption-side: bottom; width: auto; height: auto; }
-.table .tr.placeholder > .td { width: 100% !important; box-sizing: border-box; }
+/* Пустая строка таблицы («Здесь пока что пусто», «Сканирование…»). Блок внутри display:table занимал только
+   ширину первого столбца, и надпись смещалась влево (#83). Решение как в родной теме LuCI: строка имеет
+   фиксированную высоту, а ячейка вынимается из потока и растягивается на всю ширину таблицы
+   (у .table position: relative). Высота не зависит от содержимого, поэтому таблица не «плавает»
+   при обновлении данных (аренды DHCP, поиск сетей). Работает одинаково в Chrome, Firefox и Safari. */
+.table .tr.placeholder { display: table-row; width: auto; height: 112px; }
+.table .tr.placeholder > .td {
+	position: absolute; left: 0; right: 0; bottom: 0; width: auto !important; height: 112px; box-sizing: border-box;
+	display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 16px; border: 0;
+	background: transparent !important;
+}
+.table .tr.placeholder:has(.spinning), .table .tr.placeholder:has(.spinning) > .td { height: 76px; }
 /* во время сканирования Wi-Fi вместо пустого значка крутится индикатор */
 .table .tr.placeholder > .td em:has(.spinning)::before { display: none; }
-.table .tr.placeholder .spinning { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 0; }
+.table .tr.placeholder .spinning { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 0; }
+@media (max-width: 899px) {
+	/* на телефоне таблицы настроек — карточки (display: block), там строка снова обычный блок */
+	html .table.cbi-section-table .tr.placeholder { display: block; height: auto; margin: 0; padding: 0; border: 0; background: none; }
+	html .table.cbi-section-table .tr.placeholder > .td { position: static; height: auto; padding: 26px 16px; flex: none; }
+}
 
 /* Окно со списком (поиск сетей Wi‑Fi и т. п.): если в нём таблица из пяти и более столбцов, оно
    растягивается как в родной теме. Сработает и пока идёт сканирование, когда строк ещё нет. */
@@ -6222,3 +6235,7 @@ html[data-nf-motion="off"] .nf-blk-tools .nf-linkbtn.spin::before { animation: n
 	.cbi-page-actions .cbi-button-reset, .cbi-page-actions .cbi-button-negative { --nf-pa-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 1 0 3-6.7L3 8'/%3E%3Cpath d='M3 3v5h5'/%3E%3C/svg%3E"); }
 	.modal .cbi-page-actions { padding: 0; }
 }
+
+/* Окно входа: правило ширины окон LuCI (id) перебивало ширину карточки входа, и она растягивалась до 540 px,
+   а поля прижимались к левому краю. Возвращаем исходный размер 380 px. */
+body.nf-blank #modal_overlay > .modal.login { --nf-mw: 380px; width: 100%; max-width: 380px; }

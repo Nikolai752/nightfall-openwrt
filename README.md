@@ -157,19 +157,30 @@
 ```sh
 wget -qO- https://raw.githubusercontent.com/Nikolai752/nightfall-openwrt/main/install-update.sh | sh
 ```
+Скрипт сам узнаёт последнюю версию, скачивает её архив, проверяет контрольную сумму и подпись и в конце пишет, какая версия установлена. Если `wget` не справляется с HTTPS, используйте `curl -fsSL URL | sh` (`apk add curl ca-bundle`).
 
-**Вручную:** скачайте `nightfall-root.tar.gz` из [Releases](https://github.com/Nikolai752/nightfall-openwrt/releases/latest) и `install.sh`, положите рядом и выполните:
+Параметры добавляются после `sh -s --`, например `... | sh -s -- --activate`:
+
+| Параметр | Что делает |
+| --- | --- |
+| `--activate` | сразу выбрать Nightfall темой по умолчанию |
+| `--check` | только показать установленную и последнюю версию |
+| `--force` | переустановить, даже если версия уже последняя |
+| `--version v1.16.2` | поставить конкретную версию (можно и более старую) |
+| `--file ПУТЬ` | поставить из локального архива |
+
+**Вручную, без интернета на роутере:** скачайте `nightfall-root.tar.gz` из [Releases](https://github.com/Nikolai752/nightfall-openwrt/releases/latest) и `install-update.sh`, положите рядом и выполните:
 ```sh
-scp -O nightfall-root.tar.gz install.sh root@192.168.1.1:/tmp/
-ssh root@192.168.1.1 "cd /tmp && sh install.sh --activate"
+scp -O nightfall-root.tar.gz install-update.sh root@192.168.1.1:/tmp/
+ssh root@192.168.1.1 "cd /tmp && sh install-update.sh --activate"
 ```
-`--activate` сразу включает тему. Без него выберите её в System → System → Language and Style.
+Без `--activate` выберите тему в System → System → Language and Style. Старые архивы, случайно оставшиеся в `/tmp`, при установке «из интернета» не используются.
 
 После установки выйдите из LuCI и войдите снова, затем нажмите `Ctrl+F5`. На iPhone закройте приложение с экрана «Домой» и откройте заново.
 
 ## Обновление
 
-Та же команда, что и для установки одной командой, либо `install-update.sh` вручную. Настройки сохраняются.
+Та же команда, что и для установки. Настройки сохраняются. Если версия уже последняя, скрипт сообщит об этом (`--force` переустановит).
 
 ### Обновление из интерфейса
 
@@ -181,11 +192,15 @@ ssh root@192.168.1.1 "cd /tmp && sh install.sh --activate"
 
 ## Удаление
 
+Прямо на роутере (по SSH), одной командой:
 ```sh
-scp -O uninstall.sh root@192.168.1.1:/tmp/
-ssh root@192.168.1.1 "sh /tmp/uninstall.sh"          # вернуть стандартную тему
-ssh root@192.168.1.1 "sh /tmp/uninstall.sh --purge"  # и удалить все файлы Nightfall
+wget -qO- https://raw.githubusercontent.com/Nikolai752/nightfall-openwrt/main/uninstall.sh | sh
 ```
+Скрипт возвращает стандартную тему и убирает всё: тему, «Монитор ресурсов», бота, сборщик истории, пункты меню (в том числе «Nightfall: все элементы»), права rpcd, записи в настройках LuCI и кэш. Ваши настройки (`/etc/nightfall-*`) остаются, чтобы при повторной установке всё вернулось. Параметры (после `sh -s --`):
+
+- `--wipe` удалить вообще всё, включая настройки, списки устройств, журнал и токен бота;
+- `--theme-only` только вернуть стандартную тему, файлы не трогать.
+
 Если LuCI не открывается совсем: `uci set luci.main.mediaurlbase=/luci-static/bootstrap; uci commit luci`.
 
 ## Настройка
@@ -219,7 +234,7 @@ ssh root@192.168.1.1 "sh /tmp/uninstall.sh --purge"  # и удалить все 
 - `luci-theme-nightfall/` — тема: CSS, JS, шаблоны.
 - `luci-app-nightfall-monitor/` — монитор, сборщик истории, учёт по приложениям, бот Telegram, обновление, меню, права доступа.
 - `CHANGELOG.md` — история изменений (показывается после обновления).
-- `install.sh`, `install-update.sh`, `uninstall.sh` — установка, обновление, откат.
+- `install-update.sh` (установка и обновление), `install.sh` (обёртка), `uninstall.sh` — установка, обновление, удаление.
 - `build-release.sh` — собирает `dist/nightfall-root.tar.gz`.
 
 ## Выпуск версии
