@@ -6,7 +6,7 @@
  * Nightfall: экран входа.
  * Кроме стандартного окна LuCI: сводка о роутере (из data-* шаблона),
  * запоминание имени пользователя, подсказки про Caps Lock и раскладку,
- * подсказка «Забыли пароль?». Пароль нигде не сохраняется.
+ * подсказка «Забыли пароль?». Пароль темой нигде не сохраняется (его может запомнить браузер).
  */
 
 const KEY = 'nightfall-login-user';
@@ -141,17 +141,28 @@ return view.extend({
 				btn.click();
 		});
 
+		let busy = false;
 		btn.addEventListener('click', () => {
+			if (busy)
+				return;
+			busy = true;
 			store((s) => remember.checked ? s.setItem(KEY, user.value) : s.removeItem(KEY));
 
-			dlg.querySelectorAll('*').forEach((node) => {
-				node.style.display = 'none';
-			});
-			dlg.appendChild(E('div', {
-				class: 'spinning'
-			}, _('Logging in…')));
+			/* настоящая отправка формы (с событием submit, пока поля видны): так браузер и менеджер паролей замечают вход
+			   и предлагают сохранить пароль. Раньше поля прятались до отправки, и предложение «Сохранить пароль?» не появлялось. */
+			if (form.requestSubmit)
+				form.requestSubmit();
+			else
+				form.submit();
 
-			form.submit();
+			window.setTimeout(() => {
+				dlg.querySelectorAll('*').forEach((node) => {
+					node.style.display = 'none';
+				});
+				dlg.appendChild(E('div', {
+					class: 'spinning'
+				}, _('Logging in…')));
+			}, 50);
 		});
 
 		/* --- часы экрана блокировки --- */
