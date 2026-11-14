@@ -6248,3 +6248,12 @@ html[data-nf-motion="off"] .nf-blk-tools .nf-linkbtn.spin::before { animation: n
 /* Окно входа: правило ширины окон LuCI (id) перебивало ширину карточки входа, и она растягивалась до 540 px,
    а поля прижимались к левому краю. Возвращаем исходный размер 380 px. */
 body.nf-blank #modal_overlay > .modal.login { --nf-mw: 380px; width: 100%; max-width: 380px; }
+
+/* Телефон: строка «Здесь пока что пусто» всегда на всю ширину карточки и по центру. Flex-правила mobile.css (flex: 1 1 50%
+   у .td) и карточный вид таблиц сжимали её до половины ширины, и надпись оказывалась в левой части карточки. */
+@media (max-width: 899px), (max-device-width: 854px) {
+	html .table .tr.placeholder { display: block !important; position: static !important; flex: 0 0 100% !important; width: 100% !important; max-width: none !important; height: auto !important; margin: 0 !important; padding: 0 !important; border: 0 !important; background: none !important; }
+	html .table .tr.placeholder::before, html .table .tr.placeholder::after { content: none !important; display: none !important; }
+	html .table .tr.placeholder > .td { position: static !important; display: flex !important; flex-direction: column; align-items: center; justify-content: center; flex: 0 0 100% !important; width: 100% !important; max-width: none !important; height: auto !important; margin: 0 !important; padding: 26px 16px !important; box-sizing: border-box; text-align: center; }
+	html .table .tr.placeholder > .td em.spinning { padding: 10px 0 10px 32px !important; text-align: left; }
+}

@@ -183,6 +183,8 @@ rm -f "$T/widget.fail"
 [ -s "$T/bot.widget.err" ] && ok "виджет: причина отказа записана в bot.widget.err" || bad "виджет: причина отказа не записана"
 conf 111 "" "" 1 1; rm -f "$T/mid"; upd 111 111 "/widget"; runbot
 grep 'METHOD sendMessage' "$T/calls" | grep -q 'Живые виджеты' && grep 'METHOD sendMessage' "$T/calls" | grep -q 'последняя ошибка' && ok "/widget: показывает последнюю ошибку" || bad "/widget: $(cut -c1-120 "$T/calls")"
+printf '%s %s\n' "$(date +%s)" '{"ok":false,"error_code":400,"description":"Bad Request: INPUT_MEDIA_WIDGET_NOT_ALLOWED"}' > "$T/bot.widget.err"; rm -f "$T/mid"; upd 111 111 "/widget"; runbot
+grep 'METHOD sendMessage' "$T/calls" | grep -q 'включаются постепенно' && ok "/widget: объясняет ошибку INPUT_MEDIA_WIDGET_NOT_ALLOWED" || bad "/widget: нет пояснения к NOT_ALLOWED: $(cut -c1-160 "$T/calls")"
 grep 'METHOD sendMessage' "$T/calls" | grep -q 'Настройка: включены' && ok "/widget: показывает, что виджеты включены" || bad "/widget: нет состояния настройки"
 NF_W="$T/nowidgets" conf 111 "" "" 1 1; rm -f "$T/mid"; upd 111 111 "/status"; NF_W="$T/nowidgets" runbot
 grep -q 'METHOD sendWidget' "$T/calls" && bad "виджет: отправлен без файла" || ok "виджет: нет файла шаблона, пришёл обычный текст"

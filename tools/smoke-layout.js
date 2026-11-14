@@ -2,6 +2,7 @@
 // и узкого окна поиска Wi-Fi). Страница собирается из разметки LuCI и стилей темы, сеть не нужна.
 const { chromium } = require('playwright'); const fs = require('fs'); const path = require('path');
 const CSS = fs.readFileSync(path.join(__dirname, '..', 'luci-theme-nightfall/htdocs/luci-static/nightfall/cascade.css'), 'utf8');
+const MCSS = fs.readFileSync(path.join(__dirname, '..', 'luci-theme-nightfall/htdocs/luci-static/nightfall/mobile.css'), 'utf8');
 const TH = ['Интерфейс', 'Цели', 'Шлюз', 'Метрика', 'Таблица', 'Отключить'].map(t => '<div class="th cbi-section-table-cell">' + t + '</div>').join('');
 const html = '<!doctype html><html lang="ru"><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><style>' + CSS + '</style></head>' +
 	'<body class="modal-overlay-active"><div id="maincontent"><div id="view"><div class="cbi-map"><div class="cbi-section"><div class="cbi-section-node">' +
@@ -66,12 +67,27 @@ let fail = 0; const bad = m => { console.log('ОШИБКА: ' + m); fail = 1; };
 	if (lg.w > 381) bad('окно входа растянуто: ' + Math.round(lg.w) + ' px, должно быть 380');
 	if (Math.abs(lg.cx - 700) > 4) bad('окно входа не по центру экрана (сдвиг ' + Math.round(lg.cx - 700) + ' px)');
 	await lp.close();
-	// телефон: пустая строка в карточном виде тоже по центру
-	const mp = await b.newPage({ viewport: { width: 390, height: 800 } });
-	await mp.setContent(html); await mp.waitForTimeout(300);
-	const mo = await mp.evaluate(() => { const t = document.getElementById('t2'), td = t.querySelector('.placeholder .td'); const a = t.getBoundingClientRect(), c = td.getBoundingClientRect(); return { dx: Math.abs((c.left + c.width / 2) - (a.left + a.width / 2)), w: c.width, tw: a.width }; });
-	if (mo.dx > 4 || mo.w < mo.tw - 30) bad('телефон: «пусто» не по центру карточки (сдвиг ' + Math.round(mo.dx) + ', ширина ' + Math.round(mo.w) + ' из ' + Math.round(mo.tw) + ')');
-	await mp.close();
+	// телефон (как в шапке темы: mobile.css подключается только на узком экране): пустая строка и сканирование по центру
+	const mctx = await b.newContext({ viewport: { width: 390, height: 800 }, screen: { width: 390, height: 800 }, isMobile: true, hasTouch: true });
+	const mp = await mctx.newPage();
+	await mp.setContent(html.replace('</style>', MCSS + '\n@media screen { .table .tr { display: flex; flex-wrap: wrap; } .table .td { flex: 0 0 50% !important; width: 50% !important; display: inline-block !important; } }</style>')); await mp.waitForTimeout(400);
+	const mo = await mp.evaluate(() => {
+		const res = {};
+		for (const [k, tsel, dsel] of [['карточка настроек', '#t2', '#t2 .placeholder .td'], ['окно сканирования', '#scan .table', '#scan .placeholder .td']]) {
+			const t = document.querySelector(tsel), td = document.querySelector(dsel), a = t.getBoundingClientRect(), c = td.getBoundingClientRect();
+			res[k] = { dx: Math.abs((c.left + c.width / 2) - (a.left + a.width / 2)), w: c.width, tw: a.width };
+		}
+		const em = document.querySelector('#scan .placeholder em'), cs = getComputedStyle(em, '::before');
+		const rg = document.createRange(); rg.selectNodeContents(em);
+		res.spin = { w: parseFloat(cs.width), gap: rg.getBoundingClientRect().left - (em.getBoundingClientRect().left + 4 + 20) };
+		res.dbg = ['#t2', '#t2 .tr.placeholder', '#t2 .tr.placeholder .td', '#scan .table', '#scan .tr.placeholder', '#scan .tr.placeholder .td'].map(q => { const e = document.querySelector(q), c = getComputedStyle(e), r = e.getBoundingClientRect(); return q + ' ' + c.display + ' pos=' + c.position + ' flex=' + c.flex + ' L=' + Math.round(r.left) + ' W=' + Math.round(r.width); }).join('\n') + '\nmq=' + matchMedia('(max-device-width: 600px)').matches;
+		return res;
+	});
+	if (process.env.DBG) console.log(mo.dbg);
+	for (const k of ['карточка настроек', 'окно сканирования'])
+		if (mo[k].dx > 4 || mo[k].w < mo[k].tw - 30) bad('телефон, ' + k + ': «пусто» не по центру (сдвиг ' + Math.round(mo[k].dx) + ', ширина ' + Math.round(mo[k].w) + ' из ' + Math.round(mo[k].tw) + ')');
+	if (mo.spin.w > 24 || mo.spin.gap < 2) bad('телефон: индикатор сканирования: ' + Math.round(mo.spin.w) + ' px, зазор до текста ' + Math.round(mo.spin.gap) + ' px');
+	await mctx.close();
 	fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
 	await p.screenshot({ path: path.join(__dirname, 'out', 'layout.png') }).catch(() => {});
 	await b.close();
