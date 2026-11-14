@@ -14,6 +14,8 @@ jobs:
       - run: ./tools/check.sh
       - name: Тесты бота (без Telegram)
         run: sh tools/test-bot.sh
+      - name: Расписание блокировки
+        run: sh tools/test-block.sh
       - name: Тесты установки, обновления и удаления
         run: sh tools/test-install.sh
       - name: Дымовой тест (Playwright)
