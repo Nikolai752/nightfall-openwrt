@@ -169,7 +169,7 @@ grep -q 'METHOD sendWidget' "$T/calls" && bad "виджет: отправлен 
 conf 111 "" "" 1 1; rm -f "$T/mid" "$T/bot.widgets"; : > "$T/bot.msgs"; upd 111 111 "/status"; runbot
 grep -q 'METHOD sendWidget' "$T/calls" && ok "виджет: отправлен" || bad "виджет: не отправлен: $(cut -c1-80 "$T/calls")"
 grep 'METHOD sendWidget' "$T/calls" | grep -q 'allow_queries=true' && ok "виджет: разрешены запросы из виджета" || bad "виджет: нет allow_queries"
-grep 'METHOD sendWidget' "$T/calls" | grep -q '\[caption\] 📊 testrouter' && ok "виджет: подпись с текстом статуса для старых клиентов" || bad "виджет: нет подписи"
+grep 'METHOD sendWidget' "$T/calls" | grep -q '\[caption\] .*testrouter · работает' && ok "виджет: подпись с текстом статуса для старых клиентов" || bad "виджет: нет подписи"
 cd=$(grep 'METHOD sendWidget' "$T/calls" | sed 's/.*\[chat_data\] \({[^}]*}\).*/\1/')
 printf '%s' "$cd" | python3 -I -c 'import sys,json; d=json.loads(sys.stdin.read()); assert d["h"]=="testrouter" and d["c"]==12 and d["m"]==60 and d["t"]==61.5 and d["p"]==12 and d["d"]==10.0 and d["u"]==1.0 and "r" in d and "w" in d' 2>/dev/null && ok "виджет: данные верные и это корректный JSON" || bad "виджет: данные: $cd"
 [ ${#cd} -lt 1024 ] && ok "виджет: данные меньше 1024 байт" || bad "виджет: данные слишком большие"
@@ -177,10 +177,15 @@ printf '%s' "$cd" | python3 -I -c 'import sys,json; d=json.loads(sys.stdin.read(
 conf 111 "" "" 1 1; rm -f "$T/mid"; upd cb 111 111 "status"; runbot; sleep 1
 grep -q 'METHOD sendWidget' "$T/calls" && grep '^DEL' "$T/calls" | grep -q 'message_ids=\[5\]' && ok "виджет: из меню присылается новый, сообщение с кнопкой убрано" || bad "виджет: из меню: $(cut -c1-90 "$T/calls")"
 touch "$T/widget.fail"; conf 111 "" "" 1 1; rm -f "$T/mid"; upd 111 111 "/status"; runbot
-grep -q 'METHOD sendMessage' "$T/calls" && grep 'METHOD sendMessage' "$T/calls" | grep -q '📊 testrouter' && ok "виджет: ошибка Telegram, пришёл обычный текст" || bad "виджет: нет запасного текста"
+grep -q 'METHOD sendMessage' "$T/calls" && grep 'METHOD sendMessage' "$T/calls" | grep -q 'testrouter · работает' && ok "виджет: ошибка Telegram, пришёл обычный текст" || bad "виджет: нет запасного текста"
+grep 'METHOD sendMessage' "$T/calls" | grep -q 'Виджет не отправился: Bad Request: widgets are not supported' && ok "виджет: под текстом написана причина отказа Telegram" || bad "виджет: нет причины в тексте"
+grep -q 'widgets are not supported' "$T/bot.widget.err" 2>/dev/null && ok "виджет: ответ Telegram сохранён в bot.widget.err" || bad "виджет: нет bot.widget.err"
 rm -f "$T/widget.fail"
+conf 111 "" "" 1 1; rm -f "$T/mid"; upd 111 111 "/status"; runbot
+[ ! -e "$T/bot.widget.err" ] && ok "виджет: после успешной отправки bot.widget.err убран" || bad "виджет: bot.widget.err остался"
 NF_W="$T/nowidgets" conf 111 "" "" 1 1; rm -f "$T/mid"; upd 111 111 "/status"; NF_W="$T/nowidgets" runbot
 grep -q 'METHOD sendWidget' "$T/calls" && bad "виджет: отправлен без файла" || ok "виджет: нет файла шаблона, пришёл обычный текст"
+grep 'METHOD sendMessage' "$T/calls" | grep -q 'Виджет не отправился: нет файла шаблона' && ok "виджет: причина «нет файла шаблона» названа" || bad "виджет: причина без файла не названа"
 conf -100500 111 "" 1 1; upd -100500 111 "/status"; runbot
 grep -q 'METHOD sendWidget' "$T/calls" && bad "виджет: отправлен в группу" || ok "виджет: в группе не отправляется"
 # запрос из виджета

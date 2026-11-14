@@ -6185,7 +6185,9 @@ html[data-nf-motion="off"] .nf-blk-tools .nf-linkbtn.spin::before { animation: n
 .table .tr.placeholder:has(.spinning), .table .tr.placeholder:has(.spinning) > .td { height: 76px; }
 /* во время сканирования Wi-Fi вместо пустого значка крутится индикатор */
 .table .tr.placeholder > .td em:has(.spinning)::before { display: none; }
-.table .tr.placeholder .spinning { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 0; }
+.table .tr.placeholder .spinning { display: inline-flex; align-items: center; justify-content: center; gap: 12px; padding: 10px 6px !important; position: relative; }
+/* кружок — обычный элемент в строке (а не абсолютный с отступом), поэтому он не налезает на текст при любом шрифте и в любом браузере */
+.table .tr.placeholder .spinning::before { position: static; flex: none; width: 20px; height: 20px; margin: 0; }
 @media (max-width: 899px) {
 	/* на телефоне таблицы настроек — карточки (display: block), там строка снова обычный блок */
 	html .table.cbi-section-table .tr.placeholder { display: block; height: auto; margin: 0; padding: 0; border: 0; background: none; }

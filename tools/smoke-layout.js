@@ -47,6 +47,9 @@ let fail = 0; const bad = m => { console.log('ОШИБКА: ' + m); fail = 1; };
 	await p.waitForTimeout(100);
 	const h2 = await p.evaluate(() => document.getElementById('t2').getBoundingClientRect().height);
 	if (Math.abs(h2 - d.th) > 1) bad('высота таблицы меняется от текста пустой строки: ' + Math.round(d.th) + ' → ' + Math.round(h2) + ' px');
+	// кружок сканирования стоит слева от текста и не налезает на него
+	const sp = await p.evaluate(() => { const s = document.querySelector('#scan .spinning'), t = document.createRange(); t.selectNodeContents(s); const tb = t.getBoundingClientRect(), sb = s.getBoundingClientRect(), pl = parseFloat(getComputedStyle(s).paddingLeft); const bb = getComputedStyle(s, '::before'); return { gap: tb.left - sb.left - pl, dot: bb.position, w: parseFloat(bb.width) }; });
+	if (sp.dot !== 'static' || sp.gap < 6) bad('индикатор сканирования налезает на текст (' + sp.dot + ', отступ ' + Math.round(sp.gap) + ' px)');
 	if (r.m.w < 900) bad('окно поиска Wi-Fi узкое: ' + Math.round(r.m.w) + ' px, нужно от 900');
 	if (Math.abs(r.sp.cx - r.mt.cx) > 4) bad('надпись сканирования не по центру окна (сдвиг ' + Math.round(r.sp.cx - r.mt.cx) + ' px)');
 	if (r.gap < 6) bad('кнопки панели сохранения слишком близко: ' + Math.round(r.gap) + ' px');
