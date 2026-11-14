@@ -6183,9 +6183,18 @@ html[data-nf-motion="off"] .nf-blk-tools .nf-linkbtn.spin::before { animation: n
 	background: transparent !important;
 }
 .table .tr.placeholder:has(.spinning), .table .tr.placeholder:has(.spinning) > .td { height: 76px; }
-/* во время сканирования Wi-Fi вместо пустого значка крутится индикатор */
+/* Загрузка/сканирование («Сканирование беспроводных сетей…»): LuCI делает <em class="spinning">, и на него попадал большой значок
+   пустого состояния (круг 46 px), который налезал на текст. Здесь вместо него обычный маленький индикатор слева от текста. */
+.table .tr.placeholder > .td em.spinning {
+	position: relative; display: inline-flex; align-items: center; justify-content: center;
+	padding: 10px 0 10px 32px !important; text-align: left;
+}
+.table .tr.placeholder > .td em.spinning::before {
+	--spinner-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' stroke='%23000' stroke-width='3' fill='none'><circle cx='10' cy='10' r='8' stroke-opacity='.5'/><path d='M10 2c4 0 8 4 8 8'><animateTransform attributeName='transform' type='rotate' dur='1s' from='0 10 10' to='360 10 10' repeatCount='indefinite'/></path></svg>");
+	content: " "; display: block; position: absolute; top: calc(50% - 10px); left: 4px; width: 20px; height: 20px; margin: 0; border-radius: 0;
+	background: var(--nf-accent, #000); mask: var(--spinner-icon) center/cover no-repeat; -webkit-mask: var(--spinner-icon) center/cover no-repeat;
+}
 .table .tr.placeholder > .td em:has(.spinning)::before { display: none; }
-.table .tr.placeholder .spinning { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 0; }
 @media (max-width: 899px) {
 	/* на телефоне таблицы настроек — карточки (display: block), там строка снова обычный блок */
 	html .table.cbi-section-table .tr.placeholder { display: block; height: auto; margin: 0; padding: 0; border: 0; background: none; }

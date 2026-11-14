@@ -61,31 +61,43 @@ names() {   # печатает «ip имя» из аренд DHCP (для под
 	[ -r "$LEASES" ] && awk '{ print $3, ($4 == "*" ? "" : $4) }' "$LEASES"
 }
 
-status_build() {   # собирает текст «Статуса» в $STXT
+# полоска из 10 делений и цветная точка по процентам (зелёная до 70, жёлтая до 90, дальше красная)
+bar() { awk -v p="$1" 'BEGIN { n = int(p / 10 + 0.5); if (n > 10) n = 10; if (n < 0) n = 0; s = ""; for (i = 0; i < 10; i++) s = s (i < n ? "▰" : "▱"); printf "%s", s }'; }
+dot() { awk -v p="$1" -v a="${2:-70}" -v b="${3:-90}" 'BEGIN { printf "%s", (p + 0 < a ? "🟢" : (p + 0 < b ? "🟡" : "🔴")) }'; }
+
+status_build() {   # собирает текст «Статуса» в $STXT (простой текст: так же выглядит подпись виджета и ответ на старых клиентах)
 	up=$(awk '{ print int($1) }' "$PROC/uptime" 2>/dev/null)
 	ld=$(awk '{ print $1 " " $2 " " $3 }' "$PROC/loadavg" 2>/dev/null)
-	mem=$(awk '/^MemTotal:/ { t = $2 } /^MemAvailable:/ { a = $2 } END { if (t) printf "%d%% занято из %d МБ", 100 * (t - a) / t, t / 1024 }' "$PROC/meminfo" 2>/dev/null)
+	mp=$(awk '/^MemTotal:/ { t = $2 } /^MemAvailable:/ { a = $2 } END { if (t) printf "%d", 100 * (t - a) / t; else printf 0 }' "$PROC/meminfo" 2>/dev/null)
+	mtot=$(awk '/^MemTotal:/ { printf "%d", $2 / 1024 }' "$PROC/meminfo" 2>/dev/null)
 	last=$(tail -n 1 "$DIR/hist.fine" 2>/dev/null)
 	set -- $last
-	temp=${4:-}; netms=${8:-}; ts=${1:-0}
-	net="нет данных"
+	temp=${4:-}; netms=${8:-}
+	cpu=${2:-0}; case "$cpu" in ''|*[!0-9.]*) cpu=0 ;; esac
+	ni="🔴"; net="НЕТ СВЯЗИ"
 	if [ -n "$netms" ]; then   # пинг в истории дробный (12.3), поэтому сравниваем через awk
 		net=$(awk -v n="$netms" 'BEGIN { if (n + 0 >= 0 && n ~ /^[0-9.]+$/) printf "есть, %.0f мс", n; else print "НЕТ СВЯЗИ" }')
+		case "$net" in есть*) ni="🟢" ;; esac
+	else net="нет данных"; ni="⚪"
 	fi
-	t=$(awk -v n="$temp" 'BEGIN { if (n ~ /^[0-9]+(\.[0-9]+)?$/ && n + 0 >= 0) printf "%.1f °C", n; else print "н/д" }')   # температура дробная (67.8): целочисленный test её не принимал
+	tp=$(awk -v n="$temp" 'BEGIN { if (n ~ /^[0-9]+(\.[0-9]+)?$/ && n + 0 >= 0) printf "%.1f", n; else printf -1 }')   # температура дробная (67.8): целочисленный test её не принимал
+	if [ "$tp" = "-1" ]; then ti="⚪"; t="н/д"; else ti=$(dot "$tp" 70 85); t="$tp °C"; fi
 	fp=/; [ -d /overlay ] && fp=/overlay
-	rom=$($DF -kP "$fp" 2>/dev/null | awk 'function sz(k) { if (k >= 1048576) return sprintf("%.1f ГБ", k / 1048576); return sprintf("%.1f МБ", k / 1024) }
-		NR == 2 && $2 > 0 { printf "%d%% занято, %s из %s (свободно %s)", 100 * $3 / $2, sz($3), sz($2), sz($2 - $3) }')
-	[ -n "$rom" ] || rom="нет данных"
-	rate=$(awk -v rx="${5:-0}" -v tx="${6:-0}" 'BEGIN { printf "↓ %.1f Мбит/с, ↑ %.1f Мбит/с", rx * 8 / 1e6, tx * 8 / 1e6 }')
-	STXT="📊 $HOST
-Интернет: $net
-Скорость сейчас: $rate
-Процессор: ${2:-?}%   Температура: $t
-Память: $mem
-ПЗУ: $rom
-Нагрузка: $ld
-Работает: $(dur "${up:-0}")"
+	rinfo=$($DF -kP "$fp" 2>/dev/null | awk 'function sz(k) { if (k >= 1048576) return sprintf("%.1f ГБ", k / 1048576); return sprintf("%.1f МБ", k / 1024) }
+		NR == 2 && $2 > 0 { printf "%d|%s из %s", 100 * $3 / $2, sz($3), sz($2) }')
+	rp=${rinfo%%|*}; rtxt=${rinfo#*|}
+	case "$rp" in ''|*[!0-9]*) rp=0; rtxt="нет данных" ;; esac
+	rate=$(awk -v rx="${5:-0}" -v tx="${6:-0}" 'BEGIN { printf "↓ %.1f · ↑ %.1f Мбит/с", rx * 8 / 1e6, tx * 8 / 1e6 }')
+	STXT="📊 $HOST · работает $(dur "${up:-0}")
+
+$ni Интернет: $net
+⚡ Сейчас: $rate
+
+$(dot "$cpu") Процессор  $(bar "$cpu")  ${cpu}%
+$(dot "$mp") Память  $(bar "$mp")  ${mp}% · ${mtot:-?} МБ
+$(dot "$rp") ПЗУ  $(bar "$rp")  ${rp}% · $rtxt
+$ti Температура: $t
+⚙️ Нагрузка: $ld"
 }
 
 # те же данные числами, для виджета: {"h":имя,"c":процессор %,"m":память %,"r":ПЗУ %,"t":°C или -1,"p":пинг мс или -1,"d":↓ Мбит/с,"u":↑ Мбит/с,"w":секунд работы}
@@ -106,11 +118,14 @@ status_json() {
 # виджеты работают только в личном чате и если включены в настройках
 widgets_on() { [ "$(cfg TG_WIDGETS)" = 1 ] && case "$CHAT" in -*) false ;; *) true ;; esac; }
 # send_widget ФАЙЛ ПОДПИСЬ ДАННЫЕ КНОПКИ: 0, если виджет отправлен (тогда нажатое сообщение с кнопкой убираем: виджет в него правкой не вписать)
+# причина последнего отказа лежит в $DIR/bot.widget.err (время и ответ Telegram): её показывает команда /widget
+widget_err() { printf '%s %s\n' "$(date +%s)" "$(printf '%s' "$1" | head -c 300 | tr -d '\n')" > "$DIR/bot.widget.err"; }
 send_widget() {
-	[ -r "$1" ] || return 1
-	r=$("$NOTIFY" widget "$1" "$2" "$3" "$4" 2>/dev/null) || return 1
+	[ -r "$1" ] || { widget_err "нет файла шаблона $1"; return 1; }
+	r=$("$NOTIFY" widget "$1" "$2" "$3" "$4" 2>/dev/null) || { widget_err "${r:-нет ответа от Telegram (сеть, прокси или VPN)}"; return 1; }
 	LASTID=$(printf '%s' "$r" | sed -n 's/.*"message_id":\([0-9][0-9]*\).*/\1/p' | head -n 1)
-	[ -n "$LASTID" ] || return 1
+	[ -n "$LASTID" ] || { widget_err "ответ без message_id: $r"; return 1; }
+	rm -f "$DIR/bot.widget.err"
 	track "$LASTID"; echo "$LASTID" >> "$DIR/bot.widgets"; tail -n 30 "$DIR/bot.widgets" > "$DIR/bot.widgets.t" && mv "$DIR/bot.widgets.t" "$DIR/bot.widgets"
 	[ -z "$MID" ] || purge "$MID"
 	return 0
@@ -119,6 +134,22 @@ cmd_status() {
 	status_build
 	if widgets_on && send_widget "$WDIR/status.html" "$STXT" "$(status_json)" "$KB_BACK"; then return; fi
 	reply "$STXT"
+}
+
+cmd_widget() {   # /widget: почему виджет приходит или не приходит
+	if [ "$(cfg TG_WIDGETS)" = 1 ]; then w="включены"; else w="выключены (Монитор → История → Настройки → «Живые виджеты в боте»)"; fi
+	case "$CHAT" in -*) c="группа: виджеты работают только в личном чате" ;; *) c="личный чат" ;; esac
+	if [ -r "$WDIR/status.html" ]; then f="на месте"; else f="НЕ НАЙДЕН ($WDIR/status.html), переустановите Nightfall"; fi
+	if [ -r "$DIR/bot.widget.err" ]; then
+		read -r wt wm < "$DIR/bot.widget.err"
+		e="последняя ошибка $(dur "$(( $(date +%s) - ${wt:-0} ))") назад: $wm"
+	else e="ошибок не было"; fi
+	reply "🧩 Живые виджеты
+Настройка: $w
+Чат: $c
+Шаблон: $f
+Отправка: $e
+Если виджет не приходит, а ошибок нет, обновите Telegram: интерактивные сообщения (Bot API 10.4) есть не во всех версиях."
 }
 
 cmd_clients() {
@@ -419,7 +450,7 @@ $([ "$evn" -gt 0 ] && printf 'Предупреждений за сутки: %s\n
 
 cmd_help() {
 	reply "Бот $HOST. Всё управляется кнопками под сообщениями: /menu открывает меню.
-Команды тоже работают: /status /clients /traffic /apps /speed /block /guest /wake /restart /clear /reboot /report"
+Команды тоже работают: /status /clients /traffic /apps /speed /block /guest /wake /restart /clear /widget /reboot /report"
 }
 
 # управлять ботом может владелец. В личном чате это сам TG_CHAT, в группе (id начинается с «-») только люди из TG_USERS:
@@ -438,6 +469,7 @@ run() {  # run КОМАНДА (из текста «/status» или из кно�
 	case "$1" in
 		start|menu|help) if [ "$1" = help ]; then cmd_help; else cmd_menu; fi ;;
 		status) cmd_status ;;
+		widget) cmd_widget ;;
 		clients) cmd_clients ;;
 		traffic) cmd_traffic ;;
 		apps) cmd_apps ;;

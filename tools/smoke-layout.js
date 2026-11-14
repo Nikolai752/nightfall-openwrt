@@ -13,7 +13,7 @@ const html = '<!doctype html><html lang="ru"><head><meta charset=utf-8><meta nam
 	'<div class="cbi-page-actions" id="pa"><button class="cbi-button cbi-button-apply">Сохранить и применить</button><button class="cbi-button cbi-button-save">Сохранить</button><button class="cbi-button cbi-button-reset">Сброс</button></div></div></div></div>' +
 	'<div id="modal_overlay" class="active"><div class="modal" id="scan"><h4>Найденные точки доступа Wi-Fi</h4><div class="table"><div class="tr table-titles">' +
 	['Сигнал', 'SSID', 'Канал', 'Режим работы', 'BSSID', 'Шифрование'].map(t => '<div class="th">' + t + '</div>').join('') +
-	'</div><div class="tr placeholder"><div class="td"><em><span class="spinning">Сканирование беспроводных сетей…</span></em></div></div></div>' +
+	'</div><div class="tr placeholder"><div class="td"><em class="spinning">Сканирование беспроводных сетей…</em></div></div></div>' +
 	'<div class="button-row"><button class="btn cbi-button">Закрыть</button></div></div></div></body></html>';
 // окно входа: отдельная страница, как её рисует sysauth.ut
 const login = '<!doctype html><html lang="ru"><head><meta charset=utf-8><style>' + CSS + '</style></head><body class="nf-blank modal-overlay-active"><div id="modal_overlay" class="active"><div class="modal login"><h4>Веб-интерфейс</h4>' +
@@ -35,6 +35,14 @@ let fail = 0; const bad = m => { console.log('ОШИБКА: ' + m); fail = 1; };
 	});
 	if (Math.abs(r.td.cx - r.t.cx) > 4) bad('«Здесь пока что пусто» не по центру таблицы (сдвиг ' + Math.round(r.td.cx - r.t.cx) + ' px)');
 	if (r.td.w < r.t.w - 4) bad('пустая строка уже таблицы (' + Math.round(r.td.w) + ' из ' + Math.round(r.t.w) + ' px)');
+	// индикатор загрузки: маленький (20 px) и не налезает на текст, значка пустого состояния (46 px) нет
+	const sc = await p.evaluate(() => {
+		const em = document.querySelector('#scan .placeholder em'), cs = getComputedStyle(em, '::before');
+		const rg = document.createRange(); rg.selectNodeContents(em); const tx = rg.getBoundingClientRect(), eb = em.getBoundingClientRect();
+		return { w: parseFloat(cs.width), gap: tx.left - (eb.left + 4 + 20) };
+	});
+	if (sc.w > 24) bad('сканирование: вместо индикатора большой круг ' + Math.round(sc.w) + ' px');
+	if (sc.gap < 2) bad('сканирование: индикатор налезает на текст (зазор ' + Math.round(sc.gap) + ' px)');
 	const d = await p.evaluate(() => {
 		const t = document.getElementById('t2'), td = t.querySelector('.placeholder .td'), tb = t.getBoundingClientRect(), b = td.getBoundingClientRect(), th = t.querySelector('.th').getBoundingClientRect();
 		return { cx: Math.abs((b.left + b.width / 2) - (tb.left + tb.width / 2)), wide: b.width, tw: tb.width, bot: Math.abs(b.bottom - tb.bottom), over: b.top < th.bottom - 1, th: tb.height };
