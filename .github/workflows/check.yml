@@ -26,6 +26,7 @@ jobs:
           node tools/smoke-layout.js
           node tools/smoke-login.js
           node tools/smoke-widget.js
+          node tools/test-temp.js
       - uses: actions/upload-artifact@v4
         if: always()
         with:

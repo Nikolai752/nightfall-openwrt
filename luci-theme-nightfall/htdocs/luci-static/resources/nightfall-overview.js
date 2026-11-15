@@ -112,8 +112,8 @@ function nfPlot(segs, H) {
 
 /* time based mini graph; classes[i] is the colour class of series i */
 let sparkSeq = 0;
-function spark(classes) {
-	const W = 100, H = 34;
+function spark(classes, winSec) {
+	const W = 100, H = 34, win = winSec || WIN;
 	const uid = 'nfg' + (++sparkSeq) + '_';
 	/* заливка под линией — плавный градиент от линии вниз, без сплошного прямоугольника */
 	const grads = classes.map((c, i) => SVG('linearGradient', { id: uid + i, x1: 0, y1: 0, x2: 0, y2: 1, class: c }, [
@@ -137,8 +137,8 @@ function spark(classes) {
 				const vals = arrays[i] || [];
 				const pts = [];
 				for (let k = 0; k < times.length; k++) {
-					if (vals[k] == null || now - times[k] > WIN) continue;
-					pts.push([ W - (now - times[k]) / WIN * W, H - 2 - Math.max(0, Math.min(1, (vals[k] - lo) / span)) * (H - 4) ]);
+					if (vals[k] == null || now - times[k] > win) continue;
+					pts.push([ W - (now - times[k]) / win * W, H - 2 - Math.max(0, Math.min(1, (vals[k] - lo) / span)) * (H - 4) ]);
 				}
 				const pl = nfPlot([ pts ], H);
 				p.line.setAttribute('d', pl.line);
@@ -147,6 +147,58 @@ function spark(classes) {
 			});
 		}
 	};
+}
+
+/* ---------- карточка «Температура»: график за 5 минут и скорость нагрева у каждого датчика (#93) ---------- */
+const TWIN = 300;           /* секунд истории для графика датчика */
+const TH = new Map();       /* имя датчика → [[время, °C], …] */
+const TSP = new Map();      /* имя датчика → { wrap, sp, rate } */
+
+function recordTemps(list, now) {
+	const seen = new Set();
+	for (const [ n, v ] of list || []) {
+		const c = v / 1000;
+		if (!isFinite(c) || c <= 0 || seen.has(n)) continue;
+		seen.add(n);
+		let a = TH.get(n); if (!a) TH.set(n, a = []);
+		a.push([ now, c ]);
+		while (a.length && a[0][0] < now - TWIN) a.shift();
+	}
+}
+/* скорость изменения, °C в минуту: текущее значение против значения примерно минуту назад (не меньше 20 секунд истории) */
+function tempRate(a) {
+	if (!a || a.length < 2) return null;
+	const last = a[a.length - 1];
+	let ref = null;
+	for (let i = a.length - 2; i >= 0; i--) { ref = a[i]; if (last[0] - a[i][0] >= 60) break; }
+	const dt = last[0] - ref[0];
+	return dt >= 20 ? (last[1] - ref[1]) / (dt / 60) : null;
+}
+const rateLevel = r => r == null ? '' : r <= 0.5 ? 'ok' : r <= 2 ? 'warn' : 'bad';
+function updateTemps() {
+	const h = Array.from(document.querySelectorAll('h3[data-nf-title]')).find(x => /Температур/i.test(x.getAttribute('data-nf-title')));
+	const card = h && h.closest('.cbi-section, .nf-xcard');
+	if (!card) return;
+	card.querySelectorAll('.tr, tr').forEach(r => {
+		if (r.querySelector(':scope > .th, :scope > th')) return;
+		const c = r.querySelectorAll(':scope > .td, :scope > td');
+		if (c.length < 2) return;
+		const name = (c[0].textContent || '').split('/')[0].trim();
+		const a = TH.get(name);
+		if (!name || !a) return;
+		let o = TSP.get(name);
+		if (!o) {
+			const sp = spark([ 'nf-c-temp' ], TWIN), rate = E('b', { class: 'nf-rate' });
+			o = { sp, rate, wrap: E('span', { class: 'nf-trend', title: 'Температура за последние 5 минут и скорость изменения (°C в минуту)' }, [ sp.el, rate ]) };
+			TSP.set(name, o);
+		}
+		if (!c[1].contains(o.wrap)) c[1].appendChild(o.wrap);
+		const vals = a.map(x => x[1]), lo = Math.floor(Math.min(...vals)) - 1, hi = Math.max(Math.ceil(Math.max(...vals)) + 1, lo + 4);
+		o.sp.update(a.map(x => x[0]), [ vals ], hi, lo);
+		const rt = tempRate(a), lv = rateLevel(rt);
+		o.rate.textContent = rt == null ? '…' : (rt > 0.05 ? '↑ +' : rt < -0.05 ? '↓ ' : '→ ') + nf1.format(rt) + ' °C/мин';
+		o.rate.setAttribute('data-lv', lv);
+	});
 }
 
 function badge(kind, text) {
@@ -574,6 +626,7 @@ function liveStrip() {
 		S.t.push(now); S.cpu.push(cpu);
 		S.mem.push(100 * (d.mem.total - d.mem.avail) / d.mem.total);
 		S.temp.push(pickTemp(d.temps));
+		recordTemps(d.temps, now); updateTemps();
 		S.rx.push(rx); S.tx.push(tx);
 		S.ping.push(S.net != null && S.net >= 0 ? S.net : null);
 		S.ct.push(d.ct && d.ct[0] >= 0 ? d.ct[0] : null);
@@ -2143,6 +2196,7 @@ return baseclass.extend({
 			}
 
 			decorateCards(view);
+			updateTemps();
 			syncPins(view);
 			syncSizes(view);
 			markNoWrap(view); decorateHosts(view); levelFree(view);
