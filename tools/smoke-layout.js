@@ -97,6 +97,21 @@ let fail = 0; const bad = m => { console.log('ОШИБКА: ' + m); fail = 1; };
 	// #98: слова в кнопках не рвутся по буквам (word-break: break-all у button в исходной теме LuCI)
 	const wb = await mp.evaluate(() => { const b = document.createElement('button'); b.className = 'nf-linkbtn'; document.body.appendChild(b); const c = getComputedStyle(b); return c.wordBreak + '/' + c.whiteSpace; });
 	if (wb.indexOf('break-all') >= 0) bad('кнопки рвут слова по буквам (word-break: ' + wb + ')');
+	// свёрнутое меню: после клика по значку раздела его всплывающее окно не должно оставаться при наведении на другой раздел
+	const np = await b.newPage({ viewport: { width: 1400, height: 900 } });
+	await np.setContent('<!doctype html><html data-nf-nav="mini"><head><meta charset=utf-8><style>' + CSS + '</style></head><body><header><ul id="topmenu" class="nav">' +
+		'<li class="dropdown" id="m1"><a class="menu" href="#">Статус</a><ul class="dropdown-menu"><li><a href="#x">Обзор</a></li></ul></li>' +
+		'<li class="dropdown" id="m2"><a class="menu" href="#">Система</a><ul class="dropdown-menu"><li><a href="#y">Система</a></li></ul></li></ul></header>' +
+		'<div class="nf-blk-sched nf-blk-days"><label><input type="checkbox" checked>Пн</label></div></body></html>');
+	await np.waitForTimeout(200);
+	const vis = id => np.evaluate(i => getComputedStyle(document.querySelector('#' + i + ' > ul')).display, id);
+	await np.hover('#m1 > a'); await np.mouse.down(); await np.mouse.up();
+	await np.hover('#m2 > a'); await np.waitForTimeout(150);
+	if (await vis('m1') !== 'none') bad('свёрнутое меню: окно первого раздела залипло после клика');
+	if (await vis('m2') === 'none') bad('свёрнутое меню: окно второго раздела не открылось при наведении');
+	const cb = await np.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.nf-blk-days input')).width));
+	if (cb < 12) bad('флажок дня недели схлопнулся (' + cb + ' px) и перекрывает подпись');
+	await np.close();
 	await mctx.close();
 	fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
 	await p.screenshot({ path: path.join(__dirname, 'out', 'layout.png') }).catch(() => {});
