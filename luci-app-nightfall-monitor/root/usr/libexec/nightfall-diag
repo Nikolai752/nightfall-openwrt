@@ -2,9 +2,27 @@
 # Nightfall: сетевая диагностика из Монитора ресурсов.
 #   nightfall-diag ping ХОСТ   — 4 пакета, сводка
 #   nightfall-diag trace ХОСТ  — маршрут до узла (traceroute, если установлен)
+#   nightfall-diag check       — шлюз, интернет и DNS одной проверкой
 #   nightfall-diag dns ХОСТ    — разрешение имени через DNS роутера
 # Узел проверяется строго: только буквы, цифры, точка, двоеточие, дефис (не больше 253 знаков, не начинается с «-»).
 cmd=$1; host=$2
+if [ "$cmd" = check ]; then   # быстрая проверка: шлюз, интернет, DNS одной кнопкой
+	gw=$(ip -4 route show default 2>/dev/null | awk '/default/ { for (i = 1; i < NF; i++) if ($i == "via") { print $(i + 1); exit } }')
+	one() {  # one ХОСТ: ответ и среднее время
+		o=$(ping -c 3 -W 2 "$1" 2>&1) || { echo "fail"; return; }
+		echo "$o" | awk '/min\/avg\/max|round-trip/ { sub(/.*= */, ""); split($0, a, "/"); printf "%.0f мс", a[2]; found = 1 } END { if (!found) printf "ответ есть" }'
+	}
+	if [ -n "$gw" ]; then r=$(one "$gw"); [ "$r" = fail ] && echo "❌ Шлюз $gw не отвечает" || echo "✅ Шлюз $gw: $r"; else echo "❌ Маршрут по умолчанию не найден (нет подключения к провайдеру)"; fi
+	for h in 1.1.1.1 8.8.8.8; do r=$(one "$h"); [ "$r" = fail ] && echo "❌ Интернет: $h не отвечает" || echo "✅ Интернет: $h — $r"; done
+	for h in ya.ru google.com; do
+		s=$(date +%s%N 2>/dev/null)
+		if nslookup "$h" >/dev/null 2>&1; then
+			e=$(date +%s%N 2>/dev/null)
+			case "$s$e" in *N*|'') echo "✅ DNS: $h разрешается" ;; *) echo "✅ DNS: $h разрешается за $(( (e - s) / 1000000 )) мс" ;; esac
+		else echo "❌ DNS: $h не разрешается"; fi
+	done
+	exit 0
+fi
 case "$host" in ''|-*|*[!A-Za-z0-9._:-]*) echo "Некорректный адрес узла"; exit 2 ;; esac
 [ "${#host}" -le 253 ] || { echo "Слишком длинный адрес"; exit 2; }
 case "$cmd" in

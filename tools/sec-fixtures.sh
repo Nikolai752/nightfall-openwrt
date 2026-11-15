@@ -1,0 +1,60 @@
+#!/bin/sh
+# Заглушки роутера для проверок nightfall-sec: sh tools/sec-fixtures.sh КАТАЛОГ (T=каталог)
+T=${1:-$T}
+cat > "$T/log.txt" <<'L'
+Mon Nov 16 02:10:01 2026 authpriv.warn dropbear[111]: Bad password attempt for 'root' from 203.0.113.5:40022
+Mon Nov 16 02:10:05 2026 authpriv.warn dropbear[112]: Bad password attempt for 'admin' from 203.0.113.5:40023
+Mon Nov 16 02:10:09 2026 authpriv.warn dropbear[113]: Login attempt for nonexistent user from 198.51.100.7:5000
+Mon Nov 16 02:11:00 2026 authpriv.notice dropbear[114]: Password auth succeeded for 'root' from 192.168.1.10:50000
+Mon Nov 16 02:12:00 2026 authpriv.info luci: failed login on / for root from 203.0.113.9
+Mon Nov 16 02:13:00 2026 authpriv.info luci: accepted login on / for root from 192.168.1.10
+Mon Nov 16 02:14:00 2026 daemon.info something: unrelated
+L
+printf '#!/bin/sh\ncat %s\n' "$T/log.txt" > "$T/logread"; chmod +x "$T/logread"
+
+# /proc: слушают sshd на всех адресах, uhttpd на всех, служба только на 127.0.0.1, UDP dns
+mkdir -p "$T/proc/net" "$T/proc/201/fd" "$T/proc/202/fd"
+cat > "$T/proc/net/tcp" <<'P'
+  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
+   0: 00000000:0016 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 5001 1 0 100 0 0 10 0
+   1: 0100007F:1F90 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 5002 1 0 100 0 0 10 0
+   2: 0100A8C0:C350 0100A8C0:0050 01 00000000:00000000 00:00000000 00000000     0        0 5003 1 0 100 0 0 10 0
+P
+cat > "$T/proc/net/tcp6" <<'P'
+  sl  local_address rem_address   st
+   0: 00000000000000000000000000000000:0050 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 5004 1 0 100 0 0 10 0
+P
+cat > "$T/proc/net/udp" <<'P'
+  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode
+   0: 00000000:0035 00000000:0000 07 00000000:00000000 00:00000000 00000000     0        0 5005 2 0
+P
+: > "$T/proc/net/udp6"
+echo dropbear > "$T/proc/201/comm"; ln -s 'socket:[5001]' "$T/proc/201/fd/3"
+echo uhttpd > "$T/proc/202/comm"; ln -s 'socket:[5004]' "$T/proc/202/fd/4"
+
+printf 'aa:bb:cc:dd:ee:01|Телефон|1700000000\naa:bb:cc:dd:ee:02|Камера|1700001000\n' > "$T/known"
+cat > "$T/uci" <<'U'
+#!/bin/sh
+cat <<'X'
+firewall.cfg1=zone
+firewall.cfg1.name='wan'
+firewall.cfg1.input='REJECT'
+firewall.cfg2=redirect
+firewall.cfg2.name='Web'
+firewall.cfg2.src='wan'
+firewall.cfg2.proto='tcp'
+firewall.cfg2.src_dport='8080'
+firewall.cfg2.dest_ip='192.168.1.5'
+firewall.cfg2.dest_port='80'
+firewall.cfg2.target='DNAT'
+firewall.cfg3=redirect
+firewall.cfg3.name='Off'
+firewall.cfg3.enabled='0'
+firewall.cfg3.src='wan'
+firewall.cfg3.src_dport='9999'
+firewall.cfg3.dest_port='1'
+X
+U
+chmod +x "$T/uci"
+printf '#!/bin/sh\necho "{\\"installed\\":\\"1.0.0\\",\\"latest\\":\\"1.1.0\\",\\"new\\":1}"\n' > "$T/upd"; chmod +x "$T/upd"
+

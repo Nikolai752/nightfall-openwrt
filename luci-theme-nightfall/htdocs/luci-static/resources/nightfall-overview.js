@@ -2260,6 +2260,7 @@ function quickCard() {
 /* ---------- init ---------- */
 
 return baseclass.extend({
+	blockCard: blockCard,   /* карточка «Доступ в интернет» целиком, её же показывает вкладка «Устройства» монитора */
 	__init__() {
 		const path = (L.env.dispatchpath || []).join('/');
 		if (path !== 'admin/status/overview') return;
