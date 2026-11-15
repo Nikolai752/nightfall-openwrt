@@ -3,6 +3,7 @@
 # Раз в STEP секунд (15) пишет в /tmp/nightfall:
 #   hist.fine    — последний час (шаг 15 с)
 #   hist.coarse  — последние 7 суток (шаг 5 мин)
+#   temps.fine / temps.coarse — температура каждого датчика: час (шаг 15 с) и 7 суток (шаг 5 мин), строки «время имя:°C имя:°C»
 #   hist.long    — длинная история (шаг 30 мин, HIST_DAYS суток); при PERSIST_DIR переживает перезагрузку
 #   wifi.hr / dev.hr — сигнал Wi-Fi и трафик по устройствам по часам (тепловая карта, мини-графики)
 #   dev.rate / dev.day / dev.yday — трафик по устройствам (из conntrack accounting)
@@ -126,6 +127,25 @@ read_temp() {   # печатает температуру процессора �
 	case "$best" in ''|*[!0-9]*) echo -1; return ;; esac
 	[ "$best" -gt 0 ] || { echo -1; return; }
 	echo "$((best / 1000)).$((best % 1000 / 100))"
+}
+
+read_temps() {  # печатает температуры всех датчиков «имя:°C» через пробел (имена как в nightfall-stats; повтор имени получает #2, #3)
+	out=""
+	for z in "$SYS"/class/thermal/thermal_zone*; do
+		[ -r "$z/temp" ] || continue
+		t=""; nm="zone"
+		read -r t < "$z/temp" 2>/dev/null || continue
+		read -r nm < "$z/type" 2>/dev/null
+		out="$out $(printf '%s' "$nm" | tr -cd 'A-Za-z0-9_.-')|$t"
+	done
+	for h in "$SYS"/class/hwmon/hwmon*; do
+		[ -r "$h/temp1_input" ] || continue
+		t=""; nm="hwmon"
+		read -r t < "$h/temp1_input" 2>/dev/null || continue
+		read -r nm < "$h/name" 2>/dev/null
+		out="$out $(printf '%s' "$nm" | tr -cd 'A-Za-z0-9_.-')|$t"
+	done
+	printf '%s\n' "$out" | tr ' ' '\n' | awk -F'|' 'NF == 2 && $2 ~ /^[0-9]+$/ && $2 > 0 { k = $1; if (k == "") k = "sensor"; c[k]++; if (c[k] > 1) k = k "#" c[k]; printf "%s%s:%d.%d", (n++ ? " " : ""), k, int($2 / 1000), int(($2 % 1000) / 100) }'
 }
 
 ping_ms() {     # ping_ms HOST -> миллисекунды или -1
@@ -436,7 +456,7 @@ on_flash() {    # 0, если каталог находится на встро�
 	return 1
 }
 
-PFILES="hist.coarse hist.long wifi.hr dev.hr dev.snap dev.daily router.ips events.log dev.day dev.yday day.date speed.log apps.day apps.hist traffic.daily acct.v"
+PFILES="hist.coarse temps.coarse hist.long wifi.hr dev.hr dev.snap dev.daily router.ips events.log dev.day dev.yday day.date speed.log apps.day apps.hist traffic.daily acct.v"
 persist() {
 	[ -n "$PERSIST_DIR" ] && [ "$persist_ok" = 1 ] || return 0
 	mkdir -p "$PERSIST_DIR" 2>/dev/null || return 0
@@ -644,6 +664,7 @@ while :; do
 	# история пишется только когда часы синхронизированы и после первого замера
 	if [ "$now" -gt 1700000000 ] && [ "$tick" -gt 1 ]; then
 		printf '%s %s %s %s %s %s %s %s %s %s\n' "$now" "$cpu" "$mem" "$temp" "$rx" "$tx" "$gwms" "$netms" "$loss" "$ctn" >> "$DIR/hist.fine"
+		tl=$(read_temps); [ -n "$tl" ] && printf '%s %s\n' "$now" "$tl" >> "$DIR/temps.fine"
 		do_dns
 		do_devices
 		do_newdev
@@ -681,9 +702,11 @@ while :; do
 		if [ $((tick % AGG)) = 0 ]; then
 			tail -n "$AGG" "$DIR/hist.fine" | awk '{ for (i = 2; i <= 10; i++) if ($i >= 0) { s[i] += $i; c[i]++ } last = $1 }
 				END { printf "%d", last; for (i = 2; i <= 10; i++) printf " %s", (c[i] ? sprintf("%.1f", s[i] / c[i]) : -1); print "" }' >> "$DIR/hist.coarse"
+			[ -s "$DIR/temps.fine" ] && tail -n "$AGG" "$DIR/temps.fine" | awk '{ last = $1; for (i = 2; i <= NF; i++) { j = index($i, ":"); k = substr($i, 1, j - 1); v = substr($i, j + 1) + 0; if (!(k in c)) o[++no] = k; s[k] += v; c[k]++ } }
+				END { if (!no) exit; printf "%d", last; for (i = 1; i <= no; i++) printf " %s:%.1f", o[i], s[o[i]] / c[o[i]]; print "" }' >> "$DIR/temps.coarse"
 			[ $((tick % (AGG * 6))) = 0 ] && long_point
 			[ $((tick % (AGG * 12))) = 0 ] && { wifi_hour; dev_hour; }
-			for f in "hist.fine 400" "hist.coarse 2016" "hist.long $((HIST_DAYS * 48))" "wifi.hr 12000" "dev.hr 6000" "events.log 300" "wifi.fine 8000" "wifi.ev 400" "speed.log 400"; do
+			for f in "hist.fine 400" "hist.coarse 2016" "temps.fine 400" "temps.coarse 2016" "hist.long $((HIST_DAYS * 48))" "wifi.hr 12000" "dev.hr 6000" "events.log 300" "wifi.fine 8000" "wifi.ev 400" "speed.log 400"; do
 				[ -f "$DIR/${f% *}" ] || continue
 				set -- $f
 				if [ "$(wc -l < "$DIR/$1")" -gt "$2" ]; then tail -n "$2" "$DIR/$1" > "$DIR/$1.tmp" && mv "$DIR/$1.tmp" "$DIR/$1"; fi

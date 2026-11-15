@@ -1,6 +1,7 @@
 #!/bin/sh
 # Nightfall history: отдаёт данные сборщика (nightfall-collector) одним JSON-объектом.
 #   nightfall-history series fine|coarse|long — графики + события + предупреждения (long — до 90 суток, шаг 30 мин)
+#   nightfall-history temps fine|coarse    — температуры всех датчиков: час (шаг 15 с) или 7 суток (шаг 5 мин)
 #   nightfall-history wifi-hr / devhr      — почасовой сигнал клиентов Wi-Fi / трафик по устройствам
 #   nightfall-history devices              — трафик по устройствам
 #   nightfall-history alerts               — активные предупреждения и последняя точка
@@ -84,6 +85,18 @@ series)
 	printf ',"events":'; events_json
 	printf ',"active":'; active_json
 	printf ',"info":'; info_json
+	printf '}\n' ;;
+temps)
+	# температуры всех датчиков: {"names":[…],"rows":[[время, °C по датчикам в порядке names (-1 — нет замера)],…]}
+	case "$2" in coarse) f=temps.coarse; lim=2016 ;; *) f=temps.fine; lim=400 ;; esac
+	printf '{"now":%s,"range":"%s","step":%s,"names":' "$now" "${2:-fine}" "$([ "$f" = temps.coarse ] && echo 300 || echo 15)"
+	if [ -r "$DIR/$f" ]; then
+		tail -n "$lim" "$DIR/$f" | awk '
+			{ r++; ts[r] = $1; for (i = 2; i <= NF; i++) { j = index($i, ":"); k = substr($i, 1, j - 1); if (!(k in id)) { id[k] = ++nn; nm[nn] = k } v[r, id[k]] = substr($i, j + 1) } }
+			END { printf "["; for (i = 1; i <= nn; i++) printf "%s\"%s\"", (i > 1 ? "," : ""), nm[i]; printf "],\"rows\":["
+				for (q = 1; q <= r; q++) { printf "%s[%s", (q > 1 ? "," : ""), ts[q]; for (i = 1; i <= nn; i++) printf ",%s", ((q, i) in v ? v[q, i] : -1); printf "]" }
+				printf "]" }'
+	else printf '[],"rows":[]'; fi
 	printf '}\n' ;;
 devices)
 	ts=0; [ -r "$DIR/dev.rate" ] && read -r ts < "$DIR/dev.rate"
@@ -254,6 +267,6 @@ alerts)
 	printf ',"info":'; info_json
 	printf '}\n' ;;
 *)
-	echo "usage: nightfall-history series fine|coarse|long | devices | apps | channel | journal | speed | wifi [MAC] | wifi-hr [MAC] | devhr | devdaily | wifi-check | airscan | traffic | alerts" >&2
+	echo "usage: nightfall-history series fine|coarse|long | temps fine|coarse | devices | apps | channel | journal | speed | wifi [MAC] | wifi-hr [MAC] | devhr | devdaily | wifi-check | airscan | traffic | alerts" >&2
 	exit 1 ;;
 esac

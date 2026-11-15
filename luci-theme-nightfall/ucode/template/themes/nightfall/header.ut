@@ -19,12 +19,12 @@
 	<head>
 		<meta charset="utf-8">
 		<title>{{ striptags(`${boardinfo.hostname ?? '?'}${dispatched?.title ? ` | ${_(dispatched.title)}` : ''}`) }}</title>
-		<script src="{{ media }}/nightfall.js?v=20261115d"></script>
-		<script src="{{ media }}/nightfall-empty.js?v=20261115d" defer></script>
+		<script src="{{ media }}/nightfall.js?v=20261116a"></script>
+		<script src="{{ media }}/nightfall-empty.js?v=20261116a" defer></script>
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 		<meta name="darkreader-lock">
-		<link rel="stylesheet" href="{{ media }}/cascade.css?v=20261115d">
-		<link rel="stylesheet" media="only screen and (max-device-width: 854px)" href="{{ media }}/mobile.css?v=20261115d" />
+		<link rel="stylesheet" href="{{ media }}/cascade.css?v=20261116a">
+		<link rel="stylesheet" media="only screen and (max-device-width: 854px)" href="{{ media }}/mobile.css?v=20261116a" />
 		<link rel="icon" href="{{ media }}/logo_48.png" sizes="48x48">
 		<link rel="icon" href="{{ media }}/logo.svg" sizes="any">
 		<link rel="manifest" href="{{ media }}/manifest.json">

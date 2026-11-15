@@ -6279,11 +6279,18 @@ button, input[type="button"], input[type="reset"], input[type="submit"], .cbi-bu
 #modal_overlay .modal .spinning:not(em), #modal_overlay .alert-message.spinning:not(em) { padding-left: 52px !important; min-height: 32px; display: flex; align-items: center; }
 #modal_overlay .modal .spinning:not(em)::before, #modal_overlay .alert-message.spinning:not(em)::before { width: 28px; height: 28px; top: calc(50% - 14px); left: 12px; }
 
-/* Карточка «Температура»: график за 5 минут и скорость нагрева у каждого датчика (v1.17.3, #93) */
-.nf-trend { display: inline-flex; align-items: center; gap: 10px; margin-left: 14px; vertical-align: middle; white-space: nowrap; }
-.nf-trend .nf-spark { display: inline-block; width: 120px; height: 26px; margin: 0; }
-.nf-rate { font-weight: 600; font-size: calc(12px * var(--nf-fsz, 1)); color: var(--nf-text-dim); min-width: 8.5em; }
-.nf-rate[data-lv="ok"] { color: var(--nf-g-up); }
-.nf-rate[data-lv="warn"] { color: var(--nf-g-warn); }
-.nf-rate[data-lv="bad"] { color: var(--nf-g-bad); }
-@media (max-width: 599px) { .nf-trend { display: flex; margin: 6px 0 0; } .nf-trend .nf-spark { width: 100px; } }
+/* v1.18.0: своя карточка «Температуры» вместо штатной */
+#view > .cbi-section.nf-stock-hidden { display: none !important; }
+.nf-tt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.nf-tt { padding: 12px 14px 10px; border-radius: 14px; background: color-mix(in srgb, var(--nf-text) 5%, transparent); border: 1px solid color-mix(in srgb, var(--nf-text) 9%, transparent); min-width: 0; }
+.nf-tt-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.nf-tt-h b { font-weight: 600; }
+.nf-tt-h small { color: var(--nf-text-dim); font-size: calc(11px * var(--nf-fsz, 1)); }
+.nf-tt-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 4px 0 0; }
+.nf-tt-v { font-size: calc(26px * var(--nf-fsz, 1)); font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.nf-tt-r { font-size: calc(12px * var(--nf-fsz, 1)); font-weight: 600; color: var(--nf-text-dim); white-space: nowrap; }
+.nf-tt-r[data-lv="ok"] { color: var(--nf-g-up); }
+.nf-tt-r[data-lv="warn"] { color: var(--nf-g-warn); }
+.nf-tt-r[data-lv="bad"] { color: var(--nf-g-bad); }
+.nf-tt .nf-spark { height: 64px; margin: 8px 0 4px; }
+.nf-tt-m { color: var(--nf-text-dim); font-size: calc(11px * var(--nf-fsz, 1)); }
