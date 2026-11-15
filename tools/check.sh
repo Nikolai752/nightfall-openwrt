@@ -52,4 +52,10 @@ b=$(grep -o '[0-9]\{8\}[a-z]' luci-theme-nightfall/ucode/template/themes/nightfa
 echo "$b"
 [ "$(echo "$b" | wc -l)" = 1 ] || err "в header.ut разные версии кэша"
 
+echo "== Версия темы =="
+cv=$(sed -n 's/^## v\([0-9][0-9.]*\).*/\1/p' CHANGELOG.md | head -n 1)
+vv=$(sed -n 's/.*"version"[^"]*"\([^"]*\)".*/\1/p' luci-theme-nightfall/htdocs/luci-static/nightfall/version.json)
+echo "CHANGELOG: $cv, version.json: $vv"
+[ -n "$cv" ] && [ "$cv" = "$vv" ] || err "version.json ($vv) не совпадает с верхней записью CHANGELOG.md ($cv)"
+
 [ $fail = 0 ] && echo "ВСЁ В ПОРЯДКЕ" || { echo "ЕСТЬ ОШИБКИ"; exit 1; }

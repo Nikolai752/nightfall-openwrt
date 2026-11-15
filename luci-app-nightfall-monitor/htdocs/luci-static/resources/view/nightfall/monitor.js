@@ -1857,12 +1857,13 @@ return view.extend({
 			if (fresh) for (const [ ip, d, u ] of dv.rate) { const r = row(ip); r.rd += d; r.ru += u; }
 			for (const [ ip, d, u ] of dv[S.devDay] || []) { const r = row(ip); r.dd += d; r.du += u; if (!r.ip || r.ip.indexOf(':') >= 0) r.ip = ip; }
 
-			const list = Object.values(rows).filter(r => r.rd + r.ru + r.dd + r.du > 0)
-				.sort((a, b) => (b.dd + b.du) - (a.dd + a.du) || (b.rd + b.ru) - (a.rd + a.ru)).slice(0, 25);
+			const all = Object.values(rows).filter(r => r.rd + r.ru + r.dd + r.du > 0)
+				.sort((a, b) => (b.dd + b.du) - (a.dd + a.du) || (b.rd + b.ru) - (a.rd + a.ru));
+			const list = all.slice(0, 25);
 			const mx = list.length ? Math.max(1, list[0].dd + list[0].du) : 1;
 			let td = 0, tu = 0;
 			for (const r of Object.values(rows)) { td += r.dd; tu += r.du; }
-			T.devTotal.textContent = list.length ? `всего ↓ ${fmtBytes(td)} · ↑ ${fmtBytes(tu)}` : '';
+			T.devTotal.textContent = list.length ? `всего ↓ ${fmtBytes(td)} · ↑ ${fmtBytes(tu)}` + (all.length > list.length ? ` · показаны ${list.length} самых активных из ${all.length}` : '') : '';
 
 			devBody.replaceChildren(...(list.length ? list.map(r => {
 				const h = r.mac ? hints[r.mac] || {} : {};
