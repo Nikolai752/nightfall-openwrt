@@ -14,6 +14,7 @@ BLOCK=${NF_BLOCKBIN:-/usr/libexec/nightfall-block}
 WOL=${NF_WOLBIN:-/usr/libexec/nightfall-wol}
 SPEEDBIN=${NF_SPEEDBIN:-/usr/libexec/nightfall-speed}
 GUEST=${NF_GUESTBIN:-/usr/libexec/nightfall-guest}
+UPDBIN=${NF_UPDATEBIN:-/usr/libexec/nightfall-update}
 WIFI=${NF_WIFI:-wifi}
 INITD=${NF_INITD:-/etc/init.d}
 WDIR=${NF_WIDGETS:-/usr/share/nightfall/widgets}   # HTML-шаблоны виджетов
@@ -28,7 +29,8 @@ FROM=""; ADM=0
 HOST=$(cat "$PROC/sys/kernel/hostname" 2>/dev/null || echo router)
 
 # кнопки под сообщением (inline-клавиатура); ответ без явного второго параметра получает главное меню
-KB_MAIN='{"inline_keyboard":[[{"text":"📊 Статус","callback_data":"status"},{"text":"🖥 Клиенты","callback_data":"clients"}],[{"text":"📈 Трафик","callback_data":"traffic"},{"text":"📱 Приложения","callback_data":"apps"}],[{"text":"⚡ Скорость","callback_data":"speed"},{"text":"🚫 Блокировка","callback_data":"block"}],[{"text":"📶 Гостевой Wi-Fi","callback_data":"gs"},{"text":"⏻ Включить устройство","callback_data":"wk"}],[{"text":"💾 Резервная копия","callback_data":"bk"},{"text":"🔁 Службы","callback_data":"svc"}],[{"text":"🔄 Перезагрузка","callback_data":"rb"},{"text":"🧹 Очистить чат","callback_data":"cl"}]]}'
+KB_MAIN='{"inline_keyboard":[[{"text":"📊 Статус","callback_data":"status"},{"text":"🖥 Клиенты","callback_data":"clients"}],[{"text":"📈 Трафик","callback_data":"traffic"},{"text":"📱 Приложения","callback_data":"apps"}],[{"text":"⚡ Скорость","callback_data":"speed"},{"text":"🚫 Блокировка","callback_data":"block"}],[{"text":"📶 Гостевой Wi-Fi","callback_data":"gs"},{"text":"⏻ Включить устройство","callback_data":"wk"}],[{"text":"💾 Резервная копия","callback_data":"bk"},{"text":"🔁 Службы","callback_data":"svc"}],[{"text":"🔄 Перезагрузка","callback_data":"rb"},{"text":"🧹 Очистить чат","callback_data":"cl"}],[{"text":"⬆️ Обновления","callback_data":"up"}]]}'
+KB_UPD='{"inline_keyboard":[[{"text":"⬇️ Установить","callback_data":"up:go"}],[{"text":"Позже","callback_data":"menu"},{"text":"Пропустить версию","callback_data":"up:skip"}]]}'
 KB_SPEED='{"inline_keyboard":[[{"text":"▶️ Замерить сейчас","callback_data":"sp:run"}],[{"text":"⬅️ Меню","callback_data":"menu"}]]}'
 KB_BACK='{"inline_keyboard":[[{"text":"⬅️ Меню","callback_data":"menu"}]]}'
 KB_SVC='{"inline_keyboard":[[{"text":"📡 Wi-Fi","callback_data":"rs:wifi"},{"text":"🌐 DHCP и DNS","callback_data":"rs:dns"}],[{"text":"🛡 Брандмауэр","callback_data":"rs:fw"},{"text":"🔌 Сеть","callback_data":"rs:net"}],[{"text":"⬅️ Меню","callback_data":"menu"}]]}'
@@ -38,11 +40,15 @@ UMID=""  # id сообщения-команды, которую написал �
 LASTID="" # id последнего отправленного ботом сообщения
 MSGS="$DIR/bot.msgs"   # id сообщений бота и команд: по ним работает очистка чата
 reply() {
-	if [ -n "$MID" ]; then "$NOTIFY" edit "$MID" "$1" "${2-$KB_MAIN}" >/dev/null 2>&1
+	if [ -n "$MID" ]; then
+		r=$("$NOTIFY" edit "$MID" "$1" "${2-$KB_MAIN}" 2>/dev/null)
+		# правка не удалась и notify прислал новое сообщение: запоминаем его, старое удаляем (иначе в чате остаются две панели с кнопками)
+		LASTID=$(printf '%s' "$r" | sed -n 's/.*"message_id":\([0-9][0-9]*\).*/\1/p' | head -n 1)
+		if [ -n "$LASTID" ]; then track "$LASTID"; echo "$LASTID" > "$DIR/bot.panel"; purge "$MID"; fi
 	else
 		r=$("$NOTIFY" reply "$1" "${2-$KB_MAIN}" 2>/dev/null)
 		LASTID=$(printf '%s' "$r" | sed -n 's/.*"message_id":\([0-9][0-9]*\).*/\1/p' | head -n 1)
-		[ -z "$LASTID" ] || track "$LASTID"
+		[ -z "$LASTID" ] || { track "$LASTID"; echo "$LASTID" > "$DIR/bot.panel"; }
 	fi
 }
 track() { echo "$1" >> "$MSGS"; tail -n 100 "$MSGS" > "$MSGS.t" 2>/dev/null && mv "$MSGS.t" "$MSGS"; }
@@ -458,7 +464,7 @@ $([ "$evn" -gt 0 ] && printf 'Предупреждений за сутки: %s\n
 
 cmd_help() {
 	reply "Бот $HOST. Всё управляется кнопками под сообщениями: /menu открывает меню.
-Команды тоже работают: /status /clients /traffic /apps /speed /block /guest /wake /restart /clear /widget /reboot /report"
+Команды тоже работают: /status /clients /traffic /apps /speed /block /guest /wake /restart /clear /update /widget /reboot /report"
 }
 
 # управлять ботом может владелец. В личном чате это сам TG_CHAT, в группе (id начинается с «-») только люди из TG_USERS:
@@ -469,14 +475,78 @@ is_admin() {  # is_admin ID_ОТПРАВИТЕЛЯ
 	return 1
 }
 
+# ---- обновления темы ----
+upd_json() { "$UPDBIN" check 2>/dev/null; }   # {"installed":"X","latest":"Y","new":0|1}
+upd_field() { printf '%s' "$1" | sed -n "s/.*\"$2\":\"\{0,1\}\([^\",}]*\).*/\1/p" | head -n 1; }
+cmd_update() {  # проверка по кнопке: сообщает и о том, что обновлений нет
+	j=$(upd_json); i=$(upd_field "$j" installed); l=$(upd_field "$j" latest); n=$(upd_field "$j" new)
+	if [ -z "$l" ]; then reply "⬆️ Не удалось проверить обновления (нет связи с GitHub). Установлена версия ${i:-?}." "$KB_BACK"
+	elif [ "$n" = 1 ]; then reply "⬆️ Доступна новая версия Nightfall: $l (у вас $i).
+Подробности: https://github.com/Nikolai752/nightfall-openwrt/releases/tag/v$l
+Установка проверяет контрольную сумму и подпись, при ошибке возвращает прежнюю версию." "$KB_UPD"
+	else reply "✅ Установлена последняя версия Nightfall: ${i:-?}." "$KB_BACK"; fi
+}
+cmd_update_go() {  # кнопка «Установить»: запускает обновление и следит за ним
+	r=$("$UPDBIN" start 2>/dev/null)
+	reply "⏳ Устанавливаю обновление…
+Это займёт около минуты, бот перезапустится сам." "$KB_BACK"
+	m=${MID:-$LASTID}; [ -n "$m" ] && echo "$m" > "$DIR/bot.updmsg"
+	(
+		n=0
+		while [ "$n" -lt 60 ]; do
+			sleep 5; n=$((n + 1))
+			st=$("$UPDBIN" status 2>/dev/null)
+			case "$st" in
+			*'"state":"done"'*) exit 0 ;;   # дальше сообщит заново запущенный бот
+			*'"state":"error"'*|*'"state":"rolledback"'*)
+				rm -f "$DIR/bot.updmsg"
+				msg=$(upd_field "$st" msg)
+				if [ -n "$m" ]; then "$NOTIFY" edit "$m" "❌ Обновление не удалось: ${msg:-ошибка}" "$KB_BACK" >/dev/null 2>&1
+				else "$NOTIFY" reply "❌ Обновление не удалось: ${msg:-ошибка}" "$KB_BACK" >/dev/null 2>&1; fi
+				exit 0 ;;
+			esac
+		done
+	) >/dev/null 2>&1 &
+}
+cmd_update_skip() {
+	j=$(upd_json); l=$(upd_field "$j" latest)
+	[ -z "$l" ] || echo "$l" > "$DIR/bot.updskip"
+	reply "Хорошо, версию ${l:-} пропускаю. О следующей сообщу." "$KB_BACK"
+}
+# раз в 6 часов: если вышла новая версия, которую ещё не предлагали и не пропустили, присылаем уведомление с кнопкой
+upd_auto() {
+	[ "$(cfg TG_UPDATES)" = 0 ] && return 0
+	now=$(date +%s); last=$(cat "$DIR/bot.updchk" 2>/dev/null)
+	[ -n "$last" ] && [ $((now - last)) -lt "${NF_UPDEVERY:-21600}" ] && return 0
+	echo "$now" > "$DIR/bot.updchk"
+	j=$(upd_json); l=$(upd_field "$j" latest); n=$(upd_field "$j" new); i=$(upd_field "$j" installed)
+	[ "$n" = 1 ] && [ -n "$l" ] || return 0
+	[ "$(cat "$DIR/bot.updskip" 2>/dev/null)" = "$l" ] && return 0
+	[ "$(cat "$DIR/bot.updseen" 2>/dev/null)" = "$l" ] && return 0
+	echo "$l" > "$DIR/bot.updseen"
+	MID=""
+	reply "⬆️ Вышла новая версия Nightfall: $l (у вас $i).
+Подробности: https://github.com/Nikolai752/nightfall-openwrt/releases/tag/v$l" "$KB_UPD"
+}
+# после установки бот запускается заново: сообщаем итог в то же сообщение
+upd_done() {
+	m=$(cat "$DIR/bot.updmsg" 2>/dev/null); [ -n "$m" ] || return 0
+	rm -f "$DIR/bot.updmsg"
+	j=$(upd_json); i=$(upd_field "$j" installed)
+	"$NOTIFY" edit "$m" "✅ Nightfall обновлён до версии ${i:-?}." "$KB_MAIN" >/dev/null 2>&1
+}
+
 run() {  # run КОМАНДА (из текста «/status» или из кнопки «status»)
 	case "$1" in
-	block|wk|wake|wk:*|gr|gt:*|bk|backup|bk:*|ok:*|ub:*|tb:*|rb|reboot|rb:yes|sp:run|gs|guest|gs:*|svc|restart|rs:*|cl|clear)
+	block|wk|wake|wk:*|gr|gt:*|bk|backup|bk:*|ok:*|ub:*|tb:*|rb|reboot|rb:yes|sp:run|up:go|up:skip|gs|guest|gs:*|svc|restart|rs:*|cl|clear)
 		[ "$ADM" = 1 ] || { reply "🔒 Управление доступно только администраторам. Ваш id: ${FROM:-неизвестен}. Владелец может добавить его в настройку TG_USERS (Монитор → История → Настройки)." ""; return; } ;;
 	esac
 	case "$1" in
 		start|menu|help) if [ "$1" = help ]; then cmd_help; else cmd_menu; fi ;;
 		status) cmd_status ;;
+		up|update) cmd_update ;;
+		up:go) cmd_update_go ;;
+		up:skip) cmd_update_skip ;;
 		widget) cmd_widget ;;
 		clients) cmd_clients ;;
 		traffic) cmd_traffic ;;
@@ -547,6 +617,7 @@ if [ "$1" = report ]; then reply() { printf '%s\n' "$1"; }; cmd_report; exit 0; 
 "$NOTIFY" raw setMyCommands -d 'commands=[{"command":"menu","description":"Меню с кнопками"},{"command":"status","description":"Состояние роутера"},{"command":"clients","description":"Кто в сети"},{"command":"traffic","description":"Трафик устройств"},{"command":"apps","description":"Трафик по приложениям"},{"command":"block","description":"Блокировка устройств"},{"command":"guest","description":"Гостевой Wi-Fi"},{"command":"clear","description":"Очистить чат"},{"command":"report","description":"Отчёт за сутки"},{"command":"reboot","description":"Перезагрузить роутер"}]' >/dev/null 2>&1
 
 date +%s > "$DIR/bot.start"; rm -f "$DIR/bot.err"
+upd_done
 # накопившиеся за время простоя команды пропускаем
 off=0
 r=$("$NOTIFY" raw getUpdates -d offset=-1 2>/dev/null)
@@ -555,6 +626,7 @@ last=$(printf '%s' "$r" | parse | tail -n 1 | cut -d'|' -f1)
 
 fails=0
 while :; do
+	upd_auto
 	r=$(NF_TMO=45 "$NOTIFY" raw getUpdates -d "offset=$off" -d timeout=30 -d 'allowed_updates=["message","callback_query","widget_query"]' 2>/dev/null)
 	case "$r" in
 	*'"ok":true'*)
@@ -582,7 +654,7 @@ while :; do
 				run "$dt"; MID=""
 			else
 				UMID=$mid; [ -z "$UMID" ] || track "$UMID"
-				if [ "$CLEAN" = 1 ]; then OLD=$(cat "$MSGS"); : > "$MSGS"; fi
+				if [ "$CLEAN" = 1 ]; then OLD="$(cat "$MSGS") $(cat "$DIR/bot.panel" 2>/dev/null)"; : > "$MSGS"; fi   # и прежняя панель, даже если её нет в списке
 				handle "$txt"; UMID=""
 			fi
 			[ -z "$OLD" ] || purge $OLD

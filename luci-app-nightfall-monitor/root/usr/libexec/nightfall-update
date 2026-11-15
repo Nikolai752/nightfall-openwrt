@@ -2,6 +2,7 @@
 # Nightfall: обновление темы прямо из интерфейса.
 #   nightfall-update start    запускает обновление в фоне и сразу возвращается
 #   nightfall-update status   печатает JSON с состоянием: {"state":"...","pct":N,"msg":"..."}
+#   nightfall-update check    сравнивает установленную версию с последним релизом: {"installed":"X","latest":"Y","new":0|1}
 #   nightfall-update run      само обновление (его запускает start)
 #
 # Порядок: скачать архив и файл контрольной суммы (.sha256) -> сверить sha256 ->
@@ -54,6 +55,17 @@ fail() { # msg [rollback]
 }
 
 case "$1" in
+check)
+	API=${NF_API:-https://api.github.com/repos/$REPO/releases/latest}
+	mkdir -p "$TMP" 2>/dev/null; j="$TMP/nightfall-update.api"; rm -f "$j"
+	fetch "$API" "$j" 2>/dev/null
+	l=$(sed -n 's/.*"tag_name"[^"]*"v\{0,1\}\([0-9][0-9.]*\)".*/\1/p' "$j" 2>/dev/null | head -n1); rm -f "$j"
+	i=$(version)
+	[ -n "$l" ] || { printf '{"installed":"%s","latest":"","new":0}\n' "$i"; exit 1; }
+	n=$(awk -v a="$i" -v b="$l" 'BEGIN { x = split(a, p, "."); y = split(b, q, "."); m = x > y ? x : y; for (k = 1; k <= m; k++) { u = p[k] + 0; v = q[k] + 0; if (v > u) { print 1; exit } if (v < u) { print 0; exit } } print 0 }')
+	printf '{"installed":"%s","latest":"%s","new":%s}\n' "$i" "$l" "$n"
+	;;
+
 status)
 	if [ -f "$ST" ]; then cat "$ST"; else printf '{"state":"idle","pct":0,"msg":""}\n'; fi
 	;;
