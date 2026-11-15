@@ -6295,3 +6295,16 @@ button, input[type="button"], input[type="reset"], input[type="submit"], .cbi-bu
 .nf-tt-r[data-lv="bad"] { color: var(--nf-g-bad); }
 .nf-tt .nf-spark { height: 64px; margin: 8px 0 4px; }
 .nf-tt-m { color: var(--nf-text-dim); font-size: calc(11px * var(--nf-fsz, 1)); }
+
+/* v1.18.2: раскладка «Температур» по числу датчиков; подсказки у плиток портов убраны (обрезались, цифры те же, что на плитке) */
+.nf-tt-grid[data-lay="main3"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.nf-tt-grid[data-lay="main3"] > .nf-tt-main { grid-column: 1 / -1; }
+.nf-tt-main .nf-tt-v { font-size: calc(34px * var(--nf-fsz, 1)); }
+.nf-tt-main .nf-spark { height: 76px; }
+@media (max-width: 599px) {
+	.nf-tt-grid[data-lay="main3"] { grid-template-columns: 1fr; }
+	.nf-tt-main .nf-tt-v { font-size: calc(28px * var(--nf-fsz, 1)); }
+	.nf-tt-main .nf-spark { height: 64px; }
+}
+.ifacebox[data-nf-port] .cbi-tooltip { display: none !important; }
+.ifacebox[data-nf-port] .cbi-tooltip-container, .ifacebox[data-nf-port] [class*="tooltip"] { cursor: default; }
