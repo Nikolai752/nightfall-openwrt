@@ -149,58 +149,6 @@ function spark(classes, winSec) {
 	};
 }
 
-/* ---------- карточка «Температура»: график за 5 минут и скорость нагрева у каждого датчика (#93) ---------- */
-const TWIN = 300;           /* секунд истории для графика датчика */
-const TH = new Map();       /* имя датчика → [[время, °C], …] */
-const TSP = new Map();      /* имя датчика → { wrap, sp, rate } */
-
-function recordTemps(list, now) {
-	const seen = new Set();
-	for (const [ n, v ] of list || []) {
-		const c = v / 1000;
-		if (!isFinite(c) || c <= 0 || seen.has(n)) continue;
-		seen.add(n);
-		let a = TH.get(n); if (!a) TH.set(n, a = []);
-		a.push([ now, c ]);
-		while (a.length && a[0][0] < now - TWIN) a.shift();
-	}
-}
-/* скорость изменения, °C в минуту: текущее значение против значения примерно минуту назад (не меньше 20 секунд истории) */
-function tempRate(a) {
-	if (!a || a.length < 2) return null;
-	const last = a[a.length - 1];
-	let ref = null;
-	for (let i = a.length - 2; i >= 0; i--) { ref = a[i]; if (last[0] - a[i][0] >= 60) break; }
-	const dt = last[0] - ref[0];
-	return dt >= 20 ? (last[1] - ref[1]) / (dt / 60) : null;
-}
-const rateLevel = r => r == null ? '' : r <= 0.5 ? 'ok' : r <= 2 ? 'warn' : 'bad';
-function updateTemps() {
-	const h = Array.from(document.querySelectorAll('h3[data-nf-title]')).find(x => /Температур/i.test(x.getAttribute('data-nf-title')));
-	const card = h && h.closest('.cbi-section, .nf-xcard');
-	if (!card) return;
-	card.querySelectorAll('.tr, tr').forEach(r => {
-		if (r.querySelector(':scope > .th, :scope > th')) return;
-		const c = r.querySelectorAll(':scope > .td, :scope > td');
-		if (c.length < 2) return;
-		const name = (c[0].textContent || '').split('/')[0].trim();
-		const a = TH.get(name);
-		if (!name || !a) return;
-		let o = TSP.get(name);
-		if (!o) {
-			const sp = spark([ 'nf-c-temp' ], TWIN), rate = E('b', { class: 'nf-rate' });
-			o = { sp, rate, wrap: E('span', { class: 'nf-trend', title: 'Температура за последние 5 минут и скорость изменения (°C в минуту)' }, [ sp.el, rate ]) };
-			TSP.set(name, o);
-		}
-		if (!c[1].contains(o.wrap)) c[1].appendChild(o.wrap);
-		const vals = a.map(x => x[1]), lo = Math.floor(Math.min(...vals)) - 1, hi = Math.max(Math.ceil(Math.max(...vals)) + 1, lo + 4);
-		o.sp.update(a.map(x => x[0]), [ vals ], hi, lo);
-		const rt = tempRate(a), lv = rateLevel(rt);
-		o.rate.textContent = rt == null ? '…' : (rt > 0.05 ? '↑ +' : rt < -0.05 ? '↓ ' : '→ ') + nf1.format(rt) + ' °C/мин';
-		o.rate.setAttribute('data-lv', lv);
-	});
-}
-
 function badge(kind, text) {
 	return E('span', { class: 'nf-badge ' + kind }, text);
 }
@@ -626,7 +574,6 @@ function liveStrip() {
 		S.t.push(now); S.cpu.push(cpu);
 		S.mem.push(100 * (d.mem.total - d.mem.avail) / d.mem.total);
 		S.temp.push(pickTemp(d.temps));
-		recordTemps(d.temps, now); updateTemps();
 		S.rx.push(rx); S.tx.push(tx);
 		S.ping.push(S.net != null && S.net >= 0 ? S.net : null);
 		S.ct.push(d.ct && d.ct[0] >= 0 ? d.ct[0] : null);
@@ -1948,6 +1895,135 @@ function xcard(cls, title, body) {
 
 function idle(el) { return document.hidden || window.getComputedStyle(el).display === 'none'; }
 
+/* nf-temps:begin */
+/* ---------- «Температуры»: своя карточка вместо штатной «Температура» (v1.18.0) ----------
+   Данные: nightfall-history temps fine|coarse (сборщик пишет все датчики: час с шагом 15 с и 7 суток с шагом 5 мин). */
+const TEMP_RANGES = [ [ '5m', '5 минут', 300, 'fine' ], [ '1h', 'Час', 3600, 'fine' ], [ '24h', 'Сутки', 86400, 'coarse' ], [ '7d', 'Неделя', 604800, 'coarse' ] ];
+const TEMP_KEY = 'nightfall-temps-range';
+const TEMP_WIFI = /phy|mt76|mt79|wifi|wlan|ath|iwlwifi/i;
+
+function tempLabel(raw) {
+	const b = String(raw).replace(/#\d+$/, '');
+	const ph = /phy(\d+)/i.exec(b);
+	if (TEMP_WIFI.test(b)) return ph ? 'Wi‑Fi, радио ' + (+ph[1] + 1) : 'Wi‑Fi';
+	if (/cpu|soc|core|a53|a73|a72|thermal/i.test(b)) return 'Процессор';
+	if (/nvme|ssd|drive|disk/i.test(b)) return 'Накопитель';
+	if (/gpu/i.test(b)) return 'Графика';
+	return b;
+}
+/* скорость изменения, °C в минуту: наклон прямой по замерам за последние 2 минуты (одиночные скачки датчика её не ломают) */
+function tempSlope(times, vals) {
+	const n = times.length, pts = [];
+	if (!n) return null;
+	const end = times[n - 1];
+	for (let i = 0; i < n; i++) if (vals[i] != null && end - times[i] <= 120) pts.push([ times[i], vals[i] ]);
+	if (pts.length < 4 || pts[pts.length - 1][0] - pts[0][0] < 45) return null;
+	const mx = pts.reduce((a, p) => a + p[0], 0) / pts.length, my = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+	let sxy = 0, sxx = 0;
+	for (const p of pts) { sxy += (p[0] - mx) * (p[1] - my); sxx += (p[0] - mx) * (p[0] - mx); }
+	return sxx > 0 ? 60 * sxy / sxx : null;
+}
+const tempLevel = r => r == null ? '' : r <= 0.5 ? 'ok' : r <= 2 ? 'warn' : 'bad';
+/* шкала графика: запас в градус и не уже 6 °C, чтобы шаг датчика в 1 °C не превращался в пилу */
+function tempScale(vals) {
+	const v = vals.filter(x => x != null);
+	if (!v.length) return [ 20, 100 ];
+	let lo = Math.floor(Math.min(...v)) - 1, hi = Math.ceil(Math.max(...v)) + 1;
+	if (hi - lo < 6) { const c = (hi + lo) / 2; lo = Math.floor(c - 3); hi = lo + 6; }
+	return [ lo, hi ];
+}
+
+function tempCard() {
+	let range = '5m';
+	try { const v = localStorage.getItem(TEMP_KEY); if (TEMP_RANGES.some(r => r[0] === v)) range = v; } catch (e) { /* ignore */ }
+	const body = E('div', { class: 'nf-tt-b' }, E('div', { class: 'nf-empty' }, 'Собираю данные…'));
+	const btns = TEMP_RANGES.map(r => E('button', { type: 'button', class: 'nf-linkbtn' + (r[0] === range ? ' on' : ''), 'data-r': r[0],
+		click: ev => { ev.stopPropagation(); range = r[0]; try { localStorage.setItem(TEMP_KEY, range); } catch (e) { /* ignore */ } btns.forEach(b => b.classList.toggle('on', b.getAttribute('data-r') === range)); render(); load(); } }, r[1]));
+	const el = E('div', { class: 'cbi-section nf-temps fade-in' }, [
+		E('div', { class: 'cbi-title nf-top-t' }, [ E('h3', {}, 'Температуры'), E('span', { class: 'nf-top-m', role: 'group', 'aria-label': 'Период' }, btns) ]), body ]);
+	const tiles = new Map();
+	const syncStock = () => { if (el.parentNode) hideStockTemp(el.parentNode, [ { el, isReady: () => ready } ]); };
+	let fine = null, coarse = null, coarseAt = 0, timer = null, ready = false;
+
+	const run = args => fs.exec(HIST, args).then(r => { try { return JSON.parse(r.stdout); } catch (e) { return null; } }).catch(() => null);
+
+	function seriesOf(d, idx, win) {
+		const t = [], v = [];
+		if (!d || !Array.isArray(d.rows) || !d.rows.length) return { t, v };
+		const end = d.rows[d.rows.length - 1][0];
+		for (const r of d.rows) {
+			if (end - r[0] > win) continue;
+			t.push(r[0]); v.push(r[idx + 1] >= 0 ? r[idx + 1] : null);
+		}
+		return { t, v };
+	}
+	function tile(name) {
+		let o = tiles.get(name);
+		if (o) return o;
+		const sp = spark([ 'nf-c-temp' ]);
+		o = { sp, n: E('b', { class: 'nf-tt-n' }), raw: E('small', {}), v: E('div', { class: 'nf-tt-v' }, '–'), r: E('div', { class: 'nf-tt-r' }), m: E('div', { class: 'nf-tt-m' }) };
+		o.el = E('div', { class: 'nf-tt' }, [ E('div', { class: 'nf-tt-h' }, [ o.n, o.raw ]), E('div', { class: 'nf-tt-row' }, [ o.v, o.r ]), sp.el, o.m ]);
+		tiles.set(name, o);
+		return o;
+	}
+	function render() {
+		if (!fine || !Array.isArray(fine.names) || !fine.names.length) {
+			ready = false; tiles.clear(); syncStock();
+			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Нет данных'), E('span', {}, fine ? 'Датчики температуры не найдены или сборщик истории ещё не записал замеры.' : 'Не удалось получить данные. Если вы только что обновили тему, выйдите и войдите в LuCI снова.') ]));
+			return;
+		}
+		ready = true; syncStock();
+		const rg = TEMP_RANGES.find(r => r[0] === range) || TEMP_RANGES[0];
+		const src = rg[3] === 'coarse' && coarse && Array.isArray(coarse.rows) && coarse.rows.length ? coarse : fine;
+		const order = fine.names.map((n, i) => [ n, i ]).sort((a, b) => ((tempLabel(a[0]) === 'Процессор' ? 0 : 1) - (tempLabel(b[0]) === 'Процессор' ? 0 : 1)) || a[0].localeCompare(b[0]));
+		const nodes = order.map(([ name, i ]) => {
+			const o = tile(name), f = seriesOf(fine, i, 300), s = seriesOf(src === fine ? fine : src, src === fine ? i : (src.names || []).indexOf(name), rg[2]);
+			const cur = f.v.length ? f.v[f.v.length - 1] : null, rate = tempSlope(f.t, f.v);
+			o.n.textContent = tempLabel(name);
+			o.raw.textContent = tempLabel(name) !== name ? name : '';
+			o.v.textContent = cur == null ? '–' : nf1.format(cur) + ' °C';
+			o.r.textContent = rate == null ? 'считаю…' : Math.abs(rate) < 0.1 ? '→ стабильно' : (rate > 0 ? '↑ +' : '↓ ') + nf1.format(rate) + ' °C/мин';
+			o.r.setAttribute('data-lv', rate == null ? '' : Math.abs(rate) < 0.1 ? 'ok' : tempLevel(rate));
+			o.r.title = 'Скорость изменения температуры за последние 2 минуты';
+			const [ lo, hi ] = tempScale(s.v);
+			o.sp.update(s.t, [ s.v ], hi, lo);
+			const sv = s.v.filter(x => x != null);
+			o.m.textContent = sv.length ? 'за ' + rg[1].toLowerCase() + ': мин ' + nf1.format(Math.min(...sv)) + ' · макс ' + nf1.format(Math.max(...sv)) : 'нет замеров за этот период';
+			return o.el;
+		});
+		for (const k of Array.from(tiles.keys())) if (!fine.names.includes(k)) tiles.delete(k);
+		if (body.firstChild && body.firstChild.className === 'nf-tt-grid') {
+			const g = body.firstChild;
+			if (g.children.length !== nodes.length || nodes.some((n, i) => g.children[i] !== n)) g.replaceChildren(...nodes);
+		}
+		else body.replaceChildren(E('div', { class: 'nf-tt-grid' }, nodes));
+	}
+	function load() {
+		if (idle(el)) return Promise.resolve();
+		const now = Date.now(), rg = TEMP_RANGES.find(r => r[0] === range) || TEMP_RANGES[0];
+		const need = rg[3] === 'coarse' && now - coarseAt > 60000;
+		return Promise.all([ run([ 'temps', 'fine' ]), need ? run([ 'temps', 'coarse' ]) : Promise.resolve(coarse) ]).then(([ f, c ]) => {
+			fine = f; if (need) { coarse = c; coarseAt = now; } else coarse = c;
+			render();
+		});
+	}
+	const api = { el, contains: n => el.contains(n), isReady: () => ready, start() { load(); timer = window.setInterval(load, 10000); } };
+	return api;
+}
+/* nf-temps:end */
+
+/* штатную карточку «Температура» скрываем, когда своя уже получила данные; если данных нет, остаётся штатная */
+function hideStockTemp(view, extras) {
+	const mine = (extras || []).find(x => x.el && x.el.classList.contains('nf-temps'));
+	const on = !!(mine && mine.isReady());
+	view.querySelectorAll(':scope > .cbi-section').forEach(sec => {
+		if (sec.classList.contains('nf-temps')) return;
+		const h = sec.querySelector(':scope > .cbi-title h3');
+		const t = h && (h.getAttribute('data-nf-title') || h.textContent || '').trim();
+		if (t && /^(Температура|Temperature)$/i.test(t)) sec.classList.toggle('nf-stock-hidden', on);
+	});
+}
+
 function healthCard() {
 	const C = 2 * Math.PI * 38;
 	const ARC = 'M46 8a38 38 0 1 1 0 76a38 38 0 1 1 0-76';
@@ -2185,7 +2261,7 @@ return baseclass.extend({
 				view.insertBefore(strip.el, cardsOf(view)[0]);
 				const nd = newDevBanner(); strip.el.insertBefore(nd.el, strip.el.firstChild); nd.start();
 				strip.start();
-				extras = [ healthCard(), wifiCard(), eventsCard(), quickCard(), topCard(), appsCard(), blockCard() ];
+				extras = [ healthCard(), wifiCard(), eventsCard(), quickCard(), topCard(), tempCard(), appsCard(), blockCard() ];
 				extras.forEach(x => { view.appendChild(x.el); x.start(); });
 			}
 			else {
@@ -2196,7 +2272,7 @@ return baseclass.extend({
 			}
 
 			decorateCards(view);
-			updateTemps();
+			hideStockTemp(view, extras);
 			syncPins(view);
 			syncSizes(view);
 			markNoWrap(view); decorateHosts(view); levelFree(view);
