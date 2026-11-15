@@ -91,6 +91,9 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 
 History is kept in RAM (`/tmp`); nothing is written to flash (exceptions: the outage journal, the known-devices list and keys). To keep history across reboots, point it at a folder on a USB drive or SD card.
 
+### Lite mode for weak routers
+Set `LITE` in Resource Monitor → settings. `LITE=0` (default) is the full mode: the collector samples every 15 s, per-app accounting and Wi‑Fi history are available. `LITE=1` is Lite: sampling every 60 s, no per-app accounting and no Wi‑Fi history, much lighter on CPU and RAM. The mode that is actually running is shown in the monitor header and in the "Router health" card ("Mode: Full" or "Mode: Lite"); it reflects the running collector, not just the settings file.
+
 ### Traffic by application
 
 The "Traffic by application" card on the Overview page shows how much YouTube, Telegram, Netflix and other services downloaded (today, 7 and 30 days, in total or per device). Under "Other" you see the heaviest unrecognised domains.

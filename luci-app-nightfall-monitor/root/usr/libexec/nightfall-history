@@ -86,10 +86,12 @@ series)
 	printf ',"active":'; active_json
 	printf ',"info":'; info_json
 	printf '}\n' ;;
+mode)   # режим сборщика: full (мощный) или lite, и его шаг опроса
+	printf '{"mode":"%s","step":%s}\n' "$(sed -n 's/^mode=//p' "$DIR/info" 2>/dev/null | head -n 1)" "$(sed -n 's/^step=//p' "$DIR/info" 2>/dev/null | head -n 1 | grep -E '^[0-9]+$' || echo 0)" ;;
 temps)
 	# температуры всех датчиков: {"names":[…],"rows":[[время, °C по датчикам в порядке names (-1 — нет замера)],…]}
 	case "$2" in coarse) f=temps.coarse; lim=2016 ;; *) f=temps.fine; lim=400 ;; esac
-	printf '{"now":%s,"range":"%s","step":%s,"names":' "$now" "${2:-fine}" "$([ "$f" = temps.coarse ] && echo 300 || echo 15)"
+	printf '{"mode":"%s","now":%s,"range":"%s","step":%s,"names":' "$(sed -n 's/^mode=//p' "$DIR/info" 2>/dev/null | head -n 1)" "$now" "${2:-fine}" "$([ "$f" = temps.coarse ] && echo 300 || echo "$(sed -n 's/^step=//p' "$DIR/info" 2>/dev/null | head -n 1)")"
 	if [ -r "$DIR/$f" ]; then
 		tail -n "$lim" "$DIR/$f" | awk '
 			{ r++; ts[r] = $1; for (i = 2; i <= NF; i++) { j = index($i, ":"); k = substr($i, 1, j - 1); if (!(k in id)) { id[k] = ++nn; nm[nn] = k } v[r, id[k]] = substr($i, j + 1) } }

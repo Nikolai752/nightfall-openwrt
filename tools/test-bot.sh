@@ -326,4 +326,14 @@ grep -qx '101' "$T/bot.msgs" && ok "дубли: новая панель запо
 conf 111 ""; rm -f "$T/mid"; : > "$T/bot.msgs"; echo 77 > "$T/bot.panel"; upd 111 111 "/status"; runbot; sleep 1
 grep '^DEL' "$T/calls" | grep -q '77' && ok "дубли: текстовая команда удаляет прежнюю панель" || bad "дубли: прежняя панель не удалена"
 
+# 9. режим Lite: настройка принимает только 0 и 1
+r=$(NF_CONF="$T/user.conf" NF_DEF="$T/def" NF_NORESTART=1 sh "$L/nightfall-config" set LITE=1)
+case "$r" in *'"ok":true'*) ok "LITE=1 принимается" ;; *) bad "LITE=1: $r" ;; esac
+grep -q '^LITE=1' "$T/user.conf" && ok "LITE=1 записан в конфиг" || bad "LITE не записан"
+r=$(NF_CONF="$T/user.conf" NF_DEF="$T/def" NF_NORESTART=1 sh "$L/nightfall-config" set LITE=5)
+case "$r" in *'"ok":false'*) ok "LITE=5 отклоняется" ;; *) bad "LITE=5 принят: $r" ;; esac
+printf 'LITE=1\nAPPS=1\n' > "$T/apps.conf"
+r=$(NF_CONF="$T/apps.conf" NF_DIR="$T" NF_UCI=true sh "$L/nightfall-apps" status)
+case "$r" in *'"lite":1'*) ok "учёт по приложениям: статус сообщает о режиме Lite" ;; *) bad "apps status: $r" ;; esac
+
 [ $fail = 0 ] && echo "ВСЁ В ПОРЯДКЕ" || { echo "ЕСТЬ ОШИБКИ"; exit 1; }

@@ -432,6 +432,9 @@ const CSS = `
 .nfm-pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border-radius: 999px; font-size: 12px;
   background: color-mix(in srgb, #13a10e 14%, transparent); color: var(--nfm-text); border: 1px solid color-mix(in srgb, #13a10e 30%, transparent); }
 .nfm-pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #13a10e; animation: nfm-pulse 2s infinite; }
+.nfm-mode { display: inline-flex; align-items: center; padding: 4px 11px; border-radius: 999px; font-size: 12px; border: 1px solid color-mix(in srgb, #4aa3ff 40%, transparent); background: color-mix(in srgb, #4aa3ff 14%, transparent); color: var(--nfm-text); cursor: help; }
+.nfm-mode.lite { border-color: color-mix(in srgb, #f7a21b 45%, transparent); background: color-mix(in srgb, #f7a21b 16%, transparent); }
+.nfm-mode[hidden] { display: none; }
 .nfm-pill.paused { background: color-mix(in srgb, #f7a21b 16%, transparent); border-color: color-mix(in srgb, #f7a21b 40%, transparent); }
 .nfm-pill.paused::before { background: #f7a21b; animation: none; }
 @keyframes nfm-pulse { 50% { opacity: .35; } }
@@ -929,6 +932,7 @@ return view.extend({
 			[ 'PERSIST_HOURS', 'Сохранять историю на накопитель', 'ч' ], [ 'HIST_DAYS', 'Длинная история (шаг 30 мин), суток 7–90', 'сут' ], [ 'PERSIST_ANY', 'Разрешить сохранение на встроенный накопитель (0/1)', '' ], [ 'JOURNAL', 'Журнал обрывов и перезагрузок (0/1)', '' ], [ 'WIFI_HIST', 'История сигнала Wi-Fi (0/1)', '' ],
 			[ 'SPEED_URL', 'Файл для замера скорости', '', 'text' ], [ 'SPEED_STREAMS', 'Потоков при замере скорости (1–8)', '' ],
 			[ 'NEWDEV', 'Сообщать о новых устройствах (0/1)', '' ],
+			[ 'LITE', 'Режим Lite для слабого роутера: опрос раз в 60 с, без учёта по приложениям и истории Wi‑Fi (0/1)', '' ],
 			[ 'TG', 'Отправлять уведомления в Telegram (0/1)', '' ], [ 'TG_ALERTS', 'Слать предупреждения и перезагрузки (0/1)', '' ], [ 'TG_BOT', 'Бот с кнопками: меню, блокировка, перезагрузка (0/1)', '' ], [ 'TG_CLEAN', 'Бот убирает за собой: ответ всегда внизу, команды удаляются (0/1)', '' ], [ 'TG_UPDATES', 'Сообщать в Telegram о новых версиях темы (0/1)', '' ], [ 'TG_WIDGETS', 'Живые виджеты в боте: «Статус» с кольцами, только личный чат (0/1)', '' ], [ 'TG_REPORT', 'Ежедневный отчёт в Telegram, время', '', 'text', 'например 21:00, пусто = выкл' ],
 			[ 'TG_TOKEN', 'Токен бота (от @BotFather)', '', 'password', 'не задан' ], [ 'TG_CHAT', 'Chat id', '', 'text', 'число, определяется кнопкой' ],
 			[ 'TG_USERS', 'Кому управлять ботом в группе (id через запятую)', '', 'text', 'нужно, только если chat id группы' ],
@@ -1003,6 +1007,7 @@ return view.extend({
 				[ 'Проверка интернета', [ 'PING_TARGET', 'PING_TARGET2' ] ],
 				[ 'Хранение истории', [ 'PERSIST_DIR', 'PERSIST_HOURS', 'HIST_DAYS', 'PERSIST_ANY', 'JOURNAL', 'WIFI_HIST' ] ],
 				[ 'Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ] ],
+				[ 'Режим работы', [ 'LITE' ] ],
 				[ 'Новые устройства', [ 'NEWDEV' ] ],
 				[ 'Уведомления в Telegram', [ 'TG', 'TG_ALERTS', 'TG_BOT', 'TG_CLEAN', 'TG_UPDATES', 'TG_WIDGETS', 'TG_REPORT', 'TG_TOKEN', 'TG_CHAT', 'TG_USERS', 'TG_PROXY', 'TG_IFACE' ], tgTools ]
 			].map(([ title, keys, extra ]) => E('section', { class: 'nfm-cfg-g' }, [ E('h4', {}, title),
@@ -1535,6 +1540,15 @@ return view.extend({
 			E('div', { class: 'nfm-grid' }, [ cfgCard ])
 		]);
 
+		const modeBadge = E('span', { class: 'nfm-mode', hidden: true });
+		const setMode = r => {
+			if (!r || (r.mode !== 'lite' && r.mode !== 'full')) { modeBadge.hidden = true; return; }
+			const lite = r.mode === 'lite';
+			modeBadge.hidden = false;
+			modeBadge.className = 'nfm-mode' + (lite ? ' lite' : '');
+			modeBadge.textContent = 'Режим: ' + (lite ? 'Lite' : 'Мощный') + (+r.step ? ' · опрос раз в ' + r.step + ' с' : '');
+			modeBadge.title = lite ? 'Lite для слабых роутеров: опрос раз в минуту, без учёта по приложениям и истории Wi‑Fi. Меняется в настройках ниже (LITE).' : 'Мощный режим: опрос каждые 15 секунд, доступны все функции. Для слабого роутера включите Lite в настройках ниже (LITE).';
+		};
 		const pill = E('span', { class: 'nfm-pill' }, `обновляется каждые ${INTERVAL} с`);
 		const pauseBtn = E('button', { class: 'nfm-btn', click: () => setPaused(!S.paused) }, 'Пауза');
 		const tabBtns = {};
@@ -1555,7 +1569,7 @@ return view.extend({
 			E('div', { class: 'nfm-top' }, [
 				E('div', {}, [ E('h2', {}, 'Монитор ресурсов'),
 					E('div', { class: 'nfm-sub' }, [ (board.model || board.hostname || 'OpenWrt') + ' · работает ', t('uptime') ]) ]),
-				E('span', { class: 'nfm-spacer' }), pill, pauseBtn, tabs ]),
+				E('span', { class: 'nfm-spacer' }), modeBadge, pill, pauseBtn, tabs ]),
 			overview, net, procs, svcs, hist
 		]);
 
@@ -1692,6 +1706,7 @@ return view.extend({
 			const jobs = [];
 			if (due('alerts', ALERTS_EVERY * INTERVAL)) jobs.push(callHistory([ 'alerts' ]).then(r => { S.alerts = r; }));
 			if (S.tab === 'net' && due('devs', DEVICES_EVERY * INTERVAL)) jobs.push(callHistory([ 'devices' ]).then(r => { S.devs = r; }));
+			if (due('mode', 60)) jobs.push(callHistory([ 'mode' ]).then(setMode));
 			if (S.tab === 'hist' && due('hist', HIST_EVERY * INTERVAL)) jobs.push(callHistory([ 'series', RANGES[S.range][0] ]).then(r => { S.hist = r; }));
 			if (S.tab === 'hist' && due('tr', 300)) jobs.push(callHistory([ 'traffic' ]).then(r => { S.tr = r; }));
 			if (S.tab === 'hist' && due('day', 60)) jobs.push(Promise.all([ callHistory([ 'series', 'coarse' ]), callHistory([ 'devices' ]) ]).then(r => { S.day = { h: r[0], d: r[1] }; }));
@@ -1929,7 +1944,8 @@ return view.extend({
 
 			const top = {};
 			for (const [ ip, d, u ] of (D.d && D.d.day) || []) if (!routerIps.has(ip)) top[ip] = (top[ip] || 0) + d + u;
-			const list = Object.keys(top).map(ip => [ ip, top[ip] ]).sort((a, b) => b[1] - a[1]).slice(0, 3);
+			const topAll = Object.keys(top).map(ip => [ ip, top[ip] ]).sort((a, b) => b[1] - a[1]);
+			const list = topAll.slice(0, 3);
 			const mx = list.length ? list[0][1] : 1;
 
 			dayBody.replaceChildren(
@@ -1942,8 +1958,8 @@ return view.extend({
 					tile('Пик температуры', pk(max(col(3)), v => nf1.format(v) + ' °C'), pk(avg(col(3)), v => 'в среднем ' + nf1.format(v) + ' °C')),
 					tile('Пик памяти', pk(max(col(2)), v => nf0.format(v) + '%'), pk(avg(col(2)), v => 'в среднем ' + nf0.format(v) + '%'))
 				]),
-				list.length ? E('div', { class: 'nfm-day-top' }, [ E('div', { class: 'nfm-k' }, 'Больше всего трафика сегодня') ].concat(list.map(([ ip, b ]) =>
-					E('div', { class: 'nfm-host' }, [ E('span', {}, [ names[ip] || ip, names[ip] ? E('small', {}, ip) : '' ]), E('b', {}, fmtBytes(b)),
+				list.length ? E('div', { class: 'nfm-day-top' }, [ E('div', { class: 'nfm-k' }, 'Больше всего трафика сегодня' + (topAll.length > list.length ? ' · показаны ' + list.length + ' из ' + topAll.length + ' устройств' : '')) ].concat(list.map(([ ip, b ]) =>
+					E('div', { class: 'nfm-host' }, [ E('span', {}, [ names[ip] || ip, names[ip] && names[ip] !== ip ? E('small', {}, ip) : '' ]), E('b', {}, fmtBytes(b)),
 						E('div', { class: 'nfm-bar' }, E('div', { class: 'nfm-bar-fill c-down', style: `width:${100 * b / mx}%` })) ])))) : '',
 				E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, srcNote + (selfB > 0 ? ' Собственный трафик роутера: ' + fmtBytes(selfB) + ' (обновления, DNS, замер скорости, прокси или VPN на роутере). В список устройств он не входит.' : '')));
 		}

@@ -32,7 +32,7 @@ const callUci = rpc.declare({ object: 'uci', method: 'get', params: [ 'config' ]
 const callReboot = rpc.declare({ object: 'system', method: 'reboot' });
 
 /* shared live numbers (filled by the live strip, read by the health card) */
-const SHARED = { t: null, cpu: null, mem: null, temp: null, online: null, ping: null, loss: null };
+const SHARED = { mode: null, t: null, cpu: null, mem: null, temp: null, online: null, ping: null, loss: null };
 let DRAG = false;           /* true while a card is being dragged: the DOM observer must not re-sort */
 
 const nf0 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
@@ -693,6 +693,7 @@ function liveStrip() {
 			let h = null;
 			try { h = JSON.parse(res.stdout); } catch (e) { /* ignore */ }
 			if (!h || !h.rows) return;
+			if (h.info && h.info.mode) SHARED.mode = h.info.mode;
 			for (const r of h.rows) {
 				if (h.now - r[0] > WIN) continue;
 				S.t.push(r[0]); S.cpu.push(r[1] >= 0 ? r[1] : null); S.mem.push(r[2] >= 0 ? r[2] : null);
@@ -1682,6 +1683,10 @@ function appsCard() {
 			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Нет данных'), E('span', {}, 'Сборщик статистики не запущен или не обновлён до версии с учётом приложений.') ]));
 			return;
 		}
+		if (data.lite) {
+			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Учёт по приложениям выключен режимом Lite'), E('span', {}, 'Режим Lite бережёт слабый роутер: журнал DNS и разбор по приложениям не ведутся. Чтобы вернуть учёт, выключите Lite в настройках монитора (LITE=0).') ]));
+			return;
+		}
 		if (!data.enabled) {
 			body.replaceChildren(E('div', { class: 'nf-apps-off' }, [
 				E('b', {}, 'Сколько трафика у YouTube, Telegram и других'),
@@ -1728,7 +1733,7 @@ function appsCard() {
 		body.replaceChildren(E('div', { class: 'nf-apps-bar' }, [ seg, sel ]), ...content,
 			E('div', { class: 'nf-apps-f' }, [
 				E('span', {}, 'Всего ' + fmtBytes(sum) + '. Данные приблизительные: трафик через VPN и шифрованный DNS определить нельзя.'),
-				E('button', { type: 'button', class: 'nf-link', click: () => toggle('disable', 'Выключить учёт трафика по приложениям?\n\nЖурнал DNS в dnsmasq будет возвращён к прежним настройкам.') }, 'Выключить учёт')
+				E('button', { type: 'button', class: 'nf-apps-stop', click: () => toggle('disable', 'Выключить учёт трафика по приложениям?\n\nЖурнал DNS в dnsmasq будет возвращён к прежним настройкам.') }, 'Выключить учёт')
 			]));
 	}
 
@@ -1912,11 +1917,12 @@ function tempLabel(raw) {
 	return b;
 }
 /* скорость изменения, °C в минуту: наклон прямой по замерам за последние 2 минуты (одиночные скачки датчика её не ломают) */
-function tempSlope(times, vals) {
+function tempSlope(times, vals, win) {
+	win = win || 120;
 	const n = times.length, pts = [];
 	if (!n) return null;
 	const end = times[n - 1];
-	for (let i = 0; i < n; i++) if (vals[i] != null && end - times[i] <= 120) pts.push([ times[i], vals[i] ]);
+	for (let i = 0; i < n; i++) if (vals[i] != null && end - times[i] <= win) pts.push([ times[i], vals[i] ]);
 	if (pts.length < 4 || pts[pts.length - 1][0] - pts[0][0] < 45) return null;
 	const mx = pts.reduce((a, p) => a + p[0], 0) / pts.length, my = pts.reduce((a, p) => a + p[1], 0) / pts.length;
 	let sxy = 0, sxx = 0;
@@ -1981,14 +1987,14 @@ function tempCard() {
 		const order = alive.sort((a, b) => ((tempLabel(a[0]) === 'Процессор' ? 0 : 1) - (tempLabel(b[0]) === 'Процессор' ? 0 : 1)) || a[0].localeCompare(b[0]));
 		const nodesN = order.length;
 		const nodes = order.map(([ name, i ]) => {
-			const o = tile(name), f = seriesOf(fine, i, 300), s = seriesOf(src === fine ? fine : src, src === fine ? i : (src.names || []).indexOf(name), rg[2]);
-			const cur = f.v.length ? f.v[f.v.length - 1] : null, rate = tempSlope(f.t, f.v);
+			const o = tile(name), f = seriesOf(fine, i, Math.max(300, 5 * (+fine.step || 15))), s = seriesOf(src === fine ? fine : src, src === fine ? i : (src.names || []).indexOf(name), rg[2]);
+			const swin = Math.max(120, 5 * (+fine.step || 15)), cur = f.v.length ? f.v[f.v.length - 1] : null, rate = tempSlope(f.t, f.v, swin);
 			o.n.textContent = tempLabel(name);
 			o.raw.textContent = tempLabel(name) !== name ? name : '';
 			o.v.textContent = cur == null ? '–' : nf1.format(cur) + ' °C';
 			o.r.textContent = rate == null ? 'считаю…' : Math.abs(rate) < 0.1 ? '→ стабильно' : (rate > 0 ? '↑ +' : '↓ ') + nf1.format(rate) + ' °C/мин';
 			o.r.setAttribute('data-lv', rate == null ? '' : Math.abs(rate) < 0.1 ? 'ok' : tempLevel(rate));
-			o.r.title = 'Скорость изменения температуры за последние 2 минуты';
+			o.r.title = 'Скорость изменения температуры за последние ' + (swin / 60) + ' мин';
 			const [ lo, hi ] = tempScale(s.v);
 			o.sp.update(s.t, [ s.v ], hi, lo);
 			const sv = s.v.filter(x => x != null);
@@ -2029,6 +2035,14 @@ function hideStockTemp(view, extras) {
 		const t = h && (h.getAttribute('data-nf-title') || h.textContent || '').trim();
 		if (t && /^(Температура|Temperature)$/i.test(t)) sec.classList.toggle('nf-stock-hidden', on);
 	});
+}
+
+/* режим сборщика: «Мощный» (шаг 15 с, всё включено) или Lite (для слабых роутеров); берётся из info сборщика, то есть показывает то, что реально работает */
+function modeChip(mode) {
+	const lite = mode === 'lite';
+	return E('span', { class: 'nf-chip nf-mode ' + (lite ? 'lite' : 'full'),
+		title: lite ? 'Режим Lite: сборщик замеряет раз в 60 секунд, без учёта по приложениям и истории Wi‑Fi. Меняется в «Монитор ресурсов» → настройки (LITE).' : 'Мощный режим: сборщик замеряет каждые 15 секунд, доступны все функции. Для слабого роутера включите Lite в настройках монитора (LITE).' },
+		'Режим: ' + (lite ? 'Lite' : 'Мощный'));
 }
 
 function healthCard() {
@@ -2075,7 +2089,7 @@ function healthCard() {
 		fg.setAttribute('stroke-dashoffset', (C * (1 - score / 100)).toFixed(1));
 		ring.style.setProperty('--c', score >= 85 ? 'var(--nf-g-up, #2ea043)' : score >= 65 ? '#e8a317' : 'var(--nf-g-bad, #e5484d)');
 		head.textContent = score >= 85 ? 'Всё хорошо' : score >= 65 ? 'Есть замечания' : score >= 40 ? 'Нужно внимание' : 'Проблемы';
-		chips.replaceChildren(...f.slice(0, 6).map(x => E('span', { class: 'nf-chip ' + x[0] }, x[1])));
+		chips.replaceChildren(...f.slice(0, 6).map(x => E('span', { class: 'nf-chip ' + x[0] }, x[1])), ...(SHARED.mode ? [ modeChip(SHARED.mode) ] : []));
 	}
 
 	return { el, contains: n => el.contains(n), start() { render(); timer = window.setInterval(render, 3000); } };
