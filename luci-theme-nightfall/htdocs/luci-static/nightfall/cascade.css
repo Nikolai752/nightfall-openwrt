@@ -6263,3 +6263,15 @@ body.nf-blank #modal_overlay > .modal.login { --nf-mw: 380px; width: 100%; max-w
 .nf-dv-win > span { flex: 1 1 auto; }
 .nf-dv-days label { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 6px; cursor: pointer; }
 .nf-dv-days input { margin: 0; }
+
+/* v1.17.1 (#98): на некоторых телефонах (Realme GT7) слова в кнопках рвались по буквам из-за word-break: break-all у button.
+   Переносим только по пробелам, а слово разбиваем, лишь когда оно совсем не помещается. */
+button, input[type="button"], input[type="reset"], input[type="submit"], .cbi-button, .nf-linkbtn { word-break: normal; overflow-wrap: break-word; }
+.nf-linkbtn, .nf-colsel > span { white-space: nowrap; }
+.nf-colsel { flex-wrap: wrap; row-gap: 4px; }
+.nf-live-acts { row-gap: 6px; }
+
+/* Расписание в карточке «Доступ в интернет» (#92) */
+.nf-blk-win > span { flex: 1 1 auto; }
+.nf-blk-days label { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 6px; cursor: pointer; }
+.nf-blk-days input { margin: 0; }

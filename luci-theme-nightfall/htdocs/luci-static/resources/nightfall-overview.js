@@ -1795,14 +1795,36 @@ function blockCard() {
 		}).catch(() => { busy = false; note = 'Не получилось выполнить команду.'; load(true); });
 	}
 
+	/* расписание: несколько окон, у каждого свои дни недели (#92) */
+	const DAYN = [ 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс' ];
+	const daysText = dy => !dy ? 'каждый день' : dy === '12345' ? 'будни' : dy === '67' ? 'выходные' : dy.split('').map(x => DAYN[+x - 1]).join(', ');
+	const winsOf = o => {
+		const w = [];
+		if (o.from && o.to) w.push({ from: o.from, to: o.to, days: o.days || '' });
+		String(o.rules || '').split(';').forEach(r => { const m = /^(\d\d:\d\d)-(\d\d:\d\d)(?:@([1-7]*))?$/.exec(r); if (m) w.push({ from: m[1], to: m[2], days: m[3] || '' }); });
+		return w;
+	};
+	const winsLine = o => winsOf(o).map(w => w.from + '–' + w.to + (w.days ? ' ' + daysText(w.days) : '')).join(', ');
+
 	function sched(d) {
-		const from = E('input', { type: 'time', value: d.from || '23:00', 'aria-label': 'Отключать с' });
-		const to = E('input', { type: 'time', value: d.to || '07:00', 'aria-label': 'Включать в' });
-		return E('div', { class: 'nf-blk-sched' }, [
-			E('span', {}, 'Отключать каждый день с'), from, E('span', {}, 'до'), to,
-			E('button', { type: 'button', class: 'cbi-button cbi-button-action', click: () => act([ 'sched', d.mac, from.value, to.value, d.name || '' ], 'Расписание сохранено.') }, 'Сохранить'),
-			d.from ? E('button', { type: 'button', class: 'cbi-button', click: () => act([ 'sched', d.mac, 'off' ], 'Расписание убрано.') }, 'Убрать') : ''
-		]);
+		const from = E('input', { type: 'time', value: '23:00', 'aria-label': 'Отключать с' });
+		const to = E('input', { type: 'time', value: '07:00', 'aria-label': 'Включать в' });
+		const chk = DAYN.map((n, i) => E('input', { type: 'checkbox', value: String(i + 1), checked: true, 'aria-label': n }));
+		const preset = (txt, set) => E('button', { type: 'button', class: 'cbi-button', click: () => chk.forEach(c => { c.checked = set.indexOf(c.value) >= 0; }) }, txt);
+		const picked = () => { const v = chk.filter(c => c.checked).map(c => c.value).join(''); return v === '1234567' ? '' : v; };
+		const wins = winsOf(d);
+		const list = wins.map((w, i) => E('div', { class: 'nf-blk-sched nf-blk-win' }, [
+			E('span', {}, '⏰ ' + w.from + '–' + w.to + ' · ' + daysText(w.days)),
+			E('button', { type: 'button', class: 'cbi-button', click: () => act([ 'sdel', d.mac, String(i + 1) ], 'Окно убрано.') }, 'Убрать') ]));
+		if (wins.length > 1) list.push(E('div', { class: 'nf-blk-sched' }, [ E('button', { type: 'button', class: 'cbi-button', click: () => act([ 'sched', d.mac, 'off' ], 'Расписание убрано.') }, 'Убрать всё расписание') ]));
+		return E('div', { class: 'nf-blk-sch' }, list.concat([
+			E('div', { class: 'nf-blk-sched' }, [ E('span', {}, wins.length ? 'Ещё одно окно: отключать с' : 'Отключать с'), from, E('span', {}, 'до'), to ]),
+			E('div', { class: 'nf-blk-sched nf-blk-days' }, chk.map((c, i) => E('label', {}, [ c, DAYN[i] ]))),
+			E('div', { class: 'nf-blk-sched' }, [ preset('Каждый день', '1234567'), preset('Будни', '12345'), preset('Выходные', '67'),
+				E('button', { type: 'button', class: 'cbi-button cbi-button-action', click: () => {
+					if (!chk.some(c => c.checked)) { note = 'Отметьте хотя бы один день недели.'; render(); return; }
+					act([ 'sadd', d.mac, from.value, to.value, picked() ], 'Расписание сохранено.');
+				} }, 'Добавить') ]) ]));
 	}
 
 	function quotaRow(d) {
@@ -1833,7 +1855,7 @@ function blockCard() {
 			const { id, nm } = nmOf(d);
 			const q = d.quota ? ' · 📉 ' + fmtBytes(d.used) + ' из ' + fmtBytes(d.quota * 1048576) : '';
 			const st = d.active ? E('span', { class: 'nf-blk-st bad' }, (d.reason === 'quota' ? 'лимит исчерпан' : d.reason === 'sched' ? 'по расписанию' : 'отключено') + q)
-				: E('span', { class: 'nf-blk-st ' + (d.online && !d.from && !d.quota ? 'ok' : '') }, (d.from ? '⏰ ' + d.from + '–' + d.to + (d.snoozed ? ' (пропуск до завтра)' : '') + ' · ' : '') + (d.online ? (d.wifi ? 'в сети · Wi-Fi' : 'в сети') : 'не в сети') + q);
+				: E('span', { class: 'nf-blk-st ' + (d.online && !d.from && !d.quota ? 'ok' : '') }, (d.from ? '⏰ ' + winsLine(d) + (d.snoozed ? ' (пропуск до завтра)' : '') + ' · ' : '') + (d.online ? (d.wifi ? 'в сети · Wi-Fi' : 'в сети') : 'не в сети') + q);
 			const line = E('div', { class: 'nf-blk-r' + (d.active ? ' off' : '') }, [
 				E('div', { class: 'nf-blk-n' }, [ E('b', { title: id && id.hint ? id.hint : '' }, [ id ? (() => { const ic = E('i', { class: 'nf-dv-i' + (id.priv ? ' priv' : '') }); ic.innerHTML = DEVID.icon(id.kind); return ic; })() : '', E('span', { class: 'nf-dv-t' }, nm) ]),
 					E('span', {}, [ d.ip !== nm ? d.ip : '', d.mac, !d.name && id && id.vendor ? id.vendor : '', id && id.priv ? 'частный MAC' : '' ].filter(Boolean).join(' · ')) ]),
