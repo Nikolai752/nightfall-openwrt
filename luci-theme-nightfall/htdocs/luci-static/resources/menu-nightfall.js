@@ -80,16 +80,39 @@ return baseclass.extend({
 			}, [ _(child.title) ]);
 			if (!level) link.setAttribute('title', _(child.title));
 
-			if (!level && hasSub)
-				link.addEventListener('click', ev => {
-					ev.preventDefault();
-					link.parentNode.classList.toggle('open');
-				});
-
 			const attrs = { 'class': classes.join(' ') };
 			if (!level) attrs['data-name'] = child.name;
 
 			const li = E('li', attrs, [ link, submenu ]);
+
+			/* Развёрнутое меню на компьютере как в Proton: раздел открывается при наведении, клик закрепляет его,
+			   повторный клик закрывает. В свёрнутом виде (значки) всплывающее меню рисует CSS, здесь ничего не делаем. */
+			if (!level && hasSub) {
+				const hoverMode = () => document.documentElement.getAttribute('data-nf-nav') !== 'mini' &&
+					window.matchMedia('(hover: hover) and (min-width: 900px)').matches;
+				let tin = 0, tout = 0;
+
+				li.addEventListener('mouseenter', () => {
+					window.clearTimeout(tout);
+					if (!hoverMode() || li.classList.contains('open')) return;
+					tin = window.setTimeout(() => { li.classList.add('open'); li.dataset.hov = '1'; }, 120);
+				});
+				li.addEventListener('mouseleave', () => {
+					window.clearTimeout(tin);
+					if (!hoverMode() || li.dataset.hov !== '1') return;
+					tout = window.setTimeout(() => { if (li.dataset.hov === '1') { li.classList.remove('open'); delete li.dataset.hov; } }, 220);
+				});
+				link.addEventListener('click', ev => {
+					ev.preventDefault();
+					window.clearTimeout(tin);
+					if (hoverMode() && li.dataset.hov === '1') {
+						delete li.dataset.hov;   /* открыт наведением: клик закрепляет */
+						return;
+					}
+					delete li.dataset.hov;
+					li.classList.toggle('open');
+				});
+			}
 
 			ul.appendChild(li);
 		});
