@@ -47,6 +47,11 @@ run() { # корень, параметры...
 }
 ver() { sed -n 's/.*"version"[^"]*"\([^"]*\)".*/\1/p' "$1/www/luci-static/nightfall/version.json" 2>/dev/null; }
 
+printf '[ { "tag_name": "v2.0.0" }, { "tag_name": "v1.9.0" } ]\n' > "$T/www/list.json"
+echo "== список версий =="
+out=$(NF_ROOT="$T/rl" NF_TMP="$T/tmp" NF_APILIST="$B/list.json" sh "$REPO/install-update.sh" --list 2>&1)
+case "$out" in *v2.0.0*v1.9.0*) pass "--list показывает версии" ;; *) fail "--list: $out" ;; esac
+
 echo "== установка с нуля =="
 R=$T/r1
 out=$(run "$R"); echo "$out" | sed 's/^/   | /'

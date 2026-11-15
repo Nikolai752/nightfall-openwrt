@@ -19,6 +19,8 @@ txt=""; for a in "$@"; do case "$a" in text@*|caption@*|chat_data@*) txt="$txt [
 printf 'METHOD %s TEXT %s STDIN %s\n' "$m" "$txt" "$(printf '%s' "$in" | tr '\n' ' ')" >> "$T/calls"
 if [ "$m" = getUpdates ]; then
 	if [ -s "$T/updates" ] && ! printf '%s' "$*" | grep -q 'offset=-1'; then cat "$T/updates"; : > "$T/updates"; else echo '{"ok":true,"result":[]}'; fi
+elif [ "$m" = editMessageText ] && [ -e "$T/edit.fail" ]; then
+	echo '{"ok":false,"error_code":400,"description":"Bad Request: message to edit not found"}'
 elif [ "$m" = sendMessage ] || { [ "$m" = sendWidget ] && [ ! -e "$T/widget.fail" ]; }; then
 	n=$(( $(cat "$T/mid" 2>/dev/null || echo 100) + 1 )); echo $n > "$T/mid"; printf '{"ok":true,"result":{"message_id":%s,"chat":{"id":1}}}' "$n"
 elif [ "$m" = sendWidget ]; then
@@ -286,5 +288,42 @@ r=$(NF_CONF="$T/user.conf" NF_DEF="$T/def" NF_NORESTART=1 sh "$L/nightfall-confi
 case "$r" in *'"ok":false'*) ok "пустое число (TEMP_WARN) по-прежнему отклоняется" ;; *) bad "пустое число принято: $r" ;; esac
 r=$(NF_CONF="$T/user.conf" NF_DEF="$T/def" sh "$L/nightfall-config" get)
 printf '%s' "$r" | grep -q '"PERSIST_ANY":"0"' && ok "страница получает PERSIST_ANY=0, а не пустое значение" || bad "get: PERSIST_ANY пустой"
+
+# 8. обновления: уведомление, кнопки, установка
+cat > "$T/updbin" <<'SH'
+#!/bin/sh
+case "$1" in
+check) cat "$T/upd.check" ;;
+start) touch "$T/upd.started"; echo '{"state":"starting"}' ;;
+status) echo '{"state":"error","pct":100,"msg":"Не удалось скачать архив."}' ;;
+esac
+SH
+chmod +x "$T/updbin"; export NF_UPDATEBIN="$T/updbin"
+echo '{"installed":"1.18.2","latest":"1.19.0","new":1}' > "$T/upd.check"
+conf 111 ""; rm -f "$T/mid" "$T/bot.updskip" "$T/bot.updseen" "$T/bot.updchk" "$T/edit.fail"; upd 111 111 "/update"; runbot
+grep -q 'Доступна новая версия Nightfall: 1.19.0' "$T/calls" && grep 'Доступна новая' "$T/calls" | grep -q 'up:go' && ok "обновления: команда /update предлагает установить новую версию" || bad "обновления: /update"
+echo '{"installed":"1.19.0","latest":"1.19.0","new":0}' > "$T/upd.check"
+conf 111 ""; upd 111 111 "/update"; runbot
+grep -q 'Установлена последняя версия' "$T/calls" && ok "обновления: если версия свежая, бот так и пишет" || bad "обновления: свежая версия"
+echo '{"installed":"1.18.2","latest":"1.19.0","new":1}' > "$T/upd.check"
+conf 111 ""; rm -f "$T/bot.updchk" "$T/bot.updseen"; : > "$T/updates"; runbot
+grep -q 'Вышла новая версия Nightfall: 1.19.0' "$T/calls" && ok "обновления: бот сам сообщает о новой версии" || bad "обновления: автоуведомление"
+: > "$T/calls"; rm -f "$T/bot.updchk"; : > "$T/updates"; runbot
+grep -q 'Вышла новая версия' "$T/calls" && bad "обновления: о той же версии сообщено дважды" || ok "обновления: о той же версии повторно не сообщает"
+conf 111 ""; echo "TG_UPDATES=0" >> "$T/conf"; rm -f "$T/bot.updchk" "$T/bot.updseen"; : > "$T/updates"; runbot
+grep -q 'Вышла новая версия' "$T/calls" && bad "обновления: TG_UPDATES=0 не отключает уведомления" || ok "обновления: TG_UPDATES=0 отключает уведомления"
+conf 111 ""; rm -f "$T/upd.started" "$T/bot.updchk"; upd cb 111 111 "up:go"; runbot
+[ -e "$T/upd.started" ] && ok "обновления: кнопка «Установить» запускает установку" || bad "обновления: установка не запущена"
+conf 222 111; rm -f "$T/upd.started"; upd cb 222 333 "up:go"; runbot
+[ -e "$T/upd.started" ] && bad "обновления: постороннему в группе разрешено ставить" || ok "обновления: в группе ставить может только администратор"
+conf 111 ""; rm -f "$T/bot.updskip" "$T/bot.updseen" "$T/bot.updchk"; upd cb 111 111 "up:skip"; runbot
+[ "$(cat "$T/bot.updskip" 2>/dev/null)" = "1.19.0" ] && ok "обновления: «Пропустить версию» запоминается" || bad "обновления: пропуск не записан"
+# правка не удалась: новая панель запоминается, старая удаляется (раньше оставались две панели с кнопками)
+conf 111 ""; rm -f "$T/mid"; : > "$T/bot.msgs"; : > "$T/bot.panel"; touch "$T/edit.fail"; upd cb 111 111 "status"; runbot; sleep 1; rm -f "$T/edit.fail"
+grep '^DEL' "$T/calls" | grep -q '5' && ok "дубли: если правка не удалась, старая панель удаляется" || bad "дубли: старая панель осталась"
+grep -qx '101' "$T/bot.msgs" && ok "дубли: новая панель запомнена" || bad "дубли: новая панель не запомнена"
+# текстовая команда: прежняя панель удаляется, даже если её нет в списке
+conf 111 ""; rm -f "$T/mid"; : > "$T/bot.msgs"; echo 77 > "$T/bot.panel"; upd 111 111 "/status"; runbot; sleep 1
+grep '^DEL' "$T/calls" | grep -q '77' && ok "дубли: текстовая команда удаляет прежнюю панель" || bad "дубли: прежняя панель не удалена"
 
 [ $fail = 0 ] && echo "ВСЁ В ПОРЯДКЕ" || { echo "ЕСТЬ ОШИБКИ"; exit 1; }

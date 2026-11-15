@@ -7,6 +7,7 @@
 # Параметры (после «| sh -s --»):
 #   --check            только показать установленную и последнюю версию
 #   --force            переустановить, даже если версия уже последняя
+#   --list             показать последние версии (потом: --version vX.Y.Z)
 #   --version vX.Y.Z   поставить конкретную версию (в том числе более старую)
 #   --activate         сразу выбрать Nightfall темой по умолчанию
 #   --file ПУТЬ        поставить из локального архива nightfall-root.tar.gz (без интернета)
@@ -26,6 +27,7 @@ REPO="Nikolai752/nightfall-openwrt"
 ROOT=${NF_ROOT:-}
 TMP=${NF_TMP:-/tmp}
 API=${NF_API:-https://api.github.com/repos/$REPO/releases/latest}
+APILIST=${NF_APILIST:-https://api.github.com/repos/$REPO/releases?per_page=15}
 RAW=${NF_RAW:-https://raw.githubusercontent.com/$REPO/main}
 DL=${NF_DL:-https://github.com/$REPO/releases}
 VERF="$ROOT/www/luci-static/nightfall/version.json"
@@ -40,6 +42,7 @@ usage() {
 Параметры (после «| sh -s --»):
   --check            показать установленную и последнюю версию
   --force            переустановить, даже если версия уже последняя
+  --list             показать последние версии (потом: --version vX.Y.Z)
   --version vX.Y.Z   поставить конкретную версию (в том числе старую)
   --activate         сразу выбрать Nightfall темой по умолчанию
   --file ПУТЬ        поставить из локального архива nightfall-root.tar.gz
@@ -47,12 +50,13 @@ usage() {
 EOT
 }
 
-FORCE=0; ACTIVATE=0; CHECK=0; WANT=; FILE=
+FORCE=0; ACTIVATE=0; CHECK=0; LIST=0; WANT=; FILE=
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--force|-f) FORCE=1 ;;
 	--activate) ACTIVATE=1 ;;
 	--check) CHECK=1 ;;
+	--list) LIST=1 ;;
 	--version) shift; WANT=$1; [ -n "$WANT" ] || die "после --version нужен номер, например v1.16.2" ;;
 	--file) shift; FILE=$1; [ -f "$FILE" ] || die "файл не найден: $FILE" ;;
 	-h|--help) usage; exit 0 ;;
@@ -95,6 +99,15 @@ latest_tag() {
 	[ -n "$t" ] && echo "v${t#v}"
 }
 
+if [ "$LIST" = 1 ]; then
+	fetch "$APILIST" "$WORK/list.json" 2>/dev/null || die "не удалось получить список версий (нет связи с GitHub)"
+	v=$(grep -o '"tag_name"[^,}]*' "$WORK/list.json" | sed 's/.*:[ ]*"\([^"]*\)".*/\1/')
+	[ -n "$v" ] || die "список версий пуст"
+	say "Последние версии (установленная: $(installed 2>/dev/null)):"
+	echo "$v" | sed 's/^/  /'
+	say "Поставить нужную: wget -qO- https://raw.githubusercontent.com/$REPO/main/install-update.sh | sh -s -- --version <номер>"
+	exit 0
+fi
 OLD=$(installed)
 say "Установленная версия: ${OLD:-не установлена}"
 

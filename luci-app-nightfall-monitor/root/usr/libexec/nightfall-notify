@@ -94,7 +94,7 @@ edit)      # edit ID_СООБЩЕНИЯ ТЕКСТ [КНОПКИ_JSON]: заме
 	else RESP=$(api editMessageText --data-urlencode "chat_id=$CHAT" -d "message_id=$2" --data-urlencode "text@$t" --data-urlencode 'reply_markup={"inline_keyboard":[]}'); fi
 	rm -f "$t"
 	case "$RESP" in *'"ok":true'*|*'not modified'*) exit 0 ;; esac
-	post "$3" "$4" ;;                     # старое сообщение не изменить: пришлём новое
+	post "$3" "$4"; rc=$?; printf '%s\n' "$RESP"; exit $rc ;;   # старое сообщение не изменить: пришлём новое и отдадим его id боту (он удалит старое)
 backup)    # backup: отправить в чат архив настроек Nightfall (без токена бота)
 	[ -n "$TOKEN" ] || fail "не указан токен бота"
 	[ -n "$CHAT" ] || fail "не указан chat id"
