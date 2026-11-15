@@ -296,12 +296,13 @@ cmd_block() {  # cmd_block [ПРЕФИКС]
 	j=$("$BLOCK" list 2>/dev/null)
 	rows=$(printf '%s' "$j" | sed 's/},{"mac"/}\n{"mac"/g' | awk '
 		function g(k,   s) { if (match($0, "\"" k "\":\"[^\"]*\"")) return substr($0, RSTART + length(k) + 4, RLENGTH - length(k) - 5); return "" }
+		function slab(d, r,   t) { t = (d == "12345" ? " будни" : (d == "67" ? " выходные" : (d != "" ? " по дням" : ""))); if (r != "") t = t "+"; return t }
 		/"mac":"/ {
-			m = g("mac"); nm = g("name"); ip = g("ip"); on = ($0 ~ /"online":true/); bl = ($0 ~ /"active":true/); sc = (g("from") != ""); qt = ($0 !~ /"quota":0,/)
+			m = g("mac"); nm = g("name"); ip = g("ip"); on = ($0 ~ /"online":true/); bl = ($0 ~ /"active":true/); sc = (g("from") != ""); qt = ($0 !~ /"quota":0,/); sl = slab(g("days"), g("rules"))
 			if (nm == "") nm = ip; if (nm == "") nm = m
 			if (!on && !bl && !sc && !qt) next
 			rk = (bl ? 0 : (on ? 1 : 2)); gsub(/:/, "", m)
-			printf "%d|[{\"text\":\"%s%s%s\",\"callback_data\":\"tb:%s\"}]\n", rk, (bl ? "🔴 " : (on ? "🟢 " : "⚪ ")), nm, (sc ? " ⏰" : "") (qt ? " 📉" : ""), m
+			printf "%d|[{\"text\":\"%s%s%s\",\"callback_data\":\"tb:%s\"}]\n", rk, (bl ? "🔴 " : (on ? "🟢 " : "⚪ ")), nm, (sc ? " ⏰" sl : "") (qt ? " 📉" : ""), m
 		}' | sort -t'|' -k1,1n | head -n 14 | cut -d'|' -f2- | paste -sd, -)
 	if [ -z "$rows" ]; then reply "${1:+$1
 
@@ -316,9 +317,10 @@ cmd_block() {  # cmd_block [ПРЕФИКС]
 cmd_groups() {  # cmd_groups [СООБЩЕНИЕ]
 	rows=$("$BLOCK" groups 2>/dev/null | sed 's/},{"name"/}\n{"name"/g' | awk '
 		function g(k,   s) { if (match($0, "\"" k "\":\"[^\"]*\"")) return substr($0, RSTART + length(k) + 4, RLENGTH - length(k) - 5); return "" }
-		/"name":"/ {
-			nm = g("name"); man = ($0 ~ /"manual":true/); sc = (g("from") != ""); qt = ($0 !~ /"quota":0,/)
-			printf "[{\"text\":\"%s%s%s\",\"callback_data\":\"gt:%d\"}]\n", (man ? "🔴 " : "🟢 "), nm, (sc ? " ⏰" : "") (qt ? " 📉" : ""), n++
+		function slab(d, r,   t) { t = (d == "12345" ? " будни" : (d == "67" ? " выходные" : (d != "" ? " по дням" : ""))); if (r != "") t = t "+"; return t }
+				/"name":"/ {
+			nm = g("name"); man = ($0 ~ /"manual":true/); sc = (g("from") != ""); qt = ($0 !~ /"quota":0,/); sl = slab(g("days"), g("rules"))
+			printf "[{\"text\":\"%s%s%s\",\"callback_data\":\"gt:%d\"}]\n", (man ? "🔴 " : "🟢 "), nm, (sc ? " ⏰" sl : "") (qt ? " 📉" : ""), n++
 		}' | head -n 12 | paste -sd, -)
 	if [ -z "$rows" ]; then reply "${1:+$1
 

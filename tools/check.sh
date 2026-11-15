@@ -6,7 +6,7 @@ fail=0
 err() { echo "ОШИБКА: $*"; fail=1; }
 T=luci-theme-nightfall/htdocs/luci-static
 M=luci-app-nightfall-monitor/htdocs/luci-static
-FILES="$T/nightfall/cascade.css $T/nightfall/mobile.css $T/nightfall/nightfall.js $T/resources/nightfall-overview.js $M/resources/view/nightfall/monitor.js"
+FILES="$T/nightfall/cascade.css $T/nightfall/mobile.css $T/nightfall/nightfall.js $T/nightfall/nightfall-empty.js $T/resources/nightfall-overview.js $M/resources/view/nightfall/monitor.js"
 
 prev=${1:-$(git tag --sort=-v:refname 2>/dev/null | head -1)}
 echo "== Размеры (сравнение с ${prev:-—}) =="
