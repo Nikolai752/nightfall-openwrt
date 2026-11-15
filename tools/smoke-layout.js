@@ -112,6 +112,9 @@ let fail = 0; const bad = m => { console.log('ОШИБКА: ' + m); fail = 1; };
 	// всплывающие подсказки в плитках портов не должны обрезаться плиткой
 	const ov = await np.evaluate(() => { const d = document.createElement('div'); d.className = 'ifacebox'; d.innerHTML = '<div class="ifacebox-head">lan4</div><div class="ifacebox-body">x</div>'; document.body.appendChild(d); return getComputedStyle(d.querySelector('.ifacebox-body')).overflow; });
 	if (ov !== 'visible') bad('плитка порта обрезает подсказки (overflow: ' + ov + ')');
+	// подсказки у плиток портов скрыты
+	const tp = await np.evaluate(() => { const d = document.createElement('div'); d.className = 'ifacebox'; d.setAttribute('data-nf-port', 'up'); d.innerHTML = '<div class="ifacebox-body"><span class="cbi-tooltip-container">1 GbE<span class="cbi-tooltip">Принято</span></span></div>'; document.body.appendChild(d); return getComputedStyle(d.querySelector('.cbi-tooltip')).display; });
+	if (tp !== 'none') bad('подсказка у плитки порта не скрыта (display: ' + tp + ')');
 	const cb = await np.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.nf-blk-days input')).width));
 	if (cb < 12) bad('флажок дня недели схлопнулся (' + cb + ' px) и перекрывает подпись');
 	await np.close();

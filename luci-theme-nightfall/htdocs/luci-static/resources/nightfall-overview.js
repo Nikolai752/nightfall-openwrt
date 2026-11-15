@@ -1979,6 +1979,7 @@ function tempCard() {
 		const lastRows = fine.rows.slice(-4);
 		const alive = fine.names.map((n, i) => [ n, i ]).filter(([ , i ]) => lastRows.some(r => r[i + 1] >= 0));
 		const order = alive.sort((a, b) => ((tempLabel(a[0]) === 'Процессор' ? 0 : 1) - (tempLabel(b[0]) === 'Процессор' ? 0 : 1)) || a[0].localeCompare(b[0]));
+		const nodesN = order.length;
 		const nodes = order.map(([ name, i ]) => {
 			const o = tile(name), f = seriesOf(fine, i, 300), s = seriesOf(src === fine ? fine : src, src === fine ? i : (src.names || []).indexOf(name), rg[2]);
 			const cur = f.v.length ? f.v[f.v.length - 1] : null, rate = tempSlope(f.t, f.v);
@@ -1992,6 +1993,7 @@ function tempCard() {
 			o.sp.update(s.t, [ s.v ], hi, lo);
 			const sv = s.v.filter(x => x != null);
 			o.m.textContent = sv.length ? 'за ' + rg[1].toLowerCase() + ': мин ' + nf1.format(Math.min(...sv)) + ' · макс ' + nf1.format(Math.max(...sv)) : 'нет замеров за этот период';
+			o.el.classList.toggle('nf-tt-main', nodesN === 3 && tempLabel(name) === 'Процессор');
 			return o.el;
 		});
 		for (const k of Array.from(tiles.keys())) if (!alive.some(x => x[0] === k)) tiles.delete(k);
@@ -2000,6 +2002,8 @@ function tempCard() {
 			if (g.children.length !== nodes.length || nodes.some((n, i) => g.children[i] !== n)) g.replaceChildren(...nodes);
 		}
 		else body.replaceChildren(E('div', { class: 'nf-tt-grid' }, nodes));
+		/* раскладка по числу датчиков: три — процессор на всю ширину сверху, два Wi‑Fi под ним; иначе обычная сетка */
+		body.firstChild.setAttribute('data-lay', nodesN === 3 && nodes.some(n => n.classList.contains('nf-tt-main')) ? 'main3' : 'grid');
 	}
 	function load() {
 		if (idle(el)) return Promise.resolve();
