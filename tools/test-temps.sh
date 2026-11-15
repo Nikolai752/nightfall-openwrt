@@ -25,7 +25,7 @@ want "нулевой датчик не пишется" "" "$(grep -c broken $T/d
 want "есть 5-минутные точки" "cpu_thermal:70.4" "$(cat $T/d/temps.coarse)"
 J=$(hist temps fine)
 want "JSON: имена без дубля процессора" '"names":["mt7915_phy0","mt7915_phy0#2","cpu_thermal"]' "$J"
-want "JSON: шаг 15 с" '"step":15' "$J"
+want "JSON: шаг равен шагу сборщика" '"step":1,' "$J"
 want "JSON: строка со значениями" ',65.0,66.5,70.4]' "$J"
 want "coarse: шаг 300 с" '"step":300' "$(hist temps coarse)"
 # датчик появился позже: у прежних строк -1
@@ -35,5 +35,16 @@ want "новый датчик: у старых строк -1" '[1800000000,50.0,
 want "новый датчик: у новых значение" '[1800000015,51.0,40.0]' "$J"
 want "JSON корректен" "" "$(printf '%s' "$J" | python3 -c 'import sys,json; d=json.load(sys.stdin); print("" if len(d["rows"][0])==len(d["names"])+1 else "x")')"
 grep -q 'temps.coarse' "$L/nightfall-collector" && grep -q 'PFILES="hist.coarse temps.coarse' "$L/nightfall-collector" && { ok=$((ok+1)); echo "ok   temps.coarse сохраняется на флеш при включённом хранении"; } || { bad=$((bad+1)); echo "FAIL temps.coarse не в списке сохранения"; }
+# режим Lite: шаг 60 с, без истории Wi-Fi; мощный режим по умолчанию
+printf 'LITE=1\nWIFI_HIST=1\nAPPS=1\n' > "$T/lite.conf"
+rm -rf "$T/dl"; NF_SYS=$S NF_DIR=$T/dl NF_CONF=$T/lite.conf NF_LOOPS=1 NF_NOTIFY=true NF_KNOWN=$T/k NF_BLOCK=$T/b NF_GROUPS=$T/g NF_JOURNAL=$T/j timeout 30 sh "$L/nightfall-collector" >/dev/null 2>&1
+want "Lite: режим записан в info" "mode=lite" "$(cat $T/dl/info)"
+want "Lite: шаг 60 с" "step=60" "$(cat $T/dl/info)"
+want "Lite: история Wi-Fi выключена" "wifi_hist=0" "$(cat $T/dl/info)"
+rm -rf "$T/df"; NF_SYS=$S NF_DIR=$T/df NF_CONF=/dev/null NF_LOOPS=1 NF_NOTIFY=true NF_KNOWN=$T/k NF_BLOCK=$T/b NF_GROUPS=$T/g NF_JOURNAL=$T/j timeout 30 sh "$L/nightfall-collector" >/dev/null 2>&1
+want "без LITE: режим мощный, шаг 15 с" "mode=full" "$(cat $T/df/info)"
+want "без LITE: шаг 15 с" "step=15" "$(cat $T/df/info)"
+want "nightfall-history отдаёт режим" '"mode":"lite"' "$(NF_DIR=$T/dl sh "$L/nightfall-history" temps fine)"
+
 echo; echo "ИТОГО: ok=$ok, ошибок=$bad"
 [ "$bad" -eq 0 ]

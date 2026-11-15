@@ -9,6 +9,7 @@
 #   dev.rate / dev.day / dev.yday — трафик по устройствам (из conntrack accounting)
 #   apps.day / apps.hist, dns.map — трафик по приложениям (при APPS=1; имена из журнала DNS dnsmasq)
 #   events.log, alerts.active    — события и активные предупреждения
+# Режим: LITE=1 (слабые роутеры) — шаг 60 с, без учёта по приложениям (APPS) и истории Wi-Fi (WIFI_HIST); текущий режим пишется в info (mode=full|lite).
 # Настройки: /etc/nightfall-monitor.conf (см. /usr/share/nightfall/nightfall-monitor.conf.default)
 
 PROC=${NF_PROC:-/proc}
@@ -32,6 +33,9 @@ RULES_USER=${NF_RULES_USER:-/etc/nightfall-apps.list}
 SPEED_URL=https://speed.cloudflare.com/__down?bytes=25000000
 JOURNAL_FILE=${NF_JOURNAL:-/etc/nightfall-journal.log}
 [ -r "$CONF" ] && . "$CONF"
+# режим работы: LITE=1 для слабых роутеров (шаг 60 с вместо 15, без учёта по приложениям и истории Wi-Fi); по умолчанию «мощный»
+MODE=full
+if [ "$LITE" = 1 ]; then MODE=lite; [ -n "$NF_STEP" ] || STEP=60; WIFI_HIST=0; APPS=0; fi
 
 mkdir -p "$DIR" || exit 1
 
@@ -406,6 +410,7 @@ write_info() {
 	acct=0; [ -r "$PROC/sys/net/netfilter/nf_conntrack_acct" ] && acct=$(cat "$PROC/sys/net/netfilter/nf_conntrack_acct" 2>/dev/null)
 	{
 		echo "step=$STEP"
+		echo "mode=$MODE"
 		echo "started=$started"
 		echo "wan_dev=$wdev"
 		echo "gateway=$gw"
@@ -676,7 +681,7 @@ while :; do
 		do_devices
 		do_newdev
 		do_block
-		[ -f /etc/nightfall-guest.list ] && [ $((tick % 6)) = 0 ] && /usr/libexec/nightfall-guest tick >/dev/null 2>&1
+		[ -f /etc/nightfall-guest.list ] && [ $((tick % (STEP >= 60 ? 2 : 6))) = 0 ] && /usr/libexec/nightfall-guest tick >/dev/null 2>&1
 		do_report
 		wtick=$((wtick + 1))
 		if [ "$WIFI_HIST" = 1 ] && [ $((wtick % 4)) = 1 ]; then do_wifi; fi

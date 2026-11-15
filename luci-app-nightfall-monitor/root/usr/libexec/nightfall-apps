@@ -25,7 +25,8 @@ status)
 	dl=0; [ -r "$DNSLOG" ] && dl=$(wc -c < "$DNSLOG" | tr -d ' ')
 	dm=0; [ -r "$DIR/dns.map" ] && dm=$(wc -l < "$DIR/dns.map" | tr -d ' ')
 	acct=$(cat /proc/sys/net/netfilter/nf_conntrack_acct 2>/dev/null)
-	printf '{"ok":true,"enabled":%s,"logqueries":"%s","logfacility":"%s","dnslog":%s,"dnsmap":%s,"acct":"%s"}\n' "$en" "$lq" "$lf" "${dl:-0}" "${dm:-0}" "${acct:-}" ;;
+	lite=$(sed -n 's/^LITE=\([01]\).*/\1/p' "$CONF" 2>/dev/null | head -n 1)
+	printf '{"ok":true,"lite":%s,"enabled":%s,"logqueries":"%s","logfacility":"%s","dnslog":%s,"dnsmap":%s,"acct":"%s"}\n' "${lite:-0}" "$en" "$lq" "$lf" "${dl:-0}" "${dm:-0}" "${acct:-}" ;;
 enable)
 	command -v "$UCI" >/dev/null 2>&1 || fail "не найден uci"
 	if [ ! -f "$PREV" ]; then
