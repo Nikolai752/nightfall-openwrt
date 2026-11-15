@@ -84,6 +84,7 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 
 **Backup**
 - A button in the bot and in the monitor settings sends an archive of your Nightfall settings to Telegram (the bot token is not included).
+- Every 6 hours the bot checks for a new theme version and sends a notice with "Install", "Later" and "Skip this version" buttons (also the "Updates" menu button and `/update`). The install verifies sha256 and the signature and rolls back on error; admins only. Turn it off with `TG_UPDATES=0`.
 
 **Updating from the interface**
 - A "New version available" dialog, one-click install with sha256 and signature checks, rollback on error, release notes after sign-in. See "Updating".
@@ -149,6 +150,7 @@ Options go after `sh -s --`, for example `... | sh -s -- --activate`:
 | `--activate` | make Nightfall the default theme right away |
 | `--check` | only show the installed and the latest version |
 | `--force` | reinstall even if the version is already the latest |
+| `--list` | list the latest versions to pick one |
 | `--version v1.16.2` | install a specific version (older ones too) |
 | `--file PATH` | install from a local archive |
 
@@ -220,6 +222,8 @@ If you installed the theme on another router, please tell us in [Issues](https:/
 ## Making a release
 
 Releases are signed with a [usign](https://git.openwrt.org/project/usign.git) key. Create the key once on any router: `usign -G -c "Nightfall release key" -s nf.sec -p nf.pub`, put the contents of `nf.pub` into `luci-theme-nightfall/root/etc/nightfall-release.pub` and the contents of `nf.sec` into the repository secret `NIGHTFALL_SIGN_KEY` (Settings → Secrets and variables → Actions).
+
+The theme version lives in `luci-theme-nightfall/htdocs/luci-static/nightfall/version.json` (shown on the About page); keep it equal to the top entry of `CHANGELOG.md` before a release, `tools/check.sh` verifies this. The asset cache version (`?v=…` in `header.ut`) no longer needs a manual bump: `build-release.sh` stamps the release number into it.
 
 Then create a release with a tag like `v1.0.19` (on the Releases page or with `gh release create`). GitHub Actions builds `nightfall-root.tar.gz`, signs it, attaches the `.sha256` and `.sig` files and updates `latest.json`. Remember to add an entry to `CHANGELOG.md`.
 

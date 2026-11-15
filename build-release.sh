@@ -22,6 +22,9 @@ ln -s /etc/nightfall-bg.json "$STAGE/www/luci-static/nightfall/bg.json"
 # версия темы для страницы «О теме»: из тега релиза (VERSION=v1.0.4), сборка = сегодняшняя дата
 V=${VERSION#v}
 [ -n "$V" ] && printf '{ "version": "%s", "build": "%s" }\n' "$V" "$(date -u +%Y%m%d)" > "$STAGE/www/luci-static/nightfall/version.json"
+# версия кэша ассетов в header.ut (?v=…) = номер релиза: после обновления браузер не держит старые CSS и JS
+H="$STAGE/usr/share/ucode/luci/template/themes/nightfall/header.ut"
+[ -n "$V" ] && [ -f "$H" ] && sed -i -E "s/[0-9]{8}[a-z]/$V/g" "$H"
 # история изменений: тема показывает её после обновления
 [ -f CHANGELOG.md ] && cp CHANGELOG.md "$STAGE/www/luci-static/nightfall/CHANGELOG.md"
 # права на исполнение (в git на Windows они теряются)
