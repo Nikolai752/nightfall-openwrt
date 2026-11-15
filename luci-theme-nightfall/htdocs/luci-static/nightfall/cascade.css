@@ -4017,7 +4017,8 @@ html[data-nf-glass="off"][data-nf-style="glass"] .cbi-section, html[data-nf-glas
 .nf-presets button { height: 32px; padding: 0 4px; font-size: calc(12.5px * var(--nf-fsz, 1)); white-space: nowrap; }
 
 /* метки внутри блоков портов и клиентов: не вылезают за границы */
-.ifacebox .ifacebox-body { box-sizing: border-box; max-width: 100%; overflow: hidden; }
+.ifacebox .ifacebox-body { box-sizing: border-box; max-width: 100%; overflow: visible; }
+.ifacebox .cbi-tooltip { width: max-content; max-width: min(260px, 90vw); }
 .ifacebox .ifacebox-body .nf-badge { max-width: 100%; box-sizing: border-box; justify-content: center; font-size: calc(11.5px * var(--nf-fsz, 1)); padding: 1px 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ifacebox .ifacebox-body > small { white-space: normal; overflow-wrap: anywhere; }
 .ifacebadge { max-width: 100%; box-sizing: border-box; flex-wrap: wrap; }

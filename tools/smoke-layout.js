@@ -109,6 +109,9 @@ let fail = 0; const bad = m => { console.log('ОШИБКА: ' + m); fail = 1; };
 	await np.hover('#m2 > a'); await np.waitForTimeout(150);
 	if (await vis('m1') !== 'none') bad('свёрнутое меню: окно первого раздела залипло после клика');
 	if (await vis('m2') === 'none') bad('свёрнутое меню: окно второго раздела не открылось при наведении');
+	// всплывающие подсказки в плитках портов не должны обрезаться плиткой
+	const ov = await np.evaluate(() => { const d = document.createElement('div'); d.className = 'ifacebox'; d.innerHTML = '<div class="ifacebox-head">lan4</div><div class="ifacebox-body">x</div>'; document.body.appendChild(d); return getComputedStyle(d.querySelector('.ifacebox-body')).overflow; });
+	if (ov !== 'visible') bad('плитка порта обрезает подсказки (overflow: ' + ov + ')');
 	const cb = await np.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.nf-blk-days input')).width));
 	if (cb < 12) bad('флажок дня недели схлопнулся (' + cb + ' px) и перекрывает подпись');
 	await np.close();
