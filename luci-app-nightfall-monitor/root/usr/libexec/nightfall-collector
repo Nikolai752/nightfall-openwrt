@@ -136,16 +136,23 @@ read_temps() {  # печатает температуры всех датчик�
 		t=""; nm="zone"
 		read -r t < "$z/temp" 2>/dev/null || continue
 		read -r nm < "$z/type" 2>/dev/null
-		out="$out $(printf '%s' "$nm" | tr -cd 'A-Za-z0-9_.-')|$t"
+		out="$out z|$(printf '%s' "$nm" | tr -cd 'A-Za-z0-9_.-')|$t"
 	done
 	for h in "$SYS"/class/hwmon/hwmon*; do
 		[ -r "$h/temp1_input" ] || continue
 		t=""; nm="hwmon"
 		read -r t < "$h/temp1_input" 2>/dev/null || continue
 		read -r nm < "$h/name" 2>/dev/null
-		out="$out $(printf '%s' "$nm" | tr -cd 'A-Za-z0-9_.-')|$t"
+		out="$out h|$(printf '%s' "$nm" | tr -cd 'A-Za-z0-9_.-')|$t"
 	done
-	printf '%s\n' "$out" | tr ' ' '\n' | awk -F'|' 'NF == 2 && $2 ~ /^[0-9]+$/ && $2 > 0 { k = $1; if (k == "") k = "sensor"; c[k]++; if (c[k] > 1) k = k "#" c[k]; printf "%s%s:%d.%d", (n++ ? " " : ""), k, int($2 / 1000), int(($2 % 1000) / 100) }'
+	# один и тот же датчик виден и как зона (cpu-thermal), и как hwmon (cpu_thermal): оставляем hwmon, как в штатной карточке LuCI
+	printf '%s\n' "$out" | tr ' ' '\n' | awk -F'|' '
+		function norm(x) { x = tolower(x); gsub(/-/, "_", x); return x }
+		NF == 3 && $3 ~ /^[0-9]+$/ && $3 > 0 { n++; src[n] = $1; nm[n] = ($2 == "" ? "sensor" : $2); v[n] = $3; if ($1 == "h") hw[norm(nm[n])] = 1 }
+		END { for (i = 1; i <= n; i++) {
+			if (src[i] == "z" && (norm(nm[i]) in hw)) continue
+			k = nm[i]; c[k]++; if (c[k] > 1) k = k "#" c[k]
+			printf "%s%s:%d.%d", (m++ ? " " : ""), k, int(v[i] / 1000), int((v[i] % 1000) / 100) } }'
 }
 
 ping_ms() {     # ping_ms HOST -> миллисекунды или -1

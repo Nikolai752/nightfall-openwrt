@@ -1975,7 +1975,10 @@ function tempCard() {
 		ready = true; syncStock();
 		const rg = TEMP_RANGES.find(r => r[0] === range) || TEMP_RANGES[0];
 		const src = rg[3] === 'coarse' && coarse && Array.isArray(coarse.rows) && coarse.rows.length ? coarse : fine;
-		const order = fine.names.map((n, i) => [ n, i ]).sort((a, b) => ((tempLabel(a[0]) === 'Процессор' ? 0 : 1) - (tempLabel(b[0]) === 'Процессор' ? 0 : 1)) || a[0].localeCompare(b[0]));
+		/* датчики, которых нет в последних замерах (например, переименованные), не показываем */
+		const lastRows = fine.rows.slice(-4);
+		const alive = fine.names.map((n, i) => [ n, i ]).filter(([ , i ]) => lastRows.some(r => r[i + 1] >= 0));
+		const order = alive.sort((a, b) => ((tempLabel(a[0]) === 'Процессор' ? 0 : 1) - (tempLabel(b[0]) === 'Процессор' ? 0 : 1)) || a[0].localeCompare(b[0]));
 		const nodes = order.map(([ name, i ]) => {
 			const o = tile(name), f = seriesOf(fine, i, 300), s = seriesOf(src === fine ? fine : src, src === fine ? i : (src.names || []).indexOf(name), rg[2]);
 			const cur = f.v.length ? f.v[f.v.length - 1] : null, rate = tempSlope(f.t, f.v);
@@ -1991,7 +1994,7 @@ function tempCard() {
 			o.m.textContent = sv.length ? 'за ' + rg[1].toLowerCase() + ': мин ' + nf1.format(Math.min(...sv)) + ' · макс ' + nf1.format(Math.max(...sv)) : 'нет замеров за этот период';
 			return o.el;
 		});
-		for (const k of Array.from(tiles.keys())) if (!fine.names.includes(k)) tiles.delete(k);
+		for (const k of Array.from(tiles.keys())) if (!alive.some(x => x[0] === k)) tiles.delete(k);
 		if (body.firstChild && body.firstChild.className === 'nf-tt-grid') {
 			const g = body.firstChild;
 			if (g.children.length !== nodes.length || nodes.some((n, i) => g.children[i] !== n)) g.replaceChildren(...nodes);
