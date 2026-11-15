@@ -1,0 +1,123 @@
+#!/bin/sh
+# Nightfall: сводка безопасности для вкладки «Безопасность» монитора. Ничего не меняет, только читает.
+#   nightfall-sec summary  — JSON: неудачные и успешные входы (LuCI, SSH), новые устройства, открытые порты, проброс портов
+#   nightfall-sec updates  — JSON: версия темы и последний релиз, выпуск OpenWrt, ядро
+# Для проверок: NF_LOGREAD (команда вместо logread), NF_PROC (вместо /proc), NF_KNOWN, NF_UCI (вместо uci), NF_UPDATEBIN.
+LOGREAD=${NF_LOGREAD:-logread}
+PROC=${NF_PROC:-/proc}
+KNOWN=${NF_KNOWN:-/etc/nightfall-known.list}
+UCI=${NF_UCI:-uci}
+UPD=${NF_UPDATEBIN:-/usr/libexec/nightfall-update}
+jesc() { sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
+logins() {   # разбор системного журнала: dropbear (SSH) и LuCI (uhttpd)
+	$LOGREAD 2>/dev/null | awk '
+	function add(kind, ok, user, ip, t) { if (ip ~ /^[0-9.]+:[0-9]+$/) sub(/:[0-9]+$/, "", ip); else if (ip ~ /^\[.*\]:[0-9]+$/) { sub(/\]:[0-9]+$/, "", ip); sub(/^\[/, "", ip) } n++; K[n] = kind; O[n] = ok; U[n] = user; I[n] = ip; T[n] = t }
+	{
+		t = $2 " " $3 " " $4
+		if ($0 ~ /dropbear/) {
+			if (match($0, /Bad password attempt for .* from [0-9a-fA-F:.]+/)) { s = substr($0, RSTART, RLENGTH); u = s; sub(/^Bad password attempt for /, "", u); sub(/ from .*/, "", u); gsub(/\047/, "", u); i = s; sub(/.* from /, "", i); add("ssh", 0, u, i, t) }
+			else if (match($0, /Login attempt for nonexistent user from [0-9a-fA-F:.]+/)) { s = substr($0, RSTART, RLENGTH); i = s; sub(/.* from /, "", i); add("ssh", 0, "?", i, t) }
+			else if (match($0, /Password auth succeeded for .* from [0-9a-fA-F:.]+/)) { s = substr($0, RSTART, RLENGTH); u = s; sub(/^Password auth succeeded for /, "", u); sub(/ from .*/, "", u); gsub(/\047/, "", u); i = s; sub(/.* from /, "", i); add("ssh", 1, u, i, t) }
+			else if (match($0, /Pubkey auth succeeded for .* from [0-9a-fA-F:.]+/)) { s = substr($0, RSTART, RLENGTH); u = s; sub(/^Pubkey auth succeeded for /, "", u); sub(/ from .*/, "", u); gsub(/\047/, "", u); i = s; sub(/.* from /, "", i); add("ssh", 1, u, i, t) }
+		}
+		else if ($0 ~ /luci: /) {
+			if (match($0, /failed login on [^ ]* for [^ ]* from [0-9a-fA-F:.]+/)) { s = substr($0, RSTART, RLENGTH); u = s; sub(/^failed login on [^ ]* for /, "", u); sub(/ from .*/, "", u); i = s; sub(/.* from /, "", i); add("luci", 0, u, i, t) }
+			else if (match($0, /accepted login on [^ ]* for [^ ]* from [0-9a-fA-F:.]+/)) { s = substr($0, RSTART, RLENGTH); u = s; sub(/^accepted login on [^ ]* for /, "", u); sub(/ from .*/, "", u); i = s; sub(/.* from /, "", i); add("luci", 1, u, i, t) }
+		}
+	}
+	function q(x) { gsub(/\\/, "\\\\", x); gsub(/"/, "\\\"", x); return x }
+	END {
+		fs = 0; fl = 0
+		for (k = 1; k <= n; k++) if (!O[k]) { if (K[k] == "ssh") fs++; else fl++; c[I[k]]++ }
+		printf "{\"failed_ssh\":%d,\"failed_luci\":%d,\"recent\":[", fs, fl
+		first = 1; from = n - 24; if (from < 1) from = 1
+		for (k = n; k >= from; k--) { printf "%s[\"%s\",\"%s\",%d,\"%s\",\"%s\"]", first ? "" : ",", q(T[k]), K[k], O[k], q(U[k]), q(I[k]); first = 0 }
+		printf "],\"top\":["
+		first = 1
+		for (round = 0; round < 5; round++) {
+			best = ""; bc = 0
+			for (ip in c) if (c[ip] > bc && !(ip in done)) { best = ip; bc = c[ip] }
+			if (best == "") break
+			done[best] = 1
+			printf "%s[\"%s\",%d]", first ? "" : ",", q(best), bc; first = 0
+		}
+		printf "]}"
+	}'
+}
+
+newdevs() {  # последние 10 устройств, которых сборщик увидел впервые: [mac, имя, время]
+	printf '['
+	[ -r "$KNOWN" ] && awk -F'|' 'NF >= 3 && $1 != "" { l[++n] = $0 } END {
+		from = n - 9; if (from < 1) from = 1; first = 1
+		for (i = n; i >= from; i--) { split(l[i], a, "|"); gsub(/["\\]/, "", a[2]); printf "%s[\"%s\",\"%s\",%d]", first ? "" : ",", a[1], a[2], a[3] + 0; first = 0 }
+	}' "$KNOWN"
+	printf ']'
+}
+
+hex2ip() {   # 0100007F -> 127.0.0.1 ; IPv6 (32 hex) -> признак "::" / "::1" / иное
+	case "${#1}" in
+	8) printf '%d.%d.%d.%d' "0x$(echo "$1" | cut -c7-8)" "0x$(echo "$1" | cut -c5-6)" "0x$(echo "$1" | cut -c3-4)" "0x$(echo "$1" | cut -c1-2)" ;;
+	*) case "$1" in 00000000000000000000000000000000) echo '::' ;; 00000000000000000000000001000000) echo '::1' ;; *) echo 'v6' ;; esac ;;
+	esac
+}
+
+ports() {    # слушающие TCP/UDP: [протокол, порт, где слушает (all|local), программа]
+	for pr in tcp tcp6 udp udp6; do
+		f="$PROC/net/$pr"; [ -r "$f" ] || continue
+		case "$pr" in tcp*) st=0A ;; *) st=07 ;; esac
+		awk -v st="$st" -v pr="$pr" 'NR > 1 && $4 == st { split($2, a, ":"); print pr, a[1], strtonum_("0x" a[2]), $10 }
+			function strtonum_(h,  i, c, v, d) { v = 0; h = tolower(substr(h, 3)); for (i = 1; i <= length(h); i++) { c = substr(h, i, 1); d = index("0123456789abcdef", c) - 1; v = v * 16 + d } return v }' "$f"
+	done | sort -u | while read -r pr ip port ino; do
+		addr=$(hex2ip "$ip")
+		case "$addr" in 127.*|::1) scope=local ;; *) scope=all ;; esac
+		prog=""
+		if [ -n "$ino" ] && [ "$ino" != 0 ]; then
+			for fd in "$PROC"/[0-9]*/fd/*; do
+				[ "$(readlink "$fd" 2>/dev/null)" = "socket:[$ino]" ] || continue
+				d=${fd%/fd/*}; prog=$(cat "$d/comm" 2>/dev/null); break
+			done
+		fi
+		printf '%s %s %s %s\n' "${pr%6}" "$port" "$scope" "${prog:--}"
+	done | sort -u | awk 'BEGIN { printf "["; first = 1 } { printf "%s[\"%s\",%d,\"%s\",\"%s\"]", first ? "" : ",", $1, $2, $3, $4; first = 0 } END { printf "]" }'
+}
+
+forwards() {  # проброс портов из интернета (redirect) и политика входящего трафика зоны wan
+	$UCI -q show firewall 2>/dev/null | awk -F"[.=]" '
+	/=redirect$/ { r[$2] = 1 }
+	{ line = $0; sub(/^[^=]*=/, "", line); gsub(/\047/, "", line); k = $0; sub(/=.*/, "", k); n = split(k, p, "."); if (n == 3) v[p[2] SUBSEP p[3]] = line }
+	END {
+		printf "{\"redirects\":["; first = 1
+		for (s in r) {
+			if (v[s SUBSEP "enabled"] == "0") continue
+			if (v[s SUBSEP "target"] != "" && v[s SUBSEP "target"] != "DNAT") continue
+			if (v[s SUBSEP "src"] != "" && v[s SUBSEP "src"] != "wan") continue
+			nm = v[s SUBSEP "name"]; gsub(/["\\]/, "", nm)
+			printf "%s[\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"]", first ? "" : ",", nm, v[s SUBSEP "proto"], v[s SUBSEP "src_dport"], v[s SUBSEP "dest_ip"], v[s SUBSEP "dest_port"]; first = 0
+		}
+		printf "]"
+	}'
+	pol=$($UCI -q show firewall 2>/dev/null | awk -F"[.=]" '/\.name=.wan.$/ { z = $2 } z && $2 == z && $3 == "input" { gsub(/\047/, "", $4); print $4; exit }')
+	printf ',"wan_input":"%s"}' "${pol:-}"
+}
+
+case "$1" in
+summary)
+	printf '{"ok":true,"now":%s,"logins":' "$(date +%s)"
+	logins
+	printf ',"newdev":'
+	newdevs
+	printf ',"ports":'
+	ports
+	printf ',"fw":'
+	forwards
+	printf '}\n' ;;
+updates)
+	rel=$(sed -n "s/^DISTRIB_DESCRIPTION='\\(.*\\)'.*/\\1/p" /etc/openwrt_release 2>/dev/null | head -n 1 | jesc)
+	kern=$(uname -r 2>/dev/null | jesc)
+	chk=$([ -x "$UPD" ] && "$UPD" check 2>/dev/null)
+	[ -n "$chk" ] || chk='{"installed":"","latest":"","new":0}'
+	printf '{"ok":true,"openwrt":"%s","kernel":"%s","theme":%s}\n' "$rel" "$kern" "$chk" ;;
+*)
+	echo "usage: nightfall-sec summary | updates" >&2; exit 1 ;;
+esac

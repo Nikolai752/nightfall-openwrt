@@ -32,6 +32,9 @@
 				],
 				"/usr/libexec/nightfall-diag": [
 					"exec"
+				],
+				"/usr/libexec/nightfall-sec": [
+					"exec"
 				]
 			},
 			"uci": [

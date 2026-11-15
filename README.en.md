@@ -55,7 +55,12 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 - Cards: router health, Wi-Fi clients and signal level, event feed, top devices by traffic, **traffic by application**, quick actions. Cards can be dragged, pinned and hidden; on wide screens they use two columns.
 
 **Resource Monitor** (Status → Resource Monitor)
-- Tabs: Overview, Network, Programs, Services, History.
+- Tabs: Overview, Network, Wi‑Fi, Devices, Programs, Services, Diagnostics, Security, Log, History.
+- **Wi‑Fi:** clients, link quality, signal by hour, channel congestion and a channel recommendation.
+- **Devices:** "Internet access" (block, limits, per-day schedule, groups) and per-device traffic.
+- **Diagnostics:** ping, traceroute, DNS, router speed tests and a "Check everything" button (gateway, internet, DNS).
+- **Security:** failed and successful SSH and LuCI logins, most frequent offenders, open router ports, port forwards, new devices, versions. Read-only: it only shows what the router already logs.
+- **Log:** events, outages, reboots and blocks in one feed with search and filter.
 - CPU, temperature, memory, flash storage, per-core load, memory by process.
 - "Network" tab: interface speeds, connections, per-device traffic for today and yesterday, Wi-Fi clients with a signal-level chart when you tap a row.
 - "History" tab: charts for 1 hour, 24 hours and 7 days, connection quality, a log of outages and reboots, alert and notification settings.
