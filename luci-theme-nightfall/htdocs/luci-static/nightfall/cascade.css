@@ -6278,3 +6278,12 @@ button, input[type="button"], input[type="reset"], input[type="submit"], .cbi-bu
 /* v1.17.2: индикатор в окне «Применение изменений…» крупнее и по центру строки */
 #modal_overlay .modal .spinning:not(em), #modal_overlay .alert-message.spinning:not(em) { padding-left: 52px !important; min-height: 32px; display: flex; align-items: center; }
 #modal_overlay .modal .spinning:not(em)::before, #modal_overlay .alert-message.spinning:not(em)::before { width: 28px; height: 28px; top: calc(50% - 14px); left: 12px; }
+
+/* Карточка «Температура»: график за 5 минут и скорость нагрева у каждого датчика (v1.17.3, #93) */
+.nf-trend { display: inline-flex; align-items: center; gap: 10px; margin-left: 14px; vertical-align: middle; white-space: nowrap; }
+.nf-trend .nf-spark { display: inline-block; width: 120px; height: 26px; margin: 0; }
+.nf-rate { font-weight: 600; font-size: calc(12px * var(--nf-fsz, 1)); color: var(--nf-text-dim); min-width: 8.5em; }
+.nf-rate[data-lv="ok"] { color: var(--nf-g-up); }
+.nf-rate[data-lv="warn"] { color: var(--nf-g-warn); }
+.nf-rate[data-lv="bad"] { color: var(--nf-g-bad); }
+@media (max-width: 599px) { .nf-trend { display: flex; margin: 6px 0 0; } .nf-trend .nf-spark { width: 100px; } }
