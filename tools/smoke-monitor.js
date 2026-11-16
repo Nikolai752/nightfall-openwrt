@@ -16,7 +16,7 @@ const EXEC = (cmd, args) => {
 	if (n === 'nightfall-stats') return run('nightfall-stats', args);
 	if (n === 'nightfall-sec' || n === 'nightfall-diag' || n === 'nightfall-log') return run(n, args);
 	if (n === 'nightfall-dns') return run(n, args, { NF_LOGREAD: path.join(T, 'dnslogread'), NF_UCI: path.join(T, 'uci_dns') });
-	if (n === 'nightfall-history') return args[0] === 'devices' ? '{"now":1794786100,"ts":1794786090,"rate":[],"day":[["192.168.1.20",5000000,1000000]],"yday":[],"neigh":[["192.168.1.20","aa:bb:cc:dd:ee:01"]],"info":{}}' : args[0] === 'wifi' && !args[1] ? '{"now":1794786100,"rows":[],"events":[[1794786000,"aa:bb:cc:dd:ee:01","join","phy0"],[1794785000,"aa:bb:cc:dd:ee:01","leave","phy0"]]}' : args[0] === 'extip' ? '{"now":1794786100,"rows":[[1794700000,"203.0.113.7",0],[1794780000,"100.64.3.9",1]]}' : args[0] === 'known' ? '{"now":1794786100,"rows":[["AA:BB:CC:DD:EE:01","x",1794700000]]}' : args[0] === 'mode' ? '{"mode":"full","step":15}' : args[0] === 'journal' ? '{"now":1794786100,"rows":[[1794785000,"outage",120,"нет интернета"],[1794780000,"boot",0,"Загрузка роутера"]]}' : '{}';
+	if (n === 'nightfall-history') return args[0] === 'devices' ? '{"now":1794786100,"ts":1794786090,"rate":[],"day":[["192.168.1.20",5000000,1000000]],"yday":[],"neigh":[["192.168.1.20","aa:bb:cc:dd:ee:01"]],"info":{}}' : args[0] === 'wifi' && !args[1] ? '{"now":1794786100,"rows":[],"events":[[1794786000,"aa:bb:cc:dd:ee:01","join","phy0"],[1794785000,"aa:bb:cc:dd:ee:01","leave","phy0"]]}' : args[0] === 'extip' ? '{"now":1794786100,"rows":[[1794700000,"203.0.113.7",0],[1794780000,"100.64.3.9",1]]}' : args[0] === 'procmem' ? '{"now":1794786100,"rows":[[1794780000,[["dnsmasq",10000],["uhttpd",3000]]],[1794780900,[["dnsmasq",13000],["uhttpd",3000]]],[1794781800,[["dnsmasq",16000],["uhttpd",3000]]],[1794782700,[["dnsmasq",19000],["uhttpd",3000]]],[1794783600,[["dnsmasq",22000],["uhttpd",3000]]],[1794784500,[["dnsmasq",25000],["uhttpd",3000]]],[1794785400,[["dnsmasq",28000],["uhttpd",3000]]],[1794786300,[["dnsmasq",31000],["uhttpd",3000]]]]}' : args[0] === 'known' ? '{"now":1794786100,"rows":[["AA:BB:CC:DD:EE:01","x",1794700000]]}' : args[0] === 'mode' ? '{"mode":"full","step":15}' : args[0] === 'journal' ? '{"now":1794786100,"rows":[[1794785000,"outage",120,"нет интернета"],[1794780000,"boot",0,"Загрузка роутера"]]}' : '{}';
 	if (n === 'nightfall-block') return args[0] === 'log' ? '{"ok":true,"log":[[1794786000,"aa:bb","Камера","on","вручную (интерфейс)"],[1794786050,"aa:bb","Камера","off","по расписанию"]]}' : '{"ok":true}';
 	return '';
 };
@@ -127,6 +127,20 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 			if (k === 'devs') {
 				const dt = await p.evaluate(() => document.body.textContent);
 				for (const w of [ 'Кто дома', 'Необычная активность' ]) if (!dt.includes(w)) bad(vn + ': в «Устройствах» нет «' + w + '»');
+			}
+			if (k === 'procs') {
+				await p.waitForTimeout(1500);
+				const pt = await p.evaluate(() => document.body.textContent);
+				if (!pt.includes('Память по программам за период') || !pt.includes('возможна утечка')) bad(vn + ': нет карточки памяти по программам с признаком утечки');
+			}
+			if (k === 'log') {
+				await p.click('.nfm-pin >> nth=0'); await p.waitForTimeout(300);
+				const pn = await p.evaluate(() => window.localStorage.getItem('nfm_pins'));
+				if (!pn || pn === '[]') bad(vn + ': закрепление записи журнала не сохранилось');
+				await p.click('.nfm-tabs button[data-k="pin"]'); await p.waitForTimeout(300);
+				const pc = await p.evaluate(() => document.querySelectorAll('.nfm-evlist .nfm-ev-i .nfm-pin.on').length);
+				if (pc < 1) bad(vn + ': фильтр «Закреплённые» пуст');
+				await p.click('.nfm-tabs button[data-k="all"]');
 			}
 			if (k === 'diag') {
 				const gt = await p.evaluate(() => document.body.textContent);

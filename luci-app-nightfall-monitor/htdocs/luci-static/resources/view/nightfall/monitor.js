@@ -662,6 +662,8 @@ const CSS = `
 .nfm-evlist { max-height: 360px; overflow: auto; }
 .nfm-ev-i { display: grid; grid-template-columns: 8px 118px minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 7px 0; font-size: 13px;
   border-bottom: 1px solid color-mix(in srgb, var(--nfm-border) 60%, transparent); }
+.nfm-pin { border: 0; background: none; cursor: pointer; color: var(--nfm-dim); font-size: 14px; padding: 0 6px; }
+.nfm-pin.on { color: #f7a21b; }
 .nfm-ev-i.nt { grid-template-columns: 8px minmax(0, 1fr); }
 .nfm-ev-i:last-child { border-bottom: 0; }
 .nfm-ev-i i { width: 8px; height: 8px; border-radius: 50%; background: var(--nfm-dim); }
@@ -926,12 +928,35 @@ return view.extend({
 		/* processes tab */
 		const procBody = E('tbody');
 		const sortTh = (key, label, cls) => E('th', { class: 'sort ' + (cls || ''), click: () => { S.sort = key; refresh(); } }, label);
+		const pmBox = E('div'), pmPer = E('select', { class: 'nfm-sel', 'aria-label': 'Период памяти', change: ev => { S.pmH = +ev.target.value; S.at.pm = 0; tick(); } },
+			[ [ 6, 'За 6 часов' ], [ 24, 'За 24 часа' ], [ 168, 'За 7 дней' ] ].map(([ v, l ]) => E('option', { value: String(v), selected: v === 24 }, l)));
+		function renderProcMem() {
+			const R = S.pm;
+			if (!R || !R.rows) { pmBox.replaceChildren(E('div', { class: 'nfm-empty' }, R === null ? 'Нет данных: обновите тему на роутере.' : 'Загружаю…')); return; }
+			if (R.rows.length < 3) { pmBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Данных пока мало: память по программам записывается раз в 15 минут (в режиме Lite не ведётся).')); return; }
+			const ser = {};
+			R.rows.forEach((row, i) => { for (const [ n, kb ] of row[1]) (ser[n] = ser[n] || new Array(R.rows.length).fill(null))[i] = kb; });
+			const list = Object.keys(ser).map(n => {
+				const v = ser[n].filter(x => x != null), first = v[0], last = v[v.length - 1], max = Math.max(...v);
+				let up = 0; for (let i = 1; i < v.length; i++) if (v[i] >= v[i - 1]) up++;
+				const grow = v.length >= 6 && last > first * 1.3 && last - first > 5120 && up >= 0.75 * (v.length - 1);
+				return { n, first, last, max, grow, v: ser[n] };
+			}).sort((a, b) => (b.grow - a.grow) || b.max - a.max).slice(0, 10);
+			const spark = v => { const pts = v.map((x, i) => x == null ? null : [ i, x ]).filter(Boolean); const mx = Math.max(...pts.map(q => q[1])), mn = Math.min(...pts.map(q => q[1])), w = 90, h = 22, N = Math.max(1, v.length - 1);
+				return SVG('svg', { width: w, height: h, viewBox: '0 0 ' + w + ' ' + h }, [ SVG('polyline', { fill: 'none', stroke: 'currentColor', 'stroke-width': 1.5, points: pts.map(q => (q[0] / N * w).toFixed(1) + ',' + (h - 2 - (mx === mn ? 0.5 : (q[1] - mn) / (mx - mn)) * (h - 4)).toFixed(1)).join(' ') }) ]); };
+			pmBox.replaceChildren(
+				E('table', { class: 'nfm-table' }, [ E('thead', {}, E('tr', {}, [ E('th', {}, 'Программа'), E('th', {}, 'Динамика'), E('th', { class: 'r' }, 'В начале'), E('th', { class: 'r' }, 'Сейчас'), E('th', { class: 'r' }, 'Пик') ])),
+					E('tbody', {}, list.map(x => E('tr', {}, [ E('td', {}, [ x.n, x.grow ? E('span', { class: 'nfm-chip priv', title: 'Память растёт почти непрерывно: возможна утечка. Перезапустите службу и понаблюдайте.' }, 'растёт · возможна утечка') : '' ]),
+						E('td', {}, spark(x.v)), E('td', { class: 'r' }, fmtMB(x.first)), E('td', { class: 'r' }, fmtMB(x.last)), E('td', { class: 'r' }, fmtMB(x.max)) ]))) ]),
+				E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Показаны десять самых «толстых» программ. «Возможна утечка» ставится, если память почти все замеры только росла и выросла больше чем на 30% и 5 МБ.'));
+		}
 		const procs = E('div', { hidden: true }, [
 			card([ 'Программы', E('span', { class: 'nfm-spacer' }),
 				E('input', { class: 'nfm-search', type: 'search', placeholder: 'Поиск…', input: ev => { S.filter = ev.target.value.toLowerCase(); refresh(); } }) ],
 				E('table', { class: 'nfm-table' }, [
 					E('thead', {}, E('tr', {}, [ E('th', {}, 'Имя'), E('th', { class: 'r' }, 'Процессов'),
-						sortTh('cpu', 'Процессор ↓', 'r'), sortTh('mem', 'Память ↓', 'r') ])), procBody ]))
+						sortTh('cpu', 'Процессор ↓', 'r'), sortTh('mem', 'Память ↓', 'r') ])), procBody ])),
+			card([ 'Память по программам за период', E('span', { class: 'nfm-spacer' }), pmPer ], pmBox)
 		]);
 
 		/* history tab */
@@ -1614,7 +1639,7 @@ return view.extend({
 
 		/* ---- новые вкладки (v1.21.0): готовые карточки перенесены из «Сети» и «Истории», добавлено недостающее ---- */
 		/* ---- единый журнал: события, обрывы и перезагрузки, блокировки; поиск и фильтр ---- */
-		const LOGK = [ [ 'all', 'Все' ], [ 'ev', 'События' ], [ 'jr', 'Обрывы и перезагрузки' ], [ 'bl', 'Блокировки' ] ];
+		const LOGK = [ [ 'all', 'Все' ], [ 'ev', 'События' ], [ 'jr', 'Обрывы и перезагрузки' ], [ 'bl', 'Блокировки' ], [ 'pin', 'Закреплённые' ] ];
 		const logQ = E('input', { class: 'nfm-search', type: 'search', placeholder: 'Поиск по журналу…', 'aria-label': 'Поиск по журналу', input: () => renderLogTools() });
 		const logChips = E('div', { class: 'nfm-tabs', style: 'margin-bottom:10px' }, LOGK.map(([ k, l ]) => E('button', { type: 'button', class: 'nfm-tab' + (k === 'all' ? ' on' : ''), 'data-k': k,
 			click: () => { S.logK = k; renderLogTools(); } }, l)));
@@ -1622,6 +1647,8 @@ return view.extend({
 		const LOGP = [ [ 0, 'За всё время' ], [ 86400, 'За 24 часа' ], [ 604800, 'За 7 дней' ], [ 2592000, 'За 30 дней' ] ];
 		const logPer = E('select', { class: 'nfm-sel', 'aria-label': 'Период', change: ev => { S.logP = +ev.target.value; renderLogTools(); } }, LOGP.map(([ v, l ]) => E('option', { value: String(v) }, l)));
 		let logShown = [];
+		const pinLoad = () => { try { return JSON.parse(window.localStorage.getItem('nfm_pins') || '[]'); } catch (e) { return []; } };
+		const pinToggle = id => { try { const l = pinLoad(), i = l.indexOf(id); if (i >= 0) l.splice(i, 1); else l.unshift(id); window.localStorage.setItem('nfm_pins', JSON.stringify(l.slice(0, 100))); } catch (e) { /* без закрепления */ } renderLogTools(); };
 		const logCsv = E('button', { type: 'button', class: 'nfm-btn', title: 'Скачать показанные записи в файл CSV', click: () => {
 			const q = v => '"' + String(v).replace(/"/g, '""') + '"';
 			const txt = '\ufeffвремя;тип;событие\n' + logShown.map(x => [ new Date(x.t * 1000).toLocaleString('ru-RU'), ({ ev: 'событие', jr: 'обрыв/перезагрузка', bl: 'блокировка' })[x.k] || x.k, x.txt ].map(q).join(';')).join('\n');
@@ -1863,6 +1890,7 @@ return view.extend({
 			if (onTab('hist', 'wifi') && due('whr', 120)) jobs.push(callHistory([ 'wifi-hr' ]).then(r => { S.whr = r || null; }));
 			if (S.tab === 'hist' && due('lg', 300)) jobs.push(callHistory([ 'series', 'long' ]).then(r => { S.lg = r || null; }));
 			if (S.tab === 'net' && due('chan', DEVICES_EVERY * INTERVAL)) jobs.push(callHistory([ 'channel' ]).then(r => { S.chan = r; }));
+			if (S.tab === 'procs' && due('pm', 120)) jobs.push(callHistory([ 'procmem', String(S.pmH || 24) ]).then(r => { S.pm = r || null; }).catch(() => { S.pm = null; }));
 			if (S.tab === 'devs' && due('dd', 600)) jobs.push(callHistory([ 'devdaily' ]).then(r => { S.dd = r || null; }).catch(() => { S.dd = null; }));
 			if (S.tab === 'net' && due('extip', 120)) jobs.push(callHistory([ 'extip' ]).then(r => { S.extip = r || null; }).catch(() => { S.extip = null; }));
 			if (S.tab === 'net' && due('dns', 30)) jobs.push(fs.exec('/usr/libexec/nightfall-dns', [ 'top' ]).then(r => { try { S.dns = JSON.parse(r.stdout); } catch (e) { S.dns = null; } }).catch(() => { S.dns = null; }));
@@ -2588,10 +2616,11 @@ return view.extend({
 			if (!h && !j && !bl) { logBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Загружаю…')); return; }
 			const seen = new Set();
 			const since = S.logP ? Date.now() / 1000 - S.logP : 0;
-			const list = items.filter(x => (k === 'all' || x.k === k) && x.t >= since && (!q || x.txt.toLowerCase().includes(q)))
-				.sort((a, b) => b.t - a.t).filter(x => { const id = x.t + '|' + x.txt; if (seen.has(id)) return false; seen.add(id); return true; })				.slice(0, 2000);
+			const pins = pinLoad(), pid = x => x.t + '|' + x.txt;
+			const list = items.filter(x => (k === 'all' || x.k === k || (k === 'pin' && pins.includes(pid(x)))) && (k === 'pin' || x.t >= since || pins.includes(pid(x))) && (!q || x.txt.toLowerCase().includes(q)))
+				.sort((a, b) => (pins.includes(pid(b)) - pins.includes(pid(a))) || b.t - a.t).filter(x => { const id = x.t + '|' + x.txt; if (seen.has(id)) return false; seen.add(id); return true; })				.slice(0, 2000);
 			logShown = list;
-			logBox.replaceChildren(...(list.length ? list.slice(0, 200).map(x => E('div', { class: 'nfm-ev-i ' + x.cls }, [ E('i'), E('time', {}, fmtTs(x.t)), E('span', {}, x.txt) ]))
+			logBox.replaceChildren(...(list.length ? list.slice(0, 200).map(x => E('div', { class: 'nfm-ev-i ' + x.cls }, [ E('i'), E('time', {}, fmtTs(x.t)), E('span', {}, [ x.txt, E('button', { type: 'button', class: 'nfm-pin' + (pins.includes(pid(x)) ? ' on' : ''), title: pins.includes(pid(x)) ? 'Открепить' : 'Закрепить: запись останется сверху', click: () => pinToggle(pid(x)) }, pins.includes(pid(x)) ? '★' : '☆') ]) ]))
 				: [ E('div', { class: 'nfm-empty' }, q || k !== 'all' ? 'Ничего не найдено. Измените фильтр или запрос.' : 'Записей пока нет.') ]));
 		}
 		const SECBIN = '/usr/libexec/nightfall-sec';
@@ -2799,6 +2828,7 @@ return view.extend({
 			renderAlerts();
 			if (onTab('net', 'devs')) renderDevices();
 			if (S.tab === 'devs') renderDevExtra();
+			if (S.tab === 'procs') renderProcMem();
 			if (S.tab === 'net') { renderChannel(); renderDns(); renderExtIp(); }
 			if (S.tab === 'svcs') renderServices();
 			if (S.tab === 'hist') { renderHist(); renderDay(); renderHeat(); renderWeek(); renderCmp(); renderMon(); renderWq(); renderWHeat(); renderAir(); renderJournal(); renderSpeed(); renderFlash(); }
