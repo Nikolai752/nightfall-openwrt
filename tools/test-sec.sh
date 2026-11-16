@@ -134,4 +134,19 @@ want "extip: белый адрес не NAT" '[1700000000,"203.0.113.7",0]' "$x"
 want "extip: 100.64/10 это CGNAT" '[1700005000,"100.64.3.9",1]' "$x"
 want "extip: частный адрес на WAN это NAT" '[1700009000,"192.168.8.2",1]' "$x"
 
+# история памяти по программам: сбор (функция сборщика) и выдача
+mkdir -p "$T/pm/1" "$T/pm/2" "$T/pm/3" "$T/pd"
+printf 'Name:\tuhttpd\nVmRSS:\t3000 kB\n' > "$T/pm/1/status"; printf 'Name:\tkthreadd\n' > "$T/pm/2/status"; printf 'Name:\tdnsmasq\nVmRSS:\t9000 kB\n' > "$T/pm/3/status"
+sed -n '/^procmem_point() {/,/^}/p' "$PWD/luci-app-nightfall-monitor/root/usr/libexec/nightfall-collector" > "$T/pmfn.sh"
+( DIR="$T/pd"; LITE=0; NF_PROCDIR="$T/pm"; . "$T/pmfn.sh"; procmem_point )
+pl=$(cat "$T/pd/procmem.log")
+want "procmem: самая большая программа первой" "dnsmasq:9000 uhttpd:3000" "$pl"
+nowant "procmem: поток ядра без памяти не попал" "kthreadd" "$pl"
+( DIR="$T/pd"; LITE=1; NF_PROCDIR="$T/pm"; . "$T/pmfn.sh"; procmem_point ); [ "$(wc -l < "$T/pd/procmem.log")" = 1 ] && { ok=$((ok + 1)); echo "ok  procmem: в режиме Lite не пишется"; } || { bad=$((bad + 1)); echo "ОШИБКА: procmem пишется в Lite"; }
+n=$(date +%s); printf '%s dnsmasq:5000\n%s dnsmasq:9000 uhttpd:3000\n1000 old:1\n' $((n - 3600)) $((n - 60)) > "$T/pd/procmem.log"
+pj=$(NF_DIR="$T/pd" sh "$H" procmem 24)
+want "procmem: выдача содержит обе свежие точки" '[["dnsmasq",5000]]' "$pj"
+want "procmem: вторая точка с двумя программами" '[["dnsmasq",9000],["uhttpd",3000]]' "$pj"
+nowant "procmem: старая точка отфильтрована" '"old"' "$pj"
+
 echo; echo "ИТОГО: ok=$ok, ошибок=$bad"; [ "$bad" = 0 ]

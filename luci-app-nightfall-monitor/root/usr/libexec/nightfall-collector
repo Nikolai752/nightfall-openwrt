@@ -469,6 +469,12 @@ on_flash() {    # 0, если каталог находится на встро�
 }
 
 PFILES="extip.log hist.coarse temps.coarse hist.long wifi.hr dev.hr dev.snap dev.daily router.ips events.log dev.day dev.yday day.date speed.log apps.day apps.hist traffic.daily acct.v"
+procmem_point() {   # раз в 15 минут: память (RSS, КБ) десяти самых «толстых» программ; по ней монитор ищет утечки
+	[ "$LITE" = 1 ] && return 0
+	cat "${NF_PROCDIR:-/proc}"/[0-9]*/status 2>/dev/null | awk '
+		/^Name:/ { n = $2 } /^VmRSS:/ { if (n != "") { m[n] += $2; n = "" } }
+		END { for (k in m) if (m[k] >= 1024) print m[k], k }' | sort -rn | head -n 10 | awk -v t="$(date +%s)" '{ printf "%s%s:%s", (n++ ? " " : t " "), $2, $1 } END { if (n) print "" }' >> "$DIR/procmem.log"
+}
 extip_point() {   # адрес роутера на WAN: пишем только когда он сменился
 	ip=$(ifstatus wan 2>/dev/null | jsonfilter -e '@["ipv4-address"][0].address' 2>/dev/null)
 	[ -n "$ip" ] || return 0
@@ -724,12 +730,13 @@ while :; do
 				END { if (!no) exit; printf "%d", last; for (i = 1; i <= no; i++) printf " %s:%.1f", o[i], s[o[i]] / c[o[i]]; print "" }' >> "$DIR/temps.coarse"
 			[ $((tick % (AGG * 6))) = 0 ] && long_point
 			extip_point
+			[ $((tick % (AGG * 3))) = 0 ] && procmem_point
 			# всплеск неудачных входов (SSH, LuCI): сообщение в Telegram, если TG_SEC не выключен
 			if [ "$TG" = 1 ] && [ "$TG_SEC" != 0 ] && [ -x /usr/libexec/nightfall-sec ]; then
 				m=$(NF_DIR="$DIR" /usr/libexec/nightfall-sec watch 2>/dev/null); [ -z "$m" ] || tgsend "🛡 $m"
 			fi
 			[ $((tick % (AGG * 12))) = 0 ] && { wifi_hour; dev_hour; }
-			for f in "hist.fine 400" "hist.coarse 2016" "temps.fine 400" "temps.coarse 2016" "hist.long $((HIST_DAYS * 48))" "wifi.hr 12000" "dev.hr 6000" "events.log 300" "wifi.fine 8000" "wifi.ev 400" "extip.log 200" "speed.log 400"; do
+			for f in "hist.fine 400" "hist.coarse 2016" "temps.fine 400" "temps.coarse 2016" "hist.long $((HIST_DAYS * 48))" "wifi.hr 12000" "dev.hr 6000" "events.log 300" "wifi.fine 8000" "wifi.ev 400" "extip.log 200" "procmem.log 672" "speed.log 400"; do
 				[ -f "$DIR/${f% *}" ] || continue
 				set -- $f
 				if [ "$(wc -l < "$DIR/$1")" -gt "$2" ]; then tail -n "$2" "$DIR/$1" > "$DIR/$1.tmp" && mv "$DIR/$1.tmp" "$DIR/$1"; fi

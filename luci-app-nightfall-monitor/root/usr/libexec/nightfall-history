@@ -270,6 +270,11 @@ extip)   # смены адреса WAN: [время, адрес, признак 
 	printf '{"now":%s,"rows":[' "$now"
 	[ -r "$DIR/extip.log" ] && tail -n 30 "$DIR/extip.log" | awk 'NF >= 2 { split($2, a, "."); nat = (a[1] == 10 || (a[1] == 100 && a[2] >= 64 && a[2] <= 127) || (a[1] == 172 && a[2] >= 16 && a[2] <= 31) || (a[1] == 192 && a[2] == 168)) ? 1 : 0; printf "%s[%d,\"%s\",%d]", (n++ ? "," : ""), $1, $2, nat }'
 	printf ']}\n' ;;
+procmem)   # память по программам: [время, [[имя, КБ], ...]] за последние N часов (по умолчанию 24)
+	h=${2:-24}; case "$h" in ''|*[!0-9]*) h=24 ;; esac
+	printf '{"now":%s,"rows":[' "$now"
+	[ -r "$DIR/procmem.log" ] && awk -v lim=$((now - h * 3600)) '$1 >= lim { printf "%s[%d,[", (n++ ? "," : ""), $1; for (i = 2; i <= NF; i++) { j = index($i, ":"); nm = substr($i, 1, j - 1); gsub(/["\\]/, "", nm); printf "%s[\"%s\",%d]", (i > 2 ? "," : ""), nm, substr($i, j + 1) } printf "]]" }' "$DIR/procmem.log"
+	printf ']}\n' ;;
 alerts)
 	printf '{"now":%s,"active":' "$now"
 	active_json
@@ -277,6 +282,6 @@ alerts)
 	printf ',"info":'; info_json
 	printf '}\n' ;;
 *)
-	echo "usage: nightfall-history series fine|coarse|long | temps fine|coarse | devices | apps | channel | journal | speed | wifi [MAC] | wifi-hr [MAC] | devhr | devdaily | known | extip | wifi-check | airscan | traffic | alerts" >&2
+	echo "usage: nightfall-history series fine|coarse|long | temps fine|coarse | devices | apps | channel | journal | speed | wifi [MAC] | wifi-hr [MAC] | devhr | devdaily | known | extip | procmem [ЧАСОВ] | wifi-check | airscan | traffic | alerts" >&2
 	exit 1 ;;
 esac
