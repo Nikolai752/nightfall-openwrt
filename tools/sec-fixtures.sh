@@ -58,3 +58,32 @@ U
 chmod +x "$T/uci"
 printf '#!/bin/sh\necho "{\\"installed\\":\\"1.0.0\\",\\"latest\\":\\"1.1.0\\",\\"new\\":1}"\n' > "$T/upd"; chmod +x "$T/upd"
 
+
+# nft-заглушка для проверки закрытия адресов
+cat > "$T/nft" <<'N'
+#!/bin/sh
+LOG=${NFT_LOG:-/dev/null}
+echo "$*" >> "$LOG"
+case "$1 $2" in
+"-f -") cat >> "$LOG"; touch "$LOG.on" ;;
+"list table") [ -f "$LOG.on" ] && echo "ip saddr @b4 drop" ;;
+"list set") case "$5" in b4) printf 'table inet nightfall_ban {\n\tset b4 {\n\t\ttype ipv4_addr\n\t\tflags timeout\n\t\telements = { 203.0.113.5 timeout 1d expires 23h59m10s,\n\t\t\t     198.51.100.7 timeout 1h expires 59m1s }\n\t}\n}\n' ;; esac ;;
+esac
+exit 0
+N
+chmod +x "$T/nft"
+# журнал DNS (dnsmasq с logqueries)
+cat > "$T/dnslog.txt" <<'L'
+Mon Nov 16 02:10:01 2026 daemon.info dnsmasq[1]: query[A] www.youtube.com from 192.168.1.10
+Mon Nov 16 02:10:01 2026 daemon.info dnsmasq[1]: forwarded www.youtube.com to 1.1.1.1
+Mon Nov 16 02:10:02 2026 daemon.info dnsmasq[1]: query[AAAA] r1.googlevideo.com from 192.168.1.10
+Mon Nov 16 02:10:03 2026 daemon.info dnsmasq[1]: query[A] m.youtube.com from 192.168.1.11
+Mon Nov 16 02:10:04 2026 daemon.info dnsmasq[1]: query[A] bbc.co.uk from 192.168.1.11
+Mon Nov 16 02:10:05 2026 daemon.info dnsmasq[1]: query[A] nope.example.org from 192.168.1.11
+Mon Nov 16 02:10:05 2026 daemon.info dnsmasq[1]: reply nope.example.org is NXDOMAIN
+Mon Nov 16 02:10:06 2026 daemon.info dnsmasq[1]: query[A] nope.example.org from 192.168.1.10
+Mon Nov 16 02:10:06 2026 daemon.info dnsmasq[1]: config nope.example.org is NXDOMAIN
+Mon Nov 16 02:10:07 2026 authpriv.warn dropbear[5]: query[A] fake.test from 1.2.3.4
+L
+printf '#!/bin/sh\ncat %s\n' "$T/dnslog.txt" > "$T/dnslogread"; chmod +x "$T/dnslogread"
+printf '#!/bin/sh\n[ "$2" = "dhcp.@dnsmasq[0].logqueries" ] && echo 1\n' > "$T/uci_dns"; chmod +x "$T/uci_dns"

@@ -1,0 +1,44 @@
+#!/bin/sh
+# Nightfall: статистика DNS-запросов для вкладки «Сеть» (по журналу dnsmasq, только чтение).
+#   nightfall-dns top   — JSON: {"ok":true,"enabled":true,"total":N,"types":[["A",n],..],"nx":N,"sites":[["сайт",n],..],"clients":[["ip",n],..],"nxd":[["имя",n],..]}
+# Журнал запросов dnsmasq включается вместе с учётом по приложениям (dhcp.@dnsmasq[0].logqueries=1). Для проверок: NF_LOGREAD, NF_UCI.
+LOGREAD=${NF_LOGREAD:-logread}
+UCI=${NF_UCI:-uci}
+[ "$1" = top ] || { echo "usage: nightfall-dns top" >&2; exit 1; }
+lq=$($UCI -q get 'dhcp.@dnsmasq[0].logqueries' 2>/dev/null)
+$LOGREAD 2>/dev/null | awk -v lq="$lq" '
+function site(d,   n, p, tld, sld) {
+	n = split(d, p, "."); if (n < 2) return d
+	tld = p[n]; sld = p[n - 1]
+	if (n >= 3 && length(tld) == 2 && (sld == "co" || sld == "com" || sld == "org" || sld == "net" || sld == "gov" || sld == "edu" || sld == "ac")) return p[n - 2] "." sld "." tld
+	return sld "." tld
+}
+function q(x) { gsub(/\\/, "\\\\", x); gsub(/"/, "\\\"", x); return x }
+function top(arr, lim, name,   best, bc, k, r, first, done) {
+	printf ",\"%s\":[", name; first = 1
+	for (r = 0; r < lim; r++) {
+		best = ""; bc = 0
+		for (k in arr) if (arr[k] > bc && !(k in done)) { best = k; bc = arr[k] }
+		if (best == "") break
+		done[best] = 1; printf "%s[\"%s\",%d]", first ? "" : ",", q(best), bc; first = 0
+	}
+	printf "]"
+}
+/dnsmasq\[[0-9]+\]: query\[/ {
+	if (!match($0, /query\[[A-Za-z0-9]+\] [^ ]+ from [0-9a-fA-F:.]+/)) next
+	s = substr($0, RSTART, RLENGTH); split(s, a, " ")
+	t = substr(a[1], 7); sub(/\]$/, "", t)
+	d = tolower(a[2]); ip = a[4]
+	total++; ty[t]++; st[site(d)]++; cl[ip]++
+	next
+}
+/dnsmasq\[[0-9]+\]: (config|reply) [^ ]+ is (NXDOMAIN|NODATA)/ {
+	if (match($0, /(config|reply) [^ ]+ is NXDOMAIN/)) { s = substr($0, RSTART, RLENGTH); split(s, a, " "); nx++; nxd[tolower(a[2])]++ }
+	next
+}
+END {
+	en = (total > 0 || lq == "1") ? "true" : "false"
+	printf "{\"ok\":true,\"enabled\":%s,\"total\":%d,\"nx\":%d", en, total, nx
+	top(ty, 6, "types"); top(st, 15, "sites"); top(cl, 10, "clients"); top(nxd, 8, "nxd")
+	printf "}\n"
+}'

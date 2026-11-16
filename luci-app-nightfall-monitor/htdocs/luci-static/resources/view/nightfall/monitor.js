@@ -432,6 +432,11 @@ const CSS = `
 .nfm-pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border-radius: 999px; font-size: 12px;
   background: color-mix(in srgb, #13a10e 14%, transparent); color: var(--nfm-text); border: 1px solid color-mix(in srgb, #13a10e 30%, transparent); }
 .nfm-pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #13a10e; animation: nfm-pulse 2s infinite; }
+.nfm-rowlink { cursor: pointer; }
+.nfm-rowlink:hover td, .nfm-rowlink:focus-visible td { background: color-mix(in srgb, var(--nfm-accent, #4aa3ff) 8%, transparent); }
+.nfm-dc { min-width: min(420px, 80vw); }
+.nfm-dc-bars { display: flex; align-items: flex-end; gap: 3px; height: 64px; }
+.nfm-dc-bars i { flex: 1; min-width: 6px; border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--nfm-accent, #4aa3ff) 70%, transparent); }
 .nfm-mode { display: inline-flex; align-items: center; padding: 4px 11px; border-radius: 999px; font-size: 12px; border: 1px solid color-mix(in srgb, #4aa3ff 40%, transparent); background: color-mix(in srgb, #4aa3ff 14%, transparent); color: var(--nfm-text); cursor: help; }
 .nfm-mode.lite { border-color: color-mix(in srgb, #f7a21b 45%, transparent); background: color-mix(in srgb, #f7a21b 16%, transparent); }
 .nfm-mode[hidden] { display: none; }
@@ -833,6 +838,7 @@ return view.extend({
 		const devNote = E('div', { class: 'nfm-hint', hidden: '' });
 		const devSel = E('select', { class: 'nfm-sel', change: ev => { S.devDay = ev.target.value; refresh(); } },
 			[ E('option', { value: 'day' }, 'Сегодня'), E('option', { value: 'yday' }, 'Вчера') ]);
+		const dnsBox = E('div', { class: 'nfm-two' });
 		const chanSel = E('select', { class: 'nfm-sel', change: ev => { S.chanDev = ev.target.value; renderChannel(); } });
 		const chanBox = E('div', { class: 'nfm-two' });
 		const chanNote = E('div', { class: 'nfm-note-s', style: 'margin:-4px 0 10px' }, 'Скорость за последние секунды по данным conntrack: по службам (портам) и по адресам в интернете.');
@@ -876,6 +882,7 @@ return view.extend({
 			E('div', { class: 'nfm-grid' }, [
 				card([ 'Что грузит канал сейчас', E('span', { class: 'nfm-spacer' }), chanSel ], E('div', {}, [ chanNote, chanBox ]))
 			]),
+			E('div', { class: 'nfm-grid' }, [ card('DNS-запросы', dnsBox) ]),
 			E('div', { class: 'nfm-grid' }, [
 				card([ 'Скорость по интерфейсу', E('span', { class: 'nfm-spacer' }), netSel,
 					E('span', { class: 'nfm-legend' }, [ legendDot('c-down', 'Загрузка'), legendDot('c-up', 'Отдача') ]) ], netBig.el)
@@ -928,7 +935,7 @@ return view.extend({
 			[ 'SPEED_URL', 'Файл для замера скорости', '', 'text' ], [ 'SPEED_STREAMS', 'Потоков при замере скорости (1–8)', '' ],
 			[ 'NEWDEV', 'Сообщать о новых устройствах (0/1)', '' ],
 			[ 'LITE', 'Режим Lite для слабого роутера: опрос раз в 60 с, без учёта по приложениям и истории Wi‑Fi (0/1)', '' ],
-			[ 'TG', 'Отправлять уведомления в Telegram (0/1)', '' ], [ 'TG_ALERTS', 'Слать предупреждения и перезагрузки (0/1)', '' ], [ 'TG_BOT', 'Бот с кнопками: меню, блокировка, перезагрузка (0/1)', '' ], [ 'TG_CLEAN', 'Бот убирает за собой: ответ всегда внизу, команды удаляются (0/1)', '' ], [ 'TG_UPDATES', 'Сообщать в Telegram о новых версиях темы (0/1)', '' ], [ 'TG_WIDGETS', 'Живые виджеты в боте: «Статус» с кольцами, только личный чат (0/1)', '' ], [ 'TG_REPORT', 'Ежедневный отчёт в Telegram, время', '', 'text', 'например 21:00, пусто = выкл' ],
+			[ 'TG', 'Отправлять уведомления в Telegram (0/1)', '' ], [ 'TG_ALERTS', 'Слать предупреждения и перезагрузки (0/1)', '' ], [ 'TG_BOT', 'Бот с кнопками: меню, блокировка, перезагрузка (0/1)', '' ], [ 'TG_CLEAN', 'Бот убирает за собой: ответ всегда внизу, команды удаляются (0/1)', '' ], [ 'TG_UPDATES', 'Сообщать в Telegram о новых версиях темы (0/1)', '' ], [ 'TG_SEC', 'Сообщать в Telegram о всплеске неудачных входов (0/1)', '' ], [ 'TG_WIDGETS', 'Живые виджеты в боте: «Статус» с кольцами, только личный чат (0/1)', '' ], [ 'TG_REPORT', 'Ежедневный отчёт в Telegram, время', '', 'text', 'например 21:00, пусто = выкл' ],
 			[ 'TG_TOKEN', 'Токен бота (от @BotFather)', '', 'password', 'не задан' ], [ 'TG_CHAT', 'Chat id', '', 'text', 'число, определяется кнопкой' ],
 			[ 'TG_USERS', 'Кому управлять ботом в группе (id через запятую)', '', 'text', 'нужно, только если chat id группы' ],
 			[ 'TG_PROXY', 'Прокси для Telegram (если он закрыт)', '', 'text', 'например socks5h://127.0.0.1:1080' ],
@@ -1004,7 +1011,7 @@ return view.extend({
 				[ 'Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ] ],
 				[ 'Режим работы', [ 'LITE' ] ],
 				[ 'Новые устройства', [ 'NEWDEV' ] ],
-				[ 'Уведомления в Telegram', [ 'TG', 'TG_ALERTS', 'TG_BOT', 'TG_CLEAN', 'TG_UPDATES', 'TG_WIDGETS', 'TG_REPORT', 'TG_TOKEN', 'TG_CHAT', 'TG_USERS', 'TG_PROXY', 'TG_IFACE' ], tgTools ]
+				[ 'Уведомления в Telegram', [ 'TG', 'TG_ALERTS', 'TG_BOT', 'TG_CLEAN', 'TG_UPDATES', 'TG_SEC', 'TG_WIDGETS', 'TG_REPORT', 'TG_TOKEN', 'TG_CHAT', 'TG_USERS', 'TG_PROXY', 'TG_IFACE' ], tgTools ]
 			].map(([ title, keys, extra ]) => E('section', { class: 'nfm-cfg-g' }, [ E('h4', {}, title),
 				E('div', { class: 'nfm-cfg' }, keys.map(k => CFG_FIELDS.find(f => f[0] === k)).filter(Boolean).map(([ k, l, u, type, ph ]) => E('label', { class: 'nfm-cfg-i' }, [ l,
 					E('span', { class: 'nfm-cfg-f' }, [ cfgInputs[k] = E('input', { class: 'nfm-in', type: type || 'number', placeholder: ph || '' }), u ? E('em', {}, u) : '' ]) ]))),
@@ -1534,6 +1541,13 @@ return view.extend({
 		const logChips = E('div', { class: 'nfm-tabs', style: 'margin-bottom:10px' }, LOGK.map(([ k, l ]) => E('button', { type: 'button', class: 'nfm-tab' + (k === 'all' ? ' on' : ''), 'data-k': k,
 			click: () => { S.logK = k; renderLogTools(); } }, l)));
 		const logBox = E('div', { class: 'nfm-evlist' });
+		/* ---- журнал самого роутера (logread): поиск, уровень, служба ---- */
+		const rlQ = E('input', { class: 'nfm-search', type: 'search', placeholder: 'Поиск по журналу роутера…', 'aria-label': 'Поиск по журналу роутера', input: () => renderRouterLog() });
+		const rlSvc = E('select', { class: 'nfm-sel', 'aria-label': 'Служба', change: () => renderRouterLog() }, E('option', { value: '' }, 'Все службы'));
+		const RLV = [ [ 'all', 'Все' ], [ 'warn', 'Предупреждения и ошибки' ], [ 'err', 'Только ошибки' ] ];
+		const rlChips = E('div', { class: 'nfm-tabs', style: 'margin-bottom:10px' }, RLV.map(([ k, l ]) => E('button', { type: 'button', class: 'nfm-tab' + (k === 'all' ? ' on' : ''), 'data-k': k, click: () => { S.rlK = k; renderRouterLog(); } }, l)));
+		const rlBox = E('div', { class: 'nfm-evlist nfm-rlog' });
+		const MONRU = { Jan: 'янв.', Feb: 'февр.', Mar: 'мар.', Apr: 'апр.', May: 'мая', Jun: 'июн.', Jul: 'июл.', Aug: 'авг.', Sep: 'сент.', Oct: 'окт.', Nov: 'нояб.', Dec: 'дек.' };
 		const wifiTab = E('div', { hidden: true }, [
 			E('div', { class: 'nfm-grid' }, [
 				card([ 'Wi-Fi клиенты', E('span', { class: 'nfm-spacer' }), E('span', { class: 'nfm-note-s' }, 'нажмите на строку — график сигнала · скорость — согласованная, не текущий трафик') ],
@@ -1556,7 +1570,8 @@ return view.extend({
 		]);
 		const logTab = E('div', { hidden: true }, [
 			E('div', { class: 'nfm-grid' }, [ card([ 'Журнал событий', E('span', { class: 'nfm-spacer' }), logQ ], E('div', {}, [ logChips, logBox ])) ]),
-			E('div', { class: 'nfm-grid' }, [ card('Журнал перезагрузок и обрывов связи', E('div', {}, [ jrnTiles, jrnBox ])) ]),
+			E('div', { class: 'nfm-grid' }, [ card('Журнал перезагрузок и обрывов связи', E('div', {}, [ jrnTiles, jrnBox ])) ]),,
+			E('div', { class: 'nfm-grid' }, [ card([ 'Журнал роутера', E('span', { class: 'nfm-spacer' }), rlSvc, rlQ ], E('div', {}, [ rlChips, rlBox ])) ])
 		]);
 		const diagTab = E('div', { hidden: true }, [
 			E('div', { class: 'nfm-grid' }, [ card('Диагностика сети', diagBody) ]),
@@ -1565,11 +1580,12 @@ return view.extend({
 		const secTiles = E('div', { class: 'nfm-tiles t4' }, [ [ 'sFail', 'неудачных входов' ], [ 'sNew', 'новых за неделю' ], [ 'sOpen', 'портов открыто для сети' ], [ 'sFw', 'пробросов из интернета' ] ]
 			.map(([ k, l ]) => E('div', { class: 'nfm-tile' }, [ l, T[k] = E('b', {}, '–') ])));
 		const secVerdict = E('div', { class: 'nfm-hint' }, 'Собираю данные…');
-		const secLogins = E('div'), secPorts = E('div'), secDev = E('div'), secUpd = E('div');
+		const secLogins = E('div'), secPorts = E('div'), secDev = E('div'), secUpd = E('div'), secBans = E('div');
 		const secTab = E('div', { hidden: true }, [
 			E('div', { class: 'nfm-grid' }, [ card('Сводка безопасности', E('div', {}, [ secVerdict, secTiles ])) ]),
 			E('div', { class: 'nfm-grid nfm-g21' }, [ card('Попытки входа (LuCI и SSH)', secLogins), card('Обновления', secUpd) ]),
-			E('div', { class: 'nfm-grid nfm-g21' }, [ card('Открытые порты роутера', secPorts), card('Новые устройства', secDev) ])
+			E('div', { class: 'nfm-grid nfm-g21' }, [ card('Открытые порты роутера', secPorts), card('Новые устройства', secDev) ]),
+			E('div', { class: 'nfm-grid' }, [ card('Закрытые адреса', secBans) ])
 		]);
 
 		const modeBadge = E('span', { class: 'nfm-mode', hidden: true });
@@ -1749,8 +1765,11 @@ return view.extend({
 			if (onTab('hist', 'wifi') && due('whr', 120)) jobs.push(callHistory([ 'wifi-hr' ]).then(r => { S.whr = r || null; }));
 			if (S.tab === 'hist' && due('lg', 300)) jobs.push(callHistory([ 'series', 'long' ]).then(r => { S.lg = r || null; }));
 			if (S.tab === 'net' && due('chan', DEVICES_EVERY * INTERVAL)) jobs.push(callHistory([ 'channel' ]).then(r => { S.chan = r; }));
+			if (S.tab === 'net' && due('dns', 30)) jobs.push(fs.exec('/usr/libexec/nightfall-dns', [ 'top' ]).then(r => { try { S.dns = JSON.parse(r.stdout); } catch (e) { S.dns = null; } }).catch(() => { S.dns = null; }));
 			if (S.tab === 'sec' && due('sec', 60)) jobs.push(fs.exec(SECBIN, [ 'summary' ]).then(r => { try { S.sec = JSON.parse(r.stdout); } catch (e) { S.sec = null; } }).catch(() => { S.sec = null; }));
+			if (S.tab === 'sec' && due('bans', 30)) jobs.push(fs.exec(SECBIN, [ 'bans' ]).then(r => { try { S.bans = JSON.parse(r.stdout); } catch (e) { S.bans = null; } }).catch(() => { S.bans = null; }));
 			if (S.tab === 'sec' && due('secu', 600)) jobs.push(fs.exec(SECBIN, [ 'updates' ]).then(r => { try { S.secu = JSON.parse(r.stdout); } catch (e) { S.secu = null; } }).catch(() => { S.secu = null; }));
+			if (S.tab === 'log' && due('rlog', 20)) jobs.push(fs.exec('/usr/libexec/nightfall-log', [ 'read', '800' ]).then(r => { try { S.rlog = JSON.parse(r.stdout); } catch (e) { S.rlog = null; } }).catch(() => { S.rlog = null; }));
 			if (S.tab === 'log' && due('blog', 30)) jobs.push(fs.exec('/usr/libexec/nightfall-block', [ 'log' ]).then(r => { try { S.blog = JSON.parse(r.stdout); } catch (e) { S.blog = null; } }).catch(() => { S.blog = null; }));
 			if (onTab('hist', 'log') && due('jrn', 30)) jobs.push(callHistory([ 'journal' ]).then(r => { S.jrn = r; }));
 			if (onTab('hist', 'diag') && due('spd', S.spdRun ? 3 : 30)) jobs.push(callHistory([ 'speed' ]).then(r => { S.spd = r; if (S.spdRun && Date.now() - (S.spdT || 0) > 4000 && (!r || !r.running)) { S.spdRun = false; if (r === false) ui.addNotification(null, E('p', {}, 'Замер завершён, но результат не прочитан: ' + MISSING), 'danger'); } }));
@@ -1922,13 +1941,65 @@ return view.extend({
 				const id = r.mac && r.k !== 'router' && r.k !== 'v6' ? devId(r.mac, h.name) : null;
 				const label = r.k === 'v6' ? 'Другие адреса IPv6' : r.k === 'router' ? 'Сам роутер (VPN, DNS, обновления)' : (h.name || names[r.ip] || (id && id.known ? (id.label || 'Устройство') : '') || r.ip);
 				const sub = r.k === 'v6' || r.k === 'router' ? '' : ((h.ipaddrs || [])[0] || r.ip);
-				return E('tr', {}, [
+				return E('tr', { class: 'nfm-rowlink', tabindex: r.k === 'v6' || r.k === 'router' ? null : '0', title: r.k === 'v6' || r.k === 'router' ? null : 'Нажмите: карточка устройства',
+					click: () => { if (r.k !== 'v6' && r.k !== 'router') openDevCard(r); }, keydown: ev => { if (ev.key === 'Enter' && r.k !== 'v6' && r.k !== 'router') openDevCard(r); } }, [
 					E('td', { title: id ? (id.hint ? id.hint + '\n' : '') + r.mac : '' }, [ id ? devIcon(id) : '', label, sub && sub !== label ? E('span', { class: 'nfm-chip' }, sub) : '',
 						id && id.vendor ? E('span', { class: 'nfm-chip' }, id.vendor) : '', id && id.priv ? E('span', { class: 'nfm-chip priv' }, 'частный MAC') : '',
 						E('div', { class: 'nfm-bar nfm-bar-sm' }, E('div', { class: 'nfm-bar-fill c-down', style: `width:${100 * (r.dd + r.du) / mx}%` })) ]),
 					E('td', { class: 'r' }, rateText(r.rd)), E('td', { class: 'r' }, rateText(r.ru)),
 					E('td', { class: 'r' }, fmtBytes(r.dd)), E('td', { class: 'r' }, fmtBytes(r.du)) ]);
 			}) : [ E('tr', {}, E('td', { colspan: 5, class: 'nfm-empty' }, 'Пока нет данных: учёт начинается после запуска сборщика, цифры накапливаются в течение дня.')) ]));
+		}
+
+		/* ---- карточка устройства (по нажатию в «Устройствах»): трафик, приложения, сигнал, время появления, действия ---- */
+		function openDevCard(r) {
+			const mac = r.mac || '', ip = r.ip || '';
+			const h = mac ? hints[mac] || {} : {};
+			const id = mac ? devId(mac, h.name) : null;
+			const label = (mac && devName(mac)) || names[ip] || ip || 'Устройство';
+			const body = E('div', { class: 'nfm nfm-dc' }, E('div', { class: 'nfm-empty' }, 'Собираю данные…'));
+			const acts = [];
+			if (mac) {
+				acts.push(E('button', { class: 'btn cbi-button-negative', click: () => { if (window.confirm('Заблокировать доступ в интернет для «' + label + '»?')) fs.exec('/usr/libexec/nightfall-block', [ 'block', mac ]).then(() => { ui.hideModal(); window.alert('Доступ закрыт. Снять блокировку можно на этой же вкладке в «Доступ в интернет».'); }).catch(() => window.alert('Не получилось.')); } }, 'Заблокировать'));
+				acts.push(E('button', { class: 'btn', title: 'Отправить «магический пакет», если устройство поддерживает Wake-on-LAN', click: () => fs.exec('/usr/libexec/nightfall-wol', [ 'send', mac ]).then(() => window.alert('Пакет отправлен.')).catch(() => window.alert('Не получилось.')) }, 'Разбудить'));
+			}
+			ui.showModal(label, [ body, E('div', { class: 'button-row' }, acts.concat([ E('button', { class: 'btn', click: ui.hideModal }, 'Закрыть') ])) ]);
+			const J = a => callHistory(a).catch(() => null);
+			Promise.all([ J([ 'devdaily' ]), J([ 'apps' ]), mac ? J([ 'wifi', mac ]) : Promise.resolve(null), J([ 'known' ]) ]).then(([ dd, ap, wf, kn ]) => {
+				const ymdOf = d => d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+				const mine = (rowIp, rowMac) => (mac && rowMac && String(rowMac).toUpperCase() === mac) || (rowIp && rowIp === ip);
+				const days = {};
+				for (const x of (dd && dd.rows) || []) if (mine(x[1], x[4] !== '-' ? x[4] : '')) days[x[0]] = (days[x[0]] || 0) + (+x[2]) + (+x[3]);
+				const nowD = new Date(), today = ymdOf(nowD);
+				days[today] = (r.dd || 0) + (r.du || 0);
+				const keys = []; for (let i = 13; i >= 0; i--) keys.push(ymdOf(new Date(nowD.getTime() - i * 86400000)));
+				const vals = keys.map(k => days[k] || 0), mx = Math.max(1, ...vals);
+				const total30 = Object.keys(days).filter(k => k >= ymdOf(new Date(nowD.getTime() - 29 * 86400000))).reduce((a, k) => a + days[k], 0);
+				const yest = days[ymdOf(new Date(nowD.getTime() - 86400000))];
+				const apps = {};
+				for (const x of (ap && ap.day) || []) if (x[0] === ip) apps[x[1]] = (apps[x[1]] || 0) + (+x[2]) + (+x[3]);
+				for (const x of (ap && ap.hist) || []) if (x[1] === ip) apps[x[2]] = (apps[x[2]] || 0) + (+x[3]) + (+x[4]);
+				const topApps = Object.entries(apps).sort((a, b) => b[1] - a[1]).slice(0, 6);
+				const sig = ((wf && wf.rows) || []).filter(x => !mac || String(x[1]).toUpperCase() === mac).map(x => +x[2]).filter(v => v < 0);
+				const evs = ((wf && wf.events) || []).filter(x => String(x[1]).toUpperCase() === mac).slice(-6).reverse();
+				const first = ((kn && kn.rows) || []).find(x => x[0] === mac);
+				const kids = [
+					E('div', { class: 'nfm-note-s' }, [ ip, mac ? ' · ' + mac : '', id && id.vendor ? ' · ' + id.vendor : '', id && id.priv ? ' · частный MAC' : '' ].join('')),
+					E('div', { class: 'nfm-mon-sum' }, [
+						E('div', {}, [ E('span', {}, 'Сегодня'), E('b', {}, fmtBytes((r.dd || 0) + (r.du || 0))) ]),
+						E('div', {}, [ E('span', {}, 'Вчера'), E('b', {}, yest != null ? fmtBytes(yest) : '–') ]),
+						E('div', {}, [ E('span', {}, 'За 30 дней'), E('b', {}, fmtBytes(total30)) ]) ]),
+					E('div', { class: 'nfm-k', style: 'margin:12px 0 6px' }, 'Трафик за 14 дней'),
+					E('div', { class: 'nfm-dc-bars' }, vals.map((v, i) => E('i', { style: 'height:' + Math.max(2, Math.round(60 * v / mx)) + 'px', title: keys[i].slice(6) + '.' + keys[i].slice(4, 6) + ': ' + fmtBytes(v) }))) ];
+				if (topApps.length) kids.push(E('div', { class: 'nfm-k', style: 'margin:12px 0 6px' }, 'Что качает (приложения)'), ...topApps.map(a => E('div', { class: 'nfm-host' }, [ E('span', {}, a[0]), E('b', {}, fmtBytes(a[1])) ])));
+				if (sig.length) {
+					const last = sig[sig.length - 1], avg = Math.round(sig.reduce((s, v) => s + v, 0) / sig.length);
+					kids.push(E('div', { class: 'nfm-k', style: 'margin:12px 0 6px' }, 'Wi‑Fi'), E('div', { class: 'nfm-host' }, [ E('span', {}, 'Сигнал сейчас'), E('b', {}, last + ' дБм') ]), E('div', { class: 'nfm-host' }, [ E('span', {}, 'Средний за период'), E('b', {}, avg + ' дБм') ]));
+				}
+				if (evs.length) kids.push(E('div', { class: 'nfm-k', style: 'margin:12px 0 6px' }, 'Подключения и отключения'), ...evs.map(x => E('div', { class: 'nfm-host' }, [ E('span', {}, x[2] === 'join' ? 'подключился' : 'отключился'), E('small', {}, fmtTs(x[0])) ])));
+				if (first && first[2]) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:12px' }, 'Впервые замечено: ' + fmtTs(first[2])));
+				body.replaceChildren(...kids);
+			});
 		}
 
 		function renderDay() {
@@ -2049,6 +2120,17 @@ return view.extend({
 		function ipLabel(ip) {
 			for (const mac in hints) if ((hints[mac].ipaddrs || []).includes(ip) || (hints[mac].ip6addrs || []).includes(ip)) return hints[mac].name || ip;
 			return names[ip] || ip;
+		}
+
+		function renderDns() {
+			const d = S.dns;
+			if (!d) { dnsBox.replaceChildren(E('div', { class: 'nfm-empty' }, d === false ? MISSING : 'Собираю данные…')); return; }
+			if (!d.enabled) { dnsBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Журнал DNS-запросов выключен. Включить: uci set dhcp.@dnsmasq[0].logqueries=1; uci commit dhcp; /etc/init.d/dnsmasq restart')); return; }
+			const list = (title, rows, nm) => E('div', {}, [ E('div', { class: 'nfm-k', style: 'margin-bottom:6px' }, title) ].concat(rows.length ? rows.slice(0, 8).map(x => E('div', { class: 'nfm-host' }, [ E('span', {}, nm ? nm(x[0]) : x[0]), E('b', {}, String(x[1])) ])) : [ E('div', { class: 'nfm-empty' }, 'Пока пусто') ]));
+			const who = ip => { const m = Object.keys(hints).find(k => (hints[k].ipaddrs || []).includes(ip)); return (m && devName(m)) || names[ip] || ip; };
+			dnsBox.replaceChildren(
+				E('div', { class: 'nfm-note-s', style: 'grid-column:1/-1' }, 'Запросов в журнале: ' + d.total + ', не нашлось имён: ' + d.nx + (d.types && d.types.length ? ' · ' + d.types.slice(0, 4).map(x => x[0] + ' ' + x[1]).join(', ') : '')),
+				list('Куда чаще обращаются', d.sites || []), list('Кто спрашивает', d.clients || [], who), list('Не нашлось (NXDOMAIN)', d.nxd || []));
 		}
 
 		function renderChannel() {
@@ -2399,7 +2481,26 @@ return view.extend({
 				: [ E('div', { class: 'nfm-empty' }, q || k !== 'all' ? 'Ничего не найдено. Измените фильтр или запрос.' : 'Записей пока нет.') ]));
 		}
 		const SECBIN = '/usr/libexec/nightfall-sec';
+		const isExternalIp = ip => !/^(10\.|127\.|0\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|(fe[89ab]|f[cd])[0-9a-f]*:|::1?$)/i.test(ip) && /^[0-9a-f:.]+$/i.test(ip);
+		const secAct = (args, msg) => fs.exec(SECBIN, args).then(r => { let j = null; try { j = JSON.parse(r.stdout); } catch (e) { /* ignore */ } if (!j || !j.ok) window.alert((j && j.error) || 'Не получилось.');
+			S.at.sec = 0; S.at.bans = 0; })
+			.catch(() => window.alert('Не получилось выполнить команду на роутере.'));
+		const banBtn = ip => isExternalIp(ip) ? E('button', { type: 'button', class: 'nfm-btn', title: 'Роутер перестанет принимать пакеты с этого адреса на 24 часа (до перезагрузки роутера)',
+			click: () => { if (window.confirm('Закрыть адрес ' + ip + ' для роутера на 24 часа?')) secAct([ 'ban', ip, '24' ]); } }, 'Закрыть на 24 ч') : '';
 		const RISKY = { 21: 'FTP без шифрования', 23: 'Telnet без шифрования', 445: 'SMB', 139: 'SMB', 3389: 'удалённый рабочий стол', 5900: 'VNC' };
+		function renderRouterLog() {
+			const R = S.rlog;
+			for (const b of rlChips.children) b.classList.toggle('on', b.getAttribute('data-k') === (S.rlK || 'all'));
+			if (R === undefined) { rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Загружаю…')); return; }
+			if (!R || !R.ok) { rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Не удалось получить журнал. Выйдите из LuCI и войдите снова после обновления.')); return; }
+			const svcs = Array.from(new Set(R.rows.map(x => x[2]))).sort();
+			if (rlSvc.options.length - 1 !== svcs.length) { const cur = rlSvc.value; rlSvc.replaceChildren(E('option', { value: '' }, 'Все службы'), ...svcs.map(v => E('option', { value: v }, v))); rlSvc.value = svcs.includes(cur) ? cur : ''; }
+			const q = rlQ.value.trim().toLowerCase(), k = S.rlK || 'all', sv = rlSvc.value;
+			const lvl = x => { const l = (x[1].split('.')[1] || '').toLowerCase(); return /^(emerg|alert|crit|err)/.test(l) ? 'err' : /^warn/.test(l) ? 'warn' : 'info'; };
+			const list = R.rows.filter(x => (!sv || x[2] === sv) && (k === 'all' || (k === 'err' ? lvl(x) === 'err' : lvl(x) !== 'info')) && (!q || (x[2] + ' ' + x[3]).toLowerCase().includes(q))).slice(-300).reverse();
+			rlBox.replaceChildren(...(list.length ? list.map(x => E('div', { class: 'nfm-ev-i ' + ({ err: 'crit', warn: 'warn', info: 'info' })[lvl(x)] }, [ E('i'), E('time', {}, x[0].replace(/^([A-Z][a-z]{2}) (\d+) /, (m, a, d) => d + ' ' + (MONRU[a] || a) + ', ')), E('span', {}, [ E('b', {}, x[2] + ' '), x[3] ]) ]))
+				: [ E('div', { class: 'nfm-empty' }, 'Ничего не найдено.') ]));
+		}
 		function renderSec() {
 			const R = S.sec;
 			if (R === undefined) return;
@@ -2428,7 +2529,7 @@ return view.extend({
 			const ago = t => String(t).replace(/^([A-Z][a-z]{2}) (\d+) /, (m, a, d) => d + ' ' + (MON[a] || a) + ', ');
 			secLogins.replaceChildren(
 				E('div', { class: 'nfm-s' }, 'Неудачных попыток в журнале: SSH ' + (lg.failed_ssh || 0) + ', LuCI ' + (lg.failed_luci || 0) + '. Журнал роутера хранит только последние события с момента загрузки.'),
-				(lg.top || []).length ? E('div', { style: 'margin:10px 0' }, [ E('div', { class: 'nfm-k' }, 'Чаще всего ломятся с адресов'), ...(lg.top || []).map(x => E('div', { class: 'nfm-host' }, [ E('span', {}, x[0]), E('b', {}, String(x[1])) ])) ]) : '',
+				(lg.top || []).length ? E('div', { style: 'margin:10px 0' }, [ E('div', { class: 'nfm-k' }, 'Чаще всего ломятся с адресов'), ...(lg.top || []).map(x => E('div', { class: 'nfm-host' }, [ E('span', {}, x[0]), E('span', { style: 'display:flex;gap:10px;align-items:center' }, [ E('b', {}, String(x[1])), banBtn(x[0]) ]) ])) ]) : '',
 				E('div', { class: 'nfm-evlist', style: 'margin-top:8px' }, (lg.recent || []).length ? (lg.recent || []).map(x => E('div', { class: 'nfm-ev-i ' + (x[2] ? 'info' : 'warn') }, [ E('i'), E('time', {}, ago(x[0])),
 					E('span', {}, (x[1] === 'ssh' ? 'SSH' : 'LuCI') + (x[2] ? ': вход ' : ': неудачная попытка ') + x[3] + ' с ' + x[4]) ])) : [ E('div', { class: 'nfm-empty' }, 'Попыток входа в журнале нет.') ]));
 			secPorts.replaceChildren(
@@ -2438,6 +2539,10 @@ return view.extend({
 						E('td', {}, [ p[2] === 'all' ? 'для сети' : 'только сам роутер', RISKY[p[1]] ? E('span', { class: 'nfm-chip', style: 'margin-left:6px' }, RISKY[p[1]]) : '' ]) ]))) ]),
 				reds.length ? E('div', { style: 'margin-top:12px' }, [ E('div', { class: 'nfm-k' }, 'Проброс портов из интернета'), ...reds.map(x => E('div', { class: 'nfm-host' }, [ E('span', {}, (x[0] || 'без имени') + ': ' + (x[1] || 'tcp').toUpperCase() + ' ' + x[2] + ' → ' + x[3] + ':' + (x[4] || x[2])) ])) ]) : '');
 			secDev.replaceChildren(...(nd.length ? nd.map(d => E('div', { class: 'nfm-host' }, [ E('span', {}, [ d[1] || 'без имени', E('small', {}, d[0]) ]), E('b', {}, d[2] ? fmtTs(d[2]) : '') ])) : [ E('div', { class: 'nfm-empty' }, 'Сборщик ещё не видел новых устройств.') ]));
+			const BN = S.bans;
+			secBans.replaceChildren(...(BN && BN.ok && (BN.bans || []).length ? [ E('div', { class: 'nfm-note-s', style: 'margin-bottom:8px' }, 'Эти адреса не могут обращаться к самому роутеру. Закрытие снимается само по сроку или после перезагрузки роутера.'),
+				...BN.bans.map(b => E('div', { class: 'nfm-host' }, [ E('span', {}, b[0]), E('span', { style: 'display:flex;gap:10px;align-items:center' }, [ E('small', {}, b[1] ? 'осталось ' + b[1] : ''), E('button', { type: 'button', class: 'nfm-btn', click: () => secAct([ 'unban', b[0] ]) }, 'Открыть') ]) ])) ]
+				: [ E('div', { class: 'nfm-empty' }, BN === undefined ? 'Проверяю…' : 'Закрытых адресов нет. Закрыть адрес можно кнопкой рядом с нарушителем в «Попытках входа».') ]));
 			const U = S.secu;
 			if (U && U.ok) {
 				const th = U.theme || {};
@@ -2576,11 +2681,11 @@ return view.extend({
 
 			renderAlerts();
 			if (onTab('net', 'devs')) renderDevices();
-			if (S.tab === 'net') renderChannel();
+			if (S.tab === 'net') { renderChannel(); renderDns(); }
 			if (S.tab === 'svcs') renderServices();
 			if (S.tab === 'hist') { renderHist(); renderDay(); renderHeat(); renderWeek(); renderCmp(); renderMon(); renderWq(); renderWHeat(); renderAir(); renderJournal(); renderSpeed(); renderFlash(); }
 			if (S.tab === 'wifi') { renderWq(); renderWHeat(); renderAir(); }
-			if (S.tab === 'log') { renderHist(); renderJournal(); renderLogTools(); }
+			if (S.tab === 'log') { renderHist(); renderJournal(); renderLogTools(); renderRouterLog(); }
 			if (S.tab === 'diag') renderSpeed();
 			if (S.tab === 'sec') renderSec();
 			if (S.tab === 'devs') renderDevBlock();

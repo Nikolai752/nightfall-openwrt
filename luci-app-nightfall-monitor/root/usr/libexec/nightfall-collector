@@ -717,6 +717,10 @@ while :; do
 			[ -s "$DIR/temps.fine" ] && tail -n "$AGG" "$DIR/temps.fine" | awk '{ last = $1; for (i = 2; i <= NF; i++) { j = index($i, ":"); k = substr($i, 1, j - 1); v = substr($i, j + 1) + 0; if (!(k in c)) o[++no] = k; s[k] += v; c[k]++ } }
 				END { if (!no) exit; printf "%d", last; for (i = 1; i <= no; i++) printf " %s:%.1f", o[i], s[o[i]] / c[o[i]]; print "" }' >> "$DIR/temps.coarse"
 			[ $((tick % (AGG * 6))) = 0 ] && long_point
+			# всплеск неудачных входов (SSH, LuCI): сообщение в Telegram, если TG_SEC не выключен
+			if [ "$TG" = 1 ] && [ "$TG_SEC" != 0 ] && [ -x /usr/libexec/nightfall-sec ]; then
+				m=$(NF_DIR="$DIR" /usr/libexec/nightfall-sec watch 2>/dev/null); [ -z "$m" ] || tgsend "🛡 $m"
+			fi
 			[ $((tick % (AGG * 12))) = 0 ] && { wifi_hour; dev_hour; }
 			for f in "hist.fine 400" "hist.coarse 2016" "temps.fine 400" "temps.coarse 2016" "hist.long $((HIST_DAYS * 48))" "wifi.hr 12000" "dev.hr 6000" "events.log 300" "wifi.fine 8000" "wifi.ev 400" "speed.log 400"; do
 				[ -f "$DIR/${f% *}" ] || continue

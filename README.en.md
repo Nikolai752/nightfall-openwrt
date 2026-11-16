@@ -58,6 +58,8 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 - Tabs: Overview, Network, Wi‑Fi, Devices, Programs, Services, Diagnostics, Security, Log, History.
 - **Wi‑Fi:** clients, link quality, signal by hour, channel congestion and a channel recommendation.
 - **Devices:** "Internet access" (block, limits, per-day schedule, groups) and per-device traffic.
+- **Blocking offenders:** in Security a "Close for 24 h" button next to noisy addresses (nft table `nightfall_ban`, cleared on router reboot), a list of closed addresses with an "Open" button; the bot reports bursts of failed logins in Telegram (`TG_SEC`).
+- **Router log** (logread) with search and filters in the Log tab, **DNS statistics** in Network (needs `dhcp.@dnsmasq[0].logqueries=1`) and a **device card** opened by clicking a row in Devices.
 - **Diagnostics:** ping, traceroute, DNS, router speed tests and a "Check everything" button (gateway, internet, DNS).
 - **Security:** failed and successful SSH and LuCI logins, most frequent offenders, open router ports, port forwards, new devices, versions. Read-only: it only shows what the router already logs.
 - **Log:** events, outages, reboots and blocks in one feed with search and filter.

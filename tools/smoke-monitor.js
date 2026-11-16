@@ -8,14 +8,15 @@ const CSS = path.join(ROOT, 'luci-theme-nightfall/htdocs/luci-static/nightfall/c
 const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
 const T = fs.mkdtempSync(path.join(os.tmpdir(), 'nfmon-'));
 cp.execFileSync('sh', [path.join(__dirname, 'sec-fixtures.sh'), T]);
-const ENV = Object.assign({}, process.env, { NF_LOGREAD: path.join(T, 'logread'), NF_PROC: path.join(T, 'proc'), NF_KNOWN: path.join(T, 'known'), NF_UCI: path.join(T, 'uci'), NF_UPDATEBIN: path.join(T, 'upd') });
-const run = (script, args) => { try { return cp.execFileSync('sh', [path.join(LIB, script)].concat(args), { env: ENV, timeout: 20000 }).toString(); } catch (e) { return String(e.stdout || ''); } };
+const ENV = Object.assign({}, process.env, { NF_LOGREAD: path.join(T, 'logread'), NF_PROC: path.join(T, 'proc'), NF_KNOWN: path.join(T, 'known'), NF_UCI: path.join(T, 'uci'), NF_UPDATEBIN: path.join(T, 'upd'), NF_NFT: path.join(T, 'nft'), NFT_LOG: path.join(T, 'nft.log') });
+const run = (script, args, extra) => { try { return cp.execFileSync('sh', [path.join(LIB, script)].concat(args), { env: Object.assign({}, ENV, extra || {}), timeout: 20000 }).toString(); } catch (e) { return String(e.stdout || ''); } };
 let fail = 0; const bad = m => { console.log('ОШИБКА: ' + m); fail = 1; };
 const EXEC = (cmd, args) => {
 	const n = path.basename(cmd);
 	if (n === 'nightfall-stats') return run('nightfall-stats', args);
-	if (n === 'nightfall-sec' || n === 'nightfall-diag') return run(n, args);
-	if (n === 'nightfall-history') return args[0] === 'mode' ? '{"mode":"full","step":15}' : args[0] === 'journal' ? '{"now":1794786100,"rows":[[1794785000,"outage",120,"нет интернета"],[1794780000,"boot",0,"Загрузка роутера"]]}' : '{}';
+	if (n === 'nightfall-sec' || n === 'nightfall-diag' || n === 'nightfall-log') return run(n, args);
+	if (n === 'nightfall-dns') return run(n, args, { NF_LOGREAD: path.join(T, 'dnslogread'), NF_UCI: path.join(T, 'uci_dns') });
+	if (n === 'nightfall-history') return args[0] === 'devices' ? '{"now":1794786100,"ts":1794786090,"rate":[],"day":[["192.168.1.20",5000000,1000000]],"yday":[],"neigh":[["192.168.1.20","aa:bb:cc:dd:ee:01"]],"info":{}}' : args[0] === 'known' ? '{"now":1794786100,"rows":[["AA:BB:CC:DD:EE:01","x",1794700000]]}' : args[0] === 'mode' ? '{"mode":"full","step":15}' : args[0] === 'journal' ? '{"now":1794786100,"rows":[[1794785000,"outage",120,"нет интернета"],[1794780000,"boot",0,"Загрузка роутера"]]}' : '{}';
 	if (n === 'nightfall-block') return args[0] === 'log' ? '{"ok":true,"log":[[1794786000,"aa:bb","Камера","on","вручную (интерфейс)"],[1794786050,"aa:bb","Камера","off","по расписанию"]]}' : '{"ok":true}';
 	return '';
 };
@@ -41,7 +42,7 @@ window.L = { resolveDefault: (p, d) => Promise.resolve(p).catch(() => d), requir
 const viewM = { extend: o => o };
 const rpcM = { declare: spec => (...a) => ok(spec.object === 'system' ? { model: 'Тестовый роутер', hostname: 'test' } : spec.object === 'network.interface' ? { interface: [] } : spec.object === 'luci-rpc' ? {} : spec.expect && Array.isArray(spec.expect.results) ? [] : {}) };
 const fsM = { exec: (c, a) => window.__exec(c, a || []).then(s => ({ code: 0, stdout: s, stderr: '' })), read: () => ok(''), stat: () => ok(null), lines: () => ok([]) };
-const uiM = { addNotification() {}, showModal() {}, hideModal() {}, tabs: {}, createHandlerFn: f => f };
+const uiM = { addNotification() {}, showModal(t, c) { const d = document.createElement('div'); d.id = 'mock-modal'; d.append(t); [].concat(c).forEach(x => d.append(x)); document.body.append(d); }, hideModal() { const d = document.getElementById('mock-modal'); if (d) d.remove(); }, tabs: {}, createHandlerFn: f => f };
 const pollM = { add(f) { window.setInterval(f, 400); }, remove() {}, start() {}, stop() {} };
 const netM = { getWifiNetworks: () => ok([]), getHostHints: () => ok({ getMACHints: () => [] }) };
 window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevId', SRC.replace(/^'require[^\\n]*\\n/gm, '')))(viewM, rpcM, fsM, pollM, uiM, netM, { identify: () => null });
@@ -81,10 +82,40 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				if (!f.includes('открыт') || f.includes('Обрыв')) bad(vn + ': поиск по журналу не отфильтровал: ' + f);
 				await p.screenshot({ path: path.join(OUT, 'monitor-log-' + vn + '.png') });
 			}
+			if (k === 'sec') {
+				p.once('dialog', d => d.accept());
+				await p.click('text=Закрыть на 24 ч >> nth=0'); await p.waitForTimeout(800);
+				const lg = fs.readFileSync(path.join(T, 'nft.log'), 'utf8');
+				if (!lg.includes('add element inet nightfall_ban b4 { 203.0.113.5 timeout 24h }')) bad(vn + ': кнопка «Закрыть на 24 ч» не закрыла адрес: ' + lg);
+				await p.waitForTimeout(1500);
+				const t2 = await p.evaluate(() => document.body.textContent);
+				if (!t2.includes('23h59m10s')) bad(vn + ': список закрытых адресов не показал срок');
+			}
+			if (k === 'log') {
+				await p.waitForTimeout(1500);
+				const rl = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog .nfm-ev-i')).map(e => e.textContent).join('|'));
+				if (!rl.includes('dropbear') || !rl.includes('Bad password attempt')) bad(vn + ': журнал роутера пуст: ' + rl.slice(0, 80));
+				await p.fill('.nfm-search[aria-label="Поиск по журналу роутера"]', 'luci'); await p.waitForTimeout(300);
+				const f2 = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog .nfm-ev-i')).map(e => e.textContent).join('|'));
+				if (f2.includes('dropbear') || !f2.includes('failed login')) bad(vn + ': поиск по журналу роутера не сработал: ' + f2.slice(0, 80));
+			}
+			if (k === 'net') {
+				await p.waitForTimeout(1500);
+				const dn = await p.evaluate(() => document.body.textContent);
+				if (!dn.includes('DNS-запросы') || !dn.includes('Куда чаще обращаются')) bad(vn + ': нет карточки DNS во вкладке «Сеть»');
+			}
 			if (k === 'diag') {
 				await p.click('text=Проверить всё: шлюз, интернет, DNS'); await p.waitForTimeout(6000);
 				const o = await p.evaluate(() => document.querySelector('.nfm-diag-out').textContent);
 				if (!/Шлюз|Маршрут по умолчанию/.test(o)) bad(vn + ': проверка диагностики ничего не вывела: ' + o);
+			}
+			if (k === 'devs') {
+				await p.waitForTimeout(1200);
+				await p.click('tr.nfm-rowlink >> nth=0'); await p.waitForTimeout(1200);
+				const mt = await p.evaluate(() => (document.getElementById('mock-modal') || { textContent: '' }).textContent);
+				if (!mt.includes('Трафик за 14 дней') || !mt.includes('192.168.1.20') || !mt.includes('Впервые замечено')) bad(vn + ': карточка устройства не открылась: ' + mt.slice(0, 120));
+				await p.screenshot({ path: path.join(OUT, 'monitor-devcard-' + vn + '.png') });
+				await p.evaluate(() => { const d = document.getElementById('mock-modal'); if (d) d.remove(); });
 			}
 			if (k === 'devs') await p.screenshot({ path: path.join(OUT, 'monitor-devs-' + vn + '.png') });
 		}
