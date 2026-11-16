@@ -4,6 +4,8 @@
 #   nightfall-diag trace ХОСТ  — маршрут до узла (traceroute, если установлен)
 #   nightfall-diag check       — шлюз, интернет и DNS одной проверкой
 #   nightfall-diag dns ХОСТ    — разрешение имени через DNS роутера
+#   nightfall-diag route ХОСТ  — потери и задержка на каждом узле маршрута (traceroute, 3 пакета на узел)
+#   nightfall-diag bloat       — задержка без нагрузки и под нагрузкой (bufferbloat); нужен curl
 # Узел проверяется строго: только буквы, цифры, точка, двоеточие, дефис (не больше 253 знаков, не начинается с «-»).
 cmd=$1; host=$2
 if [ "$cmd" = check ]; then   # быстрая проверка: шлюз, интернет, DNS одной кнопкой
@@ -23,6 +25,26 @@ if [ "$cmd" = check ]; then   # быстрая проверка: шлюз, ин�
 	done
 	exit 0
 fi
+if [ "$cmd" = bloat ]; then   # задержка в простое и под нагрузкой: большая разница — признак bufferbloat
+	CURL=${NF_CURL:-curl}; PING=${NF_PING:-ping}; URL=${NF_BLOATURL:-https://speed.cloudflare.com/__down?bytes=200000000}
+	command -v "$CURL" >/dev/null 2>&1 || { echo "Нужен curl для создания нагрузки: apk add curl"; exit 1; }
+	avgp() { $PING -c 6 -W 2 1.1.1.1 2>&1 | awk '/min\/avg\/max|round-trip/ { sub(/.*= */, ""); split($0, a, "/"); printf "%.0f", a[2]; f = 1 } END { if (!f) printf "0" }'; }
+	idle=$(avgp)
+	[ "$idle" -gt 0 ] || { echo "❌ Нет ответа от 1.1.1.1: проверьте подключение к интернету"; exit 1; }
+	pids=""
+	for i in 1 2 3; do $CURL -s -m 14 -o /dev/null "$URL" & pids="$pids $!"; done
+	sleep 3
+	load=$(avgp)
+	kill $pids 2>/dev/null
+	echo "Задержка до 1.1.1.1 без нагрузки: $idle мс"
+	if [ "$load" -le 0 ]; then echo "Под нагрузкой: ответов нет (канал забит полностью)"; echo "Вывод: сильный bufferbloat. Включите SQM (luci-app-sqm, cake)."; exit 0; fi
+	d=$((load - idle)); [ "$d" -lt 0 ] && d=0
+	echo "Задержка под нагрузкой (скачивание в 3 потока): $load мс (+$d мс)"
+	if [ "$d" -lt 30 ]; then echo "Вывод: отлично, очередь не раздувается."
+	elif [ "$d" -lt 100 ]; then echo "Вывод: заметно. Видеозвонки и игры при загруженном канале могут подтормаживать. Поможет SQM (luci-app-sqm, cake)."
+	else echo "Вывод: сильный bufferbloat. Включите SQM (luci-app-sqm, cake) и задайте скорость около 90% от тарифа."; fi
+	exit 0
+fi
 case "$host" in ''|-*|*[!A-Za-z0-9._:-]*) echo "Некорректный адрес узла"; exit 2 ;; esac
 [ "${#host}" -le 253 ] || { echo "Слишком длинный адрес"; exit 2; }
 case "$cmd" in
@@ -35,6 +57,22 @@ trace)
 	else
 		echo "Не установлен traceroute. Установите: apk add traceroute (или opkg install traceroute)"
 	fi ;;
+route)
+	command -v traceroute >/dev/null 2>&1 || { echo "Не установлен traceroute. Установите: apk add traceroute (или opkg install traceroute)"; exit 0; }
+	echo "Узел  Адрес               Потери  Среднее"
+	traceroute -n -w 2 -q 3 -m 20 "$host" 2>&1 | awk '
+		NR == 1 { next }
+		$1 ~ /^[0-9]+$/ {
+			lost = 0; got = 0; sum = 0; ip = "-"
+			for (i = 2; i <= NF; i++) {
+				if ($i == "*") lost++
+				else if ($i ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ || $i ~ /:/) { if (ip == "-") ip = $i }
+				else if ($i == "ms") { got++; sum += $(i - 1) }
+			}
+			printf "%-5s %-19s %3d%%    %s\n", $1, ip, (lost * 100 + (lost + got) / 2) / (lost + got > 0 ? lost + got : 1), got ? sprintf("%.1f мс", sum / got) : "–"
+		}'
+	echo
+	echo "Потери на промежуточном узле, которые не продолжаются дальше, обычно безвредны: узел просто не отвечает на служебные пакеты." ;;
 dns)
 	command -v nslookup >/dev/null 2>&1 || { echo "Не найден nslookup"; exit 1; }
 	s=$(date +%s%N 2>/dev/null)
@@ -42,5 +80,5 @@ dns)
 	e=$(date +%s%N 2>/dev/null)
 	case "$s$e" in *N*|'') ;; *) echo; echo "Время ответа: $(( (e - s) / 1000000 )) мс" ;; esac ;;
 *)
-	echo "usage: nightfall-diag ping|trace|dns ХОСТ" >&2; exit 1 ;;
+	echo "usage: nightfall-diag ping|trace|route|dns ХОСТ | check | bloat" >&2; exit 1 ;;
 esac

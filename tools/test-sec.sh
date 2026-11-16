@@ -112,4 +112,26 @@ want "dns: типы запросов" '["A",5]' "$d"
 nowant "dns: чужие службы не считаются" "fake.test" "$d"
 d=$(NF_LOGREAD=true NF_UCI="$T/uci_off" sh "$N" top); want "dns: без запросов и без журнала — выключено" '"enabled":false' "$d"
 
+# маршрут с потерями и bufferbloat (заглушки)
+printf '#!/bin/sh\ncat <<X\ntraceroute to 1.1.1.1\n 1  192.168.1.1  0.5 ms  0.4 ms  0.4 ms\n 2  * * *\n 3  10.0.0.1  5.0 ms  * 7.0 ms\nX\n' > "$T/bin/traceroute"; chmod +x "$T/bin/traceroute"
+r=$(PATH="$T/bin:$PATH" sh "$D" route 1.1.1.1)
+want "route: первый узел без потерь" "192.168.1.1           0%" "$r"
+want "route: молчащий узел 100%" "100%" "$r"
+want "route: частичные потери 33%" " 33%" "$r"
+printf '#!/bin/sh\nn=$(cat "$NF_CNT" 2>/dev/null || echo 0); n=$((n + 1)); echo $n > "$NF_CNT"\n[ "$n" = 1 ] && echo "round-trip min/avg/max = 10.0/12.0/15.0 ms" || echo "round-trip min/avg/max = 100.0/190.0/300.0 ms"\n' > "$T/bin/pingb"
+printf '#!/bin/sh\nsleep 4\n' > "$T/bin/curlb"; chmod +x "$T/bin/pingb" "$T/bin/curlb"
+b=$(NF_CNT="$T/cnt" NF_PING="$T/bin/pingb" NF_CURL="$T/bin/curlb" sh "$D" bloat)
+want "bloat: простой 12 мс" "без нагрузки: 12 мс" "$b"
+want "bloat: под нагрузкой 190 мс" "190 мс (+178 мс)" "$b"
+want "bloat: вывод про SQM" "сильный bufferbloat" "$b"
+b=$(NF_CURL=/nonexistent sh "$D" bloat); want "bloat: без curl подсказка" "Нужен curl" "$b"
+
+# история адреса WAN и признак NAT провайдера
+H="$PWD/luci-app-nightfall-monitor/root/usr/libexec/nightfall-history"
+mkdir -p "$T/xd"; printf '1700000000 203.0.113.7\n1700005000 100.64.3.9\n1700009000 192.168.8.2\n' > "$T/xd/extip.log"
+x=$(NF_DIR="$T/xd" sh "$H" extip)
+want "extip: белый адрес не NAT" '[1700000000,"203.0.113.7",0]' "$x"
+want "extip: 100.64/10 это CGNAT" '[1700005000,"100.64.3.9",1]' "$x"
+want "extip: частный адрес на WAN это NAT" '[1700009000,"192.168.8.2",1]' "$x"
+
 echo; echo "ИТОГО: ok=$ok, ошибок=$bad"; [ "$bad" = 0 ]

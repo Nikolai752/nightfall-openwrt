@@ -662,6 +662,7 @@ const CSS = `
 .nfm-evlist { max-height: 360px; overflow: auto; }
 .nfm-ev-i { display: grid; grid-template-columns: 8px 118px minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 7px 0; font-size: 13px;
   border-bottom: 1px solid color-mix(in srgb, var(--nfm-border) 60%, transparent); }
+.nfm-ev-i.nt { grid-template-columns: 8px minmax(0, 1fr); }
 .nfm-ev-i:last-child { border-bottom: 0; }
 .nfm-ev-i i { width: 8px; height: 8px; border-radius: 50%; background: var(--nfm-dim); }
 .nfm-ev-i.warn i { background: #f7a21b; } .nfm-ev-i.crit i { background: #e5484d; } .nfm-ev-i.ok i { background: #13a10e; }
@@ -838,7 +839,18 @@ return view.extend({
 		const devNote = E('div', { class: 'nfm-hint', hidden: '' });
 		const devSel = E('select', { class: 'nfm-sel', change: ev => { S.devDay = ev.target.value; refresh(); } },
 			[ E('option', { value: 'day' }, 'Сегодня'), E('option', { value: 'yday' }, 'Вчера') ]);
-		const dnsBox = E('div', { class: 'nfm-two' });
+		const dnsBox = E('div', { class: 'nfm-two' }), ipBox = E('div');
+		function renderExtIp() {
+			const R = S.extip;
+			if (!R || !R.rows) { ipBox.replaceChildren(E('div', { class: 'nfm-empty' }, R === null ? 'Нет данных: обновите тему на роутере.' : 'Загружаю…')); return; }
+			const rows = R.rows.slice().reverse();
+			if (!rows.length) { ipBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Адрес WAN появится после ближайшего шага сборщика (раз в 5 минут).')); return; }
+			const cur = rows[0], nat = !!cur[2];
+			ipBox.replaceChildren(
+				E('div', { class: 'nfm-hint sec-' + (nat ? 'warn' : 'ok') }, nat ? 'Адрес на WAN ' + cur[1] + ' из диапазона провайдерского NAT (CGNAT или двойной NAT): входящие соединения из интернета и проброс портов, скорее всего, не заработают. Выход: запросить у провайдера «белый» IP.' : 'Адрес на WAN ' + cur[1] + ' не похож на NAT провайдера: проброс портов и входящие соединения возможны.'),
+				E('div', { class: 'nfm-k', style: 'margin:10px 0 6px' }, 'Смены адреса (' + rows.length + ')'),
+				E('div', { class: 'nfm-evlist' }, rows.slice(0, 10).map(x => E('div', { class: 'nfm-ev-i' }, [ E('i'), E('time', {}, fmtTs(x[0])), E('span', {}, x[1] + (x[2] ? ' · за NAT' : '')) ]))));
+		}
 		const chanSel = E('select', { class: 'nfm-sel', change: ev => { S.chanDev = ev.target.value; renderChannel(); } });
 		const chanBox = E('div', { class: 'nfm-two' });
 		const chanNote = E('div', { class: 'nfm-note-s', style: 'margin:-4px 0 10px' }, 'Скорость за последние секунды по данным conntrack: по службам (портам) и по адресам в интернете.');
@@ -847,13 +859,25 @@ return view.extend({
 		const diagOut = E('pre', { class: 'nfm-diag-out' }, 'Выберите узел и нажмите кнопку.');
 		const diagHost = E('input', { type: 'text', class: 'nfm-diag-in', value: '1.1.1.1', spellcheck: 'false', autocapitalize: 'off', autocomplete: 'off', 'aria-label': 'Адрес узла' });
 		let diagBusy = false;
+		const DNAME = { ping: 'Пинг', trace: 'Маршрут', route: 'Потери по маршруту', dns: 'DNS', check: 'Проверка всего', bloat: 'Задержка под нагрузкой' };
+		const diagHistBox = E('div', { class: 'nfm-evlist' });
+		const diagLoad = () => { try { return JSON.parse(window.localStorage.getItem('nfm_diag') || '[]'); } catch (e) { return []; } };
+		function diagSave(cmd, host, out) {
+			if (/Выйдите из LuCI|Некорректный/.test(out)) return;
+			try { const l = diagLoad(); l.unshift({ t: Math.floor(Date.now() / 1000), cmd, host, out: String(out).slice(0, 2000) }); window.localStorage.setItem('nfm_diag', JSON.stringify(l.slice(0, 15))); } catch (e) { /* без истории */ }
+			renderDiagHist();
+		}
+		function renderDiagHist() {
+			const l = diagLoad();
+			diagHistBox.replaceChildren(...(l.length ? l.map(x => E('div', { class: 'nfm-ev-i ' + (/❌|сильный/.test(x.out) ? 'crit' : /заметно/.test(x.out) ? 'warn' : 'info'), style: 'cursor:pointer', title: 'Показать результат', click: () => { diagOut.textContent = x.out; } }, [ E('i'), E('time', {}, fmtTs(x.t)), E('span', {}, DNAME[x.cmd] + (x.host ? ' · ' + x.host : '') + ' — ' + (x.out.split('\n').find(z => /[✅❌]|Вывод/.test(z)) || x.out.split('\n')[0]).slice(0, 90)) ])) : [ E('div', { class: 'nfm-empty' }, 'Здесь появятся результаты ваших проверок (хранятся в этом браузере).') ]));
+		}
 		function runDiag(cmd) {
-			const h = cmd === 'check' ? 'check' : diagHost.value.trim();
+			const h = (cmd === 'check' || cmd === 'bloat') ? cmd : diagHost.value.trim();
 			if (!/^[A-Za-z0-9._:-]{1,253}$/.test(h) || h[0] === '-') { diagOut.textContent = 'Введите адрес или имя узла: буквы, цифры, точка, дефис.'; return; }
 			if (diagBusy) return;
 			diagBusy = true; diagBox.classList.add('busy');
-			diagOut.textContent = ({ ping: 'Пинг ' + h + '…', trace: 'Маршрут до ' + h + ' (до 30 секунд)…', dns: 'Запрос DNS ' + h + '…', check: 'Проверяю шлюз, интернет и DNS (до 20 секунд)…' })[cmd];
-			fs.exec(DIAG, cmd === 'check' ? [ 'check' ] : [ cmd, h ]).then(r => { diagOut.textContent = ((r.stdout || '') + (r.stderr || '')).trim() || 'Нет ответа.'; })
+			diagOut.textContent = ({ ping: 'Пинг ' + h + '…', trace: 'Маршрут до ' + h + ' (до 30 секунд)…', route: 'Измеряю потери по маршруту до ' + h + ' (до 60 секунд)…', bloat: 'Измеряю задержку без нагрузки и под нагрузкой (около 20 секунд)…', dns: 'Запрос DNS ' + h + '…', check: 'Проверяю шлюз, интернет и DNS (до 20 секунд)…' })[cmd];
+			fs.exec(DIAG, (cmd === 'check' || cmd === 'bloat') ? [ cmd ] : [ cmd, h ]).then(r => { diagOut.textContent = ((r.stdout || '') + (r.stderr || '')).trim() || 'Нет ответа.'; diagSave(cmd, (cmd === 'check' || cmd === 'bloat') ? '' : h, diagOut.textContent); })
 				.catch(() => { diagOut.textContent = 'Не удалось выполнить. Выйдите из LuCI и войдите снова после обновления (нужны новые права).'; })
 				.then(() => { diagBusy = false; diagBox.classList.remove('busy'); });
 		}
@@ -861,12 +885,15 @@ return view.extend({
 			E('div', { class: 'nfm-diag-row' }, [ diagHost,
 				E('button', { type: 'button', class: 'nfm-tab on', click: () => runDiag('ping') }, 'Пинг'),
 				E('button', { type: 'button', class: 'nfm-tab', click: () => runDiag('trace') }, 'Маршрут'),
+				E('button', { type: 'button', class: 'nfm-tab', title: 'Потери и задержка на каждом узле маршрута', click: () => runDiag('route') }, 'Потери по маршруту'),
 				E('button', { type: 'button', class: 'nfm-tab', click: () => runDiag('dns') }, 'DNS') ]),
 			E('div', { class: 'nfm-diag-row' }, [ E('button', { type: 'button', class: 'nfm-btn', click: () => runDiag('check') }, 'Проверить всё: шлюз, интернет, DNS'), E('span', { class: 'nfm-note-s' }, 'пинг до шлюза и 1.1.1.1, разрешение имён через DNS роутера') ]),
+			E('div', { class: 'nfm-diag-row' }, [ E('button', { type: 'button', class: 'nfm-btn', click: () => runDiag('bloat') }, 'Тест задержки под нагрузкой'), E('span', { class: 'nfm-note-s' }, 'bufferbloat: на время теста канал загружается скачиванием (нужен curl)') ]),
 			E('div', { class: 'nfm-diag-chips' }, [ '1.1.1.1', '8.8.8.8', '77.88.8.8', 'ya.ru', 'google.com' ].map(h =>
 				E('button', { type: 'button', class: 'nfm-tab', click: () => { diagHost.value = h; } }, h))),
 			diagOut ]);
 		const diagBody = diagBox;
+		renderDiagHist();
 		diagHost.addEventListener('keydown', ev => { if (ev.key === 'Enter') runDiag('ping'); });
 
 		const net = E('div', { hidden: true }, [
@@ -883,6 +910,7 @@ return view.extend({
 				card([ 'Что грузит канал сейчас', E('span', { class: 'nfm-spacer' }), chanSel ], E('div', {}, [ chanNote, chanBox ]))
 			]),
 			E('div', { class: 'nfm-grid' }, [ card('DNS-запросы', dnsBox) ]),
+			E('div', { class: 'nfm-grid' }, [ card('Адрес WAN и CGNAT', ipBox) ]),
 			E('div', { class: 'nfm-grid' }, [
 				card([ 'Скорость по интерфейсу', E('span', { class: 'nfm-spacer' }), netSel,
 					E('span', { class: 'nfm-legend' }, [ legendDot('c-down', 'Загрузка'), legendDot('c-up', 'Отдача') ]) ], netBig.el)
@@ -1049,14 +1077,39 @@ return view.extend({
 		const flashBox = E('div');
 		const dayBody = E('div', { class: 'nfm-day' }, E('div', { class: 'nfm-empty' }, 'Загружаю…'));
 		const wqBody = E('div', { class: 'nfm-wq' });
+		const homeBox = E('div', { class: 'nfm-evlist' }), susBox = E('div', { class: 'nfm-evlist' });
 		const wbBox = E('div'), wrBox = E('div'), wjBox = E('div', { class: 'nfm-evlist' });
 		/* ---- v1.23.0: диапазоны, рекомендации и журнал подключений Wi‑Fi ---- */
+		/* ---- «Кто дома» (по Wi‑Fi) и необычная активность (по трафику за дни) ---- */
+		function renderDevExtra() {
+			const R = S.wq, cl = S.wifi || [], up = m => String(m).toUpperCase();
+			const here = {}; for (const c of cl) if (c.mac) here[up(c.mac)] = true;
+			const st = {};
+			for (const e of (R && R.events) || []) { const m = up(e[1]), o = st[m] = st[m] || { join: 0, leave: 0 }; if (e[2] === 'join') o.join = Math.max(o.join, e[0]); else o.leave = Math.max(o.leave, e[0]); }
+			for (const m in here) st[m] = st[m] || { join: 0, leave: 0 };
+			const rows = Object.keys(st).map(m => ({ m, home: !!here[m], t: here[m] ? st[m].join : st[m].leave })).sort((a, b) => (b.home - a.home) || (b.t - a.t));
+			homeBox.replaceChildren(...(rows.length ? rows.map(x => E('div', { class: 'nfm-ev-i ' + (x.home ? 'ok' : 'info') }, [ E('i'), E('time', {}, x.home ? 'дома' : 'не в сети'),
+				E('span', {}, devName(x.m) + (x.t ? (x.home ? ' · подключился ' : ' · ушёл ') + fmtTs(x.t) : '')) ])) : [ E('div', { class: 'nfm-empty' }, R || S.wifi ? 'Пока нет данных о подключениях по Wi‑Fi.' : 'Загружаю…') ]));
+			/* необычная активность: сегодня заметно больше обычного или устройство отдаёт много больше, чем получает */
+			const base = {};
+			for (const x of (S.dd && S.dd.rows) || []) { const k = x[4] && x[4] !== '-' ? up(x[4]) : x[1]; const b = base[k] = base[k] || {}; b[x[0]] = (b[x[0]] || 0) + (+x[2]) + (+x[3]); }
+			const out = [];
+			for (const r of S.devRows || []) {
+				if (r.k === 'router' || r.k === 'v6') continue;
+				const today = r.dd + r.du, nm = (r.mac && devName(r.mac)) || names[r.ip] || r.ip;
+				const b = base[r.mac] || base[r.ip], days = b ? Object.values(b) : [];
+				const avg = days.length >= 3 ? days.reduce((a, c) => a + c, 0) / days.length : 0;
+				if (avg > 0 && today > 3 * avg && today > 300e6) out.push([ 'warn', nm + ': сегодня ' + fmtBytes(today) + ', обычно около ' + fmtBytes(avg) + ' в день.' ]);
+				else if (r.du > 5 * r.dd && r.du > 200e6) out.push([ 'warn', nm + ': отдано ' + fmtBytes(r.du) + ', получено только ' + fmtBytes(r.dd) + '. Это может быть облачная копия камеры или телефона, но стоит убедиться.' ]);
+			}
+			susBox.replaceChildren(...(out.length ? out.map(o => E('div', { class: 'nfm-ev-i nt warn' }, [ E('i'), E('span', {}, o[1]) ])) : [ E('div', { class: 'nfm-empty' }, S.devRows ? 'Ничего необычного: трафик устройств в пределах их обычного.' : 'Загружаю…') ]));
+		}
 		function renderWifiExtra() {
 			const cl = S.wifi || [], R = S.wq;
 			const bands = {};
 			for (const c of cl) { const b = c.band || '?'; const e = bands[b] = bands[b] || { n: 0, sum: 0, rate: 0, rn: 0 }; e.n++; if (c.signal) e.sum += c.signal; if (c.rx && c.rx.rate) { e.rate += c.rx.rate; e.rn++; } }
 			const bk = Object.keys(bands).sort();
-			wbBox.replaceChildren(...(bk.length ? [ E('div', { class: 'nfm-two' }, bk.map(b => { const e = bands[b]; return E('div', { class: 'nfm-tile' }, [ E('div', { class: 'nfm-k' }, BANDS[b] || b), E('div', { class: 'nfm-v' }, e.n + ' ' + (e.n === 1 ? 'устройство' : 'устройств')),
+			wbBox.replaceChildren(...(bk.length ? [ E('div', { class: 'nfm-two' }, bk.map(b => { const e = bands[b]; return E('div', { class: 'nfm-tile' }, [ E('div', { class: 'nfm-k' }, BANDS[b] || 'Диапазон не определён'), E('div', { class: 'nfm-v' }, e.n + ' ' + (e.n === 1 ? 'устройство' : 'устройств')),
 				E('div', { class: 'nfm-s' }, 'средний сигнал ' + (e.n ? Math.round(e.sum / e.n) : '–') + ' дБм' + (e.rn ? ' · линк ' + nf0.format(e.rate / e.rn / 1000) + ' Мбит/с' : '')) ]); })) ] : [ E('div', { class: 'nfm-empty' }, S.wifi ? 'Подключённых Wi-Fi клиентов нет' : 'Данные о Wi-Fi недоступны') ]));
 			/* рекомендации */
 			const tips = [];
@@ -1069,7 +1122,7 @@ return view.extend({
 			const n24 = (bands['2g'] || {}).n || 0, n5 = (bands['5g'] || {}).n || 0;
 			if (n5 && n24 > 2 * n5 + 1) tips.push([ 'info', 'На 2,4 ГГц ' + n24 + ' устройств, на 5 ГГц ' + n5 + '. Если часть устройств умеет 5 ГГц, переведите их туда: быстрее и меньше помех.' ]);
 			if (!tips.length) tips.push([ 'info', R && (R.rows || []).length ? 'Жалоб нет: сигнал и стабильность у всех клиентов в норме.' : 'Данных пока мало: история сигнала копится с запуска сборщика (в режиме Lite не ведётся).' ]);
-			wrBox.replaceChildren(...tips.map(t => E('div', { class: 'nfm-ev-i ' + (t[0] === 'warn' ? 'warn' : 'info') }, [ E('i'), E('span', {}, t[1]) ])));
+			wrBox.replaceChildren(...tips.map(t => E('div', { class: 'nfm-ev-i nt ' + (t[0] === 'warn' ? 'warn' : 'info') }, [ E('i'), E('span', {}, t[1]) ])));
 			/* журнал подключений */
 			const ev = ((R && R.events) || []).slice(-40).reverse();
 			wjBox.replaceChildren(...(ev.length ? ev.map(e => E('div', { class: 'nfm-ev-i ' + (e[2] === 'join' ? 'info' : 'warn') }, [ E('i'), E('time', {}, fmtTs(e[0])), E('span', {}, devName(String(e[1]).toUpperCase()) + (e[2] === 'join' ? ' подключился' : ' отключился')) ])) : [ E('div', { class: 'nfm-empty' }, R ? 'Подключений и отключений пока не было.' : 'Загружаю…') ]));
@@ -1596,6 +1649,7 @@ return view.extend({
 			E('div', { class: 'nfm-grid' }, [ card([ 'Wi‑Fi: загруженность каналов', E('span', { class: 'nfm-spacer' }) ], airBody) ]),
 		]);
 		const devsTab = E('div', { hidden: true }, [
+			E('div', { class: 'nfm-grid nfm-g21' }, [ card([ 'Кто дома', E('span', { class: 'nfm-note-s' }, 'по подключениям к Wi‑Fi') ], homeBox), card('Необычная активность', susBox) ]),
 			E('div', { class: 'nfm-grid' }, [
 				card([ 'Трафик по устройствам', E('span', { class: 'nfm-spacer' }), T.devTotal = E('span', { class: 'nfm-note-s' }), devSel ], E('div', {}, [
 					devNote,
@@ -1611,6 +1665,7 @@ return view.extend({
 		]);
 		const diagTab = E('div', { hidden: true }, [
 			E('div', { class: 'nfm-grid' }, [ card('Диагностика сети', diagBody) ]),
+			E('div', { class: 'nfm-grid' }, [ card('История проверок', diagHistBox) ]),
 			E('div', { class: 'nfm-grid' }, [ card([ 'Скорость интернета (замеры роутера)', E('span', { class: 'nfm-spacer' }), spdSrc, spdSel, spdBtn ], E('div', {}, [ spdTiles, spdChart.el, spdList, spdNote ])) ]),
 		]);
 		const secTiles = E('div', { class: 'nfm-tiles t4' }, [ [ 'sFail', 'неудачных входов' ], [ 'sNew', 'новых за неделю' ], [ 'sOpen', 'портов открыто для сети' ], [ 'sFw', 'пробросов из интернета' ] ]
@@ -1723,12 +1778,18 @@ return view.extend({
 		/* Primary path: LuCI's own network model (same data the Overview page uses).
 		   Fallback: raw ubus calls. Errors are kept in wifiErr for the empty-state hint. */
 		let wifiErr = '';
+		const bandOf = (band, ch, ghz) => {
+			if (band) return String(band).toLowerCase().replace('2.4g', '2g').replace('5ghz', '5g').replace('2ghz', '2g');
+			const g = parseFloat(ghz); if (g) return g < 3 ? '2g' : g < 5.9 ? '5g' : '6g';
+			const c = parseInt(ch, 10); if (c) return c <= 14 ? '2g' : '5g';
+			return null;
+		};
 		function fetchWifiModel() {
 			return network.getWifiNetworks().then(nets => Promise.all((nets || []).map(n => {
 				const ifname = n.getIfname && n.getIfname();
 				if (!ifname) return [];
 				const dev = n.getWifiDevice ? n.getWifiDevice() : null;
-				const band = dev && dev.get ? dev.get('band') : null;
+				const band = bandOf(dev && dev.get ? dev.get('band') : null, (n.getChannel && n.getChannel()) || (dev && dev.get ? dev.get('channel') : null), n.getFrequency && n.getFrequency());
 				const ssid = (n.getActiveSSID && n.getActiveSSID()) || (n.getSSID && n.getSSID()) || ifname;
 				return Promise.resolve(n.getAssocList()).then(list =>
 					(list || []).map(c => Object.assign({}, c, { ssid: ssid, band: band })));
@@ -1741,7 +1802,7 @@ return view.extend({
 				for (const r in st)
 					for (const i of (st[r].interfaces || []))
 						if (i.ifname && (!i.config || !i.config.mode || i.config.mode === 'ap'))
-							ifs.push({ ifname: i.ifname, ssid: (i.config || {}).ssid || i.ifname, band: (st[r].config || {}).band });
+							ifs.push({ ifname: i.ifname, ssid: (i.config || {}).ssid || i.ifname, band: bandOf((st[r].config || {}).band, (st[r].config || {}).channel, null) });
 				return Promise.all(ifs.map(i => callAssoc(i.ifname).then(list =>
 					(list || []).map(c => Object.assign({}, c, { ssid: i.ssid, band: i.band })))));
 			}).then(lists => [].concat(...lists));
@@ -1798,10 +1859,12 @@ return view.extend({
 			if (S.tab === 'hist' && due('tr', 300)) jobs.push(callHistory([ 'traffic' ]).then(r => { S.tr = r; }));
 			if (S.tab === 'hist' && due('day', 60)) jobs.push(Promise.all([ callHistory([ 'series', 'coarse' ]), callHistory([ 'devices' ]) ]).then(r => { S.day = { h: r[0], d: r[1] }; }));
 			if (S.tab === 'hist' && due('wkA', 300)) jobs.push(callHistory([ 'apps' ]).then(r => { S.wkA = r || null; }));
-			if (onTab('hist', 'wifi') && due('wq', 60)) jobs.push(callHistory([ 'wifi' ]).then(r => { S.wq = r || null; }));
+			if (onTab('hist', 'wifi', 'devs') && due('wq', 60)) jobs.push(callHistory([ 'wifi' ]).then(r => { S.wq = r || null; }));
 			if (onTab('hist', 'wifi') && due('whr', 120)) jobs.push(callHistory([ 'wifi-hr' ]).then(r => { S.whr = r || null; }));
 			if (S.tab === 'hist' && due('lg', 300)) jobs.push(callHistory([ 'series', 'long' ]).then(r => { S.lg = r || null; }));
 			if (S.tab === 'net' && due('chan', DEVICES_EVERY * INTERVAL)) jobs.push(callHistory([ 'channel' ]).then(r => { S.chan = r; }));
+			if (S.tab === 'devs' && due('dd', 600)) jobs.push(callHistory([ 'devdaily' ]).then(r => { S.dd = r || null; }).catch(() => { S.dd = null; }));
+			if (S.tab === 'net' && due('extip', 120)) jobs.push(callHistory([ 'extip' ]).then(r => { S.extip = r || null; }).catch(() => { S.extip = null; }));
 			if (S.tab === 'net' && due('dns', 30)) jobs.push(fs.exec('/usr/libexec/nightfall-dns', [ 'top' ]).then(r => { try { S.dns = JSON.parse(r.stdout); } catch (e) { S.dns = null; } }).catch(() => { S.dns = null; }));
 			if (S.tab === 'sec' && due('sec', 60)) jobs.push(fs.exec(SECBIN, [ 'summary' ]).then(r => { try { S.sec = JSON.parse(r.stdout); S.secErr = ''; } catch (e) { S.sec = null; S.secErr = 'ответ скрипта не разобран' + (r.stderr ? ': ' + String(r.stderr).slice(0, 120) : ''); } }).catch(e => { S.sec = null; S.secErr = String((e && e.message) || e).slice(0, 120); }));
 			if (S.tab === 'sec' && due('bans', 30)) jobs.push(fs.exec(SECBIN, [ 'bans' ]).then(r => { try { S.bans = JSON.parse(r.stdout); } catch (e) { S.bans = null; } }).catch(() => { S.bans = null; }));
@@ -1967,6 +2030,7 @@ return view.extend({
 
 			const all = Object.values(rows).filter(r => r.rd + r.ru + r.dd + r.du > 0)
 				.sort((a, b) => (b.dd + b.du) - (a.dd + a.du) || (b.rd + b.ru) - (a.rd + a.ru));
+			S.devRows = all;
 			const list = all.slice(0, 25);
 			const mx = list.length ? Math.max(1, list[0].dd + list[0].du) : 1;
 			let td = 0, tu = 0;
@@ -2576,7 +2640,7 @@ return view.extend({
 			const chk = R.checks || [], badChk = chk.filter(c => c[0] === 'bad');
 			if (badChk.length && cls === 'ok') { msg = 'Есть что исправить: ' + badChk[0][1]; cls = 'bad'; }
 			secVerdict.className = 'nfm-hint sec-' + cls; secVerdict.textContent = msg;
-			secChecks.replaceChildren(...(chk.length ? chk.map(c => E('div', { class: 'nfm-ev-i ' + ({ bad: 'crit', warn: 'warn', ok: 'info' })[c[0]] }, [ E('i'), E('span', {}, c[1]) ])) : [ E('div', { class: 'nfm-empty' }, 'Нет данных: обновите тему на роутере.') ]));
+			secChecks.replaceChildren(...(chk.length ? chk.map(c => E('div', { class: 'nfm-ev-i nt ' + ({ bad: 'crit', warn: 'warn', ok: 'info' })[c[0]] }, [ E('i'), E('span', {}, c[1]) ])) : [ E('div', { class: 'nfm-empty' }, 'Нет данных: обновите тему на роутере.') ]));
 
 			const MON = { Jan: 'янв.', Feb: 'февр.', Mar: 'мар.', Apr: 'апр.', May: 'мая', Jun: 'июн.', Jul: 'июл.', Aug: 'авг.', Sep: 'сент.', Oct: 'окт.', Nov: 'нояб.', Dec: 'дек.' };
 			const ago = t => String(t).replace(/^([A-Z][a-z]{2}) (\d+) /, (m, a, d) => d + ' ' + (MON[a] || a) + ', ');
@@ -2734,7 +2798,8 @@ return view.extend({
 
 			renderAlerts();
 			if (onTab('net', 'devs')) renderDevices();
-			if (S.tab === 'net') { renderChannel(); renderDns(); }
+			if (S.tab === 'devs') renderDevExtra();
+			if (S.tab === 'net') { renderChannel(); renderDns(); renderExtIp(); }
 			if (S.tab === 'svcs') renderServices();
 			if (S.tab === 'hist') { renderHist(); renderDay(); renderHeat(); renderWeek(); renderCmp(); renderMon(); renderWq(); renderWHeat(); renderAir(); renderJournal(); renderSpeed(); renderFlash(); }
 			if (S.tab === 'wifi') { renderWq(); renderWHeat(); renderAir(); renderWifiExtra(); }

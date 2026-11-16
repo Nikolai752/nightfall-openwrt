@@ -34,7 +34,7 @@ J=$(hist temps fine)
 want "новый датчик: у старых строк -1" '[1800000000,50.0,-1]' "$J"
 want "новый датчик: у новых значение" '[1800000015,51.0,40.0]' "$J"
 want "JSON корректен" "" "$(printf '%s' "$J" | python3 -c 'import sys,json; d=json.load(sys.stdin); print("" if len(d["rows"][0])==len(d["names"])+1 else "x")')"
-grep -q 'temps.coarse' "$L/nightfall-collector" && grep -q 'PFILES="hist.coarse temps.coarse' "$L/nightfall-collector" && { ok=$((ok+1)); echo "ok   temps.coarse сохраняется на флеш при включённом хранении"; } || { bad=$((bad+1)); echo "FAIL temps.coarse не в списке сохранения"; }
+grep -q 'temps.coarse' "$L/nightfall-collector" && grep -q 'PFILES=.*temps.coarse' "$L/nightfall-collector" && { ok=$((ok+1)); echo "ok   temps.coarse сохраняется на флеш при включённом хранении"; } || { bad=$((bad+1)); echo "FAIL temps.coarse не в списке сохранения"; }
 # режим Lite: шаг 60 с, без истории Wi-Fi; мощный режим по умолчанию
 printf 'LITE=1\nWIFI_HIST=1\nAPPS=1\n' > "$T/lite.conf"
 rm -rf "$T/dl"; NF_SYS=$S NF_DIR=$T/dl NF_CONF=$T/lite.conf NF_LOOPS=1 NF_NOTIFY=true NF_KNOWN=$T/k NF_BLOCK=$T/b NF_GROUPS=$T/g NF_JOURNAL=$T/j timeout 30 sh "$L/nightfall-collector" >/dev/null 2>&1

@@ -16,7 +16,7 @@ const EXEC = (cmd, args) => {
 	if (n === 'nightfall-stats') return run('nightfall-stats', args);
 	if (n === 'nightfall-sec' || n === 'nightfall-diag' || n === 'nightfall-log') return run(n, args);
 	if (n === 'nightfall-dns') return run(n, args, { NF_LOGREAD: path.join(T, 'dnslogread'), NF_UCI: path.join(T, 'uci_dns') });
-	if (n === 'nightfall-history') return args[0] === 'devices' ? '{"now":1794786100,"ts":1794786090,"rate":[],"day":[["192.168.1.20",5000000,1000000]],"yday":[],"neigh":[["192.168.1.20","aa:bb:cc:dd:ee:01"]],"info":{}}' : args[0] === 'wifi' && !args[1] ? '{"now":1794786100,"rows":[],"events":[[1794786000,"aa:bb:cc:dd:ee:01","join","phy0"],[1794785000,"aa:bb:cc:dd:ee:01","leave","phy0"]]}' : args[0] === 'known' ? '{"now":1794786100,"rows":[["AA:BB:CC:DD:EE:01","x",1794700000]]}' : args[0] === 'mode' ? '{"mode":"full","step":15}' : args[0] === 'journal' ? '{"now":1794786100,"rows":[[1794785000,"outage",120,"нет интернета"],[1794780000,"boot",0,"Загрузка роутера"]]}' : '{}';
+	if (n === 'nightfall-history') return args[0] === 'devices' ? '{"now":1794786100,"ts":1794786090,"rate":[],"day":[["192.168.1.20",5000000,1000000]],"yday":[],"neigh":[["192.168.1.20","aa:bb:cc:dd:ee:01"]],"info":{}}' : args[0] === 'wifi' && !args[1] ? '{"now":1794786100,"rows":[],"events":[[1794786000,"aa:bb:cc:dd:ee:01","join","phy0"],[1794785000,"aa:bb:cc:dd:ee:01","leave","phy0"]]}' : args[0] === 'extip' ? '{"now":1794786100,"rows":[[1794700000,"203.0.113.7",0],[1794780000,"100.64.3.9",1]]}' : args[0] === 'known' ? '{"now":1794786100,"rows":[["AA:BB:CC:DD:EE:01","x",1794700000]]}' : args[0] === 'mode' ? '{"mode":"full","step":15}' : args[0] === 'journal' ? '{"now":1794786100,"rows":[[1794785000,"outage",120,"нет интернета"],[1794780000,"boot",0,"Загрузка роутера"]]}' : '{}';
 	if (n === 'nightfall-block') return args[0] === 'log' ? '{"ok":true,"log":[[1794786000,"aa:bb","Камера","on","вручную (интерфейс)"],[1794786050,"aa:bb","Камера","off","по расписанию"]]}' : '{"ok":true}';
 	return '';
 };
@@ -117,11 +117,20 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				await p.waitForTimeout(1500);
 				const dn = await p.evaluate(() => document.body.textContent);
 				if (!dn.includes('DNS-запросы') || !dn.includes('Куда чаще обращаются')) bad(vn + ': нет карточки DNS во вкладке «Сеть»');
+				if (!dn.includes('Адрес WAN и CGNAT') || !dn.includes('CGNAT')) bad(vn + ': нет карточки CGNAT во вкладке «Сеть»');
 			}
 			if (k === 'diag') {
 				await p.click('text=Проверить всё: шлюз, интернет, DNS'); await p.waitForTimeout(6000);
 				const o = await p.evaluate(() => document.querySelector('.nfm-diag-out').textContent);
 				if (!/Шлюз|Маршрут по умолчанию/.test(o)) bad(vn + ': проверка диагностики ничего не вывела: ' + o);
+			}
+			if (k === 'devs') {
+				const dt = await p.evaluate(() => document.body.textContent);
+				for (const w of [ 'Кто дома', 'Необычная активность' ]) if (!dt.includes(w)) bad(vn + ': в «Устройствах» нет «' + w + '»');
+			}
+			if (k === 'diag') {
+				const gt = await p.evaluate(() => document.body.textContent);
+				for (const w of [ 'Потери по маршруту', 'Тест задержки под нагрузкой', 'История проверок' ]) if (!gt.includes(w)) bad(vn + ': в «Диагностике» нет «' + w + '»');
 			}
 			if (k === 'devs') {
 				await p.waitForTimeout(1200);

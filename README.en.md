@@ -58,6 +58,7 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 - Tabs: Overview, Network, Wi‑Fi, Devices, Programs, Services, Diagnostics, Security, Log, History.
 - **Wi‑Fi:** clients, link quality, signal by hour, channel congestion and a channel recommendation.
 - **Devices:** "Internet access" (block, limits, per-day schedule, groups) and per-device traffic.
+- **Who is home** and **unusual activity** in Devices; per-hop loss, a bufferbloat test and a check history in Diagnostics; WAN address with CGNAT detection in Network.
 - **Wi‑Fi extras:** 2.4/5 GHz comparison, recommendations for weak signal and frequent disconnects, a client join/leave journal.
 - **Settings checks** in Security (root password, Wi‑Fi encryption, SSH password login, HTTPS for LuCI), a period picker and CSV export in Log, and a per-service log button in Services.
 - **Blocking offenders:** in Security a "Close for 24 h" button next to noisy addresses (nft table `nightfall_ban`, cleared on router reboot), a list of closed addresses with an "Open" button; the bot reports bursts of failed logins in Telegram (`TG_SEC`).
