@@ -58,6 +58,7 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 - Tabs: Overview, Network, Wi‑Fi, Devices, Programs, Services, Diagnostics, Security, Log, History.
 - **Wi‑Fi:** clients, link quality, signal by hour, channel congestion and a channel recommendation.
 - **Devices:** "Internet access" (block, limits, per-day schedule, groups) and per-device traffic.
+- **Calmer Overview**: a verdict line on top, details on demand, card dragging only in "View → Edit layout".
 - **Memory by program over time** with possible-leak flags (Programs tab) and pinned entries in the Log.
 - **Who is home** and **unusual activity** in Devices; per-hop loss, a bufferbloat test and a check history in Diagnostics; WAN address with CGNAT detection in Network.
 - **Wi‑Fi extras:** 2.4/5 GHz comparison, recommendations for weak signal and frequent disconnects, a client join/leave journal.

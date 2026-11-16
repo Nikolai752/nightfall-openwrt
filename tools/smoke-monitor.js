@@ -67,7 +67,7 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 		await p.waitForTimeout(2500);
 		const tabs = await p.$$eval('.nfm-tab.nfm-ti', els => els.map(e => e.getAttribute('data-ic')));
 		for (const k of [ 'overview', 'net', 'wifi', 'devs', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist' ]) if (!tabs.includes(k)) bad(vn + ': нет вкладки ' + k);
-		for (const k of [ 'wifi', 'devs', 'diag', 'sec', 'log', 'net', 'hist' ]) {
+		for (const k of [ 'overview', 'procs', 'wifi', 'devs', 'diag', 'sec', 'log', 'net', 'hist' ]) {
 			await p.click(`.nfm-tab.nfm-ti[data-ic="${k}"]`); await p.waitForTimeout(k === 'sec' || k === 'log' ? 3000 : 1500);
 			const vis = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm > div[hidden], .nfm > div:not([hidden])')).filter(x => !x.hasAttribute('hidden') && x.className === '').map(x => x.textContent.slice(0, 4000)).join('\n'));
 			if (names[k] && !vis.includes(names[k])) bad(vn + ': вкладка ' + k + ' не показала «' + names[k] + '»');
@@ -98,6 +98,14 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				await p.fill('.nfm-search[aria-label="Поиск по журналу роутера"]', 'luci'); await p.waitForTimeout(300);
 				const f2 = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog .nfm-ev-i')).map(e => e.textContent).join('|'));
 				if (f2.includes('dropbear') || !f2.includes('failed login')) bad(vn + ': поиск по журналу роутера не сработал: ' + f2.slice(0, 80));
+			}
+			if (k === 'overview') {
+				await p.waitForTimeout(1500);
+				const ot = await p.evaluate(() => document.body.textContent);
+				for (const w of [ 'Сейчас больше всех', 'Сеть сейчас', 'Перезагрузить роутер', 'Подробнее во вкладке «Сеть»' ]) if (!ot.includes(w)) bad(vn + ': в «Обзоре» нет «' + w + '»');
+				if (!/Всё в порядке|Есть замечания|Требует внимания/.test(ot)) bad(vn + ': нет строки-вывода в «Обзоре»');
+				if (await p.evaluate(() => { const d = document.querySelector('.nfm-more'); return d && d.open; })) bad(vn + ': меню «⋯» открыто по умолчанию');
+				await p.screenshot({ path: path.join(OUT, 'monitor-overview-' + vn + '.png') });
 			}
 			if (k === 'wifi') {
 				await p.waitForTimeout(1500);

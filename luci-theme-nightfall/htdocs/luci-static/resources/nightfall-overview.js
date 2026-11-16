@@ -373,14 +373,22 @@ function liveStrip() {
 
 	R.netBadge = E('span', {}, badge('off', '—'));
 	R.tempBadge = E('span');
+	R.vdT = E('b', {}, 'Загружаю…'); R.vdS = E('small');
+	R.verdict = E('div', { class: 'nf-verdict', 'data-k': 'ok' }, [ E('i', { class: 'nf-vd' }), E('div', { class: 'nf-vd-t' }, [ R.vdT, R.vdS ]) ]);
 	const strip = E('div', { class: 'nf-live' }, [
+		R.verdict,
+		E('div', { class: 'nf-editnote' }, 'Режим раскладки: потяните ⋮⋮ за заголовок карточки, чтобы переместить её; значки рядом закрепляют карточку и меняют её размер; уголок растягивает. Закончив, нажмите «Вид → Готово».'),
 		E('div', { class: 'nf-live-h' }, [
 			E('span', {}, 'Сейчас'),
 			E('span', { class: 'nf-live-acts' }, [
+				E('details', { class: 'nf-viewmenu' }, [ E('summary', { class: 'nf-linkbtn', title: 'Столбцы, раскладка, порядок карточек, QR Wi-Fi' }, '⚙ Вид ▾'),
+					E('div', { class: 'nf-viewlist' }, [
 				R.cols = E('span', { class: 'nf-colsel', title: 'Сколько столбцов карточек на «Обзоре»; карточки плотно, без пустых мест' }, [ E('span', {}, 'Столбцы:') ].concat([ [ '0', 'Авто' ], [ '1', '1' ], [ '2', '2' ], [ '3', '3' ] ].map(c => E('button', { type: 'button', class: 'nf-linkbtn', 'data-c': c[0] }, c[1])))),
 				R.lay = E('span', { class: 'nf-colsel nf-laysel', title: 'Какие плитки показывать и как расположить карточки: одной кнопкой' }, [ E('span', {}, 'Раскладка:') ].concat([ [ 'std', 'Стандарт' ], [ 'home', 'Дом' ], [ 'min', 'Минимал' ], [ 'admin', 'Админ' ] ].map(c => E('button', { type: 'button', class: 'nf-linkbtn', 'data-l': c[0] }, c[1])))),
+				R.edit = E('button', { type: 'button', class: 'nf-linkbtn nf-editbtn', title: 'Показать значки перемещения, закрепления и размера на карточках', 'aria-pressed': 'false' }, 'Изменить раскладку'),
 				R.reset = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Вернуть порядок карточек по умолчанию' }, 'Сбросить порядок карточек'),
-				R.qrBtn = E('button', { type: 'button', class: 'nf-linkbtn', title: 'QR-код для подключения к Wi-Fi' }, 'QR Wi-Fi'),
+				R.qrBtn = E('button', { type: 'button', class: 'nf-linkbtn', title: 'QR-код для подключения к Wi-Fi' }, 'QR Wi-Fi')
+					]) ]),
 				R.boardBtn = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Полноэкранное табло: время, скорость, пинг, нагрузка' }, 'Табло')
 			])
 		]),
@@ -515,6 +523,15 @@ function liveStrip() {
 	}
 	document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { const o = document.querySelector('.nf-qr-ov'); if (o) o.remove(); } });
 	R.qrBtn.addEventListener('click', openQr);
+	R.edit.addEventListener('click', () => {
+		const root = document.documentElement, on = !root.hasAttribute('data-nf-edit');
+		root.toggleAttribute('data-nf-edit', on);
+		R.edit.textContent = on ? 'Готово' : 'Изменить раскладку'; R.edit.setAttribute('aria-pressed', String(on));
+		const m = R.edit.closest('details'); if (m) m.open = false;
+		window.setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
+	});
+	document.addEventListener('click', ev => { const m = document.querySelector('.nf-viewmenu[open]'); if (m && !m.contains(ev.target)) m.open = false; });
+	document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { const m = document.querySelector('.nf-viewmenu[open]'); if (m) m.open = false; } });
 
 	const paintCols = () => { const cur = document.documentElement.getAttribute('data-nf-ov-cols') || '0'; R.cols.querySelectorAll('button').forEach(x => x.classList.toggle('on', x.getAttribute('data-c') === cur)); };
 	R.cols.addEventListener('click', ev => { const b = ev.target.closest && ev.target.closest('button[data-c]'); if (!b) return; if (window.Nightfall && window.Nightfall.set) window.Nightfall.set('ovCols', b.getAttribute('data-c')); paintCols(); window.setTimeout(() => window.dispatchEvent(new Event('resize')), 60); });
@@ -626,6 +643,20 @@ function liveStrip() {
 		R.memS.textContent = nf0.format(used / 1024) + ' МБ из ' + nf0.format(m.total / 1024) + ' МБ';
 		setLvl(R.memV, 100 * used / m.total, ...thr('mem', 70, 88));
 		sp.mem.update(S.t, [ S.mem ], 100);
+
+		/* строка-вывод: одно слово вместо россыпи бейджей */
+		{
+			const bad = [], warn = [], memP = 100 * used / m.total, loss = S.loss != null ? S.loss : null;
+			if (S.online === false) bad.push('нет связи с интернетом');
+			if (t != null && t >= 85) bad.push('перегрев ' + nf0.format(t) + ' °C'); else if (t != null && t >= 70) warn.push('температура ' + nf0.format(t) + ' °C');
+			if (memP >= 90) bad.push('память заполнена на ' + nf0.format(memP) + '%'); else if (memP >= 80) warn.push('память ' + nf0.format(memP) + '%');
+			if (cpu != null && cpu >= 90) warn.push('процессор ' + nf0.format(cpu) + '%');
+			if (loss != null && loss >= 5) warn.push('потери пакетов ' + nf1.format(loss) + '%');
+			const k = bad.length ? 'bad' : warn.length ? 'warn' : 'ok', all = bad.concat(warn);
+			R.verdict.setAttribute('data-k', k);
+			R.vdT.textContent = k === 'ok' ? 'Всё в порядке' : k === 'bad' ? 'Требует внимания' : 'Есть замечания';
+			R.vdS.textContent = k === 'ok' ? [ S.online === true ? 'интернет работает' : '', t != null ? 'температура ' + nf0.format(t) + ' °C' : '', 'память ' + nf0.format(memP) + '%' ].filter(Boolean).join(' · ') : all.join(' · ');
+		}
 
 		/* соединения, аптайм, клиенты Wi‑Fi: необязательные плитки (включаются в настройках «Сейчас») */
 		const ct = d.ct && d.ct[1] > 0 ? d.ct : null;
@@ -1894,8 +1925,35 @@ function blockCard() {
 
 /* ---------- extra cards ---------- */
 
+/* Карточки, свёрнутые по умолчанию (v1.26.0): в заголовке короткий итог, нажатие разворачивает; выбор запоминается в браузере */
+const FOLD_KEY = 'nightfall-overview-fold-v1';
+const FOLD = { 'nf-apps': 'объём по приложениям за сутки', 'nf-block': 'блокировки, лимиты и расписание', 'nf-health': 'режим, аптайм, версии' };
+const foldLoad = () => { try { const v = JSON.parse(window.localStorage.getItem(FOLD_KEY) || 'null'); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; } };
+const foldSave = m => { try { window.localStorage.setItem(FOLD_KEY, JSON.stringify(m)); } catch (e) { /* private mode */ } };
+function foldSummary(el, key) {
+	let t = '';
+	if (key === 'nf-apps') { const n = el.querySelector('.nf-apps-sub'); t = n ? n.textContent.replace(/^\s*Крупнее всего:\s*/, '') : ''; }
+	else if (key === 'nf-block') { const tabs = el.querySelectorAll('.nf-blk-tabs button'); t = Array.prototype.map.call(tabs, b => b.textContent.trim()).join(' · '); }
+	return (t || FOLD[key]).slice(0, 110);
+}
 function xcard(cls, title, body) {
-	return E('div', { class: 'cbi-section nf-xcard ' + cls + ' fade-in' }, [ E('div', { class: 'cbi-title' }, E('h3', {}, title)), body ]);
+	const el = E('div', { class: 'cbi-section nf-xcard ' + cls + ' fade-in' }, [ E('div', { class: 'cbi-title' }, E('h3', {}, title)), body ]);
+	const key = Object.keys(FOLD).filter(k => cls.split(' ').indexOf(k) >= 0)[0];
+	if (!key) return el;
+	const head = el.querySelector('.cbi-title'), sum = E('span', { class: 'nf-fold-sum' }), arrow = E('span', { class: 'nf-fold-arrow', 'aria-hidden': 'true' });
+	head.appendChild(sum); head.appendChild(arrow);
+	el.classList.add('nf-fold');
+	const paint = () => { const open = !!foldLoad()[key]; el.classList.toggle('nf-open', open); head.setAttribute('aria-expanded', String(open)); sum.textContent = open ? '' : foldSummary(el, key); arrow.textContent = open ? '▴' : '▾'; };
+	head.setAttribute('role', 'button'); head.setAttribute('tabindex', '0');
+	const toggle = ev => {
+		if (ev.target.closest && ev.target.closest('.nf-grip, .nf-pin, .nf-size, .nf-rs')) return;
+		const m = foldLoad(); if (m[key]) delete m[key]; else m[key] = 1; foldSave(m); paint(); window.dispatchEvent(new Event('resize'));
+	};
+	head.addEventListener('click', toggle);
+	head.addEventListener('keydown', ev => { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target === head) { ev.preventDefault(); toggle(ev); } });
+	new MutationObserver(() => { if (!el.classList.contains('nf-open')) sum.textContent = foldSummary(el, key); }).observe(body, { childList: true, subtree: true, characterData: true });
+	paint();
+	return el;
 }
 
 function idle(el) { return document.hidden || window.getComputedStyle(el).display === 'none'; }
