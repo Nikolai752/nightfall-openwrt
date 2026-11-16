@@ -1766,7 +1766,7 @@ return view.extend({
 			if (S.tab === 'hist' && due('lg', 300)) jobs.push(callHistory([ 'series', 'long' ]).then(r => { S.lg = r || null; }));
 			if (S.tab === 'net' && due('chan', DEVICES_EVERY * INTERVAL)) jobs.push(callHistory([ 'channel' ]).then(r => { S.chan = r; }));
 			if (S.tab === 'net' && due('dns', 30)) jobs.push(fs.exec('/usr/libexec/nightfall-dns', [ 'top' ]).then(r => { try { S.dns = JSON.parse(r.stdout); } catch (e) { S.dns = null; } }).catch(() => { S.dns = null; }));
-			if (S.tab === 'sec' && due('sec', 60)) jobs.push(fs.exec(SECBIN, [ 'summary' ]).then(r => { try { S.sec = JSON.parse(r.stdout); } catch (e) { S.sec = null; } }).catch(() => { S.sec = null; }));
+			if (S.tab === 'sec' && due('sec', 60)) jobs.push(fs.exec(SECBIN, [ 'summary' ]).then(r => { try { S.sec = JSON.parse(r.stdout); S.secErr = ''; } catch (e) { S.sec = null; S.secErr = 'ответ скрипта не разобран' + (r.stderr ? ': ' + String(r.stderr).slice(0, 120) : ''); } }).catch(e => { S.sec = null; S.secErr = String((e && e.message) || e).slice(0, 120); }));
 			if (S.tab === 'sec' && due('bans', 30)) jobs.push(fs.exec(SECBIN, [ 'bans' ]).then(r => { try { S.bans = JSON.parse(r.stdout); } catch (e) { S.bans = null; } }).catch(() => { S.bans = null; }));
 			if (S.tab === 'sec' && due('secu', 600)) jobs.push(fs.exec(SECBIN, [ 'updates' ]).then(r => { try { S.secu = JSON.parse(r.stdout); } catch (e) { S.secu = null; } }).catch(() => { S.secu = null; }));
 			if (S.tab === 'log' && due('rlog', 20)) jobs.push(fs.exec('/usr/libexec/nightfall-log', [ 'read', '800' ]).then(r => { try { S.rlog = JSON.parse(r.stdout); } catch (e) { S.rlog = null; } }).catch(() => { S.rlog = null; }));
@@ -2505,7 +2505,7 @@ return view.extend({
 			const R = S.sec;
 			if (R === undefined) return;
 			if (!R || !R.ok) {
-				secVerdict.className = 'nfm-hint'; secVerdict.textContent = R === false ? MISSING : 'Не удалось получить данные. Выйдите из LuCI и войдите снова после обновления (нужны новые права).';
+				secVerdict.className = 'nfm-hint'; secVerdict.textContent = R === false ? MISSING : 'Не удалось получить данные' + (S.secErr ? ' (' + S.secErr + ')' : '') + '. Если там «Permission denied» или «Access denied», выйдите из LuCI и войдите снова (нужны новые права).';
 				return;
 			}
 			const lg = R.logins || {}, fw = R.fw || {}, ports = R.ports || [], nd = R.newdev || [];
