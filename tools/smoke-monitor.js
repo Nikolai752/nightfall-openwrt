@@ -8,7 +8,7 @@ const CSS = path.join(ROOT, 'luci-theme-nightfall/htdocs/luci-static/nightfall/c
 const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
 const T = fs.mkdtempSync(path.join(os.tmpdir(), 'nfmon-'));
 cp.execFileSync('sh', [path.join(__dirname, 'sec-fixtures.sh'), T]);
-const ENV = Object.assign({}, process.env, { NF_LOGREAD: path.join(T, 'logread'), NF_PROC: path.join(T, 'proc'), NF_KNOWN: path.join(T, 'known'), NF_UCI: path.join(T, 'uci'), NF_UPDATEBIN: path.join(T, 'upd'), NF_NFT: path.join(T, 'nft'), NFT_LOG: path.join(T, 'nft.log') });
+const ENV = Object.assign({}, process.env, { NF_LOGREAD: path.join(T, 'logread'), NF_PROC: path.join(T, 'proc'), NF_KNOWN: path.join(T, 'known'), NF_UCI: path.join(T, 'uci'), NF_UPDATEBIN: path.join(T, 'upd'), NF_SHADOW: path.join(T, 'shadow'), NF_DIR: path.join(T, 'd'), NF_NFT: path.join(T, 'nft'), NFT_LOG: path.join(T, 'nft.log') });
 const run = (script, args, extra) => { try { return cp.execFileSync('sh', [path.join(LIB, script)].concat(args), { env: Object.assign({}, ENV, extra || {}), timeout: 20000 }).toString(); } catch (e) { return String(e.stdout || ''); } };
 let fail = 0; const bad = m => { console.log('ОШИБКА: ' + m); fail = 1; };
 const EXEC = (cmd, args) => {
@@ -16,7 +16,7 @@ const EXEC = (cmd, args) => {
 	if (n === 'nightfall-stats') return run('nightfall-stats', args);
 	if (n === 'nightfall-sec' || n === 'nightfall-diag' || n === 'nightfall-log') return run(n, args);
 	if (n === 'nightfall-dns') return run(n, args, { NF_LOGREAD: path.join(T, 'dnslogread'), NF_UCI: path.join(T, 'uci_dns') });
-	if (n === 'nightfall-history') return args[0] === 'devices' ? '{"now":1794786100,"ts":1794786090,"rate":[],"day":[["192.168.1.20",5000000,1000000]],"yday":[],"neigh":[["192.168.1.20","aa:bb:cc:dd:ee:01"]],"info":{}}' : args[0] === 'known' ? '{"now":1794786100,"rows":[["AA:BB:CC:DD:EE:01","x",1794700000]]}' : args[0] === 'mode' ? '{"mode":"full","step":15}' : args[0] === 'journal' ? '{"now":1794786100,"rows":[[1794785000,"outage",120,"нет интернета"],[1794780000,"boot",0,"Загрузка роутера"]]}' : '{}';
+	if (n === 'nightfall-history') return args[0] === 'devices' ? '{"now":1794786100,"ts":1794786090,"rate":[],"day":[["192.168.1.20",5000000,1000000]],"yday":[],"neigh":[["192.168.1.20","aa:bb:cc:dd:ee:01"]],"info":{}}' : args[0] === 'wifi' && !args[1] ? '{"now":1794786100,"rows":[],"events":[[1794786000,"aa:bb:cc:dd:ee:01","join","phy0"],[1794785000,"aa:bb:cc:dd:ee:01","leave","phy0"]]}' : args[0] === 'known' ? '{"now":1794786100,"rows":[["AA:BB:CC:DD:EE:01","x",1794700000]]}' : args[0] === 'mode' ? '{"mode":"full","step":15}' : args[0] === 'journal' ? '{"now":1794786100,"rows":[[1794785000,"outage",120,"нет интернета"],[1794780000,"boot",0,"Загрузка роутера"]]}' : '{}';
 	if (n === 'nightfall-block') return args[0] === 'log' ? '{"ok":true,"log":[[1794786000,"aa:bb","Камера","on","вручную (интерфейс)"],[1794786050,"aa:bb","Камера","off","по расписанию"]]}' : '{"ok":true}';
 	return '';
 };
@@ -98,6 +98,20 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				await p.fill('.nfm-search[aria-label="Поиск по журналу роутера"]', 'luci'); await p.waitForTimeout(300);
 				const f2 = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog .nfm-ev-i')).map(e => e.textContent).join('|'));
 				if (f2.includes('dropbear') || !f2.includes('failed login')) bad(vn + ': поиск по журналу роутера не сработал: ' + f2.slice(0, 80));
+			}
+			if (k === 'wifi') {
+				await p.waitForTimeout(1500);
+				const wt = await p.evaluate(() => document.body.textContent);
+				for (const w of [ 'Диапазоны: 2,4 и 5 ГГц', 'Рекомендации', 'Подключения и отключения', 'подключился', 'отключился' ]) if (!wt.includes(w)) bad(vn + ': в «Wi‑Fi» нет «' + w + '»');
+			}
+			if (k === 'sec') {
+				const st = await p.evaluate(() => document.body.textContent);
+				for (const w of [ 'Проверки настроек', 'Пароль root не задан', 'Сеть «Guest» без пароля', 'LuCI доступен по http' ]) if (!st.includes(w)) bad(vn + ': в «Безопасности» нет «' + w + '»');
+			}
+			if (k === 'log') {
+				const csv = await p.evaluate(() => !!Array.from(document.querySelectorAll('button')).find(b => b.textContent === 'Скачать CSV'));
+				if (!csv) bad(vn + ': нет кнопки «Скачать CSV»');
+				await p.selectOption('select[aria-label="Период"]', '86400'); await p.waitForTimeout(300);
 			}
 			if (k === 'net') {
 				await p.waitForTimeout(1500);

@@ -35,6 +35,30 @@ echo uhttpd > "$T/proc/202/comm"; ln -s 'socket:[5004]' "$T/proc/202/fd/4"
 printf 'aa:bb:cc:dd:ee:01|Телефон|1700000000\naa:bb:cc:dd:ee:02|Камера|1700001000\n' > "$T/known"
 cat > "$T/uci" <<'U'
 #!/bin/sh
+case "$*" in
+*"show wireless"*) cat <<'W'
+wireless.cfgA=wifi-iface
+wireless.cfgA.mode='ap'
+wireless.cfgA.ssid='Home'
+wireless.cfgA.encryption='sae-mixed'
+wireless.cfgB=wifi-iface
+wireless.cfgB.mode='ap'
+wireless.cfgB.ssid='Guest'
+wireless.cfgB.encryption='none'
+wireless.cfgC=wifi-iface
+wireless.cfgC.mode='ap'
+wireless.cfgC.ssid='Old'
+wireless.cfgC.encryption='psk+tkip'
+wireless.cfgD=wifi-iface
+wireless.cfgD.disabled='1'
+wireless.cfgD.mode='ap'
+wireless.cfgD.ssid='Off'
+wireless.cfgD.encryption='none'
+W
+exit 0 ;;
+*redirect_https*) exit 0 ;;
+*PasswordAuth*) echo 0; exit 0 ;;
+esac
 cat <<'X'
 firewall.cfg1=zone
 firewall.cfg1.name='wan'
@@ -56,6 +80,7 @@ firewall.cfg3.dest_port='1'
 X
 U
 chmod +x "$T/uci"
+printf 'daemon:*::0:::::\nroot::0:0:99999:7:::\n' > "$T/shadow"
 printf '#!/bin/sh\necho "{\\"installed\\":\\"1.0.0\\",\\"latest\\":\\"1.1.0\\",\\"new\\":1}"\n' > "$T/upd"; chmod +x "$T/upd"
 
 

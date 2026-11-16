@@ -8,6 +8,7 @@ want() { case "$3" in *"$2"*) ok=$((ok + 1)); echo "ok  $1" ;; *) bad=$((bad + 1
 nowant() { case "$3" in *"$2"*) bad=$((bad + 1)); echo "ОШИБКА: $1 — лишнее «$2»" ;; *) ok=$((ok + 1)); echo "ok  $1" ;; esac; }
 
 T=$T . "$PWD/tools/sec-fixtures.sh" "$T"
+export NF_SHADOW="$T/shadow" NF_DIR="$T/d"
 export NF_LOGREAD="$T/logread" NF_PROC="$T/proc" NF_KNOWN="$T/known" NF_UCI="$T/uci" NF_UPDATEBIN="$T/upd"
 out=$(sh "$S" summary)
 echo "$out" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null && { ok=$((ok + 1)); echo "ok  summary — корректный JSON"; } || { bad=$((bad + 1)); echo "ОШИБКА: summary не JSON: $out"; }
@@ -23,6 +24,13 @@ want "порт 80 по IPv6 — uhttpd" '["tcp",80,"all","uhttpd"]' "$out"
 want "UDP 53 виден" '["udp",53,"all"' "$out"
 want "проброс порта из интернета" '["Web","tcp","8080","192.168.1.5","80"]' "$out"
 nowant "выключенный проброс не показывается" "Off" "$out"
+want "проверка: пустой пароль root" '["bad","Пароль root не задан' "$out"
+want "проверка: сеть без пароля" '["bad","Сеть «Guest» без пароля' "$out"
+want "проверка: устаревшее шифрование" '["warn","Сеть «Old» допускает устаревшее' "$out"
+want "проверка: хорошее шифрование" '["ok","Сеть «Home»: шифрование sae-mixed' "$out"
+nowant "проверка: выключенная сеть не считается" "«Off»" "$out"
+want "проверка: SSH только по ключам" '["ok","SSH: вход по паролю выключен' "$out"
+want "проверка: LuCI по http" '["warn","LuCI доступен по http' "$out"
 want "политика входящего на WAN" '"wan_input":"REJECT"' "$out"
 nowant "соединение ESTABLISHED не считается портом" '50000' "$(echo "$out" | sed 's/"ssh",1,"root","192.168.1.10"//')"
 u=$(sh "$S" updates)
