@@ -70,6 +70,8 @@ hex2ip() {   # 0100007F -> 127.0.0.1 ; IPv6 (32 hex) -> признак "::" / ":
 }
 
 ports() {    # слушающие TCP/UDP: [протокол, порт, где слушает (all|local), программа]
+	# один проход по /proc/*/fd вместо поиска на каждый порт (на роутере с сотнями дескрипторов иначе не укладывается в лимит ответа)
+	MAP=$(ls -l "$PROC"/[0-9]*/fd/* 2>/dev/null | awk '/socket:\[[0-9]+\]/ { ino = $NF; sub(/^socket:\[/, "", ino); sub(/\]$/, "", ino); d = $(NF-2); sub(/\/fd\/.*/, "", d); n = split(d, a, "/"); if (!(ino in seen)) { seen[ino] = 1; print ino, a[n] } }')
 	for pr in tcp tcp6 udp udp6; do
 		f="$PROC/net/$pr"; [ -r "$f" ] || continue
 		case "$pr" in tcp*) st=0A ;; *) st=07 ;; esac
@@ -78,13 +80,8 @@ ports() {    # слушающие TCP/UDP: [протокол, порт, где �
 	done | sort -u | while read -r pr ip port ino; do
 		addr=$(hex2ip "$ip")
 		case "$addr" in 127.*|::1) scope=local ;; *) scope=all ;; esac
-		prog=""
-		if [ -n "$ino" ] && [ "$ino" != 0 ]; then
-			for fd in "$PROC"/[0-9]*/fd/*; do
-				[ "$(readlink "$fd" 2>/dev/null)" = "socket:[$ino]" ] || continue
-				d=${fd%/fd/*}; prog=$(cat "$d/comm" 2>/dev/null); break
-			done
-		fi
+		prog=$(echo "$MAP" | awk -v i="$ino" '$1 == i { print $2; exit }')
+		[ -n "$prog" ] && prog=$(cat "$PROC/$prog/comm" 2>/dev/null)
 		printf '%s %s %s %s\n' "${pr%6}" "$port" "$scope" "${prog:--}"
 	done | sort -u | awk 'BEGIN { printf "["; first = 1 } { printf "%s[\"%s\",%d,\"%s\",\"%s\"]", first ? "" : ",", $1, $2, $3, $4; first = 0 } END { printf "]" }'
 }
