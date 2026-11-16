@@ -878,9 +878,9 @@ return view.extend({
 			if (!/^[A-Za-z0-9._:-]{1,253}$/.test(h) || h[0] === '-') { diagOut.textContent = 'Введите адрес или имя узла: буквы, цифры, точка, дефис.'; return; }
 			if (diagBusy) return;
 			diagBusy = true; diagBox.classList.add('busy');
-			diagOut.textContent = ({ ping: 'Пинг ' + h + '…', trace: 'Маршрут до ' + h + ' (до 30 секунд)…', route: 'Измеряю потери по маршруту до ' + h + ' (до 60 секунд)…', bloat: 'Измеряю задержку без нагрузки и под нагрузкой (около 20 секунд)…', dns: 'Запрос DNS ' + h + '…', check: 'Проверяю шлюз, интернет и DNS (до 20 секунд)…' })[cmd];
+			diagOut.textContent = ({ ping: 'Пинг ' + h + '…', trace: 'Маршрут до ' + h + ' (до 30 секунд)…', route: 'Измеряю потери по маршруту до ' + h + ' (до 25 секунд)…', bloat: 'Измеряю задержку без нагрузки и под нагрузкой (около 20 секунд)…', dns: 'Запрос DNS ' + h + '…', check: 'Проверяю шлюз, интернет и DNS (до 20 секунд)…' })[cmd];
 			fs.exec(DIAG, (cmd === 'check' || cmd === 'bloat') ? [ cmd ] : [ cmd, h ]).then(r => { diagOut.textContent = ((r.stdout || '') + (r.stderr || '')).trim() || 'Нет ответа.'; diagSave(cmd, (cmd === 'check' || cmd === 'bloat') ? '' : h, diagOut.textContent); })
-				.catch(() => { diagOut.textContent = 'Не удалось выполнить. Выйдите из LuCI и войдите снова после обновления (нужны новые права).'; })
+				.catch(e => { const m = String((e && e.message) || e || ''); diagOut.textContent = 'Не удалось выполнить' + (m ? ' (' + m.slice(0, 120) + ')' : '') + '. ' + (/denied|permission|access/i.test(m) ? 'Выйдите из LuCI и войдите снова (нужны новые права).' : 'Скорее всего, команда не уложилась в лимит времени ответа роутера; попробуйте узел поближе.'); })
 				.then(() => { diagBusy = false; diagBox.classList.remove('busy'); });
 		}
 		const diagBox = E('div', { class: 'nfm-diag' }, [
