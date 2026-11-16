@@ -638,6 +638,17 @@ const CSS = `
 .nfm-host .nfm-bar { grid-column: 1 / -1; height: 5px; }
 .nfm-empty { color: var(--nfm-dim); font-size: 13px; padding: 8px 0; }
 .nfm-search { font: inherit; font-size: 13px; padding: 5px 10px; border-radius: 6px; background: var(--nfm-card); color: var(--nfm-text); border: 1px solid var(--nfm-border); width: 200px; height: auto; }
+.nfm-verdict { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 12px 16px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--nfm-vd, #3ddc84) 45%, transparent); background: color-mix(in srgb, var(--nfm-vd, #3ddc84) 12%, transparent); }
+.nfm-verdict.ok { --nfm-vd: #3ddc84; } .nfm-verdict.warn { --nfm-vd: #f5a623; } .nfm-verdict.bad { --nfm-vd: #ff5d5d; }
+.nfm-vd { width: 12px; height: 12px; border-radius: 50%; background: var(--nfm-vd); box-shadow: 0 0 10px var(--nfm-vd); flex: none; }
+.nfm-vd-t { display: flex; flex-direction: column; min-width: 0; } .nfm-vd-t b { font-size: 16px; } .nfm-vd-t small { color: var(--nfm-dim, #8d97a6); font-size: 12px; }
+.nfm-linkish { margin-left: auto; background: none; border: 0; color: var(--nfm-dim, #8d97a6); cursor: pointer; font: inherit; font-size: 12px; }
+.nfm-more { position: relative; } .nfm-more > summary { list-style: none; } .nfm-more > summary::-webkit-details-marker { display: none; }
+.nfm-more-list { position: absolute; z-index: 20; left: 0; top: calc(100% + 6px); min-width: 240px; padding: 6px; display: flex; flex-direction: column; gap: 4px; border-radius: 10px; background: var(--nfm-card, #1b1f27); border: 1px solid var(--nfm-border, #ffffff22); box-shadow: 0 10px 30px #0006; }
+.nfm-more-list .nfm-act { width: 100%; justify-content: flex-start; }
+.nfm-netline { display: flex; flex-wrap: wrap; gap: 10px 28px; align-items: center; }
+.nfm-netline > div { display: flex; flex-direction: column; } .nfm-netline small { color: var(--nfm-dim, #8d97a6); font-size: 12px; } .nfm-netline b { font-size: 20px; font-weight: 600; } .nfm-u { font-size: 13px; font-weight: 400; color: var(--nfm-dim, #8d97a6); }
+.nfm-netgo { margin-left: auto; }
 .nfm-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
 .nfm-act { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 13px; padding: 7px 14px; border-radius: 6px; cursor: pointer; color: var(--nfm-text);
   background: var(--nfm-card); border: 1px solid var(--nfm-border); border-bottom-color: var(--nf-stroke-strong, var(--nfm-border)); }
@@ -749,7 +760,7 @@ return view.extend({
 		} catch (e) {}
 
 		/* ---------- build DOM ---------- */
-		const rCpu = ring('c-cpu'), rTemp = ring('c-temp'), rMem = ring('c-mem'), rFlash = ring('c-flash');
+		const rCpu = ring('c-cpu'), rTemp = ring('c-temp'), rMem = ring('c-mem'), rFlash = ring('c-flash'), rNet = ring('c-down');
 		const T = {};  /* text refs */
 		const t = (key, cls) => (T[key] = E('span', { class: cls || '' }, '–'));
 
@@ -765,7 +776,7 @@ return view.extend({
 			return E('button', { class: 'nfm-act ' + cls, click: fn }, [ icon, label ]);
 		};
 
-		const actions = E('div', { class: 'nfm-actions' }, [
+		const actBtns = [
 			act('', '<path d="M5 13a10 10 0 0 1 14 0M8.5 16.5a5 5 0 0 1 7 0"/><circle cx="12" cy="20" r=".8"/>', 'Перезапустить Wi-Fi', () => confirmRun(
 				'Перезапустить Wi-Fi?', 'Беспроводные клиенты ненадолго отключатся.', () => fs.exec('/sbin/wifi', [ 'reload' ]), 'Wi-Fi перезапускается…')),
 			act('', '<path d="M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3"/><path d="M18 3v4h-4M6 21v-4h4"/>', 'Перезапустить сеть', () => confirmRun(
@@ -774,14 +785,37 @@ return view.extend({
 			act('', '<path d="M9 4h6v3H9z"/><path d="M7 5.5H5.5v14h13v-14H17"/><path d="M9 12h6M9 15.5h4"/>', 'Скопировать диагностику', () => copyDiag()),
 			act('danger', '<path d="M12 3v9"/><path d="M7 7a7.5 7.5 0 1 0 10 0"/>', 'Перезагрузить роутер', () => confirmRun(
 				'Перезагрузить роутер?', 'Роутер будет недоступен около минуты.', () => callReboot(), 'Роутер перезагружается… страница обновится сама.', true))
-		]);
+		];
+		const actions = E('div', { class: 'nfm-actions', style: 'margin-top:12px' }, [ actBtns[0], actBtns[1],
+			E('details', { class: 'nfm-more' }, [ E('summary', { class: 'nfm-act', title: 'Ещё: разбудить устройство, скопировать диагностику, перезагрузить роутер' }, '⋯'),
+				E('div', { class: 'nfm-more-list' }, actBtns.slice(2)) ]) ]);
+		document.addEventListener('click', ev => { const d = actions.querySelector('details'); if (d && d.open && !d.contains(ev.target)) d.open = false; });
+
+		/* ---- строка-вывод «Обзора»: одно слово вместо россыпи предупреждений ---- */
+		const vdTitle = E('b', {}, 'Загружаю…'), vdSub = E('small', {}), vdMore = E('button', { type: 'button', class: 'nfm-linkish', hidden: '' }, 'Подробности ▾');
+		const verdictBox = E('div', { class: 'nfm-verdict' }, [ E('i', { class: 'nfm-vd' }), E('div', { class: 'nfm-vd-t' }, [ vdTitle, vdSub ]), vdMore ]);
+		const detailsWrap = E('div', { hidden: '' }, [ alertsBox, hotBox ]);
+		vdMore.addEventListener('click', () => { const on = detailsWrap.hasAttribute('hidden'); detailsWrap.toggleAttribute('hidden', !on); vdMore.textContent = on ? 'Скрыть ▴' : 'Подробности ▾'; });
+		function updVerdict() {
+			const hot = !hotBox.hasAttribute('hidden'), al = alertsBox.hasAttribute('hidden') ? [] : Array.from(alertsBox.children);
+			const crit = hot || al.some(x => x.classList.contains('crit'));
+			const n = al.length + (hot ? 1 : 0);
+			verdictBox.className = 'nfm-verdict ' + (crit ? 'bad' : n ? 'warn' : 'ok');
+			vdTitle.textContent = crit ? 'Требует внимания' : n ? 'Есть замечания' : 'Всё в порядке';
+			const tm = S.temps && S.temps.main != null ? 'температура ' + nf0.format(S.temps.main) + ' °C' : '', net = (T.wanMini && T.wanMini.textContent) || '';
+			vdSub.textContent = n ? (hot ? 'Процессор перегрет' : (al[0].querySelector('b') || {}).textContent || '') + (n > 1 ? ' · и ещё ' + (n - 1) : '') : [ tm, net && net !== '–' ? 'интернет: ' + net : '' ].filter(Boolean).join(' · ');
+			vdMore.toggleAttribute('hidden', !n);
+			if (!n) { detailsWrap.setAttribute('hidden', ''); vdMore.textContent = 'Подробности ▾'; }
+		}
+
 
 		const cardsRow = E('div', { class: 'nfm-grid nfm-g4' }, [
 			metric(rCpu, 'Процессор', E('div', { class: 'nfm-v' }, [ t('cpuCores') ]), E('div', { class: 'nfm-s' }, [ t('cpuLoad') ])),
 			metric(rTemp, 'Температура', E('div', { class: 'nfm-v' }, [ t('tempMain') ]), E('div', { class: 'nfm-s' }, [ t('tempSub') ])),
 			metric(rMem, 'Память', E('div', { class: 'nfm-v' }, [ t('memMain') ]), E('div', { class: 'nfm-s' }, [ t('memSub') ])),
-			metric(rFlash, 'Флеш', E('div', { class: 'nfm-v' }, [ t('flashMain') ]), E('div', { class: 'nfm-s' }, [ t('flashSub') ]))
+			metric(rNet, 'Интернет', E('div', { class: 'nfm-v' }, [ t('netMain') ]), E('div', { class: 'nfm-s' }, [ t('netSub') ]))
 		]);
+		const flashCard = metric(rFlash, 'Флеш', E('div', { class: 'nfm-v' }, [ t('flashMain') ]), E('div', { class: 'nfm-s' }, [ t('flashSub') ]));
 
 		const mainChart = chart({
 			right: true,
@@ -806,28 +840,25 @@ return view.extend({
 		const memStack = E('div', { class: 'nfm-stack' });
 		const memLegend = E('div', { class: 'nfm-legend nfm-legend-lg' });
 
+		const top3Box = E('div');
+		const netLine = E('div', { class: 'nfm-netline' }, [
+			E('div', {}, [ E('small', {}, 'Загрузка'), E('b', {}, [ T.dlN = E('span', {}, '–'), ' ', T.dlU = E('span', { class: 'nfm-u' }, '') ]) ]),
+			E('div', {}, [ E('small', {}, 'Отдача'), E('b', {}, [ T.ulN = E('span', {}, '–'), ' ', T.ulU = E('span', { class: 'nfm-u' }, '') ]) ]),
+			E('div', {}, [ E('small', {}, 'Соединений'), E('b', {}, [ t('ctMini') ]) ]),
+			E('div', {}, [ E('small', {}, 'Wi-Fi клиентов'), E('b', {}, [ t('wifiMini') ]) ]),
+			E('div', {}, [ E('small', {}, 'Интернет'), E('b', {}, [ t('wanMini') ]) ]),
+			E('button', { type: 'button', class: 'nfm-btn nfm-netgo', click: () => { S.tab = 'net'; refresh(); } }, 'Подробнее во вкладке «Сеть» →') ]);
+		T.netIface = E('span');
+
 		const overview = E('div', {}, [
-			alertsBox, hotBox, cardsRow, actions,
+			verdictBox, detailsWrap, cardsRow,
 			E('div', { class: 'nfm-grid nfm-g21' }, [
 				card([ 'Последние 5 минут', E('span', { class: 'nfm-spacer' }),
 					E('span', { class: 'nfm-legend' }, [ legendDot('c-cpu', 'Процессор'), legendDot('c-mem', 'Память'), legendDot('c-temp', 'Температура, °C') ]) ], mainChart.el),
-				card('Ядра процессора', E('div', {}, [ coresBox, tiles ]))
+				card('Сейчас больше всех', top3Box)
 			]),
-			E('div', { class: 'nfm-grid nfm-g21' }, [
-				card([ 'Сеть', E('span', { class: 'nfm-spacer' }), T.netIface = E('span', { class: 'nfm-chip' }, '–'),
-					E('span', { class: 'nfm-legend' }, [ legendDot('c-down', 'Загрузка'), legendDot('c-up', 'Отдача') ]) ], netMini.el),
-				card('Сейчас', E('div', {}, [
-					E('div', { class: 'nfm-k' }, 'Загрузка'),
-					E('div', { class: 'nfm-rate' }, [ T.dlN = E('b', {}, '–'), T.dlU = E('span', {}, '') ]), sparkDown.el,
-					E('div', { class: 'nfm-k', style: 'margin-top:12px' }, 'Отдача'),
-					E('div', { class: 'nfm-rate' }, [ T.ulN = E('b', {}, '–'), T.ulU = E('span', {}, '') ]), sparkUp.el,
-					E('div', { class: 'nfm-s', style: 'margin-top:12px' }, [ 'Соединений: ', t('ctMini') ]),
-					E('div', { class: 'nfm-s' }, [ 'Wi-Fi клиентов: ', t('wifiMini') ]),
-					E('div', { class: 'nfm-s' }, [ 'Интернет: ', t('wanMini') ])
-				]))
-			]),
-			card([ 'Кто сколько занимает', E('span', { class: 'nfm-note' }, 'память программ — примерно: общие библиотеки входят в каждую') ],
-				E('div', {}, [ memStack, memLegend ]))
+			card('Сеть сейчас', netLine),
+			actions
 		]);
 
 		/* network tab */
@@ -951,6 +982,8 @@ return view.extend({
 				E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Показаны десять самых «толстых» программ. «Возможна утечка» ставится, если память почти все замеры только росла и выросла больше чем на 30% и 5 МБ.'));
 		}
 		const procs = E('div', { hidden: true }, [
+			E('div', { class: 'nfm-grid nfm-g21' }, [ card('Ядра процессора', E('div', {}, [ coresBox, tiles ])), flashCard ]),
+			card([ 'Кто сколько занимает', E('span', { class: 'nfm-note' }, 'память программ — примерно: общие библиотеки входят в каждую') ], E('div', {}, [ memStack, memLegend ])),
 			card([ 'Программы', E('span', { class: 'nfm-spacer' }),
 				E('input', { class: 'nfm-search', type: 'search', placeholder: 'Поиск…', input: ev => { S.filter = ev.target.value.toLowerCase(); refresh(); } }) ],
 				E('table', { class: 'nfm-table' }, [
@@ -1880,7 +1913,7 @@ return view.extend({
 		function fetchExtras() {
 			const jobs = [];
 			if (due('alerts', ALERTS_EVERY * INTERVAL)) jobs.push(callHistory([ 'alerts' ]).then(r => { S.alerts = r; }));
-			if (onTab('net', 'devs') && due('devs', DEVICES_EVERY * INTERVAL)) jobs.push(callHistory([ 'devices' ]).then(r => { S.devs = r; }));
+			if (onTab('net', 'devs', 'overview') && due('devs', DEVICES_EVERY * INTERVAL)) jobs.push(callHistory([ 'devices' ]).then(r => { S.devs = r; }));
 			if (due('mode', 60)) jobs.push(callHistory([ 'mode' ]).then(setMode));
 			if (onTab('hist', 'log') && due('hist', HIST_EVERY * INTERVAL)) jobs.push(callHistory([ 'series', RANGES[S.range][0] ]).then(r => { S.hist = r; }));
 			if (S.tab === 'hist' && due('tr', 300)) jobs.push(callHistory([ 'traffic' ]).then(r => { S.tr = r; }));
@@ -2013,6 +2046,20 @@ return view.extend({
 			if (!S.alerts) T.wanMini.textContent = S.alerts === false ? 'история не собирается' : '–';
 			else if (!last || S.alerts.now - last[0] > 90) T.wanMini.textContent = 'нет данных';
 			else T.wanMini.textContent = (last[7] >= 0 ? nf0.format(last[7]) + ' мс' : 'нет ответа') + (last[6] >= 0 ? ' · шлюз ' + nf0.format(last[6]) + ' мс' : '');
+			if (last && S.alerts && S.alerts.now - last[0] <= 90) {
+				rNet.set(last[7] >= 0 ? Math.min(100, last[7]) : 100, last[7] >= 0 ? nf0.format(last[7]) : '×');
+				T.netMain.textContent = last[7] >= 0 ? 'есть' : 'нет ответа';
+				T.netSub.textContent = last[6] >= 0 ? 'шлюз ' + nf0.format(last[6]) + ' мс' : 'пинг до 1.1.1.1';
+			} else { rNet.set(0, '–'); T.netMain.textContent = S.alerts === false ? 'не собирается' : 'нет данных'; T.netSub.textContent = 'нужен сборщик'; }
+			updVerdict();
+		}
+
+		function renderTop3() {
+			const list = (title, rows) => E('div', {}, [ E('div', { class: 'nfm-k', style: 'margin:0 0 4px' }, title) ].concat(rows.length ? rows.map(x => E('div', { class: 'nfm-host' }, [ E('span', {}, x[0]), E('b', {}, x[1]) ])) : [ E('div', { class: 'nfm-empty' }, 'Пока пусто') ]));
+			const progs = S.full ? groupedProcs().sort((a, b) => b.rss - a.rss).slice(0, 3).map(e => [ e.label, fmtMB(e.rss) ]) : [];
+			const dv = S.devs && S.devs.day ? S.devs.day.map(x => ({ ip: x[0], t: (+x[1]) + (+x[2]) })).filter(x => x.t > 0 && !routerIps.has(x.ip)).sort((a, b) => b.t - a.t).slice(0, 3) : [];
+			const nm = ip => { const m = Object.keys(hints).find(k => (hints[k].ipaddrs || []).includes(ip)); return (m && devName(m)) || names[ip] || ip; };
+			top3Box.replaceChildren(list('Программы по памяти', progs), E('div', { style: 'height:12px' }), list('Устройства по трафику сегодня', dv.map(x => [ nm(x.ip), fmtBytes(x.t) ])));
 		}
 
 		function renderDevices() {
@@ -2792,6 +2839,8 @@ return view.extend({
 			const dr = fmtRate(rt.rx), ur = fmtRate(rt.tx);
 			T.dlN.textContent = dr[0]; T.dlU.textContent = dr[1]; T.ulN.textContent = ur[0]; T.ulU.textContent = ur[1];
 			T.ctMini.textContent = `${nf0.format(d.ct[0])}${d.ct[1] ? ' из ' + nf0.format(d.ct[1]) : ''}`;
+			if (S.tab === 'overview') renderTop3();
+			updVerdict();
 
 			if (S.tab === 'net') {
 				T.nDlN.textContent = dr[0]; T.nDlU.textContent = dr[1]; T.nUlN.textContent = ur[0]; T.nUlU.textContent = ur[1];

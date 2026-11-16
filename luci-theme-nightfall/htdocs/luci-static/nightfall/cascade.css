@@ -6312,3 +6312,30 @@ button, input[type="button"], input[type="reset"], input[type="submit"], .cbi-bu
 /* v1.20.0: «Выключить учёт» — аккуратная кнопка вместо ссылки с серой подложкой */
 .nf-apps-f .nf-apps-stop { flex: none; align-self: center; margin-left: auto; padding: 5px 14px; min-height: 0; border: 1px solid var(--nf-stroke); border-radius: 8px; background: color-mix(in srgb, var(--nf-text) 6%, transparent) !important; box-shadow: none; color: var(--nf-text); font: inherit; font-size: .92em; line-height: 1.3; text-decoration: none; cursor: pointer; }
 .nf-apps-f .nf-apps-stop:hover, .nf-apps-f .nf-apps-stop:focus-visible { border-color: var(--nf-accent); background: color-mix(in srgb, var(--nf-accent) 14%, transparent) !important; text-decoration: none; }
+
+
+/* ---- v1.26.0: спокойный «Обзор»: строка-вывод, меню «Вид», режим раскладки, свёрнутые карточки ---- */
+.nf-verdict { --nf-vd: #3ddc84; display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 12px 16px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--nf-vd) 45%, transparent); background: color-mix(in srgb, var(--nf-vd) 12%, transparent); }
+.nf-verdict[data-k="warn"] { --nf-vd: #f5a623; } .nf-verdict[data-k="bad"] { --nf-vd: #ff5d5d; }
+.nf-vd { width: 12px; height: 12px; flex: none; border-radius: 50%; background: var(--nf-vd); box-shadow: 0 0 10px var(--nf-vd); }
+.nf-vd-t { display: flex; flex-direction: column; min-width: 0; } .nf-vd-t b { font-size: calc(16px * var(--nf-fsz, 1)); } .nf-vd-t small { color: var(--nf-text-dim); font-size: calc(12px * var(--nf-fsz, 1)); }
+.nf-viewmenu { position: relative; display: inline-block; }
+.nf-viewmenu > summary { list-style: none; cursor: pointer; } .nf-viewmenu > summary::-webkit-details-marker { display: none; }
+.nf-viewlist { position: absolute; z-index: 30; right: 0; top: calc(100% + 6px); min-width: 260px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px; border-radius: 12px; background: var(--nf-card-solid, var(--nf-card, #1b1f27)); border: 1px solid var(--nf-stroke, rgba(255, 255, 255, .14)); box-shadow: 0 12px 34px rgba(0, 0, 0, .35); }
+.nf-viewlist .nf-colsel { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 8px; }
+.nf-editnote { display: none; margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; font-size: calc(12px * var(--nf-fsz, 1)); color: var(--nf-text-dim); border: 1px dashed var(--nf-accent); }
+html[data-nf-edit] .nf-editnote { display: block; }
+/* значки перемещения, закрепления и размера видны только в режиме раскладки */
+html:not([data-nf-edit]) .nf-grip, html:not([data-nf-edit]) .nf-pin, html:not([data-nf-edit]) .nf-size, html:not([data-nf-edit]) .nf-rs { display: none !important; }
+html[data-nf-edit] .nf-grip, html[data-nf-edit] .nf-pin, html[data-nf-edit] .nf-size { opacity: 1 !important; }
+html[data-nf-edit] .cbi-section[data-nf-card] { outline: 1px dashed color-mix(in srgb, var(--nf-accent) 55%, transparent); outline-offset: 2px; }
+.nf-fold > .cbi-title { cursor: pointer; display: flex; align-items: center; gap: 10px; }
+.nf-fold > .cbi-title h3 { flex: 0 0 auto; width: auto !important; max-width: 60%; margin: 0; }
+.nf-fold-sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--nf-text-dim); font-size: calc(12.5px * var(--nf-fsz, 1)); }
+.nf-fold-arrow { margin-left: auto; color: var(--nf-text-dim); }
+.nf-fold:not(.nf-open) > :not(.cbi-title):not(.nf-rs) { display: none !important; }
+.nf-fold:not(.nf-open) { min-height: 0 !important; }
+@media (max-width: 700px) {
+	.nf-viewmenu { display: block; }
+	.nf-viewlist { position: static; margin-top: 6px; min-width: 0; box-shadow: none; }
+}
