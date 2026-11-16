@@ -44,4 +44,64 @@ printf '#!/bin/sh\nexit 1\n' > "$T/bin/ping"; printf '#!/bin/sh\nexit 1\n' > "$T
 c=$(PATH="$T/bin:$PATH" sh "$D" check)
 want "check: нет интернета виден" "❌ Интернет: 1.1.1.1 не отвечает" "$c"
 want "check: DNS не работает виден" "❌ DNS: google.com не разрешается" "$c"
+
+# закрытие адреса через nft (заглушка)
+cat > "$T/nft" <<'N'
+#!/bin/sh
+echo "$*" >> "$NFT_LOG"
+case "$1 $2" in
+"-f -") cat >> "$NFT_LOG"; touch "$NFT_LOG.on" ;;
+"list table") [ -f "$NFT_LOG.on" ] && echo "ip saddr @b4 drop" ;;
+"list set") case "$5" in b4) printf 'table inet nightfall_ban {\n\tset b4 {\n\t\ttype ipv4_addr\n\t\tflags timeout\n\t\telements = { 203.0.113.5 timeout 1d expires 23h59m10s,\n\t\t\t     198.51.100.7 timeout 1h expires 59m1s }\n\t}\n}\n' ;; esac ;;
+esac
+exit 0
+N
+chmod +x "$T/nft"; export NFT_LOG="$T/nft.log"; : > "$NFT_LOG"; rm -f "$NFT_LOG.on"
+b=$(NF_NFT="$T/nft" sh "$S" ban 203.0.113.5 2)
+want "ban: внешний адрес закрывается" '"ok":true,"ip":"203.0.113.5","hours":2' "$b"
+want "ban: таблица nft создана" "add rule inet nightfall_ban input ip saddr @b4 drop" "$(cat $NFT_LOG)"
+want "ban: адрес добавлен на 2 часа" "add element inet nightfall_ban b4 { 203.0.113.5 timeout 2h }" "$(cat $NFT_LOG)"
+b=$(NF_NFT="$T/nft" sh "$S" ban 192.168.1.10); want "ban: локальный адрес нельзя" '"ok":false' "$b"
+b=$(NF_NFT="$T/nft" sh "$S" ban 10.0.0.5); want "ban: 10.x нельзя" '"ok":false' "$b"
+b=$(NF_NFT="$T/nft" sh "$S" ban 127.0.0.1); want "ban: loopback нельзя" '"ok":false' "$b"
+b=$(NF_NFT="$T/nft" sh "$S" ban 'a;rm -rf /'); want "ban: мусор вместо адреса отклоняется" '"ok":false' "$b"
+b=$(NF_NFT="$T/nft" sh "$S" ban 256.1.1.1); want "ban: некорректный адрес отклоняется" '"ok":false' "$b"
+b=$(NF_NFT="$T/nft" sh "$S" ban fe80::1); want "ban: link-local IPv6 нельзя" '"ok":false' "$b"
+b=$(NF_NFT="$T/nft" sh "$S" ban 2001:db8::5 99999); want "ban: IPv6 принимается, срок ограничен" '"hours":24' "$b"
+want "ban: IPv6 попал в свой набор" "add element inet nightfall_ban b6 { 2001:db8::5 timeout 24h }" "$(cat $NFT_LOG)"
+b=$(NF_NFT="$T/nft" sh "$S" bans)
+want "bans: список с оставшимся временем" '["203.0.113.5","23h59m10s"]' "$b"
+want "bans: второй адрес" '["198.51.100.7","59m1s"]' "$b"
+NF_NFT="$T/nft" sh "$S" unban 203.0.113.5 >/dev/null
+want "unban: адрес снят" "delete element inet nightfall_ban b4 { 203.0.113.5 }" "$(cat $NFT_LOG)"
+# уведомление о всплеске неудачных входов
+rm -rf "$T/wd"; mkdir -p "$T/wd"
+w=$(NF_DIR="$T/wd" NF_SECFAILS=3 sh "$S" watch); [ -z "$w" ] && { ok=$((ok + 1)); echo "ok  watch: первый запуск молчит (запоминает счётчик)"; } || { bad=$((bad + 1)); echo "ОШИБКА: watch первый запуск: $w"; }
+echo 0 > "$T/wd/sec.fails"
+w=$(NF_DIR="$T/wd" NF_SECFAILS=3 sh "$S" watch); want "watch: рост неудачных входов даёт сообщение" "Много неудачных входов" "$w"
+w=$(NF_DIR="$T/wd" NF_SECFAILS=3 sh "$S" watch); [ -z "$w" ] && { ok=$((ok + 1)); echo "ok  watch: без нового роста молчит"; } || { bad=$((bad + 1)); echo "ОШИБКА: watch повторно: $w"; }
+# журнал роутера
+L="$PWD/luci-app-nightfall-monitor/root/usr/libexec/nightfall-log"
+r=$(sh "$L" read 100)
+echo "$r" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null && { ok=$((ok + 1)); echo "ok  nightfall-log: корректный JSON"; } || { bad=$((bad + 1)); echo "ОШИБКА: nightfall-log не JSON: $r"; }
+want "log: служба без номера процесса" '"authpriv.warn","dropbear","Bad password attempt for' "$r"
+want "log: текст сообщения целиком" "from 203.0.113.5:40022" "$r"
+r=$(sh "$L" read 2); nowant "log: N ограничивает число строк" "02:10:01" "$r"
+r=$(sh "$L" read abc); want "log: мусор вместо N не ломает" '"ok":true' "$r"
+
+
+# DNS-статистика
+N="$PWD/luci-app-nightfall-monitor/root/usr/libexec/nightfall-dns"
+d=$(NF_LOGREAD="$T/dnslogread" NF_UCI="$T/uci_dns" sh "$N" top)
+echo "$d" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null && { ok=$((ok + 1)); echo "ok  dns: корректный JSON"; } || { bad=$((bad + 1)); echo "ОШИБКА: dns не JSON: $d"; }
+want "dns: всего запросов" '"total":6' "$d"
+want "dns: сайты сводятся к основному домену" '["youtube.com",2]' "$d"
+want "dns: bbc.co.uk учитывается как bbc.co.uk" '["bbc.co.uk",1]' "$d"
+want "dns: клиент 192.168.1.11 — 3 запроса" '["192.168.1.11",3]' "$d"
+want "dns: NXDOMAIN посчитан" '"nx":2' "$d"
+want "dns: список NXDOMAIN" '["nope.example.org",2]' "$d"
+want "dns: типы запросов" '["A",5]' "$d"
+nowant "dns: чужие службы не считаются" "fake.test" "$d"
+d=$(NF_LOGREAD=true NF_UCI="$T/uci_off" sh "$N" top); want "dns: без запросов и без журнала — выключено" '"enabled":false' "$d"
+
 echo; echo "ИТОГО: ok=$ok, ошибок=$bad"; [ "$bad" = 0 ]

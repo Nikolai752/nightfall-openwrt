@@ -2,12 +2,19 @@
 # Nightfall: сводка безопасности для вкладки «Безопасность» монитора. Ничего не меняет, только читает.
 #   nightfall-sec summary  — JSON: неудачные и успешные входы (LuCI, SSH), новые устройства, открытые порты, проброс портов
 #   nightfall-sec updates  — JSON: версия темы и последний релиз, выпуск OpenWrt, ядро
-# Для проверок: NF_LOGREAD (команда вместо logread), NF_PROC (вместо /proc), NF_KNOWN, NF_UCI (вместо uci), NF_UPDATEBIN.
+#   nightfall-sec ban АДРЕС [ЧАСОВ]  — закрыть внешний адрес для самого роутера (по умолчанию 24 ч, не больше 720)
+#   nightfall-sec unban АДРЕС        — снять закрытие
+#   nightfall-sec bans               — JSON: закрытые адреса и сколько осталось
+#   nightfall-sec watch              — для сборщика: печатает текст, если неудачных входов стало заметно больше
+# Для проверок: NF_NFT (вместо nft), NF_LOGREAD (команда вместо logread), NF_PROC (вместо /proc), NF_KNOWN, NF_UCI (вместо uci), NF_UPDATEBIN.
 LOGREAD=${NF_LOGREAD:-logread}
 PROC=${NF_PROC:-/proc}
 KNOWN=${NF_KNOWN:-/etc/nightfall-known.list}
 UCI=${NF_UCI:-uci}
 UPD=${NF_UPDATEBIN:-/usr/libexec/nightfall-update}
+NFT=${NF_NFT:-nft}
+DIR=${NF_DIR:-/tmp/nightfall}
+BANT=nightfall_ban
 jesc() { sed 's/\\/\\\\/g; s/"/\\"/g'; }
 
 logins() {   # разбор системного журнала: dropbear (SSH) и LuCI (uhttpd)
@@ -101,7 +108,58 @@ forwards() {  # проброс портов из интернета (redirect) �
 	printf ',"wan_input":"%s"}' "${pol:-}"
 }
 
+# ---- закрытие адреса: своя таблица nft (переживает перезапуск межсетевого экрана, не переживает перезагрузку) ----
+valid_ip() {   # только внешние адреса: чтобы нельзя было закрыть себя или локальную сеть
+	case "$1" in
+	*[!0-9a-fA-F:.]*|'') return 1 ;;
+	*:*) case "$1" in ::|::1|[fF][eE][89abAB]*|[fF][cCdD]*) return 1 ;; esac
+		case "$1" in *[!0-9a-fA-F:]*) return 1 ;; esac ;;
+	*.*) echo "$1" | awk -F. 'NF == 4 { for (i = 1; i <= 4; i++) if ($i !~ /^[0-9]+$/ || $i > 255) exit 1
+			if ($1 == 10 || $1 == 127 || $1 == 0 || $1 >= 224 || ($1 == 169 && $2 == 254) || ($1 == 192 && $2 == 168) || ($1 == 172 && $2 >= 16 && $2 <= 31) || ($1 == 100 && $2 >= 64 && $2 <= 127)) exit 1; exit 0 } { exit 1 }' || return 1 ;;
+	*) return 1 ;;
+	esac
+}
+set_of() { case "$1" in *:*) echo b6 ;; *) echo b4 ;; esac; }
+ban_setup() {
+	$NFT list table inet $BANT 2>/dev/null | grep -q 'saddr @b4' && return 0
+	$NFT -f - <<NFTEOF
+add table inet $BANT
+add set inet $BANT b4 { type ipv4_addr; flags timeout; }
+add set inet $BANT b6 { type ipv6_addr; flags timeout; }
+add chain inet $BANT input { type filter hook input priority -10; policy accept; }
+add rule inet $BANT input ip saddr @b4 drop
+add rule inet $BANT input ip6 saddr @b6 drop
+NFTEOF
+}
+
 case "$1" in
+ban)
+	valid_ip "$2" || { echo '{"ok":false,"error":"Можно закрывать только внешние адреса (не локальные, не адрес самого роутера)."}'; exit 1; }
+	h=${3:-24}; case "$h" in ''|*[!0-9]*) h=24 ;; esac; [ "$h" -ge 1 ] && [ "$h" -le 720 ] || h=24
+	command -v "$NFT" >/dev/null 2>&1 || { echo '{"ok":false,"error":"На роутере нет nft: закрытие адресов недоступно."}'; exit 1; }
+	ban_setup || { echo '{"ok":false,"error":"Не удалось подготовить правила nft."}'; exit 1; }
+	$NFT add element inet $BANT "$(set_of "$2")" "{ $2 timeout ${h}h }" 2>/dev/null || { echo '{"ok":false,"error":"Не удалось закрыть адрес."}'; exit 1; }
+	printf '{"ok":true,"ip":"%s","hours":%s}\n' "$2" "$h" ;;
+unban)
+	valid_ip "$2" || { echo '{"ok":false,"error":"Некорректный адрес."}'; exit 1; }
+	$NFT delete element inet $BANT "$(set_of "$2")" "{ $2 }" 2>/dev/null
+	printf '{"ok":true}\n' ;;
+bans)
+	printf '{"ok":true,"bans":['
+	for st in b4 b6; do
+		$NFT list set inet $BANT $st 2>/dev/null | tr '\n\t' '  ' | awk '/elements = \{/ { l = $0; sub(/.*elements = \{ */, "", l); sub(/ *\}.*$/, "", l); n = split(l, a, ","); for (i = 1; i <= n; i++) { m = split(a[i], w, " "); ip = w[1]; ex = ""; for (k = 2; k <= m; k++) if (w[k] == "expires") ex = w[k + 1]; if (ip != "") print ip, ex } }'
+	done | awk 'BEGIN { first = 1 } { printf "%s[\"%s\",\"%s\"]", first ? "" : ",", $1, $2; first = 0 }'
+	printf ']}\n' ;;
+watch)
+	# раз в несколько минут: если неудачных входов стало на SEC_FAILS и больше, чем при прошлой проверке, пишем сообщение
+	lim=${NF_SECFAILS:-10}
+	now=$(logins | sed -n 's/.*"failed_ssh":\([0-9]*\),"failed_luci":\([0-9]*\).*/\1 \2/p' | awk '{ print $1 + $2 }')
+	prev=$(cat "$DIR/sec.fails" 2>/dev/null)
+	mkdir -p "$DIR" 2>/dev/null; echo "${now:-0}" > "$DIR/sec.fails"
+	[ -n "$prev" ] || exit 0
+	d=$(( ${now:-0} - prev ))
+	[ "$d" -ge "$lim" ] 2>/dev/null && echo "Много неудачных входов в роутер: $d за последнее время (SSH и LuCI). Откройте «Монитор → Безопасность»: там можно закрыть адрес нарушителя."
+	exit 0 ;;
 summary)
 	printf '{"ok":true,"now":%s,"logins":' "$(date +%s)"
 	logins

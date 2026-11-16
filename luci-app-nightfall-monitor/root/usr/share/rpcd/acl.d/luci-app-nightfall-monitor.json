@@ -35,6 +35,12 @@
 				],
 				"/usr/libexec/nightfall-sec": [
 					"exec"
+				],
+				"/usr/libexec/nightfall-log": [
+					"exec"
+				],
+				"/usr/libexec/nightfall-dns": [
+					"exec"
 				]
 			},
 			"uci": [

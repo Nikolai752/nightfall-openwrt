@@ -262,6 +262,10 @@ devdaily)   # итоги по устройствам за прошлые сут�
 	printf '{"now":%s,"rows":[' "$now"
 	[ -r "$DIR/dev.daily" ] && awk 'NF >= 4 && $1 ~ /^[0-9]{8}$/ { printf "%s[\"%s\",\"%s\",%d,%d,\"%s\"]", (n++ ? "," : ""), $1, $2, $3, $4, ($5 == "" ? "-" : $5) }' "$DIR/dev.daily"
 	printf ']}\n' ;;
+known)   # когда сборщик впервые увидел устройства: [mac, имя, время]
+	printf '{"now":%s,"rows":[' "$now"
+	[ -r "${NF_KNOWN:-/etc/nightfall-known.list}" ] && awk -F'|' 'NF >= 3 && $1 != "" { gsub(/["\\]/, "", $2); printf "%s[\"%s\",\"%s\",%d]", (n++ ? "," : ""), toupper($1), $2, $3 + 0 }' "${NF_KNOWN:-/etc/nightfall-known.list}"
+	printf ']}\n' ;;
 alerts)
 	printf '{"now":%s,"active":' "$now"
 	active_json
@@ -269,6 +273,6 @@ alerts)
 	printf ',"info":'; info_json
 	printf '}\n' ;;
 *)
-	echo "usage: nightfall-history series fine|coarse|long | temps fine|coarse | devices | apps | channel | journal | speed | wifi [MAC] | wifi-hr [MAC] | devhr | devdaily | wifi-check | airscan | traffic | alerts" >&2
+	echo "usage: nightfall-history series fine|coarse|long | temps fine|coarse | devices | apps | channel | journal | speed | wifi [MAC] | wifi-hr [MAC] | devhr | devdaily | known | wifi-check | airscan | traffic | alerts" >&2
 	exit 1 ;;
 esac
