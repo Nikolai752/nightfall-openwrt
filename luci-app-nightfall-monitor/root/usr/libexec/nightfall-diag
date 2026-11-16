@@ -4,7 +4,7 @@
 #   nightfall-diag trace ХОСТ  — маршрут до узла (traceroute, если установлен)
 #   nightfall-diag check       — шлюз, интернет и DNS одной проверкой
 #   nightfall-diag dns ХОСТ    — разрешение имени через DNS роутера
-#   nightfall-diag route ХОСТ  — потери и задержка на каждом узле маршрута (traceroute, 3 пакета на узел)
+#   nightfall-diag route ХОСТ  — потери и задержка на каждом узле маршрута (traceroute, 2 пакета на узел, не дольше 24 секунд: иначе роутер обрывает ответ)
 #   nightfall-diag bloat       — задержка без нагрузки и под нагрузкой (bufferbloat); нужен curl
 # Узел проверяется строго: только буквы, цифры, точка, двоеточие, дефис (не больше 253 знаков, не начинается с «-»).
 cmd=$1; host=$2
@@ -60,7 +60,7 @@ trace)
 route)
 	command -v traceroute >/dev/null 2>&1 || { echo "Не установлен traceroute. Установите: apk add traceroute (или opkg install traceroute)"; exit 0; }
 	echo "Узел  Адрес               Потери  Среднее"
-	traceroute -n -w 2 -q 3 -m 20 "$host" 2>&1 | awk '
+	traceroute -n -w 1 -q 2 -m 12 "$host" 2>&1 | awk '
 		NR == 1 { next }
 		$1 ~ /^[0-9]+$/ {
 			lost = 0; got = 0; sum = 0; ip = "-"
