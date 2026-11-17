@@ -1977,7 +1977,7 @@ function blockCard() {
 			const { id, nm } = nmOf(d);
 			const q = d.quota ? ' · 📉 ' + fmtBytes(d.used) + ' из ' + fmtBytes(d.quota * 1048576) : '';
 			const st = d.active ? E('span', { class: 'nf-blk-st bad' }, (d.reason === 'quota' ? 'лимит исчерпан' : d.reason === 'sched' ? 'по расписанию' : 'отключено') + q)
-				: E('span', { class: 'nf-blk-st ' + (d.online && !d.from && !d.quota ? 'ok' : '') }, (d.from ? '⏰ ' + winsLine(d) + (d.snoozed ? ' (пропуск до завтра)' : '') + ' · ' : '') + (d.online ? (d.wifi ? 'в сети · Wi-Fi' : 'в сети') : 'не в сети') + q);
+				: E('span', { class: 'nf-blk-st ' + (d.online && !d.from && !d.quota ? 'ok' : '') }, (d.from ? '⏰ ' + winsLine(d) + (d.snoozed ? ' (пропуск до завтра)' : '') + ' · ' : '') + (d.online ? (d.wifi ? 'в сети · Wi-Fi' : (d.connection ? 'в сети · ' + d.connection : 'в сети')) : 'не в сети') + q);
 			const line = E('div', { class: 'nf-blk-r' + (d.active ? ' off' : '') }, [
 				E('div', { class: 'nf-blk-n' }, [ E('b', { title: id && id.hint ? id.hint : '' }, [ id ? (() => { const ic = E('i', { class: 'nf-dv-i' + (id.priv ? ' priv' : '') }); ic.innerHTML = DEVID.icon(id.kind); return ic; })() : '', E('span', { class: 'nf-dv-t' }, nm) ]),
 					E('span', {}, [ d.ip !== nm ? d.ip : '', d.mac, !d.name && id && id.vendor ? id.vendor : '', id && id.priv ? 'частный MAC' : '' ].filter(Boolean).join(' · ')) ]),
