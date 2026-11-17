@@ -171,5 +171,12 @@ pj=$(NF_DIR="$T/pd" sh "$H" procmem 24)
 want "procmem: выдача содержит обе свежие точки" '[["dnsmasq",5000]]' "$pj"
 want "procmem: вторая точка с двумя программами" '[["dnsmasq",9000],["uhttpd",3000]]' "$pj"
 nowant "procmem: старая точка отфильтрована" '"old"' "$pj"
+# Соседняя таблица отдаёт состояние записи вместе с MAC: REACHABLE/STALE нельзя смешивать.
+mkdir -p "$T/neigh"
+printf '192.168.1.191 dev br-lan lladdr de:0d:ab:73:aa:8e REACHABLE\\n192.168.1.192 dev br-lan lladdr de:0d:ab:73:aa:8e STALE\\n192.168.1.193 dev br-lan FAILED\\n' > "$T/neigh"
+nj=$(NF_DIR="$T/pm" NF_NEIGH="$T/neigh" sh "$H" devices)
+want "devices: MAC прокси и состояние REACHABLE сохранены" '["192.168.1.191","de:0d:ab:73:aa:8e","REACHABLE"]' "$nj"
+want "devices: состояние STALE не теряется" '["192.168.1.192","de:0d:ab:73:aa:8e","STALE"]' "$nj"
+nowant "devices: FAILED сосед не выдаётся как доступный" '192.168.1.193' "$nj"
 
 echo; echo "ИТОГО: ok=$ok, ошибок=$bad"; [ "$bad" = 0 ]
