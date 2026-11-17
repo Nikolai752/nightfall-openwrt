@@ -2168,6 +2168,7 @@ return view.extend({
 			const notes = [];
 			if (dv.info && dv.info.acct === '0') notes.push('Учёт байтов в conntrack выключен, цифр не будет. Включите: sysctl -w net.netfilter.nf_conntrack_acct=1 (и добавьте net.netfilter.nf_conntrack_acct=1 в /etc/sysctl.conf).');
 			if (dv.info && dv.info.offload === '1') notes.push('Включён flow offloading: ускоренные соединения не попадают в conntrack-учёт, поэтому цифры по устройствам могут быть занижены. Это ограничение способа подсчёта, настройки файрвола менять не нужно.');
+			if (dv.info && dv.info.flow_hw === '1') notes.push('Включён аппаратный flow offloading: часть пакетов обрабатывается аппаратно и может обходить программные счётчики. Поэтому трафик WAN, устройств и приложений может заметно различаться; Nightfall не меняет эту настройку автоматически.');
 			if (notes.length) { devNote.textContent = notes.join(' '); devNote.removeAttribute('hidden'); }
 
 			/* conntrack prints IPv6 in full form, DHCP/NDP hints in short form: compare in one form */
