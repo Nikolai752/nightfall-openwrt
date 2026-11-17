@@ -2238,10 +2238,14 @@ return view.extend({
 			for (const r of Object.values(rows)) { td += r.dd; tu += r.du; }
 			T.devTotal.textContent = list.length ? `всего ↓ ${fmtBytes(td)} · ↑ ${fmtBytes(tu)}` + (all.length > list.length ? ` · показаны ${list.length} самых активных из ${all.length}` : '') : '';
 
+			const activeWifiMacs = new Set((S.wifi || []).map(c => String(c.mac || '').toUpperCase()).filter(Boolean));
 			devBody.replaceChildren(...(list.length ? list.map(r => {
-				const h = r.mac ? hints[r.mac] || {} : {};
+				const h = r.mac ? hints[r.mac] || hints[String(r.mac).toLowerCase()] || {} : {};
 				const id = r.mac && r.k !== 'router' && r.k !== 'v6' ? devId(r.mac, h.name) : null;
-				const label = r.k === 'v6' ? 'Другие адреса IPv6' : r.k === 'router' ? 'Сам роутер (VPN, DNS, обновления)' : (h.name || names[r.ip] || (id && id.known ? (id.label || 'Устройство') : '') || r.ip);
+				/* Для активной станции не используем имя, найденное только по IP:
+				 * оно может принадлежать старой аренде другого MAC. */
+				const ipName = r.mac && activeWifiMacs.has(String(r.mac).toUpperCase()) ? '' : names[r.ip];
+				const label = r.k === 'v6' ? 'Другие адреса IPv6' : r.k === 'router' ? 'Сам роутер (VPN, DNS, обновления)' : (h.name || ipName || (id && id.known ? (id.label || 'Устройство') : '') || r.ip);
 				const sub = r.k === 'v6' || r.k === 'router' ? '' : ((h.ipaddrs || [])[0] || r.ip);
 				return E('tr', { class: 'nfm-rowlink', tabindex: r.k === 'v6' || r.k === 'router' ? null : '0', title: r.k === 'v6' || r.k === 'router' ? null : 'Нажмите: карточка устройства',
 					click: () => { if (r.k !== 'v6' && r.k !== 'router') openDevCard(r); }, keydown: ev => { if (ev.key === 'Enter' && r.k !== 'v6' && r.k !== 'router') openDevCard(r); } }, [
