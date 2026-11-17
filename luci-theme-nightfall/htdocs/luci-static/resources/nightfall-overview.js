@@ -30,6 +30,7 @@ const callIwInfo = rpc.declare({ object: 'iwinfo', method: 'info', params: [ 'de
 const callAssoc = rpc.declare({ object: 'iwinfo', method: 'assoclist', params: [ 'device' ], expect: { results: [] } });
 const callUci = rpc.declare({ object: 'uci', method: 'get', params: [ 'config' ], expect: { values: {} } });
 const callReboot = rpc.declare({ object: 'system', method: 'reboot' });
+const callBoard = rpc.declare({ object: 'system', method: 'board' });
 
 /* shared live numbers (filled by the live strip, read by the health card) */
 const SHARED = { mode: null, t: null, cpu: null, mem: null, temp: null, online: null, ping: null, loss: null };
