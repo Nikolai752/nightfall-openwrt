@@ -6468,27 +6468,32 @@ body.nf-blank .modal.login > .spinning {
 	text-align: center;
 }
 
-/* Overview warning can be dismissed without hiding a changed/new warning. */
-.nf-verdict { position: relative; padding-right: 44px; }
+/* Overview warning acknowledgement: a real, accessible button with a robust click target. */
+.nf-verdict { position: relative; padding-right: 16px; }
 .nf-vd-dismiss {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	flex: none;
-	width: 28px;
-	height: 28px;
+	min-width: 92px;
+	min-height: 34px;
 	margin-left: auto;
-	padding: 0;
-	border: 1px solid color-mix(in srgb, var(--nf-vd) 30%, transparent);
-	border-radius: 9px;
-	background: color-mix(in srgb, var(--nf-vd) 9%, transparent);
-	color: var(--nf-text-dim);
+	padding: 6px 14px;
+	border: 1px solid color-mix(in srgb, var(--nf-vd) 42%, transparent);
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--nf-vd) 10%, transparent);
+	color: var(--nf-text);
 	font: inherit;
-	font-size: 20px;
-	line-height: 1;
+	font-size: calc(13px * var(--nf-fsz, 1));
+	font-weight: 600;
+	line-height: 1.2;
+	white-space: nowrap;
 	cursor: pointer;
+	pointer-events: auto;
+	position: relative;
+	z-index: 2;
 }
-.nf-vd-dismiss:hover { color: var(--nf-text); background: color-mix(in srgb, var(--nf-vd) 18%, transparent); }
+.nf-vd-dismiss:hover, .nf-vd-dismiss:focus-visible { color: var(--nf-text); background: color-mix(in srgb, var(--nf-vd) 20%, transparent); border-color: var(--nf-vd); }
 .nf-vd-dismiss[hidden] { display: none !important; }
 
 /* Wi-Fi clients: compact, even rows instead of oversized vertical gaps. */
