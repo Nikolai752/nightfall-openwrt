@@ -25,14 +25,16 @@ case "$BACKUP_KEEP" in ''|*[!0-9]*) BACKUP_KEEP=5 ;; esac
 backup_mount_dir() {
  p=${NF_PERSIST_DIR:-}
  [ -n "$p" ] || p=$(awk -F= '$1 == "PERSIST_DIR" { v=$2; sub(/^[[:space:]]*"/, "", v); sub(/"[[:space:]]*$/, "", v); sub(/[[:space:]#].*$/, "", v); print v; exit }' "$CONF" 2>/dev/null)
- [ "${NF_BACKUP_DEBUG:-0}" = 1 ] && echo "backup-debug: p=$p conf=$CONF mounts=$MOUNTS" >&2\n [ -n "$p" ] && [ "${p#/}" != "$p" ] || return 1
+ [ "${NF_BACKUP_DEBUG:-0}" = 1 ] && echo "backup-debug: p=$p conf=$CONF mounts=$MOUNTS" >&2
+ [ -n "$p" ] && [ "${p#/}" != "$p" ] || return 1
  [ -r "$MOUNTS" ] || return 1
  mi=$(awk -v p="$p" '
   BEGIN { while (length(p)>1 && substr(p,length(p),1)=="/") p=substr(p,1,length(p)-1) }
   { dev=$1; mp=$2; opts=$4; ok=(mp=="/" ? substr(p,1,1)=="/" : (p==mp || index(p,mp "/")==1)); if (ok && opts ~ /(^|,)rw(,|$)/ && length(mp)>best) { best=length(mp); bd=dev; bm=mp } }
   END { if (best) print bd "|" bm }
  ' "$MOUNTS" 2>/dev/null)
- [ "${NF_BACKUP_DEBUG:-0}" = 1 ] && echo "backup-debug: mi=$mi" >&2\n [ -n "$mi" ] || return 1
+ [ "${NF_BACKUP_DEBUG:-0}" = 1 ] && echo "backup-debug: mi=$mi" >&2
+ [ -n "$mi" ] || return 1
  dev=${mi%%|*}; mp=${mi#*|}
  case "$mp" in /|/overlay|/rom|/tmp|/root|/boot) return 1 ;; esac
  case "$dev" in /dev/sd[a-z]*|/dev/nvme*|/dev/mmcblk*|/dev/vd[a-z]*) ;; *) return 1 ;; esac
