@@ -1783,18 +1783,39 @@
 		backupExec([ 'create' ]).then(function (out) {
 			var m = out.match(/Резервная копия создана:\s*(\/[^\s]+\.tar\.gz)/);
 			if (!m) throw new Error(out || 'Роутер не сообщил путь к архиву.');
-			var path = m[1], name = path.split('/').pop(), parts = [], offset = 0, chunkSize = 24576;
-			backupNote('Архив создан. Скачиваю на устройство…');
-			function next() {
-				return backupExec([ 'download', name, String(offset), String(chunkSize) ]).then(function (b64) {
-					if (!b64) { saveBackupBlob(parts, name); backupNote('Резервная копия скачана: ' + name); return; }
-					var bytes = decodeBackupChunk(b64); if (!bytes.length) { saveBackupBlob(parts, name); backupNote('Резервная копия скачана: ' + name); return; }
-					parts.push(bytes); offset += bytes.length;
-					if (offset > 5 * 1024 * 1024) throw new Error('Архив превышает безопасный лимит скачивания 5 МБ.');
-					return next();
+			var name = m[1].split('/').pop(), parts = [], offset = 0, chunkSize = 24576;
+			return backupExec([ 'download-info', name ]).then(function (info) {
+				var sm = info.match(/(?:^|\s)size=(\d+)(?:\s|$)/), hm = info.match(/(?:^|\s)sha256=([a-f0-9]{64})(?:\s|$)/i);
+				if (!sm || !hm) throw new Error('Роутер не сообщил размер и контрольную сумму архива.');
+				var expectedSize = Number(sm[1]), expectedHash = hm[1].toLowerCase();
+				if (!isFinite(expectedSize) || expectedSize < 1 || expectedSize > 5 * 1024 * 1024) throw new Error('Недопустимый размер архива: ' + expectedSize + ' байт.');
+				backupNote('Архив создан (' + expectedSize + ' байт). Скачиваю на устройство…');
+				function next() {
+					if (offset >= expectedSize) return Promise.resolve();
+					return backupExec([ 'download', name, String(offset), String(chunkSize) ]).then(function (b64) {
+						if (!b64) throw new Error('Роутер вернул пустой блок на смещении ' + offset + ' из ' + expectedSize + ' байт.');
+						var bytes = decodeBackupChunk(b64), expectedChunk = Math.min(chunkSize, expectedSize - offset);
+						if (bytes.length !== expectedChunk) throw new Error('Получен неполный блок: ' + bytes.length + ' из ' + expectedChunk + ' байт.');
+						parts.push(bytes); offset += bytes.length;
+						backupNote('Скачано ' + Math.round(offset / expectedSize * 100) + '%…');
+						return next();
+					});
+				}
+				return next().then(function () {
+					var blob = new Blob(parts, { type: 'application/gzip' });
+					if (blob.size !== expectedSize) throw new Error('Размер скачанного файла не совпадает: ' + blob.size + ' из ' + expectedSize + ' байт.');
+					if (!parts.length || parts[0].length < 2 || parts[0][0] !== 31 || parts[0][1] !== 139) throw new Error('Полученный файл не имеет заголовка gzip.');
+					/* В браузерах с DecompressionStream дополнительно проверяем gzip CRC и длину потока. */
+					if (window.DecompressionStream && blob.stream && window.Response) {
+						return new window.Response(blob.stream().pipeThrough(new window.DecompressionStream('gzip'))).arrayBuffer().then(function () {
+							saveBackupBlob(parts, name);
+							backupNote('Резервная копия скачана и проверена: ' + name + ' (' + expectedSize + ' байт). SHA-256 роутера: ' + expectedHash);
+						}).catch(function () { throw new Error('Проверка gzip не пройдена: архив повреждён или скачан не полностью.'); });
+					}
+					saveBackupBlob(parts, name);
+					backupNote('Резервная копия скачана: ' + name + ' (' + expectedSize + ' байт). SHA-256 роутера: ' + expectedHash);
 				});
-			}
-			return next();
+			});
 		}).catch(function (e) { backupNote('Не удалось создать или скачать архив: ' + e.message, true); }).then(function () { backupBusyState(false); }, function (e) { backupNote('Ошибка: ' + e.message, true); backupBusyState(false); });
 	}
 	function readFileChunk(file, start, end) {
