@@ -6750,3 +6750,67 @@ html .nf-quick-b-four .nf-qnote {
 	html .nf-quick-b.nf-quick-b-four { grid-template-columns: minmax(0, 1fr) !important; }
 	html .nf-quick-b-four > .nf-qa { justify-content: flex-start !important; padding: 0 12px !important; }
 }
+
+
+/* v1.26.8: readable four-action grid and truly centered login progress. */
+html .nf-quick-b.nf-quick-b-four {
+	display: grid !important;
+	grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+	align-items: stretch !important;
+	gap: 9px !important;
+	width: 100%;
+	min-width: 0;
+}
+html .nf-quick-b-four > .nf-qa {
+	box-sizing: border-box !important;
+	width: 100% !important;
+	min-width: 0 !important;
+	max-width: 100% !important;
+	height: 40px !important;
+	min-height: 40px !important;
+	padding: 0 12px !important;
+	gap: 8px !important;
+	justify-content: center !important;
+	white-space: nowrap !important;
+	font-size: 12px !important;
+	line-height: 1.15 !important;
+	overflow: hidden !important;
+}
+html .nf-quick-b-four > .nf-qa .nf-qa-icon {
+	width: 16px !important;
+	height: 16px !important;
+	min-width: 16px !important;
+	flex: 0 0 16px !important;
+}
+html .nf-quick-b-four > .nf-qnote { grid-column: 1 / -1 !important; }
+@media (max-width: 420px) {
+	html .nf-quick-b.nf-quick-b-four { grid-template-columns: minmax(0, 1fr) !important; }
+	html .nf-quick-b-four > .nf-qa { justify-content: flex-start !important; }
+}
+
+/* The spinner is a pseudo-element: put it above the caption and center both together. */
+body.nf-blank #modal_overlay > .modal.login > .spinning,
+body.nf-blank .modal.login > .spinning {
+	display: flex !important;
+	flex-direction: column !important;
+	align-items: center !important;
+	justify-content: center !important;
+	gap: 14px !important;
+	width: 100% !important;
+	min-height: 104px !important;
+	box-sizing: border-box !important;
+	margin: 0 auto !important;
+	padding: 18px 0 8px !important;
+	text-align: center !important;
+}
+body.nf-blank #modal_overlay > .modal.login > .spinning::before,
+body.nf-blank .modal.login > .spinning::before {
+	position: relative !important;
+	top: auto !important;
+	left: auto !important;
+	transform: none !important;
+	margin: 0 auto !important;
+	flex: 0 0 44px !important;
+	width: 44px !important;
+	height: 44px !important;
+}
