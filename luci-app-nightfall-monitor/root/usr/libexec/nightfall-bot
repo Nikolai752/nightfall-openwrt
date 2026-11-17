@@ -426,10 +426,16 @@ cb_backup_check() { # cb_backup_check ID: validate the local archive and request
 	case "$archive" in */nightfall-backup-*.tar.gz) ;; *) reply "⚠️ Недопустимый путь к архиву."; return ;; esac
 	[ -f "$archive" ] && [ ! -L "$archive" ] || { reply "⚠️ Файл резервной копии не найден. Возможно, накопитель отключён или архив удалён."; return; }
 	preview=$("$BACKUP_TOOL" list "$archive" 2>&1); rc=$?
-	[ "$rc" = 0 ] || { reply "❌ Проверка архива не пройдена. Восстановление запрещено.\n\n$preview" "$KB_BACK"; return; }
+	[ "$rc" = 0 ] || { reply "❌ Проверка архива не пройдена. Восстановление запрещено.
+
+$preview" "$KB_BACK"; return; }
 	printf '%s\n' "$(date +%s)" > "$DIR/restore.ask.$id" || { reply "Не удалось сохранить подтверждение восстановления."; return; }
 	kb=$(printf '%s' "$KB_RESTORE_CONFIRM" | sed "s/ID/$id/g")
-	reply "🔍 Архив прошёл проверку.\n\n$preview\n\nЕсли готовы заменить текущие настройки Nightfall, подтвердите восстановление. Подтверждение действует 5 минут." "$kb"
+	reply "🔍 Архив прошёл проверку.
+
+$preview
+
+Если готовы заменить текущие настройки Nightfall, подтвердите восстановление. Подтверждение действует 5 минут." "$kb"
 }
 
 cb_backup_apply() { # cb_backup_apply ID: one-time, time-limited confirmation
@@ -448,10 +454,14 @@ cb_backup_apply() { # cb_backup_apply ID: one-time, time-limited confirmation
 	result=$("$BACKUP_TOOL" restore "$archive" apply 2>&1); rc=$?
 	if [ "$rc" = 0 ]; then
 		rm -f "$state"
-		reply "✅ Настройки Nightfall восстановлены.\n\nСетевые настройки OpenWrt не менялись. TG_TOKEN и TG_PROXY сохранены из текущей конфигурации. Перезапускаю сборщик и Telegram-бота…" "$KB_MAIN"
+		reply "✅ Настройки Nightfall восстановлены.
+
+Сетевые настройки OpenWrt не менялись. TG_TOKEN и TG_PROXY сохранены из текущей конфигурации. Перезапускаю сборщик и Telegram-бота…" "$KB_MAIN"
 		( sleep 2; "$INITD/nightfall-collector" restart ) >/dev/null 2>&1 &
 	else
-		reply "❌ Восстановление не выполнено. Текущие настройки не должны быть заменены; проверьте сообщение об ошибке:\n\n$result" "$KB_BACK"
+		reply "❌ Восстановление не выполнено. Текущие настройки не должны быть заменены; проверьте сообщение об ошибке:
+
+$result" "$KB_BACK"
 	fi
 }
 
