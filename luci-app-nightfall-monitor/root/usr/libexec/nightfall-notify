@@ -28,7 +28,7 @@ api() {
 
 explain() {  # разбор ответа Telegram: печатает текст ошибки
 	d=$(printf '%s' "$1" | sed -n 's/.*"description":"\([^"]*\)".*/\1/p' | head -n 1)
-	[ -n "$d" ] || d=$(printf '%s' "$1" | head -c 160 | tr -d '"\\\n')
+	[ -n "$d" ] || d=$(printf '%s' "$1" | head -c 160 | tr -d '"\\n')
 	[ -n "$d" ] || d="нет ответа от api.telegram.org (проверьте доступ или укажите прокси)"
 	printf '%s' "$d"
 }
@@ -101,11 +101,11 @@ backup)    # создать проверенный локальный архив
 	BACKUP_TOOL=${NF_BACKUP_TOOL:-/usr/libexec/nightfall-backup}
 	command -v "$BACKUP_TOOL" >/dev/null 2>&1 || fail "не найден nightfall-backup"
 	BR=$("$BACKUP_TOOL" create 2>&1) || fail "$(printf '%s' "$BR" | tail -n 2 | tr -d '"\\')"
-	ARCHIVE=$(printf '%s\\n' "$BR" | sed -n 's/^Резервная копия создана: //p' | tail -n 1)
+	ARCHIVE=$(printf '%s\n' "$BR" | sed -n 's/^Резервная копия создана: //p' | tail -n 1)
 	[ -n "$ARCHIVE" ] && [ -f "$ARCHIVE" ] && [ ! -L "$ARCHIVE" ] || fail "резервная копия создана, но архив не найден"
 	n=${ARCHIVE##*/}
 	RESP=$(api sendDocument -F "chat_id=$CHAT" -F "document=@$ARCHIVE;filename=$n" -F "caption=Проверенная резервная копия Nightfall. Секреты Telegram исключены. Локальный архив сохранён в хранилище резервных копий.")
-	case "$RESP" in *'"ok":true'*) printf '{"ok":true}\\n' ;; *) fail "$(explain "$RESP")" ;; esac ;;
+	case "$RESP" in *'"ok":true'*) printf '{"ok":true}\n' ;; *) fail "$(explain "$RESP")" ;; esac ;;
 *)
 	echo "usage: nightfall-notify send TEXT [KB] | test | chatid | backup" >&2
 	exit 1 ;;
