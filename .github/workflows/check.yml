@@ -46,3 +46,26 @@ jobs:
         with:
           name: smoke-screenshots
           path: tools/out/
+
+      - name: Build v1.27.7 test archive
+        if: github.event_name == 'pull_request' && github.head_ref == 'work/v1.27.7-storage-hardening'
+        env:
+          VERSION: v1.27.7-alpha.1-test
+        run: sh ./build-release.sh
+      - name: Verify installable test archive
+        if: github.event_name == 'pull_request' && github.head_ref == 'work/v1.27.7-storage-hardening'
+        run: |
+          test -s dist/nightfall-root.tar.gz
+          test -s dist/nightfall-root.tar.gz.sha256
+          (cd dist && sha256sum -c nightfall-root.tar.gz.sha256)
+          tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | grep -q '1.27.7-alpha.1-test'
+      - name: Upload installable test archive
+        if: success() && github.event_name == 'pull_request' && github.head_ref == 'work/v1.27.7-storage-hardening'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightfall-test-v1.27.7-alpha.1-test
+          path: |
+            dist/nightfall-root.tar.gz
+            dist/nightfall-root.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
