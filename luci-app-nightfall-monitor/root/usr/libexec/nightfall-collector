@@ -339,7 +339,7 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 	head -n 40000 "$CT" 2>/dev/null | awk -v netf="$DIR/client.nets" -v routerf="$DIR/router.ips" -v statef="$DIR/ct.state" -v newf="$DIR/ct.state.new" -v dayf="$DIR/dev.day" \
 		-v ratef="$DIR/dev.rate.new" -v tmpf="$DIR/dev.day.tmp" -v svcf="$DIR/svc.raw" -v dstf="$DIR/dst.raw" -v dt="$dtm" -v first="$first" -v ts="$now" \
 		-v apps="$APPS" -v mapf="$DIR/dns.map" -v appf="$DIR/apps.day" -v appn="$DIR/apps.day.tmp" -v rules="$RULES" -v urules="$RULES_USER" '
-	function isprivate(ip) { return ip ~ /^(10\\.|192\\.168\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.|127\\.|169\\.254\\.)/ || ip ~ /^(f[cdef]|FE|FC|FD|fe80:)/ || ip == "::1" || ip ~ /^0000:0000:0000:0000:0000:0000:0000:0001$/ }
+	function isprivate(ip) { return ip ~ /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|127\.|169\.254\.)/ || ip ~ /^(f[cdef]|FE|FC|FD|fe80:)/ || ip == "::1" || ip ~ /^0000:0000:0000:0000:0000:0000:0000:0001$/ }
 	function ipnum(ip, a) { split(ip, a, "."); return (((a[1] * 256 + a[2]) * 256 + a[3]) * 256 + a[4]) }
 	function isrouter(ip) { return ip in router }
 	function islan(ip,   i, p, bits, size, base, addr) {
