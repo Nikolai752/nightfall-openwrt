@@ -605,6 +605,22 @@ persist() {
 	return 0
 }
 
+# Проверяем доступность USB на каждом пятиминутном цикле. Если накопитель
+# вернулся после отключения, сохраняем RAM-историю сразу, не ожидая PERSIST_HOURS.
+# При штатной работе периодичность записи остаётся прежней.
+persist_check() {
+	local mi
+	[ -n "$PERSIST_DIR" ] || return 0
+	mi=$(persist_mount_info "$PERSIST_DIR")
+	if [ -z "$mi" ] || on_flash "$PERSIST_DIR"; then
+		persist_warn "Постоянная история недоступна: $PERSIST_DIR не находится на подключённом внешнем накопителе. Сбор данных продолжается в RAM" 0
+		return 1
+	fi
+	if [ "${persist_ok:-0}" != 1 ] || [ $((tick % (AGG * 12 * PERSIST_HOURS))) = 0 ]; then
+		persist
+	fi
+}
+
 restore() {
 	local mi mp rel f rc
 	[ "${persist_need_restore:-0}" = 1 ] || return 0
@@ -923,8 +939,8 @@ while :; do
 				set -- $f
 				if [ "$(wc -l < "$DIR/$1")" -gt "$2" ]; then tail -n "$2" "$DIR/$1" > "$DIR/$1.tmp" && mv "$DIR/$1.tmp" "$DIR/$1"; fi
 			done
+			persist_check
 			write_info
-			[ $((tick % (AGG * 12 * PERSIST_HOURS))) = 0 ] && persist
 		fi
 	fi
 	[ "$tick" = 1 ] && { write_info; event info "Сборщик истории запущен"; }
