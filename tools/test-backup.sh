@@ -117,10 +117,10 @@ grep -q '"logo":"keep"' "$ROOT2/etc/nightfall-logo.json"
 
 echo "== automatic USB destination and retention =="
 mkdir -p "$TMP/usb/nightfall"
-printf '\nPERSIST_DIR=%s\n' "$TMP/usb/nightfall" >> "$ROOT/etc/nightfall-monitor.conf"
+printf '\nPERSIST_DIR=%s\nBACKUP_KEEP=2\n' "$TMP/usb/nightfall" >> "$ROOT/etc/nightfall-monitor.conf"
 printf '/dev/root / ext4 rw 0 0\n/dev/sda1 %s exfat rw 0 0\n' "$TMP/usb" > "$TMP/mounts"
 AUTO_OUT="$TMP/usb/nightfall-backups"
-if ! NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR= NF_MOUNTS="$TMP/mounts" NF_BACKUP_KEEP=2 "$TOOL" create > "$TMP/auto1" 2>&1; then cat "$TMP/auto1"; exit 1; fi
+if ! NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR= NF_MOUNTS="$TMP/mounts" "$TOOL" create > "$TMP/auto1" 2>&1; then cat "$TMP/auto1"; exit 1; fi
 cat "$TMP/auto1"
 grep -q 'Хранилище: USB/SD' "$TMP/auto1"
 NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR= NF_MOUNTS="$TMP/mounts" NF_BACKUP_KEEP=2 "$TOOL" create > "$TMP/auto2"
