@@ -26,9 +26,8 @@ backup_mount_dir() {
  [ -n "$p" ] && [ "${p#/}" != "$p" ] || return 1
  [ -r "$MOUNTS" ] || return 1
  mi=$(awk -v p="$p" '
-  function unesc(s) { gsub(/\\\\040/, " ", s); gsub(/\\\\011/, "\\t", s); gsub(/\\\\134/, "\\\\", s); return s }
   BEGIN { while (length(p)>1 && substr(p,length(p),1)=="/") p=substr(p,1,length(p)-1) }
-  { dev=$1; mp=unesc($2); ok=(mp=="/" ? substr(p,1,1)=="/" : (p==mp || index(p,mp "/")==1)); if (ok && length(mp)>best) { best=length(mp); bd=dev; bm=mp } }
+  { dev=$1; mp=$2; ok=(mp=="/" ? substr(p,1,1)=="/" : (p==mp || index(p,mp "/")==1)); if (ok && length(mp)>best) { best=length(mp); bd=dev; bm=mp } }
   END { if (best) print bd "|" bm }
  ' "$MOUNTS" 2>/dev/null)
  [ -n "$mi" ] || return 1
