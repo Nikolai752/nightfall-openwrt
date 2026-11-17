@@ -10,6 +10,7 @@ DIR=${NF_DIR:-/tmp/nightfall}
 PROC=${NF_PROC:-/proc}
 LEASES=${NF_LEASES:-/tmp/dhcp.leases}
 NOTIFY=${NF_NOTIFY:-/usr/libexec/nightfall-notify}
+BACKUP=${NF_BACKUPBIN:-/usr/libexec/nightfall-backup}
 BLOCK=${NF_BLOCKBIN:-/usr/libexec/nightfall-block}
 WOL=${NF_WOLBIN:-/usr/libexec/nightfall-wol}
 SPEEDBIN=${NF_SPEEDBIN:-/usr/libexec/nightfall-speed}
@@ -410,9 +411,26 @@ ${out:-Записей пока нет.}" '{"inline_keyboard":[[{"text":"« Бл�
 }
 
 cmd_backup() {
-	reply "💾 Готовлю резервную копию настроек…" ""
+	reply "💾 Создаю резервную копию и отправляю её в Telegram…" ""
 	r=$("$NOTIFY" backup 2>/dev/null)
-	case "$r" in *'"ok":true'*) reply "💾 Резервная копия отправлена отдельным сообщением с файлом. Токен бота в неё не входит." ;; *) reply "Не получилось отправить копию: $(printf '%s' "$r" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p')" ;; esac
+	case "$r" in *'"ok":true'*) reply "💾 Резервная копия отправлена. Под файлом есть кнопка для проверки и восстановления." ;; *) reply "Не получилось отправить копию: $(printf '%s' "$r" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p')" ;; esac
+}
+valid_backup_name() {
+	case "$1" in nightfall-backup-*.tar.gz) case "$1" in *[!A-Za-z0-9_.-]*) return 1 ;; esac ;; *) return 1 ;; esac
+	[ "${#1}" -le 64 ]
+}
+cmd_restore_preview() {
+	name=$1
+	valid_backup_name "$name" || { reply "⛔ Недопустимое имя резервной копии."; return; }
+	r=$("$BACKUP" restore-name "$name" 2>&1) || { reply "⛔ Не удалось проверить архив:\n$r" "$KB_BACK"; return; }
+	reply "🔍 Архив прошёл проверку.\n\n$r\n\nЕсли готовы заменить текущие настройки Nightfall, подтвердите восстановление." '{"inline_keyboard":[[{"text":"✅ Восстановить настройки","callback_data":"br:a:'"$name"'"}],[{"text":"Отмена","callback_data":"menu"}]]}'
+}
+cmd_restore_apply() {
+	name=$1
+	valid_backup_name "$name" || { reply "⛔ Недопустимое имя резервной копии."; return; }
+	r=$("$BACKUP" restore-name "$name" apply 2>&1) || { reply "⛔ Восстановление не выполнено:\n$r" "$KB_BACK"; return; }
+	reply "✅ Настройки Nightfall восстановлены. Секреты Telegram сохранены из текущей конфигурации. Перезапускаю сборщик…" "$KB_MAIN"
+	( sleep 2; "$INITD/nightfall-collector" restart ) >/dev/null 2>&1 &
 }
 
 cmd_reboot() { date +%s > "$DIR/reboot.ask"; reply "🔄 Перезагрузить $HOST? Интернет пропадёт примерно на 1–2 минуты. Подтвердите в течение минуты." "$KB_REBOOT"; }
@@ -538,7 +556,7 @@ upd_done() {
 
 run() {  # run КОМАНДА (из текста «/status» или из кнопки «status»)
 	case "$1" in
-	block|wk|wake|wk:*|gr|gt:*|bk|backup|bk:*|ok:*|ub:*|tb:*|rb|reboot|rb:yes|sp:run|up:go|up:skip|gs|guest|gs:*|svc|restart|rs:*|cl|clear)
+	block|wk|wake|wk:*|gr|gt:*|bk|backup|bk:*|br:p:*|br:a:*|ok:*|ub:*|tb:*|rb|reboot|rb:yes|sp:run|up:go|up:skip|gs|guest|gs:*|svc|restart|rs:*|cl|clear)
 		[ "$ADM" = 1 ] || { reply "🔒 Управление доступно только администраторам. Ваш id: ${FROM:-неизвестен}. Владелец может добавить его в настройку TG_USERS (Монитор → История → Настройки)." ""; return; } ;;
 	esac
 	case "$1" in
@@ -567,6 +585,8 @@ run() {  # run КОМАНДА (из текста «/status» или из кно�
 		gt:*) cb_gtoggle "${1#gt:}" ;;
 		bk) cmd_backup ;;
 		backup) cmd_backup ;;
+		br:p:*) cmd_restore_preview "${1#br:p:}" ;;
+		br:a:*) cmd_restore_apply "${1#br:a:}" ;;
 		ok:*|bk:*|ub:*) cb_newdev "${1%%:*}" "${1#*:}" ;;
 		rb|reboot) cmd_reboot ;;
 		rb:yes) do_reboot ;;
