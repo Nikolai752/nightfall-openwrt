@@ -6814,3 +6814,25 @@ body.nf-blank .modal.login > .spinning::before {
 	width: 44px !important;
 	height: 44px !important;
 }
+
+
+/* v1.26.9: keep the quick-action heading and controls visually separated. */
+#view .nf-quick > .cbi-title {
+	margin: 0 0 10px !important;
+	padding-bottom: 2px;
+}
+#view .nf-quick > .nf-quick-b.nf-quick-b-four {
+	box-sizing: border-box;
+	margin: 0 !important;
+	padding: 2px 4px 5px !important;
+	column-gap: 12px !important;
+	row-gap: 11px !important;
+}
+#view .nf-quick-b-four > .nf-qa {
+	min-width: 0 !important;
+	margin: 0 !important;
+}
+#view .nf-quick-b-four > .nf-qnote {
+	padding: 5px 4px 0 !important;
+	margin: 0 !important;
+}
