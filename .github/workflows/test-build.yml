@@ -1,0 +1,44 @@
+name: Test build archive
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Версия тестового архива"
+        required: true
+        type: string
+        default: "v1.27.7-alpha.1-test"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build test archive
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@v4
+
+      - name: Build archive
+        env:
+          VERSION: ${{ inputs.version }}
+        run: sh ./build-release.sh
+
+      - name: Verify archive and checksum
+        run: |
+          test -s dist/nightfall-root.tar.gz
+          test -s dist/nightfall-root.tar.gz.sha256
+          (cd dist && sha256sum -c nightfall-root.tar.gz.sha256)
+          tar -tzf dist/nightfall-root.tar.gz | grep -q 'www/luci-static/nightfall/version.json'
+          tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json
+
+      - name: Upload installable archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightfall-test-${{ inputs.version }}
+          path: |
+            dist/nightfall-root.tar.gz
+            dist/nightfall-root.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
