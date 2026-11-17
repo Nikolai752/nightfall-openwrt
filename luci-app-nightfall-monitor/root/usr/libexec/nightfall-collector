@@ -576,6 +576,10 @@ persist() {
 			cd "$rel" 2>/dev/null || exit 3
 		fi
 		on_flash "$PWD" && exit 2
+		# Проверяем реальную возможность записи, но только после входа в подтверждённый mount.
+		probe=".nightfall-write-test.$"
+		(umask 077; : > "$probe") 2>/dev/null || exit 3
+		rm -f "$probe" 2>/dev/null || exit 3
 		for f in $PFILES; do
 			[ -f "$DIR/$f" ] || continue
 			cmp -s "$DIR/$f" "$f" 2>/dev/null && continue
