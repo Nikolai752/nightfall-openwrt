@@ -88,7 +88,7 @@ return baseclass.extend({
 			/* Развёрнутое меню на компьютере как в Proton: раздел открывается при наведении, клик закрепляет его,
 			   повторный клик закрывает. В свёрнутом виде (значки) всплывающее меню рисует CSS, здесь ничего не делаем. */
 			if (!level && hasSub) {
-				const hoverMode = () => document.documentElement.getAttribute('data-nf-nav') !== 'mini' &&
+				const hoverMode = () => document.documentElement.getAttribute('data-nf-nav-open') === 'hover' && document.documentElement.getAttribute('data-nf-nav') !== 'mini' &&
 					window.matchMedia('(hover: hover) and (min-width: 900px)').matches;
 				let tin = 0, tout = 0;
 
