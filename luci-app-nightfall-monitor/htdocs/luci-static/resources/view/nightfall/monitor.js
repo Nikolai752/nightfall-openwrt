@@ -705,11 +705,22 @@ return view.extend({
 	render(data) {
 		const board = data[0] || {}, ifdump = (data[1] || {}).interface || [], hints = data[2] || {};
 
-		/* ip -> host name */
-		const names = {};
-		for (const mac in hints)
-			for (const ip of (hints[mac].ipaddrs || []))
-				names[ip] = hints[mac].name || ip;
+		/* IP -> имя только при однозначном соответствии одному MAC.
+		 * getHostHints() может временно содержать старую DHCP-аренду и новую запись
+		 * после смены/рандомизации MAC. Порядок ключей объекта не является приоритетом. */
+		const names = {}, hintIps = {};
+		for (const mac in hints) {
+			const h = hints[mac] || {};
+			for (const ip of (h.ipaddrs || [])) {
+				if (!hintIps[ip]) hintIps[ip] = [];
+				hintIps[ip].push({ mac: String(mac).toUpperCase(), name: String(h.name || '').trim() });
+			}
+		}
+		for (const ip in hintIps) {
+			const candidates = hintIps[ip];
+			if (candidates.length === 1 && candidates[0].name)
+				names[ip] = candidates[0].name;
+		}
 		/* собственные адреса роутера (LAN и WAN) подписываем «Роутер» */
 		/* адреса самого роутера: текущие, прежние внешние (провайдер их меняет) и вся внешняя подсеть. Их трафик повторяет трафик устройств (VPN, прокси)
 		   или служебный, поэтому в «устройства» не входит */
@@ -2153,7 +2164,17 @@ return view.extend({
 			const list = (title, rows) => E('div', {}, [ E('div', { class: 'nfm-k', style: 'margin:0 0 4px' }, title) ].concat(rows.length ? rows.map(x => E('div', { class: 'nfm-host' }, [ E('span', {}, x[0]), E('b', {}, x[1]) ])) : [ E('div', { class: 'nfm-empty' }, 'Пока пусто') ]));
 			const progs = S.full ? groupedProcs().sort((a, b) => b.rss - a.rss).slice(0, 3).map(e => [ e.label, fmtMB(e.rss) ]) : [];
 			const dv = S.devs && S.devs.day ? S.devs.day.map(x => ({ ip: x[0], t: (+x[1]) + (+x[2]) })).filter(x => x.t > 0 && !routerIps.has(x.ip)).sort((a, b) => b.t - a.t).slice(0, 3) : [];
-			const nm = ip => { const m = Object.keys(hints).find(k => (hints[k].ipaddrs || []).includes(ip)); return (m && devName(m)) || names[ip] || ip; };
+			const nm = ip => {
+				const active = new Set((S.wifi || []).map(c => String(c.mac || '').toUpperCase()).filter(Boolean));
+				const neighbour = ((S.devs && S.devs.neigh) || []).find(x => String(x[0]).toLowerCase() === String(ip).toLowerCase());
+				const mac = neighbour && String(neighbour[1] || '').toUpperCase();
+				/* Активная Wi-Fi-станция важнее устаревшей DHCP-записи с тем же IP. */
+				if (mac && active.has(mac)) {
+					const h = hints[mac] || hints[mac.toLowerCase()] || {};
+					return h.name || ip;
+				}
+				return names[ip] || ip;
+			};
 			top3Box.replaceChildren(list('Программы по памяти', progs), E('div', { style: 'height:12px' }), list('Устройства по трафику сегодня', dv.map(x => [ nm(x.ip), fmtBytes(x.t) ])));
 		}
 
@@ -2179,14 +2200,23 @@ return view.extend({
 				const mid = halves.length > 1 ? new Array(Math.max(0, 8 - a.length - b.length)).fill('0') : [];
 				return a.concat(mid, b).map(g => g.padStart(4, '0')).join(':');
 			};
-			const ipMac = {};
+			const ipMac = {}, ipMacCandidates = {};
 			for (const mac in hints)
-				for (const ip of (hints[mac].ipaddrs || []).concat(hints[mac].ip6addrs || []))
-					ipMac[norm(ip)] = mac;
-			/* таблица соседей роутера (ip neigh): узнаём устройства без имени в DHCP и с временными адресами IPv6 */
+				for (const ip of (hints[mac].ipaddrs || []).concat(hints[mac].ip6addrs || [])) {
+					const k = norm(ip);
+					if (!ipMacCandidates[k]) ipMacCandidates[k] = [];
+					ipMacCandidates[k].push(String(mac).toUpperCase());
+				}
+			/* DHCP-кандидат используем только при однозначном IP -> MAC соответствии. */
+			for (const ip in ipMacCandidates)
+				if (ipMacCandidates[ip].length === 1) ipMac[ip] = ipMacCandidates[ip][0];
+			/* Активная Wi-Fi-станция имеет приоритет над устаревшей DHCP-арендой:
+			 * это важно при приватном/рандомизированном MAC. Не подменяем MAC клиента
+			 * MAC-адресом ретранслятора, если он не является активной Wi-Fi-станцией. */
+			const activeNeighbourMacs = new Set((S.wifi || []).map(c => String(c.mac || '').toUpperCase()).filter(Boolean));
 			for (const [ ip, mac ] of dv.neigh || []) {
 				const u = String(mac).toUpperCase();
-				if (!ipMac[norm(ip)]) ipMac[norm(ip)] = u;
+				if (activeNeighbourMacs.has(u) || !ipMac[norm(ip)]) ipMac[norm(ip)] = u;
 			}
 			routerIps.learn(dv.info);
 
@@ -2208,10 +2238,14 @@ return view.extend({
 			for (const r of Object.values(rows)) { td += r.dd; tu += r.du; }
 			T.devTotal.textContent = list.length ? `всего ↓ ${fmtBytes(td)} · ↑ ${fmtBytes(tu)}` + (all.length > list.length ? ` · показаны ${list.length} самых активных из ${all.length}` : '') : '';
 
+			const activeWifiMacs = new Set((S.wifi || []).map(c => String(c.mac || '').toUpperCase()).filter(Boolean));
 			devBody.replaceChildren(...(list.length ? list.map(r => {
-				const h = r.mac ? hints[r.mac] || {} : {};
+				const h = r.mac ? hints[r.mac] || hints[String(r.mac).toLowerCase()] || {} : {};
 				const id = r.mac && r.k !== 'router' && r.k !== 'v6' ? devId(r.mac, h.name) : null;
-				const label = r.k === 'v6' ? 'Другие адреса IPv6' : r.k === 'router' ? 'Сам роутер (VPN, DNS, обновления)' : (h.name || names[r.ip] || (id && id.known ? (id.label || 'Устройство') : '') || r.ip);
+				/* Для активной станции не используем имя, найденное только по IP:
+				 * оно может принадлежать старой аренде другого MAC. */
+				const ipName = r.mac && activeWifiMacs.has(String(r.mac).toUpperCase()) ? '' : names[r.ip];
+				const label = r.k === 'v6' ? 'Другие адреса IPv6' : r.k === 'router' ? 'Сам роутер (VPN, DNS, обновления)' : (h.name || ipName || (id && id.known ? (id.label || 'Устройство') : '') || r.ip);
 				const sub = r.k === 'v6' || r.k === 'router' ? '' : ((h.ipaddrs || [])[0] || r.ip);
 				return E('tr', { class: 'nfm-rowlink', tabindex: r.k === 'v6' || r.k === 'router' ? null : '0', title: r.k === 'v6' || r.k === 'router' ? null : 'Нажмите: карточка устройства',
 					click: () => { if (r.k !== 'v6' && r.k !== 'router') openDevCard(r); }, keydown: ev => { if (ev.key === 'Enter' && r.k !== 'v6' && r.k !== 'router') openDevCard(r); } }, [
