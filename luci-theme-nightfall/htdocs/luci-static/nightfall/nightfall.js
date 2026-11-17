@@ -2091,7 +2091,7 @@
 				lsSet(ACKKEY, cur); lsSet(SEENKEY, cur);
 				return;
 			}
-			openCard('Что нового', 'Панель обновлена', legacy ? '' : ack, cur, [ renderChanges(list) ], [
+			openCard('Что нового', 'Панель обновлена', legacy ? list[list.length - 1].v : ack, cur, [ renderChanges(list) ], [
 				h('button', { type: 'button', 'class': 'nf-upd-go', text: 'Понятно', onclick: function () {
 					lsSet(ACKKEY, cur); lsSet(SEENKEY, cur); closeUpd();
 				} })
