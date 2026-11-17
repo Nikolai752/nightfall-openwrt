@@ -75,6 +75,64 @@ grep -q 'changed' "$ROOT/etc/nightfall-prefs.json"
 "$TOOL" restore "$ARCHIVE" apply > "$TMP/restore"
 grep -q 'night' "$ROOT/etc/nightfall-prefs.json"
 grep -q '^TG_TOKEN=current-secret-token
+
+# Ошибка на середине применения должна вернуть уже заменённые файлы.
+ROOT2="$TMP/rollback-root"
+mkdir -p "$ROOT2/etc"
+printf 'TG=1\nTG_TOKEN=rollback-token\n' > "$ROOT2/etc/nightfall-monitor.conf"
+echo '{"theme":"keep"}' > "$ROOT2/etc/nightfall-prefs.json"
+echo '{"logo":"keep"}' > "$ROOT2/etc/nightfall-logo.json"
+mkdir -p "$TMP/failbin"
+cat > "$TMP/failbin/mv" <<'EOF'
+#!/bin/sh
+if [ "$2" = "$FAIL_TARGET" ] && [ ! -f "$FAIL_MARKER" ]; then
+  : > "$FAIL_MARKER"
+  exit 1
+fi
+exec /bin/mv "$@"
+EOF
+chmod +x "$TMP/failbin/mv"
+if PATH="$TMP/failbin:$PATH" FAIL_TARGET="$ROOT2/etc/nightfall-prefs.json" FAIL_MARKER="$TMP/mv-failed" NF_ROOT="$ROOT2" NF_TMP="$TMP" NF_BACKUP_DIR="$TMP/backups" "$TOOL" restore "$ARCHIVE" apply > "$TMP/rollback.out" 2>&1; then
+  echo "restore unexpectedly succeeded despite injected mv failure" >&2
+  exit 1
+fi
+grep -q 'исходные настройки возвращены' "$TMP/rollback.out"
+grep -q '^TG_TOKEN=rollback-token
+grep -q '"theme":"keep"' "$ROOT2/etc/nightfall-prefs.json"
+grep -q '"logo":"keep"' "$ROOT2/etc/nightfall-logo.json"
+echo 'Nightfall backup/restore tests passed'
+ "$ROOT/etc/nightfall-monitor.conf"
+
+# Ошибка на середине применения должна вернуть уже заменённые файлы.
+ROOT2="$TMP/rollback-root"
+mkdir -p "$ROOT2/etc"
+printf 'TG=1\nTG_TOKEN=rollback-token\n' > "$ROOT2/etc/nightfall-monitor.conf"
+echo '{"theme":"keep"}' > "$ROOT2/etc/nightfall-prefs.json"
+echo '{"logo":"keep"}' > "$ROOT2/etc/nightfall-logo.json"
+mkdir -p "$TMP/failbin"
+cat > "$TMP/failbin/mv" <<'EOF'
+#!/bin/sh
+if [ "$2" = "$FAIL_TARGET" ] && [ ! -f "$FAIL_MARKER" ]; then
+  : > "$FAIL_MARKER"
+  exit 1
+fi
+exec /bin/mv "$@"
+EOF
+chmod +x "$TMP/failbin/mv"
+if PATH="$TMP/failbin:$PATH" FAIL_TARGET="$ROOT2/etc/nightfall-prefs.json" FAIL_MARKER="$TMP/mv-failed" NF_ROOT="$ROOT2" NF_TMP="$TMP" NF_BACKUP_DIR="$TMP/backups" "$TOOL" restore "$ARCHIVE" apply > "$TMP/rollback.out" 2>&1; then
+  echo "restore unexpectedly succeeded despite injected mv failure" >&2
+  exit 1
+fi
+grep -q 'исходные настройки возвращены' "$TMP/rollback.out"
+grep -q '^TG_TOKEN=rollback-token
+ "$ROOT2/etc/nightfall-monitor.conf"
+grep -q '"theme":"keep"' "$ROOT2/etc/nightfall-prefs.json"
+grep -q '"logo":"keep"' "$ROOT2/etc/nightfall-logo.json"
+echo 'Nightfall backup/restore tests passed'
+ "$ROOT2/etc/nightfall-monitor.conf"
+grep -q '"theme":"keep"' "$ROOT2/etc/nightfall-prefs.json"
+grep -q '"logo":"keep"' "$ROOT2/etc/nightfall-logo.json"
+echo 'Nightfall backup/restore tests passed'
  "$ROOT/etc/nightfall-monitor.conf"
 
 # Ошибка на середине применения должна вернуть уже заменённые файлы.
