@@ -499,19 +499,39 @@ write_info() {
 	} > "$DIR/info.tmp" && mv "$DIR/info.tmp" "$DIR/info"
 }
 
-on_flash() {    # 0, если каталог находится на встроенной флеш-памяти роутера (её нельзя изнашивать)
-	d=$1; mkdir -p "$d" 2>/dev/null || return 1
-	fd=$(df -P "$d" 2>/dev/null | awk 'NR == 2 { print $1 }')
-	[ "$PERSIST_ANY" = 1 ] && return 1                  # владелец сам разрешил (например, eMMC или SSD с общим разделом)
-	# SD-карта, USB-диск, SSD и NVMe (Raspberry Pi, x86): это не сырая флеш-память роутера, запись раз в несколько часов им не вредит
+# Возвращает устройство и самую длинную точку монтирования, содержащую путь.
+# NF_MOUNTS позволяет тестировать поведение без изменения настоящей таблицы монтирования.
+persist_mount_info() {
+	local p
+	p=$1
+	[ -n "$p" ] || return 1
+	awk -v p="$p" '
+		function unescape(s) {
+			gsub(/\\040/, " ", s); gsub(/\\011/, "\t", s)
+			gsub(/\\012/, "\n", s); gsub(/\\134/, "\\", s)
+			return s
+		}
+		BEGIN { while (length(p) > 1 && substr(p, length(p), 1) == "/") p = substr(p, 1, length(p) - 1) }
+		{
+			dev = $1; mp = unescape($2)
+			match_path = (mp == "/" ? substr(p, 1, 1) == "/" : (p == mp || index(p, mp "/") == 1))
+			if (match_path && length(mp) > best) { best = length(mp); bestdev = dev; bestmp = mp }
+		}
+		END { if (best) print bestdev "|" bestmp }
+	' "${NF_MOUNTS:-/proc/mounts}" 2>/dev/null
+}
+
+on_flash() {    # 0 = встроенное/неподтверждённое хранилище (запись запрещена), 1 = внешний mount
+	local mi fd mp
+	mi=$(persist_mount_info "$1")
+	[ -n "$mi" ] || return 0
+	fd=${mi%%|*}; mp=${mi#*|}
+	# PERSIST_ANY разрешает нестандартные устройства, но никогда не разрешает писать в корневую overlay/ROM.
+	case "$mp" in /|/overlay|/rom) return 0 ;; esac
+	[ "$PERSIST_ANY" = 1 ] && return 1
+	# Только явно распознанные внешние блочные устройства. Неизвестные источники запрещаем по умолчанию.
 	case "$fd" in /dev/mmcblk*|/dev/sd[a-z]*|/dev/nvme*|/dev/vd[a-z]*|/dev/loop*) return 1 ;; esac
-	for r in /overlay / /rom; do
-		[ -d "$r" ] || continue
-		fr=$(df -P "$r" 2>/dev/null | awk 'NR == 2 { print $1 }')
-		[ -n "$fd" ] && [ "$fd" = "$fr" ] && return 0
-	done
-	case "$fd" in ubi*|mtd*|/dev/mtd*|/dev/ubi*|rootfs*|overlay*) return 0 ;; esac
-	return 1
+	return 0
 }
 
 PFILES="extip.log hist.coarse temps.coarse hist.long wifi.hr dev.hr dev.snap dev.daily router.ips events.log dev.day dev.yday day.date speed.log apps.day apps.hist traffic.daily acct.v"
@@ -527,35 +547,153 @@ extip_point() {   # адрес роутера на WAN: пишем только 
 	[ "$(tail -n 1 "$DIR/extip.log" 2>/dev/null | awk '{ print $2 }')" = "$ip" ] && return 0
 	echo "$(date +%s) $ip" >> "$DIR/extip.log"
 }
+persist_warn() {
+	if [ "${persist_error_notified:-0}" != 1 ]; then event warn "$1"; fi
+	persist_ok=0; persist_error=$2; persist_error_notified=1
+}
+
 persist() {
-	[ -n "$PERSIST_DIR" ] && [ "$persist_ok" = 1 ] || return 0
-	mkdir -p "$PERSIST_DIR" 2>/dev/null || {
-		persist_error=1
-		[ "${persist_error_notified:-0}" = 1 ] || { event warn "Не удалось открыть каталог постоянной истории: $PERSIST_DIR"; persist_error_notified=1; }
+	local mi mp rel rc
+	[ -n "$PERSIST_DIR" ] || return 0
+	mi=$(persist_mount_info "$PERSIST_DIR")
+	if [ -z "$mi" ] || on_flash "$PERSIST_DIR"; then
+		persist_warn "Постоянная история недоступна: $PERSIST_DIR не находится на подключённом внешнем накопителе. Сбор данных продолжается в RAM" 0
 		return 1
-	}
-	for f in $PFILES; do
-		[ -f "$DIR/$f" ] || continue
-		cmp -s "$DIR/$f" "$PERSIST_DIR/$f" 2>/dev/null && continue    # без изменений — не пишем
-		if ! cp "$DIR/$f" "$PERSIST_DIR/$f.tmp" 2>/dev/null || ! mv "$PERSIST_DIR/$f.tmp" "$PERSIST_DIR/$f" 2>/dev/null; then
-			rm -f "$PERSIST_DIR/$f.tmp"
-			persist_error=1
-			[ "${persist_error_notified:-0}" = 1 ] || { event warn "Не удалось сохранить файл истории $f в $PERSIST_DIR"; persist_error_notified=1; }
-			return 1
+	fi
+	mp=${mi#*|}; rel=${PERSIST_DIR#"$mp"}; rel=${rel#/}
+	case "/$rel/" in */../*) persist_warn "Некорректный путь постоянной истории: $PERSIST_DIR" 1; return 1 ;; esac
+
+	# При первом подключении или после возврата USB объединяем временную RAM-историю с архивной.
+	[ "${persist_need_restore:-0}" = 1 ] && restore
+
+	# Переход внутрь mount удерживает файловую систему на время записи: штатное отключение не
+	# сможет незаметно переключить путь в нижележащий overlay.
+	(
+		cd "$mp" 2>/dev/null || exit 3
+		on_flash "$PWD" && exit 2
+		if [ -n "$rel" ]; then
+			mkdir -p "$rel" 2>/dev/null || exit 3
+			cd "$rel" 2>/dev/null || exit 3
 		fi
-	done
+		on_flash "$PWD" && exit 2
+		# Проверяем реальную возможность записи, но только после входа в подтверждённый mount.
+		probe=".nightfall-write-test.$"
+		(umask 077; : > "$probe") 2>/dev/null || exit 3
+		rm -f "$probe" 2>/dev/null || exit 3
+		for f in $PFILES; do
+			[ -f "$DIR/$f" ] || continue
+			cmp -s "$DIR/$f" "$f" 2>/dev/null && continue
+			if ! cp "$DIR/$f" "$f.tmp" 2>/dev/null; then rm -f "$f.tmp"; exit 3; fi
+			if on_flash "$PWD"; then rm -f "$f.tmp"; exit 2; fi
+			if ! mv "$f.tmp" "$f" 2>/dev/null; then rm -f "$f.tmp"; exit 3; fi
+		done
+	)
+	rc=$?
+	if [ "$rc" = 2 ]; then
+		persist_warn "Внешний накопитель $PERSIST_DIR отключён; запись на внутреннюю память запрещена. Сбор данных продолжается в RAM" 0
+		return 1
+	elif [ "$rc" != 0 ]; then
+		persist_warn "Не удалось сохранить постоянную историю в $PERSIST_DIR; проверьте накопитель и файловую систему" 1
+		return 1
+	fi
+
+	persist_ok=1
 	persist_last=$(date +%s)
 	persist_kb=$(du -sk "$PERSIST_DIR" 2>/dev/null | awk '{ print $1 + 0 }')
-	if [ "${persist_error:-0}" = 1 ]; then event ok "Сохранение постоянной истории снова работает"; fi
+	if [ "${persist_error_notified:-0}" = 1 ]; then event ok "Постоянное хранение Nightfall снова работает"; fi
 	persist_error=0; persist_error_notified=0
 	return 0
 }
 
+# Проверяем доступность USB на каждом пятиминутном цикле. Если накопитель
+# вернулся после отключения, сохраняем RAM-историю сразу, не ожидая PERSIST_HOURS.
+# При штатной работе периодичность записи остаётся прежней.
+persist_check() {
+	local mi
+	[ -n "$PERSIST_DIR" ] || return 0
+	mi=$(persist_mount_info "$PERSIST_DIR")
+	if [ -z "$mi" ] || on_flash "$PERSIST_DIR"; then
+		persist_warn "Постоянная история недоступна: $PERSIST_DIR не находится на подключённом внешнем накопителе. Сбор данных продолжается в RAM" 0
+		return 1
+	fi
+	if [ "${persist_ok:-0}" != 1 ] || [ $((tick % (AGG * 12 * PERSIST_HOURS))) = 0 ]; then
+		persist
+	fi
+}
+
 restore() {
-	[ -n "$PERSIST_DIR" ] && [ "$persist_ok" = 1 ] && [ -f "$PERSIST_DIR/hist.coarse" ] && [ ! -f "$DIR/hist.coarse" ] || return 0
-	for f in $PFILES; do
-		[ -f "$PERSIST_DIR/$f" ] && cp "$PERSIST_DIR/$f" "$DIR/$f"
-	done
+	local mi mp rel f rc
+	[ "${persist_need_restore:-0}" = 1 ] || return 0
+	[ -n "$PERSIST_DIR" ] || return 0
+	mi=$(persist_mount_info "$PERSIST_DIR")
+	[ -n "$mi" ] && ! on_flash "$PERSIST_DIR" || return 0
+	mp=${mi#*|}; rel=${PERSIST_DIR#"$mp"}; rel=${rel#/}
+	case "/$rel/" in */../*) return 1 ;; esac
+	(
+		cd "$mp" 2>/dev/null || exit 1
+		on_flash "$PWD" && exit 1
+		[ -n "$rel" ] && { [ -d "$rel" ] || exit 0; cd "$rel" 2>/dev/null || exit 1; }
+		on_flash "$PWD" && exit 1
+		for f in $PFILES; do
+			[ -f "$f" ] || continue
+			if [ ! -f "$DIR/$f" ]; then
+				cp "$f" "$DIR/$f" 2>/dev/null || :
+				continue
+			fi
+			# Исторические ряды объединяем по полным строкам и времени, чтобы подключение USB
+			# после длительного отсутствия не затирало архив свежей RAM-историей.
+			case "$f" in
+				extip.log|hist.coarse|temps.coarse|hist.long|wifi.hr|dev.hr|events.log|speed.log)
+					cat "$f" "$DIR/$f" | awk '!seen[$0]++' | sort -n -k1,1 > "$DIR/$f.merge"
+					case "$f" in
+						extip.log) limit=200 ;;
+						hist.coarse|temps.coarse) limit=2016 ;;
+						hist.long) limit=$((HIST_DAYS * 48)) ;;
+						wifi.hr) limit=12000 ;;
+						dev.hr) limit=6000 ;;
+						events.log) limit=300 ;;
+						speed.log) limit=400 ;;
+					esac
+					tail -n "$limit" "$DIR/$f.merge" > "$DIR/$f.trim" && mv "$DIR/$f.trim" "$DIR/$f" || rm -f "$DIR/$f.merge" "$DIR/$f.trim"
+					rm -f "$DIR/$f.merge"
+					;;
+				router.ips)
+					cat "$f" "$DIR/$f" | awk '!seen[$0]++' | tail -n 16 > "$DIR/$f.merge"
+					mv "$DIR/$f.merge" "$DIR/$f" 2>/dev/null || rm -f "$DIR/$f.merge"
+					;;
+				dev.day|apps.day)
+					cmp -s "$f" "$DIR/$f" && continue
+					# Суточные счётчики складываем только если USB и RAM относятся к одной дате.
+					pday=$(cat day.date 2>/dev/null); rday=$(cat "$DIR/day.date" 2>/dev/null)
+					[ -n "$pday" ] && [ "$pday" = "$rday" ] || continue
+					if [ "$f" = dev.day ]; then
+						awk '{ d[$1]+=$2; u[$1]+=$3 } END { for (k in d) printf "%s %.0f %.0f %.0f\n", k, d[k], u[k], d[k]+u[k] }' "$f" "$DIR/$f" | sort -k4,4nr | head -n 64 | cut -d' ' -f1-3 > "$DIR/$f.merge"
+					else
+						awk -F'|' '{ k=$1 "|" $2; d[k]+=$3; u[k]+=$4 } END { for (k in d) printf "%s|%.0f|%.0f\n", k, d[k], u[k] }' "$f" "$DIR/$f" | sort -t'|' -k3,3nr | head -n 600 > "$DIR/$f.merge"
+					fi
+					mv "$DIR/$f.merge" "$DIR/$f" 2>/dev/null || rm -f "$DIR/$f.merge"
+					;;
+				traffic.daily)
+					cmp -s "$f" "$DIR/$f" && continue
+					awk '{ d[$1]+=$2; u[$1]+=$3 } END { for (k in d) printf "%s %.0f %.0f\n", k, d[k], u[k] }' "$f" "$DIR/$f" | sort -n -k1,1 | tail -n 400 > "$DIR/$f.merge"
+					mv "$DIR/$f.merge" "$DIR/$f" 2>/dev/null || rm -f "$DIR/$f.merge"
+					;;
+				dev.daily)
+					cmp -s "$f" "$DIR/$f" && continue
+					awk '{ k=$1 "|" $2 "|" $5; d[k]+=$3; u[k]+=$4 } END { for (k in d) { split(k,a,/[|]/); printf "%s %s %.0f %.0f %s\n",a[1],a[2],d[k],u[k],a[3] } }' "$f" "$DIR/$f" | sort -n -k1,1 | tail -n 6000 > "$DIR/$f.merge"
+					mv "$DIR/$f.merge" "$DIR/$f" 2>/dev/null || rm -f "$DIR/$f.merge"
+					;;
+				apps.hist)
+					cmp -s "$f" "$DIR/$f" && continue
+					awk -F'|' '{ k=$1 "|" $2 "|" $3; d[k]+=$4; u[k]+=$5 } END { for (k in d) printf "%s|%.0f|%.0f\n", k, d[k], u[k] }' "$f" "$DIR/$f" | sort -t'|' -n -k1,1 | tail -n 18000 > "$DIR/$f.merge"
+					mv "$DIR/$f.merge" "$DIR/$f" 2>/dev/null || rm -f "$DIR/$f.merge"
+					;;
+			esac
+		done
+	)
+	rc=$?
+	[ "$rc" = 0 ] && persist_need_restore=0
+	return "$rc"
 }
 
 # ---------- журнал перезагрузок и обрывов связи (редкие короткие записи на флеш) ----------
@@ -636,25 +774,15 @@ do_report() {
 
 # ---------- основной цикл ----------
 now=$(date +%s); started=$now
-persist_ok=1; persist_error=0; persist_error_notified=0
-if [ -n "$PERSIST_DIR" ]; then
-	if on_flash "$PERSIST_DIR"; then
-		persist_ok=0
-	else
-		mkdir -p "$PERSIST_DIR" 2>/dev/null
-		if [ "$?" != 0 ] || ! (umask 077; : > "$PERSIST_DIR/.nightfall-write-test.$") 2>/dev/null; then
-			persist_ok=0; persist_error=1; persist_error_notified=1
-			event warn "Не удаётся записать в каталог постоянной истории $PERSIST_DIR; проверьте подключение накопителя и права доступа"
-		else
-			rm -f "$PERSIST_DIR/.nightfall-write-test.$"
-		fi
-	fi
-fi
+# Состояние постоянного хранилища определяется заново при каждой записи.
+# Не создаём PERSIST_DIR до подтверждения внешнего mount: иначе отсутствующая USB станет каталогом на overlay.
+persist_ok=0; persist_error=0; persist_error_notified=0; persist_need_restore=1
 # аппаратное ускорение пакетов (HW flow offloading) прячет трафик от счётчиков сетевых портов
 FLOW_HW=0; command -v uci >/dev/null 2>&1 && [ "$(uci -q get firewall.@defaults[0].flow_offloading_hw 2>/dev/null)" = 1 ] && FLOW_HW=1
 case "$HIST_DAYS" in ''|*[!0-9]*) HIST_DAYS=30 ;; esac; [ "$HIST_DAYS" -ge 7 ] || HIST_DAYS=7; [ "$HIST_DAYS" -le 90 ] || HIST_DAYS=90
 case "$PERSIST_HOURS" in ''|*[!0-9]*) PERSIST_HOURS=6 ;; esac; [ "$PERSIST_HOURS" -ge 1 ] || PERSIST_HOURS=1
 restore
+[ -n "$PERSIST_DIR" ] && persist
 read -r up0 _ < "$PROC/uptime" 2>/dev/null; up0=${up0%.*}; case "$up0" in ''|*[!0-9]*) up0=99999 ;; esac
 boot_pending=0; [ "$up0" -lt 300 ] && boot_pending=1
 gap_note=""
@@ -811,8 +939,8 @@ while :; do
 				set -- $f
 				if [ "$(wc -l < "$DIR/$1")" -gt "$2" ]; then tail -n "$2" "$DIR/$1" > "$DIR/$1.tmp" && mv "$DIR/$1.tmp" "$DIR/$1"; fi
 			done
+			persist_check
 			write_info
-			[ $((tick % (AGG * 12 * PERSIST_HOURS))) = 0 ] && persist
 		fi
 	fi
 	[ "$tick" = 1 ] && { write_info; event info "Сборщик истории запущен"; }

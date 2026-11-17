@@ -25,7 +25,7 @@ ARCHIVE=$(find "$TMP/backups" -name '*.tar.gz' -type f | head -n 1)
 gzip -t "$ARCHIVE"
 "$TOOL" list "$ARCHIVE" > "$TMP/list"
 grep -q 'files=4' "$TMP/list"
-grep -q 'tool_version=1.27.2' "$TMP/list"
+grep -q 'tool_version=1.27.7' "$TMP/list"
 NAME=$(basename "$ARCHIVE")
 "$TOOL" download-info "$NAME" > "$TMP/info"
 SIZE=$(sed -n 's/.*size=\([0-9][0-9]*\).*/\1/p' "$TMP/info")
@@ -113,5 +113,26 @@ grep -q 'исходные настройки возвращены' "$TMP/rollbac
 grep -q '^TG_TOKEN=rollback-token$' "$ROOT2/etc/nightfall-monitor.conf"
 grep -q '"theme":"keep"' "$ROOT2/etc/nightfall-prefs.json"
 grep -q '"logo":"keep"' "$ROOT2/etc/nightfall-logo.json"
+
+
+echo "== automatic USB destination and retention =="
+mkdir -p "$TMP/usb/nightfall"
+printf '\nPERSIST_DIR=%s\nBACKUP_KEEP=2\n' "$TMP/usb/nightfall" >> "$ROOT/etc/nightfall-monitor.conf"
+printf '/dev/root / ext4 rw 0 0\n/dev/sda1 %s exfat rw 0 0\n' "$TMP/usb" > "$TMP/mounts"
+AUTO_OUT="$TMP/usb/nightfall-backups"
+if ! NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR= NF_MOUNTS="$TMP/mounts" "$TOOL" create > "$TMP/auto1" 2>&1; then cat "$TMP/auto1"; exit 1; fi
+cat "$TMP/auto1"
+grep -q 'Хранилище: USB/SD' "$TMP/auto1"
+NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR= NF_MOUNTS="$TMP/mounts" "$TOOL" create > "$TMP/auto2"
+NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR= NF_MOUNTS="$TMP/mounts" "$TOOL" create > "$TMP/auto3"
+[ "$(find "$AUTO_OUT" -maxdepth 1 -type f -name 'nightfall-backup-*.tar.gz' | wc -l | tr -d ' ')" -eq 2 ]
+echo "USB backup target and keep-last-2 rotation: ok"
+
+echo "== safe temporary fallback when USB is absent =="
+printf '/dev/root / ext4 rw 0 0\n' > "$TMP/mounts"
+NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR= NF_MOUNTS="$TMP/mounts" "$TOOL" create > "$TMP/fallback"
+grep -q 'Хранилище: временное' "$TMP/fallback"
+[ -d "$TMP/nightfall-backups" ]
+echo "missing USB fallback: ok"
 
 echo 'Nightfall backup/restore tests passed'

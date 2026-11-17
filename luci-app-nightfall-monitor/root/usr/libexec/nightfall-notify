@@ -95,19 +95,16 @@ edit)      # edit ID_СООБЩЕНИЯ ТЕКСТ [КНОПКИ_JSON]: заме
 	rm -f "$t"
 	case "$RESP" in *'"ok":true'*|*'not modified'*) exit 0 ;; esac
 	post "$3" "$4"; rc=$?; printf '%s\n' "$RESP"; exit $rc ;;   # старое сообщение не изменить: пришлём новое и отдадим его id боту (он удалит старое)
-backup)    # backup: отправить в чат архив настроек Nightfall (без токена бота)
+backup)    # создать проверенный локальный архив (USB при доступности) и отправить его в Telegram
 	[ -n "$TOKEN" ] || fail "не указан токен бота"
 	[ -n "$CHAT" ] || fail "не указан chat id"
-	w=$(mktemp -d 2>/dev/null || { mkdir -p "$DIR/bk" && echo "$DIR/bk"; })
-	mkdir -p "$w/etc"
-	for f in nightfall-monitor.conf nightfall-prefs.json nightfall-block.list nightfall-block.log nightfall-devices.list nightfall-groups.list nightfall-known.list nightfall-apps.list nightfall-journal.log; do
-		[ -r "/etc/$f" ] && cp "/etc/$f" "$w/etc/$f"
-	done
-	[ -f "$w/etc/nightfall-monitor.conf" ] && sed -i 's/^TG_TOKEN=.*/TG_TOKEN=/' "$w/etc/nightfall-monitor.conf"
-	n="nightfall-backup-$HOST-$(date +%Y%m%d).tar.gz"
-	tar -czf "$w/$n" -C "$w" etc 2>/dev/null || { rm -rf "$w"; fail "не удалось создать архив (нужен tar)"; }
-	RESP=$(api sendDocument -F "chat_id=$CHAT" -F "document=@$w/$n;filename=$n" -F "caption=Резервная копия настроек Nightfall. Токен бота в неё не входит. Восстановление: tar -xzf $n -C /, затем снова укажите токен и перезапустите службу.")
-	rm -rf "$w"
+	BACKUP_TOOL=${NF_BACKUP_TOOL:-/usr/libexec/nightfall-backup}
+	command -v "$BACKUP_TOOL" >/dev/null 2>&1 || fail "не найден nightfall-backup"
+	BR=$("$BACKUP_TOOL" create 2>&1) || fail "$(printf '%s' "$BR" | tail -n 2 | tr -d '"\\')"
+	ARCHIVE=$(printf '%s\n' "$BR" | sed -n 's/^Резервная копия создана: //p' | tail -n 1)
+	[ -n "$ARCHIVE" ] && [ -f "$ARCHIVE" ] && [ ! -L "$ARCHIVE" ] || fail "резервная копия создана, но архив не найден"
+	n=${ARCHIVE##*/}
+	RESP=$(api sendDocument -F "chat_id=$CHAT" -F "document=@$ARCHIVE;filename=$n" -F "caption=Проверенная резервная копия Nightfall. Секреты Telegram исключены. Локальный архив сохранён в хранилище резервных копий.")
 	case "$RESP" in *'"ok":true'*) printf '{"ok":true}\n' ;; *) fail "$(explain "$RESP")" ;; esac ;;
 *)
 	echo "usage: nightfall-notify send TEXT [KB] | test | chatid | backup" >&2

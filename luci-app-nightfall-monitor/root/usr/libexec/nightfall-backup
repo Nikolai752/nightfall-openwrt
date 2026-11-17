@@ -1,6 +1,7 @@
 #!/bin/sh
 # Nightfall: локальная резервная копия и безопасное восстановление настроек.
-#   nightfall-backup create [FILE]       создать архив (по умолчанию /tmp/nightfall-backups/)
+#   nightfall-backup create [FILE]       создать архив (USB/SD рядом с историей; иначе /tmp/nightfall-backups/)
+# По умолчанию на внешнем накопителе хранятся последние 5 копий (NF_BACKUP_KEEP=1..20).
 #   nightfall-backup list FILE           проверить архив и показать состав
 #   nightfall-backup restore FILE        только предварительный просмотр
 #   nightfall-backup restore FILE apply  восстановить после проверки архива
@@ -11,8 +12,41 @@ set -u
 ROOT=${NF_ROOT:-}
 ETC="${ROOT}/etc"
 TMP=${NF_TMP:-/tmp}
-OUTDIR=${NF_BACKUP_DIR:-$TMP/nightfall-backups}
-TOOL_VERSION=1.27.2
+CONF=${NF_CONF:-$ETC/nightfall-monitor.conf}
+MOUNTS=${NF_MOUNTS:-$ROOT/proc/mounts}
+TOOL_VERSION=1.27.7
+BACKUP_KEEP=${NF_BACKUP_KEEP:-$(sed -n 's/^BACKUP_KEEP=//p' "$CONF" 2>/dev/null | head -n 1)}
+[ -n "$BACKUP_KEEP" ] || BACKUP_KEEP=5
+case "$BACKUP_KEEP" in ''|*[!0-9]*) BACKUP_KEEP=5 ;; esac
+[ "$BACKUP_KEEP" -ge 1 ] && [ "$BACKUP_KEEP" -le 20 ] || BACKUP_KEEP=5
+
+# By default keep durable backups beside the configured history directory,
+# but only when that path is actually covered by a mounted external block device.
+backup_mount_dir() {
+ p=${NF_PERSIST_DIR:-}
+ [ -n "$p" ] || p=$(awk -F= '$1 == "PERSIST_DIR" { v=$2; sub(/^[[:space:]]*"/, "", v); sub(/"[[:space:]]*$/, "", v); sub(/[[:space:]#].*$/, "", v); print v; exit }' "$CONF" 2>/dev/null)
+ [ -n "$p" ] && [ "${p#/}" != "$p" ] || return 1
+ [ -r "$MOUNTS" ] || return 1
+ mi=$(awk -v p="$p" '
+  BEGIN { while (length(p)>1 && substr(p,length(p),1)=="/") p=substr(p,1,length(p)-1) }
+  { dev=$1; mp=$2; opts=$4; ok=(mp=="/" ? substr(p,1,1)=="/" : (p==mp || index(p,mp "/")==1)); if (ok && opts ~ /(^|,)rw(,|$)/ && length(mp)>best) { best=length(mp); bd=dev; bm=mp } }
+  END { if (best) print bd "|" bm }
+ ' "$MOUNTS" 2>/dev/null)
+ [ -n "$mi" ] || return 1
+ dev=${mi%%|*}; mp=${mi#*|}
+ case "$mp" in /|/overlay|/rom|/tmp|/root|/boot) return 1 ;; esac
+ case "$dev" in /dev/sd[a-z]*|/dev/nvme*|/dev/mmcblk*|/dev/vd[a-z]*) ;; *) return 1 ;; esac
+ printf '%s/nightfall-backups' "$mp"
+}
+if [ -n "${NF_BACKUP_DIR:-}" ]; then
+ OUTDIR=$NF_BACKUP_DIR
+ BACKUP_STORAGE=explicit
+else
+ AUTO_BACKUP_DIR=$(backup_mount_dir 2>/dev/null || true)
+ if [ -n "$AUTO_BACKUP_DIR" ]; then OUTDIR=$AUTO_BACKUP_DIR; BACKUP_MOUNT=${AUTO_BACKUP_DIR%/nightfall-backups}; BACKUP_STORAGE=external
+ else OUTDIR=$TMP/nightfall-backups; BACKUP_STORAGE=temporary
+ fi
+fi
 FILES="
 nightfall-monitor.conf
 nightfall-prefs.json
@@ -29,6 +63,18 @@ nightfall-release.pub
 "
 
 fail() { echo "Ошибка: $*" >&2; exit 1; }
+
+prune_backups() {
+ host=$1
+ [ "$BACKUP_STORAGE" = external ] || return 0
+ [ "$BACKUP_KEEP" -ge 1 ] 2>/dev/null || return 0
+ # Timestamped names sort newest-first; only this router's completed archives are rotated.
+ find "$OUTDIR" -maxdepth 1 -type f -name "nightfall-backup-$host-*.tar.gz" -print 2>/dev/null |
+  sort -r | awk -v keep="$BACKUP_KEEP" 'NR > keep { print }' |
+  while IFS= read -r old; do
+   [ -n "$old" ] && rm -f "$old"
+  done
+}
 base64_available() {
  [ -n "${NF_BASE64:-}" ] && [ -x "$NF_BASE64" ] && return 0
  [ -z "${NF_BASE64:-}" ] && command -v base64 >/dev/null 2>&1 && return 0
@@ -53,16 +99,29 @@ trap cleanup EXIT HUP INT TERM
 
 create_backup() {
  dest=${2:-}
+ pinned=0
+ if [ -z "$dest" ] && [ "$BACKUP_STORAGE" = external ]; then
+  # Pin the process working directory to the mounted filesystem. Relative writes
+  # cannot fall through to the underlying overlay if USB is detached mid-backup.
+  cd "$BACKUP_MOUNT" 2>/dev/null || fail "внешний накопитель отключился до создания копии"
+  [ "$(backup_mount_dir 2>/dev/null || true)" = "$BACKUP_MOUNT/nightfall-backups" ] || fail "точка монтирования изменилась; резервная копия не создана"
+  OUTDIR=nightfall-backups
+  pinned=1
+ fi
+ [ ! -L "$OUTDIR" ] || fail "каталог резервных копий не может быть символической ссылкой"
  mkdir -p "$OUTDIR" 2>/dev/null || fail "не удалось создать каталог $OUTDIR"
+ [ -d "$OUTDIR" ] && [ ! -L "$OUTDIR" ] || fail "небезопасный каталог резервных копий"
  host=$(cat "${ROOT}/proc/sys/kernel/hostname" 2>/dev/null || echo router)
  host=$(printf '%s' "$host" | tr -cd 'A-Za-z0-9_.-')
  [ -n "$host" ] || host=router
  [ -n "$dest" ] || dest="$OUTDIR/nightfall-backup-$host-$(date +%Y%m%d-%H%M%S).tar.gz"
  case "$dest" in *.tar.gz) ;; *) fail "имя архива должно оканчиваться на .tar.gz" ;; esac
+ if [ "$pinned" = 1 ]; then display_dest="$BACKUP_MOUNT/$dest"; else display_dest=$dest; fi
  if [ -e "$dest" ] || [ -L "$dest" ]; then
   base=${dest%.tar.gz}; n=1
   while [ -e "$base-$n.tar.gz" ] || [ -L "$base-$n.tar.gz" ]; do n=$((n + 1)); done
   dest="$base-$n.tar.gz"
+  if [ "$pinned" = 1 ]; then display_dest="$BACKUP_MOUNT/$dest"; else display_dest=$dest; fi
  fi
  parent=${dest%/*}; [ "$parent" = "$dest" ] && parent=.
  mkdir -p "$parent" 2>/dev/null || fail "не удалось создать каталог назначения"
@@ -97,11 +156,16 @@ create_backup() {
  mv "$DEST_TMP" "$dest" || fail "не удалось сохранить архив"
  DEST_TMP=
  chmod 600 "$dest" 2>/dev/null
- say "Резервная копия создана: $dest"
+ prune_backups "$host"
+ say "Резервная копия создана: $display_dest"
  say "Файлов: $count"
+ if [ "$BACKUP_STORAGE" = external ]; then
+  say "Хранилище: USB/SD ($BACKUP_MOUNT/nightfall-backups); оставляем последние $BACKUP_KEEP копий."
+ else
+  say "Хранилище: временное ($OUTDIR); постоянный USB/SD не обнаружен или PERSIST_DIR не настроен."
+ fi
  say "TG_TOKEN и TG_PROXY не включены. Сетевые настройки OpenWrt не включены."
 }
-
 inspect_archive() {
  archive=$1
  [ -f "$archive" ] || fail "архив не найден: $archive"
