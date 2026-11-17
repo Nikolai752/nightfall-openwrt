@@ -29,6 +29,12 @@ grep -q 'changed' "$ROOT/etc/nightfall-prefs.json"
 "$TOOL" restore "$ARCHIVE" apply > "$TMP/restore"
 grep -q 'night' "$ROOT/etc/nightfall-prefs.json"
 grep -q '^TG_TOKEN=current-secret-token$' "$ROOT/etc/nightfall-monitor.conf"
-! grep -q 'old-secret-token' "$ARCHIVE"
-! grep -q 'user:password' "$ARCHIVE"
+tar -xOzf "$ARCHIVE" etc/nightfall-monitor.conf | grep -q '^TG_TOKEN=
+echo 'Nightfall backup/restore tests passed'
+
+tar -xOzf "$ARCHIVE" etc/nightfall-monitor.conf | grep -q '^TG_PROXY=
+echo 'Nightfall backup/restore tests passed'
+
+! tar -xOzf "$ARCHIVE" etc/nightfall-monitor.conf | grep -q 'old-secret-token'
+! tar -xOzf "$ARCHIVE" etc/nightfall-monitor.conf | grep -q 'user:password'
 echo 'Nightfall backup/restore tests passed'
