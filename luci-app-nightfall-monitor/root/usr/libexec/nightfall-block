@@ -243,12 +243,12 @@ lan_port() {
 			command -v brctl >/dev/null 2>&1 || continue
 			p=$(brctl showmacs "$br" 2>/dev/null | awk -v m="$m" 'tolower($2) == m { print $1; exit }')
 			[ -n "$p" ] || continue
-			d=$(brctl showstp "$br" 2>/dev/null | awk -v p="$p" '/^[^[:space:]].* \\([0-9]+\\)$/ { n=$2; gsub(/[()]/, "", n); if (n == p) { print $1; exit } }')
+			d=$(brctl showstp "$br" 2>/dev/null | awk -v p="$p" '/^[^[:space:]].* \([0-9]+\)$/ { n=$2; gsub(/[()]/, "", n); if (n == p) { print $1; exit } }')
 			[ -n "$d" ] || continue
 		fi
 		case "$d" in
-			lan[0-9]*) printf 'LAN%s\\n' "${d#lan}"; return 0 ;;
-			eth*|en*) printf 'LAN · %s\\n' "$d"; return 0 ;;
+			lan[0-9]*) printf 'LAN%s\n' "${d#lan}"; return 0 ;;
+			eth*|en*) printf 'LAN · %s\n' "$d"; return 0 ;;
 		esac
 	done
 }
@@ -257,7 +257,7 @@ annotate_live() {
 	while read -r kind m ip dev; do
 		port=""
 		[ "$kind" = A ] && port=$(lan_port "$m")
-		printf '%s %s %s %s %s\\n' "$kind" "$m" "$ip" "$dev" "$port"
+		printf '%s %s %s %s %s\n' "$kind" "$m" "$ip" "$dev" "$port"
 	done
 }
 
