@@ -12,6 +12,8 @@ echo '20261117' > "$T/usb/nightfall/day.date"
 echo '192.168.1.2 100 200' > "$T/usb/nightfall/dev.day"
 echo '192.168.1.2|video|1000|2000' > "$T/usb/nightfall/apps.day"
 echo '20261117 10000 20000' > "$T/usb/nightfall/traffic.daily"
+echo '20261116 192.168.1.2 500 600 aa:bb:cc:dd:ee:ff' > "$T/usb/nightfall/dev.daily"
+echo '20261116|192.168.1.2|video|700|800' > "$T/usb/nightfall/apps.hist"
 awk '
   /^PFILES=/ { print; next }
   /^(persist_mount_info|on_flash|persist_warn|persist|restore)\(\) \{/ { inside=1 }
@@ -22,7 +24,7 @@ event() { printf '%s|%s\n' "$1" "$2" >> "$T/events"; }
 . "$T/functions.sh"
 PERSIST_DIR="$T/usb/nightfall"
 DIR="$T/ram"
-PFILES="hist.coarse day.date dev.day apps.day traffic.daily"
+PFILES="hist.coarse day.date dev.day apps.day traffic.daily dev.daily apps.hist"
 PERSIST_ANY=0
 persist_ok=1; persist_error=0; persist_error_notified=0
 NF_MOUNTS="$T/mounts"
@@ -47,6 +49,8 @@ echo '20261117' > "$DIR/day.date"
 echo '192.168.1.2 30 40' > "$DIR/dev.day"
 echo '192.168.1.2|video|300|400' > "$DIR/apps.day"
 echo '20261117 300 400' > "$DIR/traffic.daily"
+echo '20261116 192.168.1.2 50 60 aa:bb:cc:dd:ee:ff' > "$DIR/dev.daily"
+echo '20261116|192.168.1.2|video|70|80' > "$DIR/apps.hist"
 echo 'new RAM history' > "$DIR/hist.coarse"
 if persist; then fail "refuse persistence when USB is absent"; else pass "refuse persistence when USB is absent"; fi
 grep -q 'old persistent history' "$PERSIST_DIR/hist.coarse" && pass "underlying directory is not overwritten while USB is absent" || fail "underlying directory is not overwritten while USB is absent"
