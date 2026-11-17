@@ -95,7 +95,7 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 - The three summary cards (internet, current speed, speed test, uptime, firmware, temperature, load, memory, device count) are chosen in Personalize → Login screen. You can also upload your own picture instead of the logo. The summary is shown on the local network only.
 
 **Backup**
-- The bot's Backup button creates a verified local archive and sends it to Telegram; the local copy remains on the router. Telegram secrets and OpenWrt network settings are excluded. LuCI can download an archive and restore it after validation.
+- The bot's Backup button creates a verified local archive and sends it to Telegram; the local copy remains on the router. Telegram secrets and OpenWrt network settings are excluded. LuCI can create an archive; you can receive it as a file and safely restore it through the Telegram bot or over SSH.
 - Every 6 hours the bot checks for a new theme version and sends a notice with "Install", "Later" and "Skip this version" buttons (also the "Updates" menu button and `/update`). The install verifies sha256 and the signature and rolls back on error; admins only. Turn it off with `TG_UPDATES=0`.
 
 **Updating from the interface**
