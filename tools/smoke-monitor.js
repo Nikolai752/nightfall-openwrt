@@ -44,7 +44,9 @@ const viewM = { extend: o => o };
 const rpcM = { declare: spec => (...a) => ok(spec.object === 'system' ? { model: 'Тестовый роутер', hostname: 'test' } : spec.object === 'network.interface' ? { interface: [] } : spec.object === 'luci-rpc' ? {} : spec.expect && Array.isArray(spec.expect.results) ? [] : {}) };
 const fsM = { exec: (c, a) => window.__exec(c, a || []).then(s => ({ code: 0, stdout: s, stderr: '' })), read: () => ok(''), stat: () => ok(null), lines: () => ok([]) };
 const uiM = { addNotification() {}, showModal(t, c) { const d = document.createElement('div'); d.id = 'mock-modal'; d.append(t); [].concat(c).forEach(x => d.append(x)); document.body.append(d); }, hideModal() { const d = document.getElementById('mock-modal'); if (d) d.remove(); }, tabs: {}, createHandlerFn: f => f };
-const pollM = { add(f) { window.setInterval(f, 400); }, remove() {}, start() {}, stop() {} };
+// Smoke-тест проверяет статичный набор фикстур. Таймер LuCI-поллинга здесь отключён:
+// периодический rerender заменял DOM вкладок во время Playwright click и вызывал случайные таймауты.
+const pollM = { add() {}, remove() {}, start() {}, stop() {} };
 const netM = { getWifiNetworks: () => ok([]), getHostHints: () => ok({ getMACHints: () => [] }) };
 window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevId', SRC.replace(/^'require[^\\n]*\\n/gm, '')))(viewM, rpcM, fsM, pollM, uiM, netM, { identify: () => null });
 `;
