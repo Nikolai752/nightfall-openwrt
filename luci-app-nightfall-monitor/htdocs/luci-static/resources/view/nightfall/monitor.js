@@ -763,7 +763,7 @@ return view.extend({
 		const rCpu = ring('c-cpu'), rTemp = ring('c-temp'), rMem = ring('c-mem'), rNet = ring('c-down');
 		const flashFill = E('i'), flashPct = E('b', {}, '–');
 		const rFlash = {
-			el: E('div', { class: 'nfm-flash-meter' }, [ E('div', { class: 'nfm-flash-track' }, flashFill), flashPct ]),
+			el: E('div', { class: 'nfm-flash-meter' }, E('div', { class: 'nfm-flash-track' }, flashFill)),
 			set(pct, text) {
 				const p = Math.max(0, Math.min(100, Number(pct) || 0));
 				flashFill.style.width = p + '%';
@@ -825,7 +825,36 @@ return view.extend({
 			metric(rMem, 'Память', E('div', { class: 'nfm-v' }, [ t('memMain') ]), E('div', { class: 'nfm-s' }, [ t('memSub') ])),
 			metric(rNet, 'Интернет', E('div', { class: 'nfm-v' }, [ t('netMain') ]), E('div', { class: 'nfm-s' }, [ t('netSub') ]))
 		]);
-		const flashCard = metric(rFlash, 'Флеш', E('div', { class: 'nfm-v' }, [ t('flashMain') ]), E('div', { class: 'nfm-s' }, [ t('flashSub') ]));
+		const flashCard = E('section', { class: 'nfm-card nfm-flash-card' }, [
+			E('div', { class: 'nfm-flash-head' }, [
+				E('div', { class: 'nfm-flash-heading' }, [
+					E('span', { class: 'nfm-flash-icon' }, SVG('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' }, [
+						SVG('ellipse', { cx: 12, cy: 5, rx: 8, ry: 3, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.8 }),
+						SVG('path', { d: 'M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.8 })
+					])),
+					E('div', {}, [
+						E('div', { class: 'nfm-flash-title' }, 'Флеш-память'),
+						E('span', { class: 'nfm-flash-caption' }, 'Накопитель роутера')
+					])
+				]),
+				E('span', { class: 'nfm-flash-percent' }, flashPct)
+			]),
+			E('div', { class: 'nfm-flash-values' }, [
+				E('div', { class: 'nfm-flash-primary' }, [ t('flashMain') ]),
+				E('div', { class: 'nfm-flash-secondary' }, [ t('flashSub') ])
+			]),
+			rFlash.el,
+			E('div', { class: 'nfm-flash-stats' }, [
+				E('div', { class: 'nfm-flash-stat' }, [
+					E('span', {}, 'Всего'),
+					E('b', {}, [ t('flashTotal') ])
+				]),
+				E('div', { class: 'nfm-flash-stat' }, [
+					E('span', {}, 'Свободно'),
+					E('b', {}, [ t('flashFree') ])
+				])
+			])
+		]);
 
 		const mainChart = chart({
 			right: true,
@@ -992,7 +1021,7 @@ return view.extend({
 				E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Показаны десять самых «толстых» программ. «Возможна утечка» ставится, если память почти все замеры только росла и выросла больше чем на 30% и 5 МБ.'));
 		}
 		const procs = E('div', { hidden: true }, [
-			E('div', { class: 'nfm-grid nfm-g21' }, [ card('Ядра процессора', E('div', {}, [ coresBox, tiles ])), flashCard ]),
+			E('div', { class: 'nfm-grid nfm-g21 nfm-proc-overview' }, [ card('Ядра процессора', E('div', {}, [ coresBox, tiles ])), flashCard ]),
 			card([ 'Кто сколько занимает', E('span', { class: 'nfm-note' }, 'память программ — примерно: общие библиотеки входят в каждую') ], E('div', {}, [ memStack, memLegend ])),
 			card([ 'Память по программам за период', E('span', { class: 'nfm-spacer' }), pmPer ], pmBox),
 			card([ 'Программы', E('span', { class: 'nfm-spacer' }),
@@ -2826,7 +2855,9 @@ return view.extend({
 			if (d.flash) {
 				rFlash.set(100 * d.flash[1] / d.flash[0], nf0.format(100 * d.flash[1] / d.flash[0]) + '%');
 				T.flashMain.textContent = `${fmtMB(d.flash[1])} из ${fmtMB(d.flash[0])}`;
-				T.flashSub.textContent = `свободно ${fmtMB(d.flash[0] - d.flash[1])}`;
+				T.flashSub.textContent = `Свободно: ${fmtMB(d.flash[0] - d.flash[1])}`;
+				T.flashTotal.textContent = fmtMB(d.flash[0]);
+				T.flashFree.textContent = fmtMB(d.flash[0] - d.flash[1]);
 			}
 
 			/* charts */
