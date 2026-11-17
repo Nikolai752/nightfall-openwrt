@@ -91,7 +91,8 @@ set)
 			case "$v" in ''|*[!A-Za-z0-9._:-]*) [ -z "$v" ] || fail "$k: недопустимые символы" ;; esac
 			[ ${#v} -le 64 ] || fail "$k: слишком длинное значение" ;;
 		PERSIST_HOURS) range "$k" "$v" 1 24 ;;
-		HIST_DAYS) range "$k" "$v" 7 90 ;;\n\t\tBACKUP_KEEP) range "$k" "$v" 1 20 ;;
+		HIST_DAYS) range "$k" "$v" 7 90 ;;
+		BACKUP_KEEP) range "$k" "$v" 1 20 ;;
 		TG_TOKEN)
 			[ "$v" = "***" ] && continue       # интерфейс не менял токен
 			[ -z "$v" ] || printf '%s' "$v" | grep -qE '^[0-9]{5,}:[A-Za-z0-9_-]{20,}$' || fail "TG_TOKEN: ожидался токен вида 123456:ABC… от @BotFather" ;;
