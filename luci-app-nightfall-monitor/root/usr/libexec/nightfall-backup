@@ -122,7 +122,10 @@ inspect_archive() {
  find "$WORK" -type l -print | grep -q . && fail "в распакованной копии обнаружена символическая ссылка"
  say "Архив проверен. Состав:"
  cat "$WORK/MANIFEST.txt"
- for f in $FILES; do [ -f "$WORK/etc/$f" ] && say "  /etc/$f"; done
+ for f in $FILES; do
+  if [ -f "$WORK/etc/$f" ]; then say "  /etc/$f"; fi
+ done
+ return 0
 }
 
 restore_backup() {
