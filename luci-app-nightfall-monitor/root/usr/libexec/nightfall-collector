@@ -564,8 +564,8 @@ persist() {
 	mp=${mi#*|}; rel=${PERSIST_DIR#"$mp"}; rel=${rel#/}
 	case "/$rel/" in */../*) persist_warn "Некорректный путь постоянной истории: $PERSIST_DIR" 1; return 1 ;; esac
 
-	# Восстанавливаем историю, если сборщик стартовал без USB и RAM-каталог ещё пуст.
-	restore
+	# При первом подключении или после возврата USB объединяем временную RAM-историю с архивной.
+	[ "$persist_ok" = 1 ] || restore
 
 	# Переход внутрь mount удерживает файловую систему на время записи: штатное отключение не
 	# сможет незаметно переключить путь в нижележащий overlay.
@@ -603,7 +603,7 @@ persist() {
 }
 
 restore() {
-	local mi mp rel
+	local mi mp rel f
 	[ -n "$PERSIST_DIR" ] || return 0
 	mi=$(persist_mount_info "$PERSIST_DIR")
 	[ -n "$mi" ] && ! on_flash "$PERSIST_DIR" || return 0
@@ -614,8 +614,29 @@ restore() {
 		on_flash "$PWD" && exit 1
 		[ -n "$rel" ] && { [ -d "$rel" ] || exit 0; cd "$rel" 2>/dev/null || exit 1; }
 		on_flash "$PWD" && exit 1
-		[ -f hist.coarse ] && [ ! -f "$DIR/hist.coarse" ] || exit 0
-		for f in $PFILES; do [ -f "$f" ] && cp "$f" "$DIR/$f" 2>/dev/null || :; done
+		for f in $PFILES; do
+			[ -f "$f" ] || continue
+			if [ ! -f "$DIR/$f" ]; then
+				cp "$f" "$DIR/$f" 2>/dev/null || :
+				continue
+			fi
+			# Исторические ряды объединяем по полным строкам и времени, чтобы подключение USB
+			# после длительного отсутствия не затирало архив свежей RAM-историей.
+			case "$f" in
+				hist.coarse|temps.coarse|hist.long|wifi.hr|dev.hr|dev.daily|events.log|speed.log|apps.hist|traffic.daily)
+					if [ "$f" = apps.hist ]; then
+						cat "$f" "$DIR/$f" | awk '!seen[$0]++' | sort -t'|' -n -k1,1 > "$DIR/$f.merge"
+					else
+						cat "$f" "$DIR/$f" | awk '!seen[$0]++' | sort -n -k1,1 > "$DIR/$f.merge"
+					fi
+					mv "$DIR/$f.merge" "$DIR/$f" 2>/dev/null || rm -f "$DIR/$f.merge"
+					;;
+				router.ips)
+					cat "$f" "$DIR/$f" | awk '!seen[$0]++' > "$DIR/$f.merge"
+					mv "$DIR/$f.merge" "$DIR/$f" 2>/dev/null || rm -f "$DIR/$f.merge"
+					;;
+			esac
+		done
 	)
 }
 
