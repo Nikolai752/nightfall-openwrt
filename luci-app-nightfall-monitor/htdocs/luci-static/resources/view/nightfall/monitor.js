@@ -2213,10 +2213,10 @@ return view.extend({
 			/* Активная Wi-Fi-станция имеет приоритет над устаревшей DHCP-арендой:
 			 * это важно при приватном/рандомизированном MAC. Не подменяем MAC клиента
 			 * MAC-адресом ретранслятора, если он не является активной Wi-Fi-станцией. */
-			const activeWifiMacs = new Set((S.wifi || []).map(c => String(c.mac || '').toUpperCase()).filter(Boolean));
+			const activeNeighbourMacs = new Set((S.wifi || []).map(c => String(c.mac || '').toUpperCase()).filter(Boolean));
 			for (const [ ip, mac ] of dv.neigh || []) {
 				const u = String(mac).toUpperCase();
-				if (activeWifiMacs.has(u) || !ipMac[norm(ip)]) ipMac[norm(ip)] = u;
+				if (activeNeighbourMacs.has(u) || !ipMac[norm(ip)]) ipMac[norm(ip)] = u;
 			}
 			routerIps.learn(dv.info);
 
