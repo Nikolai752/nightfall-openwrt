@@ -1,0 +1,368 @@
+#!/bin/sh
+# Nightfall: локальная резервная копия и безопасное восстановление настроек.
+#   nightfall-backup create [FILE]       создать архив (USB/SD рядом с историей; иначе /tmp/nightfall-backups/)
+# По умолчанию на внешнем накопителе хранятся последние 5 копий (NF_BACKUP_KEEP=1..20).
+#   nightfall-backup list FILE           проверить архив и показать состав
+#   nightfall-backup restore FILE        только предварительный просмотр
+#   nightfall-backup restore FILE apply  восстановить после проверки архива
+#
+# Для тестов: NF_ROOT, NF_TMP, NF_BACKUP_DIR.
+set -u
+
+ROOT=${NF_ROOT:-}
+ETC="${ROOT}/etc"
+TMP=${NF_TMP:-/tmp}
+CONF=${NF_CONF:-$ETC/nightfall-monitor.conf}
+MOUNTS=${NF_MOUNTS:-$ROOT/proc/mounts}
+TOOL_VERSION=1.27.7
+BACKUP_KEEP=${NF_BACKUP_KEEP:-$(sed -n 's/^BACKUP_KEEP=//p' "$CONF" 2>/dev/null | head -n 1)}
+[ -n "$BACKUP_KEEP" ] || BACKUP_KEEP=5
+case "$BACKUP_KEEP" in ''|*[!0-9]*) BACKUP_KEEP=5 ;; esac
+[ "$BACKUP_KEEP" -ge 1 ] && [ "$BACKUP_KEEP" -le 20 ] || BACKUP_KEEP=5
+
+# By default keep durable backups beside the configured history directory,
+# but only when that path is actually covered by a mounted external block device.
+backup_mount_dir() {
+ p=${NF_PERSIST_DIR:-}
+ [ -n "$p" ] || p=$(awk -F= '$1 == "PERSIST_DIR" { v=$2; sub(/^[[:space:]]*"/, "", v); sub(/"[[:space:]]*$/, "", v); sub(/[[:space:]#].*$/, "", v); print v; exit }' "$CONF" 2>/dev/null)
+ [ -n "$p" ] && [ "${p#/}" != "$p" ] || return 1
+ [ -r "$MOUNTS" ] || return 1
+ mi=$(awk -v p="$p" '
+  BEGIN { while (length(p)>1 && substr(p,length(p),1)=="/") p=substr(p,1,length(p)-1) }
+  { dev=$1; mp=$2; opts=$4; ok=(mp=="/" ? substr(p,1,1)=="/" : (p==mp || index(p,mp "/")==1)); if (ok && opts ~ /(^|,)rw(,|$)/ && length(mp)>best) { best=length(mp); bd=dev; bm=mp } }
+  END { if (best) print bd "|" bm }
+ ' "$MOUNTS" 2>/dev/null)
+ [ -n "$mi" ] || return 1
+ dev=${mi%%|*}; mp=${mi#*|}
+ case "$mp" in /|/overlay|/rom|/tmp|/root|/boot) return 1 ;; esac
+ case "$dev" in /dev/sd[a-z]*|/dev/nvme*|/dev/mmcblk*|/dev/vd[a-z]*) ;; *) return 1 ;; esac
+ printf '%s/nightfall-backups' "$mp"
+}
+if [ -n "${NF_BACKUP_DIR:-}" ]; then
+ OUTDIR=$NF_BACKUP_DIR
+ BACKUP_STORAGE=explicit
+else
+ AUTO_BACKUP_DIR=$(backup_mount_dir 2>/dev/null || true)
+ if [ -n "$AUTO_BACKUP_DIR" ]; then OUTDIR=$AUTO_BACKUP_DIR; BACKUP_MOUNT=${AUTO_BACKUP_DIR%/nightfall-backups}; BACKUP_STORAGE=external
+ else OUTDIR=$TMP/nightfall-backups; BACKUP_STORAGE=temporary
+ fi
+fi
+FILES="
+nightfall-monitor.conf
+nightfall-prefs.json
+nightfall-logo.json
+nightfall-bg.json
+nightfall-block.list
+nightfall-block.log
+nightfall-devices.list
+nightfall-groups.list
+nightfall-known.list
+nightfall-apps.list
+nightfall-journal.log
+nightfall-release.pub
+"
+
+fail() { echo "Ошибка: $*" >&2; exit 1; }
+
+prune_backups() {
+ host=$1
+ [ "$BACKUP_STORAGE" = external ] || return 0
+ [ "$BACKUP_KEEP" -ge 1 ] 2>/dev/null || return 0
+ # Timestamped names sort newest-first; only this router's completed archives are rotated.
+ find "$OUTDIR" -maxdepth 1 -type f -name "nightfall-backup-$host-*.tar.gz" -print 2>/dev/null |
+  sort -r | awk -v keep="$BACKUP_KEEP" 'NR > keep { print }' |
+  while IFS= read -r old; do
+   [ -n "$old" ] && rm -f "$old"
+  done
+}
+base64_available() {
+ [ -n "${NF_BASE64:-}" ] && [ -x "$NF_BASE64" ] && return 0
+ [ -z "${NF_BASE64:-}" ] && command -v base64 >/dev/null 2>&1 && return 0
+ [ -z "${NF_BASE64:-}" ] && command -v busybox >/dev/null 2>&1 && busybox base64 </dev/null >/dev/null 2>&1 && return 0
+ return 1
+}
+base64_encode() {
+ if [ -n "${NF_BASE64:-}" ]; then "$NF_BASE64"; elif command -v base64 >/dev/null 2>&1; then base64; else busybox base64; fi
+}
+base64_decode() {
+ if [ -n "${NF_BASE64:-}" ]; then "$NF_BASE64" -d; elif command -v base64 >/dev/null 2>&1; then base64 -d; else busybox base64 -d; fi
+}
+say() { printf '%s\n' "$*"; }
+allowed() {
+ case "$1" in
+  nightfall-monitor.conf|nightfall-prefs.json|nightfall-logo.json|nightfall-bg.json|nightfall-block.list|nightfall-block.log|nightfall-devices.list|nightfall-groups.list|nightfall-known.list|nightfall-apps.list|nightfall-journal.log|nightfall-release.pub) return 0 ;;
+  *) return 1 ;;
+ esac
+}
+cleanup() { [ -n "${WORK:-}" ] && rm -rf "$WORK"; [ -n "${RESTORE_STAGE:-}" ] && rm -rf "$RESTORE_STAGE"; [ -n "${DEST_TMP:-}" ] && rm -f "$DEST_TMP"; return 0; }
+trap cleanup EXIT HUP INT TERM
+
+create_backup() {
+ dest=${2:-}
+ pinned=0
+ if [ -z "$dest" ] && [ "$BACKUP_STORAGE" = external ]; then
+  # Pin the process working directory to the mounted filesystem. Relative writes
+  # cannot fall through to the underlying overlay if USB is detached mid-backup.
+  cd "$BACKUP_MOUNT" 2>/dev/null || fail "внешний накопитель отключился до создания копии"
+  [ "$(backup_mount_dir 2>/dev/null || true)" = "$BACKUP_MOUNT/nightfall-backups" ] || fail "точка монтирования изменилась; резервная копия не создана"
+  OUTDIR=nightfall-backups
+  pinned=1
+ fi
+ [ ! -L "$OUTDIR" ] || fail "каталог резервных копий не может быть символической ссылкой"
+ mkdir -p "$OUTDIR" 2>/dev/null || fail "не удалось создать каталог $OUTDIR"
+ [ -d "$OUTDIR" ] && [ ! -L "$OUTDIR" ] || fail "небезопасный каталог резервных копий"
+ host=$(cat "${ROOT}/proc/sys/kernel/hostname" 2>/dev/null || echo router)
+ host=$(printf '%s' "$host" | tr -cd 'A-Za-z0-9_.-')
+ [ -n "$host" ] || host=router
+ [ -n "$dest" ] || dest="$OUTDIR/nightfall-backup-$host-$(date +%Y%m%d-%H%M%S).tar.gz"
+ case "$dest" in *.tar.gz) ;; *) fail "имя архива должно оканчиваться на .tar.gz" ;; esac
+ if [ "$pinned" = 1 ]; then display_dest="$BACKUP_MOUNT/$dest"; else display_dest=$dest; fi
+ if [ -e "$dest" ] || [ -L "$dest" ]; then
+  base=${dest%.tar.gz}; n=1
+  while [ -e "$base-$n.tar.gz" ] || [ -L "$base-$n.tar.gz" ]; do n=$((n + 1)); done
+  dest="$base-$n.tar.gz"
+  if [ "$pinned" = 1 ]; then display_dest="$BACKUP_MOUNT/$dest"; else display_dest=$dest; fi
+ fi
+ parent=${dest%/*}; [ "$parent" = "$dest" ] && parent=.
+ mkdir -p "$parent" 2>/dev/null || fail "не удалось создать каталог назначения"
+ WORK=$(mktemp -d "$TMP/nightfall-backup.XXXXXX" 2>/dev/null) || fail "не удалось создать временный каталог"
+ mkdir -p "$WORK/etc" || fail "не удалось подготовить архив"
+ count=0
+ for f in $FILES; do
+  [ -f "$ETC/$f" ] && [ ! -L "$ETC/$f" ] || continue
+  cp -p "$ETC/$f" "$WORK/etc/$f" || fail "не удалось скопировать $f"
+  count=$((count + 1))
+ done
+ [ "$count" -gt 0 ] || fail "на роутере не найдены файлы настроек Nightfall"
+ if [ -f "$WORK/etc/nightfall-monitor.conf" ]; then
+  sed -i 's/^TG_TOKEN=.*/TG_TOKEN=/; s/^TG_PROXY=.*/TG_PROXY=/' "$WORK/etc/nightfall-monitor.conf" || fail "не удалось удалить секреты из копии"
+ fi
+ {
+  echo "Nightfall backup"
+  echo "format=1"
+  echo "tool_version=$TOOL_VERSION"
+  echo "created=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "files=$count"
+  echo "secrets=TG_TOKEN,TG_PROXY excluded"
+  echo "network_config=not included"
+ } > "$WORK/MANIFEST.txt"
+ (cd "$WORK" && sha256sum etc/nightfall-* > MANIFEST.sha256) || fail "не удалось посчитать контрольные суммы"
+ { for f in $FILES; do [ -f "$WORK/etc/$f" ] && echo "etc/$f"; done; echo MANIFEST.txt; echo MANIFEST.sha256; } > "$WORK/archive.list"
+ DEST_TMP="$dest.tmp"
+ tar -czf "$DEST_TMP" -C "$WORK" -T "$WORK/archive.list" || fail "не удалось собрать архив"
+ gzip -t "$DEST_TMP" 2>/dev/null || fail "созданный gzip-архив не прошёл проверку целостности"
+ tar -tzf "$DEST_TMP" >/dev/null 2>&1 || fail "созданный tar-архив не прошёл проверку состава"
+ [ "$(wc -c < "$DEST_TMP" | tr -d ' ')" -gt 0 ] || fail "создан пустой архив"
+ mv "$DEST_TMP" "$dest" || fail "не удалось сохранить архив"
+ DEST_TMP=
+ chmod 600 "$dest" 2>/dev/null
+ prune_backups "$host"
+ say "Резервная копия создана: $display_dest"
+ say "Файлов: $count"
+ if [ "$BACKUP_STORAGE" = external ]; then
+  say "Хранилище: USB/SD ($BACKUP_MOUNT/nightfall-backups); оставляем последние $BACKUP_KEEP копий."
+ else
+  say "Хранилище: временное ($OUTDIR); постоянный USB/SD не обнаружен или PERSIST_DIR не настроен."
+ fi
+ say "TG_TOKEN и TG_PROXY не включены. Сетевые настройки OpenWrt не включены."
+}
+inspect_archive() {
+ archive=$1
+ [ -f "$archive" ] || fail "архив не найден: $archive"
+ command -v tar >/dev/null 2>&1 || fail "не найден tar"
+ command -v sha256sum >/dev/null 2>&1 || fail "не найден sha256sum"
+ listing="$TMP/nightfall-backup-list.$$"
+ tar -tzf "$archive" > "$listing" 2>/dev/null || { rm -f "$listing"; fail "архив повреждён или не является gzip-архивом"; }
+ bad=0; count=0
+ while IFS= read -r p; do
+  case "$p" in
+   etc/nightfall-* )
+    name=${p#etc/}
+    allowed "$name" || bad=1
+    case "$p" in */../*|../*|/*) bad=1 ;; esac
+    count=$((count + 1))
+    ;;
+   MANIFEST.txt|MANIFEST.sha256) ;;
+   *) bad=1 ;;
+  esac
+ done < "$listing"
+ rm -f "$listing"
+ [ "$bad" = 0 ] || fail "архив содержит недопустимые пути или файлы"
+ [ "$count" -gt 0 ] || fail "в архиве нет настроек Nightfall"
+ # В архиве разрешены только обычные файлы; ссылки и специальные типы запрещены.
+ tar -tvzf "$archive" 2>/dev/null | awk 'substr($1,1,1) != "-" { bad=1 } END { exit bad }' || fail "в архиве обнаружены ссылки или специальные файлы"
+ WORK=$(mktemp -d "$TMP/nightfall-restore.XXXXXX" 2>/dev/null) || fail "не удалось создать временный каталог"
+ tar -xzf "$archive" -C "$WORK" || fail "не удалось распаковать архив"
+ [ -f "$WORK/MANIFEST.txt" ] && [ -f "$WORK/MANIFEST.sha256" ] || fail "в архиве отсутствует манифест"
+ (cd "$WORK" && sha256sum -c MANIFEST.sha256 >/dev/null 2>&1) || fail "контрольные суммы не совпали; восстановление запрещено"
+ find "$WORK" -type l -print | grep -q . && fail "в распакованной копии обнаружена символическая ссылка"
+ say "Архив проверен. Состав:"
+ cat "$WORK/MANIFEST.txt"
+ for f in $FILES; do
+  if [ -f "$WORK/etc/$f" ]; then say "  /etc/$f"; fi
+ done
+ return 0
+}
+
+restore_backup() {
+ archive=$1
+ mode=${2:-preview}
+ inspect_archive "$archive"
+ if [ "$mode" != apply ]; then
+  say "Предварительный просмотр завершён. Для восстановления выполните:"
+  say "  /usr/libexec/nightfall-backup restore '$archive' apply"
+  return 0
+ fi
+ [ "$mode" = apply ] || fail "неизвестный режим"
+ old_token=""
+ old_proxy=""
+ have_token=0
+ have_proxy=0
+ if [ -r "$ETC/nightfall-monitor.conf" ]; then
+  if grep -q '^TG_TOKEN=' "$ETC/nightfall-monitor.conf" 2>/dev/null; then
+   old_token=$(grep '^TG_TOKEN=' "$ETC/nightfall-monitor.conf" 2>/dev/null | head -n 1 || true)
+   have_token=1
+  fi
+  if grep -q '^TG_PROXY=' "$ETC/nightfall-monitor.conf" 2>/dev/null; then
+   old_proxy=$(grep '^TG_PROXY=' "$ETC/nightfall-monitor.conf" 2>/dev/null | head -n 1 || true)
+   have_proxy=1
+  fi
+ fi
+ mkdir -p "$ETC" || fail "не удалось открыть /etc"
+ RESTORE_STAGE=$(mktemp -d "$ETC/.nightfall-restore.XXXXXX") || fail "не удалось подготовить транзакцию восстановления"
+ mkdir -p "$RESTORE_STAGE/new" "$WORK/rollback" || fail "не удалось подготовить временные файлы"
+ : > "$WORK/apply.list"; : > "$WORK/existing.list"; : > "$WORK/missing.list"
+ for f in $FILES; do
+  [ -f "$WORK/etc/$f" ] || continue
+  if [ -L "$ETC/$f" ] || { [ -e "$ETC/$f" ] && [ ! -f "$ETC/$f" ]; }; then
+   fail "небезопасный тип текущего файла /etc/$f; восстановление остановлено"
+  fi
+  cp -p "$WORK/etc/$f" "$RESTORE_STAGE/new/$f" || fail "не удалось подготовить $f"
+  if [ "$f" = nightfall-monitor.conf ]; then
+   # Preserve current secrets exactly, including explicitly empty values.
+   # Remove duplicate definitions from the archive and append missing keys.
+   awk -v ht="$have_token" -v st="$old_token" -v hp="$have_proxy" -v sp="$old_proxy" '
+    BEGIN { token_done=0; proxy_done=0 }
+    /^TG_TOKEN=/ { if (ht && !token_done) print st; token_done=1; next }
+    /^TG_PROXY=/ { if (hp && !proxy_done) print sp; proxy_done=1; next }
+    { print }
+    END {
+     if (ht && !token_done) print st
+     if (hp && !proxy_done) print sp
+    }
+   ' "$RESTORE_STAGE/new/$f" > "$RESTORE_STAGE/new/$f.tmp" || fail "не удалось сохранить текущие секреты"
+   mv "$RESTORE_STAGE/new/$f.tmp" "$RESTORE_STAGE/new/$f" || fail "не удалось подготовить конфигурацию"
+  fi
+  if [ -f "$ETC/$f" ]; then
+   cp -p "$ETC/$f" "$WORK/rollback/$f" || fail "не удалось сохранить текущий файл /etc/$f"
+   echo "$f" >> "$WORK/existing.list"
+  else
+   echo "$f" >> "$WORK/missing.list"
+  fi
+  echo "$f" >> "$WORK/apply.list"
+ done
+ while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  if ! mv "$RESTORE_STAGE/new/$f" "$ETC/$f"; then
+   say "Ошибка установки /etc/$f. Возвращаю исходные настройки…"
+   rollback_error=0
+   while IFS= read -r old; do
+    [ -n "$old" ] || continue
+    # Освобождаем место от частично установленного файла перед возвратом старого.
+    rollback_tmp="$RESTORE_STAGE/rollback-$old"
+    if rm -f "$ETC/$old" && cp -p "$WORK/rollback/$old" "$rollback_tmp" && mv "$rollback_tmp" "$ETC/$old"; then :; else rollback_error=1; rm -f "$rollback_tmp"; fi
+   done < "$WORK/existing.list"
+   while IFS= read -r new; do
+    [ -n "$new" ] || continue
+    rm -f "$ETC/$new" || rollback_error=1
+   done < "$WORK/missing.list"
+   [ "$rollback_error" = 0 ] && fail "восстановление отменено; исходные настройки возвращены" || fail "КРИТИЧЕСКАЯ ОШИБКА: не удалось полностью вернуть исходные настройки. Проверьте /etc вручную"
+  fi
+ done < "$WORK/apply.list"
+ chmod 600 "$ETC/nightfall-monitor.conf" 2>/dev/null
+ chmod 644 "$ETC/nightfall-prefs.json" "$ETC/nightfall-logo.json" "$ETC/nightfall-bg.json" 2>/dev/null
+ say "Настройки Nightfall восстановлены."
+ say "Сетевые настройки OpenWrt не менялись. TG_TOKEN и TG_PROXY сохранены из текущей конфигурации, если были заданы."
+ say "Перезапустите сборщик: /etc/init.d/nightfall-collector restart"
+}
+backup_name() {
+ case "${1:-}" in nightfall-backup-*.tar.gz) printf '%s/%s' "$OUTDIR" "$1" ;; *) fail "недопустимое имя архива" ;; esac
+}
+download_info() {
+ archive=$(backup_name "${2:-}")
+ [ -f "$archive" ] && [ ! -L "$archive" ] || fail "архив не найден"
+ size=$(wc -c < "$archive" | tr -d ' ')
+ [ "$size" -gt 0 ] || fail "архив пустой"
+ hash=$(sha256sum "$archive" | awk '{ print $1 }') || fail "не удалось проверить архив"
+ printf "size=%s sha256=%s\n" "$size" "$hash"
+}
+download_chunk() {
+ base64_available || fail "не найдена base64. Установите пакет coreutils-base64 (apk add coreutils-base64) или используйте сборку BusyBox с applet base64"
+ archive=$(backup_name "${2:-}")
+ offset=${3:-}; length=${4:-24576}
+ case "$offset:$length" in *[!0-9:]*|:*) fail "неверные параметры загрузки" ;; esac
+ [ -f "$archive" ] && [ ! -L "$archive" ] || fail "архив не найден"
+ size=$(wc -c < "$archive" | tr -d ' ')
+ [ "$offset" -le "$size" ] || fail "смещение за пределами архива"
+ [ "$length" -gt 0 ] && [ "$length" -le 24576 ] || fail "неверный размер блока"
+ tail -c "+$((offset + 1))" "$archive" | head -c "$length" | base64_encode | tr -d '\n'
+}
+upload_start() {
+ id=${2:-}
+ case "$id" in ????????) ;; *) fail "неверный идентификатор загрузки" ;; esac
+ case "$id" in *[!a-f0-9]*) fail "неверный идентификатор загрузки" ;; esac
+ mkdir -p "$OUTDIR" 2>/dev/null || fail "не удалось создать каталог резервных копий"
+ umask 077
+ upload_file="$OUTDIR/.upload-$id.b64"
+ [ ! -e "$upload_file" ] && [ ! -L "$upload_file" ] || fail "идентификатор загрузки уже используется"
+ (set -C; : > "$upload_file") 2>/dev/null || fail "не удалось безопасно начать загрузку"
+ say "Загрузка начата."
+}
+upload_chunk() {
+ id=${2:-}; chunk=${3:-}
+ case "$id" in ????????) ;; *) fail "неверный идентификатор загрузки" ;; esac
+ case "$id" in *[!a-f0-9]*) fail "неверный идентификатор загрузки" ;; esac
+ [ -n "$chunk" ] && [ "${#chunk}" -le 32768 ] || fail "неверный размер блока"
+ case "$chunk" in *[!A-Za-z0-9+/=]*) fail "недопустимые символы блока" ;; esac
+ file="$OUTDIR/.upload-$id.b64"
+ [ -f "$file" ] && [ ! -L "$file" ] || fail "загрузка не найдена"
+ printf '%s' "$chunk" >> "$file" || fail "не удалось записать блок"
+ say "Блок принят."
+}
+upload_abort() {
+ id=${2:-}
+ case "$id" in ????????) ;; *) fail "неверный идентификатор загрузки" ;; esac
+ case "$id" in *[!a-f0-9]*) fail "неверный идентификатор загрузки" ;; esac
+ rm -f "$OUTDIR/.upload-$id.b64" "$OUTDIR/nightfall-backup-upload-$id.tar.gz"
+ say "Временная загрузка удалена."
+}
+upload_finish() {
+ base64_available || fail "не найдена base64. Установите пакет coreutils-base64 (apk add coreutils-base64) или используйте сборку BusyBox с applet base64"
+ id=${2:-}
+ case "$id" in ????????) ;; *) fail "неверный идентификатор загрузки" ;; esac
+ case "$id" in *[!a-f0-9]*) fail "неверный идентификатор загрузки" ;; esac
+ encoded="$OUTDIR/.upload-$id.b64"
+ archive="$OUTDIR/nightfall-backup-upload-$id.tar.gz"
+ [ -f "$encoded" ] && [ ! -L "$encoded" ] || fail "загрузка не найдена"
+ encoded_size=$(wc -c < "$encoded" | tr -d ' ')
+ [ "$encoded_size" -gt 0 ] && [ "$encoded_size" -le 7000000 ] || fail "архив пустой или превышает 5 МБ"
+ [ ! -e "$archive.tmp" ] && [ ! -L "$archive.tmp" ] || rm -f "$archive.tmp"
+ (set -C; base64_decode < "$encoded" > "$archive.tmp") 2>/dev/null || { rm -f "$archive.tmp"; fail "не удалось безопасно декодировать архив"; }
+ rm -f "$encoded"
+ mv "$archive.tmp" "$archive" || fail "не удалось сохранить архив"
+ chmod 600 "$archive" 2>/dev/null
+ inspect_archive "$archive"
+ say "Архив загружен: $archive"
+}
+case "${1:-}" in
+ create) create_backup "$@" ;;
+ download-info) download_info "$@" ;;
+ download) download_chunk "$@" ;;
+ upload-start) upload_start "$@" ;;
+ upload-chunk) upload_chunk "$@" ;;
+ upload-finish) upload_finish "$@" ;;
+ upload-abort) upload_abort "$@" ;;
+ list) [ -n "${2:-}" ] || fail "укажите путь к архиву"; inspect_archive "$2" ;;
+ restore) [ -n "${2:-}" ] || fail "укажите путь к архиву"; restore_backup "$2" "${3:-preview}" ;;
+ *) echo "Использование: $0 create [FILE] | list FILE | restore FILE [apply] | download-info NAME | download NAME OFFSET [LENGTH] | upload-start ID | upload-chunk ID BASE64 | upload-finish ID | upload-abort ID" >&2; exit 2 ;;
+esac
