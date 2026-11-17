@@ -1244,7 +1244,7 @@ return view.extend({
 		function renderWifiExtra() {
 			const cl = wifiDisplayRows(), R = S.wq;
 			const bands = {};
-			for (const c of cl) { const b = c.band || '?'; const e = bands[b] = bands[b] || { n: 0, sum: 0, rate: 0, rn: 0 }; e.n++; if (c.signal) e.sum += c.signal; if (c.rx && c.rx.rate) { e.rate += c.rx.rate; e.rn++; } }
+			for (const c of cl) { if (c.proxy) continue; const b = c.band || '?'; const e = bands[b] = bands[b] || { n: 0, sum: 0, rate: 0, rn: 0 }; e.n++; if (c.signal) e.sum += c.signal; if (c.rx && c.rx.rate) { e.rate += c.rx.rate; e.rn++; } }
 			const bk = Object.keys(bands).sort();
 			wbBox.replaceChildren(...(bk.length ? [ E('div', { class: 'nfm-two' }, bk.map(b => { const e = bands[b]; return E('div', { class: 'nfm-tile' }, [ E('div', { class: 'nfm-k' }, BANDS[b] || 'Диапазон не определён'), E('div', { class: 'nfm-v' }, e.n + ' ' + (e.n === 1 ? 'устройство' : 'устройств')),
 				E('div', { class: 'nfm-s' }, 'средний сигнал ' + (e.n ? Math.round(e.sum / e.n) : '–') + ' дБм' + (e.rn ? ' · линк ' + nf0.format(e.rate / e.rn / 1000) + ' Мбит/с' : '')) ]); })) ] : [ E('div', { class: 'nfm-empty' }, S.wifi ? 'Подключённых Wi-Fi клиентов нет' : 'Данные о Wi-Fi недоступны') ]));
