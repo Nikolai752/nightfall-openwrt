@@ -374,7 +374,16 @@ function liveStrip() {
 	R.netBadge = E('span', {}, badge('off', '—'));
 	R.tempBadge = E('span');
 	R.vdT = E('b', {}, 'Загружаю…'); R.vdS = E('small');
-	R.verdict = E('div', { class: 'nf-verdict', 'data-k': 'ok' }, [ E('i', { class: 'nf-vd' }), E('div', { class: 'nf-vd-t' }, [ R.vdT, R.vdS ]) ]);
+	R.verdict = E('div', { class: 'nf-verdict', 'data-k': 'ok' }, [
+		E('i', { class: 'nf-vd' }),
+		E('div', { class: 'nf-vd-t' }, [ R.vdT, R.vdS ]),
+		R.vdDismiss = E('button', { type: 'button', class: 'nf-vd-dismiss', title: 'Скрыть это замечание до изменения состояния', 'aria-label': 'Скрыть замечание' }, '×')
+	]);
+	const verdictDismissKey = 'nightfall-overview-verdict-dismissed';
+	R.vdDismiss.addEventListener('click', () => {
+		try { localStorage.setItem(verdictDismissKey, R.verdict.dataset.signature || ''); } catch (e) {}
+		R.verdict.hidden = true;
+	});
 	const strip = E('div', { class: 'nf-live' }, [
 		R.verdict,
 		E('div', { class: 'nf-editnote' }, 'Режим раскладки: потяните ⋮⋮ за заголовок карточки, чтобы переместить её; значки рядом закрепляют карточку и меняют её размер; уголок растягивает. Закончив, нажмите «Вид → Готово».'),
@@ -653,7 +662,16 @@ function liveStrip() {
 			if (cpu != null && cpu >= 90) warn.push('процессор ' + nf0.format(cpu) + '%');
 			if (loss != null && loss >= 5) warn.push('потери пакетов ' + nf1.format(loss) + '%');
 			const k = bad.length ? 'bad' : warn.length ? 'warn' : 'ok', all = bad.concat(warn);
+			const signature = k + '|' + all.join('|');
 			R.verdict.setAttribute('data-k', k);
+			R.verdict.dataset.signature = signature;
+			let dismissed = '';
+			try { dismissed = localStorage.getItem(verdictDismissKey) || ''; } catch (e) {}
+			R.verdict.hidden = k !== 'ok' && dismissed === signature;
+			R.vdDismiss.hidden = k === 'ok';
+			if (k === 'ok') {
+				try { localStorage.removeItem(verdictDismissKey); } catch (e) {}
+			}
 			R.vdT.textContent = k === 'ok' ? 'Всё в порядке' : k === 'bad' ? 'Требует внимания' : 'Есть замечания';
 			R.vdS.textContent = k === 'ok' ? [ S.online === true ? 'интернет работает' : '', t != null ? 'температура ' + nf0.format(t) + ' °C' : '', 'память ' + nf0.format(memP) + '%' ].filter(Boolean).join(' · ') : all.join(' · ');
 		}
