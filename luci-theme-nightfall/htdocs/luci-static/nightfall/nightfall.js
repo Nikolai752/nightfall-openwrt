@@ -1612,7 +1612,7 @@
 						h('button', { type: 'button', text: 'Выбрать архив', onclick: function () { refs.backupFile.click(); } }),
 						refs.backupFile = h('input', { type: 'file', accept: '.tar.gz,application/gzip,application/x-gzip', hidden: true, onchange: function (ev) { uploadAndPreviewBackup(ev.target.files && ev.target.files[0]); ev.target.value = ''; } })
 					]),
-					refs.backupApply = h('button', { type: 'button', text: 'Восстановить настройки', hidden: true, onclick: applyUploadedBackup }),
+					h('div', { 'class': 'nf-pop-io' }, [ refs.backupApply = h('button', { type: 'button', text: 'Восстановить настройки', hidden: true, onclick: applyUploadedBackup }) ]),
 					refs.backupNote = h('div', { 'class': 'nf-pop-ionote', role: 'status', 'aria-live': 'polite' })
 				]),
 				h('div', { 'class': 'nf-pop-sec nf-pop-about' }, [
@@ -1764,7 +1764,7 @@
 	function backupBusyState(on) {
 		backupBusy = !!on;
 		if (!pop) return;
-		Array.prototype.forEach.call(pop.querySelectorAll('.nf-backup-sec button'), function (b) { if (b !== refs.backupApply || !backupRestorePath) b.disabled = backupBusy; });
+		Array.prototype.forEach.call(pop.querySelectorAll('.nf-backup-sec button'), function (b) { b.disabled = backupBusy; });
 	}
 	function decodeBackupChunk(b64) {
 		var raw = window.atob(b64), bytes = new Uint8Array(raw.length);
