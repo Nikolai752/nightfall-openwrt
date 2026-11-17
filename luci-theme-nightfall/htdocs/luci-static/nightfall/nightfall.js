@@ -1927,10 +1927,26 @@
 	 * Версия лежит в version.json рядом с темой (её пишет сборка релиза). Раз в неделю браузер (не роутер) спрашивает у GitHub,
 	 * какой релиз последний, и сравнивает номера. Ставить ничего не будет: только подсказка. Отключается в панели. */
 	var REPO = 'Nikolai752/nightfall-openwrt', UKEY = 'nightfall-upd-v', verInfo = null;
-	function vnum(s) { return String(s || '').replace(/^v/i, '').split('.').map(function (n) { return parseInt(n, 10) || 0; }); }
-	function isNewer(a, b) {   /* b новее a? */
-		var x = vnum(a), y = vnum(b);
-		for (var i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (y[i] || 0) > (x[i] || 0); }
+	function versionParts(s) {
+		var m = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/i.exec(String(s || '').trim());
+		if (!m) return null;
+		return { core: [ +m[1] || 0, +m[2] || 0, +m[3] || 0 ], pre: m[4] ? m[4].split('.') : null };
+	}
+	function isNewer(a, b) {   /* b новее a? Стабильный релиз новее prerelease той же версии. */
+		var x = versionParts(a), y = versionParts(b);
+		if (!x || !y) return false;
+		for (var i = 0; i < 3; i++) if (x.core[i] !== y.core[i]) return y.core[i] > x.core[i];
+		if (!x.pre && y.pre) return false;
+		if (x.pre && !y.pre) return true;
+		if (!x.pre && !y.pre) return false;
+		for (var j = 0; j < Math.max(x.pre.length, y.pre.length); j++) {
+			if (j >= x.pre.length) return true;
+			if (j >= y.pre.length) return false;
+			var xi = x.pre[j], yi = y.pre[j], xn = /^\d+$/.test(xi), yn = /^\d+$/.test(yi);
+			if (xn && yn) { if (+xi !== +yi) return +yi > +xi; }
+			else if (xn !== yn) return xn;
+			else if (xi !== yi) return yi > xi;
+		}
 		return false;
 	}
 	function updCache() { try { return JSON.parse(window.localStorage.getItem(UKEY) || 'null'); } catch (e) { return null; } }
