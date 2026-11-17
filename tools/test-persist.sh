@@ -19,7 +19,7 @@ echo '20261116|192.168.1.2|video|700|800' > "$T/usb/nightfall/apps.hist"
 
 awk '
   /^PFILES=/ { print; next }
-  /^(persist_mount_info|on_flash|persist_warn|persist|restore)\(\) \{/ { inside=1 }
+  /^(persist_mount_info|on_flash|persist_warn|persist|persist_check|restore)\(\) \{/ { inside=1 }
   inside { print }
   inside && /^}/ { inside=0 }
 ' "$COLLECTOR" > "$T/functions.sh"
@@ -35,6 +35,9 @@ persist_ok=1
 persist_error=0
 persist_error_notified=0
 persist_need_restore=1
+AGG=1
+PERSIST_HOURS=1
+tick=1
 NF_MOUNTS="$T/mounts"
 
 ok=0
@@ -84,12 +87,13 @@ grep -q '^20261116|192\.168\.1\.2|video|770|880$' "$PERSIST_DIR/apps.hist" && pa
 # Disconnect again: RAM keeps collecting; USB data is not touched.
 printf '/dev/root / ext4 rw 0 0\n' > "$NF_MOUNTS"
 echo 'changed while USB absent' >> "$DIR/hist.coarse"
-if persist; then fail "skip writes after USB removal"; else pass "skip writes after USB removal"; fi
+if persist_check; then fail "detect USB removal during periodic check"; else pass "detect USB removal during periodic check"; fi
+[ "$persist_ok" = 0 ] && pass "periodic check marks persistence unavailable" || fail "periodic check marks persistence unavailable"
 grep -q 'old persistent history' "$PERSIST_DIR/hist.coarse" && grep -q 'new RAM history' "$PERSIST_DIR/hist.coarse" && pass "existing USB data is not overwritten while unmounted" || fail "existing USB data is not overwritten while unmounted"
 
 # Reconnect: history is merged, already synchronized daily totals are not double-counted.
 printf '/dev/root / ext4 rw 0 0\n/dev/sda1 %s exfat rw 0 0\n' "$T/usb" > "$NF_MOUNTS"
-if persist; then pass "persistence resumes after remount"; else fail "persistence resumes after remount"; fi
+if persist_check; then pass "persistence resumes immediately after remount check"; else fail "persistence resumes immediately after remount check"; fi
 grep -q 'old persistent history' "$PERSIST_DIR/hist.coarse" && grep -q 'new RAM history' "$PERSIST_DIR/hist.coarse" && grep -q 'changed while USB absent' "$PERSIST_DIR/hist.coarse" && pass "old and new history survives remount" || fail "old and new history survives remount"
 grep -q '^192\.168\.1\.2 130 240$' "$PERSIST_DIR/dev.day" && pass "daily counters are not double-counted on repeated remount" || fail "daily counters are not double-counted on repeated remount"
 
