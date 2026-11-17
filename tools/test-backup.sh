@@ -20,7 +20,11 @@ export NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR="$TMP/backups"
 ARCHIVE=$(find "$TMP/backups" -name '*.tar.gz' -type f | head -n 1)
 [ -n "$ARCHIVE" ]
 "$TOOL" list "$ARCHIVE" | grep -q 'files=3'
-mkdir -p "$ROOT/etc"
+tar -xOzf "$ARCHIVE" etc/nightfall-monitor.conf | grep -q '^TG_TOKEN=$'
+tar -xOzf "$ARCHIVE" etc/nightfall-monitor.conf | grep -q '^TG_PROXY=$'
+! tar -xOzf "$ARCHIVE" etc/nightfall-monitor.conf | grep -q 'old-secret-token'
+! tar -xOzf "$ARCHIVE" etc/nightfall-monitor.conf | grep -q 'user:password'
+
 echo '{"theme":"changed"}' > "$ROOT/etc/nightfall-prefs.json"
 sed -i 's/^TG_TOKEN=.*/TG_TOKEN=current-secret-token/' "$ROOT/etc/nightfall-monitor.conf"
 "$TOOL" restore "$ARCHIVE" > "$TMP/preview"
@@ -29,12 +33,4 @@ grep -q 'changed' "$ROOT/etc/nightfall-prefs.json"
 "$TOOL" restore "$ARCHIVE" apply > "$TMP/restore"
 grep -q 'night' "$ROOT/etc/nightfall-prefs.json"
 grep -q '^TG_TOKEN=current-secret-token$' "$ROOT/etc/nightfall-monitor.conf"
-tar -xOzf "$ARCHIVE" etc/nightfall-monitor.conf | grep -q '^TG_TOKEN=
-echo 'Nightfall backup/restore tests passed'
-
-tar -xOzf "$ARCHIVE" etc/nightfall-monitor.conf | grep -q '^TG_PROXY=
-echo 'Nightfall backup/restore tests passed'
-
-! tar -xOzf "$ARCHIVE" etc/nightfall-monitor.conf | grep -q 'old-secret-token'
-! tar -xOzf "$ARCHIVE" etc/nightfall-monitor.conf | grep -q 'user:password'
 echo 'Nightfall backup/restore tests passed'
