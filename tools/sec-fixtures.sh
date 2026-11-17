@@ -112,4 +112,4 @@ Mon Nov 16 02:10:06 2026 daemon.info dnsmasq[1]: config nope.example.org is NXDO
 Mon Nov 16 02:10:07 2026 authpriv.warn dropbear[5]: query[A] fake.test from 1.2.3.4
 L
 printf '#!/bin/sh\ncat %s\n' "$T/dnslog.txt" > "$T/dnslogread"; chmod +x "$T/dnslogread"
-printf '#!/bin/sh\n[ "$2" = "dhcp.@dnsmasq[0].logqueries" ] && echo 1\n' > "$T/uci_dns"; chmod +x "$T/uci_dns"
+printf '#!/bin/sh\n[ "$3" = "dhcp.@dnsmasq[0].logqueries" ] && echo 1\n' > "$T/uci_dns"; chmod +x "$T/uci_dns"
