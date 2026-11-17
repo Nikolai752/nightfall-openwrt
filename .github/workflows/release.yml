@@ -27,13 +27,15 @@ jobs:
           /tmp/usign/b/usign -V -m dist/nightfall-root.tar.gz -p luci-theme-nightfall/root/etc/nightfall-release.pub -x dist/nightfall-root.tar.gz.sig
       - uses: softprops/action-gh-release@v2
         with:
+          prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
             dist/nightfall-root.tar.gz
             dist/nightfall-root.tar.gz.sha256
             dist/nightfall-root.tar.gz.sig
           generate_release_notes: true
       # номер последнего релиза для проверки обновлений в теме (читается из репозитория, у raw нет лимита запросов)
-      - name: Записать номер релиза в latest.json
+      - name: Записать номер стабильного релиза в latest.json
+        if: ${{ !contains(github.ref_name, '-') }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
