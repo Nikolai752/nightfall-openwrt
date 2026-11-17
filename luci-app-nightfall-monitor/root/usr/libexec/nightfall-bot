@@ -15,6 +15,7 @@ WOL=${NF_WOLBIN:-/usr/libexec/nightfall-wol}
 SPEEDBIN=${NF_SPEEDBIN:-/usr/libexec/nightfall-speed}
 GUEST=${NF_GUESTBIN:-/usr/libexec/nightfall-guest}
 UPDBIN=${NF_UPDATEBIN:-/usr/libexec/nightfall-update}
+BACKUP_TOOL=${NF_BACKUP_TOOL:-/usr/libexec/nightfall-backup}
 WIFI=${NF_WIFI:-wifi}
 INITD=${NF_INITD:-/etc/init.d}
 WDIR=${NF_WIDGETS:-/usr/share/nightfall/widgets}   # HTML-шаблоны виджетов
@@ -35,6 +36,7 @@ KB_SPEED='{"inline_keyboard":[[{"text":"▶️ Замерить сейчас","c
 KB_BACK='{"inline_keyboard":[[{"text":"⬅️ Меню","callback_data":"menu"}]]}'
 KB_SVC='{"inline_keyboard":[[{"text":"📡 Wi-Fi","callback_data":"rs:wifi"},{"text":"🌐 DHCP и DNS","callback_data":"rs:dns"}],[{"text":"🛡 Брандмауэр","callback_data":"rs:fw"},{"text":"🔌 Сеть","callback_data":"rs:net"}],[{"text":"⬅️ Меню","callback_data":"menu"}]]}'
 KB_REBOOT='{"inline_keyboard":[[{"text":"✅ Да, перезагрузить","callback_data":"rb:yes"},{"text":"Отмена","callback_data":"menu"}]]}'
+KB_RESTORE_CONFIRM='{"inline_keyboard":[[{"text":"✅ Восстановить настройки","callback_data":"bk:apply:ID"}],[{"text":"Отмена","callback_data":"bk:cancel:ID"}]]}'
 MID=""   # id сообщения с нажатой кнопкой: если он есть, ответ правит это сообщение, а не шлёт новое
 UMID=""  # id сообщения-команды, которую написал человек (его удаляем, чтобы в чате оставался только ответ)
 LASTID="" # id последнего отправленного ботом сообщения
@@ -412,7 +414,61 @@ ${out:-Записей пока нет.}" '{"inline_keyboard":[[{"text":"« Бл�
 cmd_backup() {
 	reply "💾 Готовлю резервную копию настроек…" ""
 	r=$("$NOTIFY" backup 2>/dev/null)
-	case "$r" in *'"ok":true'*) reply "💾 Резервная копия отправлена отдельным сообщением с файлом. Токен бота в неё не входит." ;; *) reply "Не получилось отправить копию: $(printf '%s' "$r" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p')" ;; esac
+	case "$r" in *'"ok":true'*) reply "💾 Резервная копия отправлена отдельным сообщением. Под файлом есть кнопка «Проверить и восстановить»." ;; *) reply "Не получилось отправить копию: $(printf '%s' "$r" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p')" ;; esac
+}
+
+cb_backup_check() { # cb_backup_check ID: validate the local archive and request explicit confirmation
+	id=$1
+	case "$id" in ''|*[!0-9]*) reply "⚠️ Некорректный идентификатор резервной копии."; return ;; esac
+	state="$DIR/backup.$id"
+	[ -f "$state" ] && [ ! -L "$state" ] || { reply "⌛ Ссылка на архив устарела. Создайте резервную копию заново."; return; }
+	archive=$(cat "$state" 2>/dev/null)
+	case "$archive" in */nightfall-backup-*.tar.gz) ;; *) reply "⚠️ Недопустимый путь к архиву."; return ;; esac
+	[ -f "$archive" ] && [ ! -L "$archive" ] || { reply "⚠️ Файл резервной копии не найден. Возможно, накопитель отключён или архив удалён."; return; }
+	preview=$("$BACKUP_TOOL" list "$archive" 2>&1); rc=$?
+	[ "$rc" = 0 ] || { reply "❌ Проверка архива не пройдена. Восстановление запрещено.
+
+$preview" "$KB_BACK"; return; }
+	printf '%s\n' "$(date +%s)" > "$DIR/restore.ask.$id" || { reply "Не удалось сохранить подтверждение восстановления."; return; }
+	kb=$(printf '%s' "$KB_RESTORE_CONFIRM" | sed "s/ID/$id/g")
+	reply "🔍 Архив прошёл проверку.
+
+$preview
+
+Если готовы заменить текущие настройки Nightfall, подтвердите восстановление. Подтверждение действует 5 минут." "$kb"
+}
+
+cb_backup_apply() { # cb_backup_apply ID: one-time, time-limited confirmation
+	id=$1
+	case "$id" in ''|*[!0-9]*) reply "⚠️ Некорректный идентификатор восстановления."; return ;; esac
+	state="$DIR/backup.$id"; askfile="$DIR/restore.ask.$id"
+	[ -f "$state" ] && [ ! -L "$state" ] && [ -f "$askfile" ] && [ ! -L "$askfile" ] || { reply "⌛ Подтверждение отсутствует или устарело. Проверьте архив заново."; return; }
+	asked=$(cat "$askfile" 2>/dev/null)
+	case "$asked" in ''|*[!0-9]*) rm -f "$askfile"; reply "⌛ Подтверждение повреждено. Проверьте архив заново."; return ;; esac
+	age=$(( $(date +%s) - asked ))
+	[ "$age" -ge 0 ] && [ "$age" -le 300 ] || { rm -f "$askfile"; reply "⌛ Время подтверждения истекло. Проверьте архив заново."; return; }
+	archive=$(cat "$state" 2>/dev/null)
+	case "$archive" in */nightfall-backup-*.tar.gz) ;; *) rm -f "$askfile"; reply "⚠️ Недопустимый путь к архиву."; return ;; esac
+	[ -f "$archive" ] && [ ! -L "$archive" ] || { rm -f "$askfile"; reply "⚠️ Архив не найден."; return; }
+	rm -f "$askfile"
+	result=$("$BACKUP_TOOL" restore "$archive" apply 2>&1); rc=$?
+	if [ "$rc" = 0 ]; then
+		rm -f "$state"
+		reply "✅ Настройки Nightfall восстановлены.
+
+Сетевые настройки OpenWrt не менялись. TG_TOKEN и TG_PROXY сохранены из текущей конфигурации. Перезапускаю сборщик и Telegram-бота…" "$KB_MAIN"
+		( sleep 2; "$INITD/nightfall-collector" restart ) >/dev/null 2>&1 &
+	else
+		reply "❌ Восстановление не выполнено. Текущие настройки не должны быть заменены; проверьте сообщение об ошибке:
+
+$result" "$KB_BACK"
+	fi
+}
+
+cb_backup_cancel() {
+	id=$1
+	case "$id" in ''|*[!0-9]*) ;; *) rm -f "$DIR/restore.ask.$id" ;; esac
+	reply "↩️ Восстановление отменено. Текущие настройки не изменены." "$KB_BACK"
 }
 
 cmd_reboot() { date +%s > "$DIR/reboot.ask"; reply "🔄 Перезагрузить $HOST? Интернет пропадёт примерно на 1–2 минуты. Подтвердите в течение минуты." "$KB_REBOOT"; }
@@ -567,6 +623,9 @@ run() {  # run КОМАНДА (из текста «/status» или из кно�
 		gt:*) cb_gtoggle "${1#gt:}" ;;
 		bk) cmd_backup ;;
 		backup) cmd_backup ;;
+		bk:check:*) cb_backup_check "${1#bk:check:}" ;;
+		bk:apply:*) cb_backup_apply "${1#bk:apply:}" ;;
+		bk:cancel:*) cb_backup_cancel "${1#bk:cancel:}" ;;
 		ok:*|bk:*|ub:*) cb_newdev "${1%%:*}" "${1#*:}" ;;
 		rb|reboot) cmd_reboot ;;
 		rb:yes) do_reboot ;;
@@ -648,6 +707,8 @@ while :; do
 			if [ -n "$cb" ]; then
 				"$NOTIFY" raw answerCallbackQuery -d "callback_query_id=$cb" >/dev/null 2>&1 &   # подтверждение нажатия в фоне, чтобы не задерживать ответ
 				MID=$mid; UMID=""
+				# Keep the document message visible; restore steps are posted as separate messages.
+				case "$dt" in bk:check:*) MID="" ;; esac
 				# кнопку нажали на старом ответе, который уже не внизу: присылаем новый, старый удаляем
 				if grep -qx "$mid" "$DIR/bot.widgets" 2>/dev/null; then OLD="$mid"; MID=""   # кнопка под виджетом: его правкой не заменить, присылаем новое сообщение
 				elif [ "$CLEAN" = 1 ] && grep -qx "$mid" "$MSGS" 2>/dev/null && [ "$(tail -n 1 "$MSGS")" != "$mid" ]; then OLD=$(cat "$MSGS"); : > "$MSGS"; MID=""; fi

@@ -46,7 +46,7 @@ upd() {  # upd ЧАТ ОТПРАВИТЕЛЬ ТЕКСТ | upd cb ЧАТ ОТПР
 runbot() {
 	: > "$T/calls"; rm -f "$T/rebooted" "$T/wifi.done" "$T/speed.started" "$T/guest.calls"
 	NF_CONF="$T/conf" NF_DIR="$T" NF_CURL="$T/curl" NF_NOSLEEP=1 NF_ONCE=1 NF_NOTIFY="$L/nightfall-notify" NF_REBOOT="touch $T/rebooted" NF_PROC="$T/proc" NF_LEASES="$T/leases" \
-		NF_WIDGETS="${NF_W:-$T/widgets}" NF_SPEEDBIN="$T/speedbin" NF_GUESTBIN="$T/guestbin" NF_WIFI="$T/wifibin" NF_INITD="$T/initd" sh "$L/nightfall-bot" >/dev/null 2>&1
+		NF_WIDGETS="${NF_W:-$T/widgets}" NF_SPEEDBIN="$T/speedbin" NF_GUESTBIN="$T/guestbin" NF_WIFI="$T/wifibin" NF_INITD="$T/initd" NF_BACKUP_TOOL="$T/backupbin" sh "$L/nightfall-bot" >/dev/null 2>&1
 }
 # заглушки: замер скорости, гостевая сеть, wifi и init-скрипты
 printf '#!/bin/sh\ntouch "$T/speed.started"\n' > "$T/speedbin"
@@ -335,5 +335,35 @@ case "$r" in *'"ok":false'*) ok "LITE=5 отклоняется" ;; *) bad "LITE=
 printf 'LITE=1\nAPPS=1\n' > "$T/apps.conf"
 r=$(NF_CONF="$T/apps.conf" NF_DIR="$T" NF_UCI=true sh "$L/nightfall-apps" status)
 case "$r" in *'"lite":1'*) ok "учёт по приложениям: статус сообщает о режиме Lite" ;; *) bad "apps status: $r" ;; esac
+
+# 13. резервная копия: проверка, отдельное подтверждение и отмена восстановления
+cat > "$T/backupbin" <<'SH'
+#!/bin/sh
+case "$1" in
+ list) echo "Архив проверен. Состав: тестовая копия";;
+ restore) [ "$3" = apply ] || exit 2; touch "$T/restored"; echo "Настройки Nightfall восстановлены.";;
+ *) exit 2;;
+esac
+SH
+chmod +x "$T/backupbin"
+printf '#!/bin/sh\ntouch "$T/collector.restarted"\n' > "$T/initd/nightfall-collector"
+chmod +x "$T/initd/nightfall-collector"
+touch "$T/nightfall-backup-test.tar.gz"
+printf '%s\n' "$T/nightfall-backup-test.tar.gz" > "$T/backup.12345678901234"
+conf 111 ""; rm -f "$T/mid" "$T/restore.ask.12345678901234" "$T/restored"
+upd cb 111 111 "bk:check:12345678901234"; runbot
+[ -s "$T/restore.ask.12345678901234" ] && ok "резервная копия: проверка создаёт временное подтверждение" || bad "резервная копия: проверка не создала подтверждение"
+grep 'METHOD sendMessage' "$T/calls" | grep -q 'Архив прошёл проверку' && grep 'METHOD sendMessage' "$T/calls" | grep -q 'bk:apply:12345678901234' && ok "резервная копия: после проверки появляется кнопка подтверждения" || bad "резервная копия: нет кнопки подтверждения"
+[ ! -e "$T/restored" ] && ok "резервная копия: проверка не применяет настройки" || bad "резервная копия: проверка сразу восстановила настройки"
+conf 111 ""; date +%s > "$T/restore.ask.12345678901234"; upd cb 111 111 "bk:cancel:12345678901234"; runbot
+[ ! -e "$T/restore.ask.12345678901234" ] && [ ! -e "$T/restored" ] && ok "резервная копия: отмена не меняет настройки" || bad "резервная копия: отмена не сработала"
+conf 111 ""; date +%s > "$T/restore.ask.12345678901234"; rm -f "$T/restored" "$T/collector.restarted"; upd cb 111 111 "bk:apply:12345678901234"; runbot; sleep 3
+[ -e "$T/restored" ] && ok "резервная копия: подтверждение запускает восстановление" || bad "резервная копия: восстановление не запущено"
+[ ! -e "$T/restore.ask.12345678901234" ] && [ ! -e "$T/backup.12345678901234" ] && ok "резервная копия: подтверждение одноразовое" || bad "резервная копия: состояние подтверждения не удалено"
+[ -e "$T/collector.restarted" ] && ok "резервная копия: после восстановления перезапускается сборщик и бот" || bad "резервная копия: служба не перезапущена"
+printf '%s\n' "$T/nightfall-backup-test.tar.gz" > "$T/backup.12345678901234"; echo $(( $(date +%s) - 600 )) > "$T/restore.ask.12345678901234"; rm -f "$T/restored"; conf 111 ""; upd cb 111 111 "bk:apply:12345678901234"; runbot
+[ ! -e "$T/restored" ] && ok "резервная копия: просроченное подтверждение отклоняется" || bad "резервная копия: просроченное подтверждение сработало"
+conf -100500 111; echo "$T/nightfall-backup-test.tar.gz" > "$T/backup.12345678901234"; date +%s > "$T/restore.ask.12345678901234"; rm -f "$T/restored"; upd cb -100500 222 "bk:apply:12345678901234"; runbot
+[ ! -e "$T/restored" ] && ok "резервная копия: неадминистратор не может подтвердить восстановление" || bad "резервная копия: неадминистратор восстановил настройки"
 
 [ $fail = 0 ] && echo "ВСЁ В ПОРЯДКЕ" || { echo "ЕСТЬ ОШИБКИ"; exit 1; }
