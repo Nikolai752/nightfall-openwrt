@@ -30,6 +30,7 @@ const callIwInfo = rpc.declare({ object: 'iwinfo', method: 'info', params: [ 'de
 const callAssoc = rpc.declare({ object: 'iwinfo', method: 'assoclist', params: [ 'device' ], expect: { results: [] } });
 const callUci = rpc.declare({ object: 'uci', method: 'get', params: [ 'config' ], expect: { values: {} } });
 const callReboot = rpc.declare({ object: 'system', method: 'reboot' });
+const callBoard = rpc.declare({ object: 'system', method: 'board' });
 
 /* shared live numbers (filled by the live strip, read by the health card) */
 const SHARED = { mode: null, t: null, cpu: null, mem: null, temp: null, online: null, ping: null, loss: null };
@@ -2313,22 +2314,32 @@ function eventsCard() {
 }
 
 function quickCard() {
-	const note = E('div', { class: 'nf-qnote' });
+	const note = E('div', { class: 'nf-qnote', role: 'status', 'aria-live': 'polite' });
 	const body = E('div', { class: 'nf-quick-b' });
 	const el = xcard('nf-quick', 'Быстрые действия', body);
 
-	function action(label, confirmText, run) {
+	function icon(path) {
+		const svg = SVG('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' });
+		svg.setAttribute('class', 'nf-qa-icon');
+		svg.innerHTML = path;
+		return svg;
+	}
+
+	function action(label, confirmText, run, path) {
 		let timer = null;
-		const b = E('button', { type: 'button', class: 'nf-qa' }, label);
+		const caption = E('span', {}, label);
+		const b = E('button', { type: 'button', class: 'nf-qa' }, [ icon(path), caption ]);
 		b.addEventListener('click', () => {
 			if (!b.classList.contains('arm')) {
-				b.classList.add('arm'); b.textContent = confirmText;
-				timer = window.setTimeout(() => { b.classList.remove('arm'); b.textContent = label; }, 4000);
+				b.classList.add('arm'); caption.textContent = confirmText;
+				timer = window.setTimeout(() => { b.classList.remove('arm'); caption.textContent = label; }, 4000);
 				return;
 			}
 			window.clearTimeout(timer);
-			b.classList.remove('arm'); b.textContent = label; b.disabled = true;
-			Promise.resolve(run()).catch(() => { note.textContent = 'Не получилось выполнить действие (нет прав?).'; }).then(() => { b.disabled = false; });
+			b.classList.remove('arm'); caption.textContent = label; b.disabled = true;
+			Promise.resolve(run()).catch(err => {
+				note.textContent = 'Не получилось выполнить действие: ' + (err && err.message ? err.message : err || 'нет прав');
+			}).then(() => { b.disabled = false; });
 		});
 		return b;
 	}
@@ -2336,21 +2347,72 @@ function quickCard() {
 	function waitBack() {
 		let was = false;
 		const t = window.setInterval(() => {
-			fetch(window.location.pathname, { cache: 'no-store' }).then(r => { if (r.ok && was) { window.clearInterval(t); window.location.reload(); } }).catch(() => { was = true; });
+			fetch(window.location.pathname, { cache: 'no-store' }).then(r => {
+				if (r.ok && was) { window.clearInterval(t); window.location.reload(); }
+			}).catch(() => { was = true; });
 		}, 3000);
 	}
 
-	body.append(
-		action('Перезапустить Wi‑Fi', 'Нажмите ещё раз', () => {
-			note.textContent = 'Перезапускаю Wi‑Fi… устройства переподключатся сами.';
-			return fs.exec('/sbin/wifi', [ 'reload' ]).then(r => { note.textContent = r.code === 0 ? 'Wi‑Fi перезапущен.' : 'Команда вернула ошибку ' + r.code; });
-		}),
-		action('Перезагрузить роутер', 'Точно перезагрузить?', () => {
-			note.textContent = 'Роутер перезагружается… страница обновится сама, когда он вернётся.';
-			return callReboot().then(waitBack);
-		}),
-		note);
+	const wifi = action('Перезапустить Wi‑Fi', 'Нажмите ещё раз', () => {
+		note.textContent = 'Перезапускаю Wi‑Fi… устройства переподключатся сами.';
+		return fs.exec('/sbin/wifi', [ 'reload' ]).then(r => {
+			note.textContent = r.code === 0 ? 'Wi‑Fi перезапущен.' : 'Команда вернула ошибку ' + r.code;
+			if (r.code !== 0) throw new Error('код ' + r.code);
+		});
+	}, '<path d="M5 13a10 10 0 0 1 14 0M8.5 16.5a5 5 0 0 1 7 0"/><circle cx="12" cy="20" r=".8"/>');
 
+	const reboot = action('Перезагрузить роутер', 'Точно перезагрузить?', () => {
+		note.textContent = 'Роутер перезагружается… страница обновится сама, когда он вернётся.';
+		return callReboot().then(waitBack);
+	}, '<path d="M12 3v8"/><path d="M6.5 6.5a8 8 0 1 0 11 0"/>');
+
+	const more = E('details', { class: 'nf-quick-more' });
+	const summary = E('summary', { class: 'nf-qa nf-qa-more', title: 'Дополнительные действия', 'aria-label': 'Дополнительные действия' }, [
+		icon('<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>')
+	]);
+	const menu = E('div', { class: 'nf-quick-menu' });
+
+	const wake = E('button', { type: 'button', class: 'nf-quick-menu-item' }, 'Разбудить устройство');
+	wake.addEventListener('click', () => {
+		more.open = false;
+		const mac = (window.prompt('Введите MAC-адрес устройства (AA:BB:CC:DD:EE:FF):') || '').trim().toUpperCase();
+		if (!mac) return;
+		if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) {
+			note.textContent = 'Некорректный MAC-адрес. Пример: AA:BB:CC:DD:EE:FF';
+			return;
+		}
+		note.textContent = 'Отправляю Wake-on-LAN пакет…';
+		fs.exec('/usr/bin/etherwake', [ '-b', '-i', 'br-lan', mac ]).then(r => {
+			if (r.code !== 0) throw new Error(r.stderr || ('код ' + r.code));
+			note.textContent = 'Пакет пробуждения отправлен: ' + mac;
+		}).catch(err => { note.textContent = 'Не удалось разбудить устройство: ' + (err.message || err) + '. Проверьте наличие etherwake.'; });
+	});
+
+	const copy = E('button', { type: 'button', class: 'nf-quick-menu-item' }, 'Скопировать диагностику');
+	copy.addEventListener('click', () => {
+		more.open = false;
+		note.textContent = 'Собираю диагностику…';
+		Promise.all([ callBoard(), callIfaces(), callWireless() ]).then(data => {
+			const report = 'Nightfall — диагностика\n' + JSON.stringify({ board: data[0], interfaces: data[1], wireless: data[2] }, null, 2);
+			if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('браузер не разрешил доступ к буферу обмена');
+			return navigator.clipboard.writeText(report);
+		}).then(() => { note.textContent = 'Диагностика скопирована в буфер обмена.'; })
+		.catch(err => { note.textContent = 'Не удалось скопировать диагностику: ' + (err.message || err); });
+	});
+
+	const menuReboot = E('button', { type: 'button', class: 'nf-quick-menu-item danger' }, 'Перезагрузить роутер');
+	menuReboot.addEventListener('click', () => {
+		more.open = false;
+		if (!window.confirm('Перезагрузить роутер? Все подключения временно прервутся.')) return;
+		note.textContent = 'Роутер перезагружается…';
+		callReboot().then(waitBack).catch(err => { note.textContent = 'Не удалось перезагрузить роутер: ' + (err.message || err); });
+	});
+
+	menu.append(wake, copy, menuReboot);
+	more.append(summary, menu);
+	document.addEventListener('click', ev => { if (more.open && !more.contains(ev.target)) more.open = false; });
+
+	body.append(wifi, reboot, more, note);
 	return { el, contains: n => el.contains(n), start() {} };
 }
 
