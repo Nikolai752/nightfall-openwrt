@@ -7,8 +7,7 @@ T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/usb/nightfall" "$T/ram"
 : > "$T/events"
-cat > "$T/functions.sh" <<'EOF'
-EOF
+echo 'old persistent history' > "$T/usb/nightfall/hist.coarse"
 awk '
   /^PFILES=/ { print; next }
   /^(persist_mount_info|on_flash|persist_warn|persist|restore)\(\) \{/ { inside=1 }
@@ -38,23 +37,23 @@ printf '/dev/root / ext4 rw 0 0\n' > "$NF_MOUNTS"
 expect_internal "$PERSIST_DIR" "unmounted USB path resolves to root filesystem"
 echo 'new RAM history' > "$DIR/hist.coarse"
 if persist; then fail "refuse persistence when USB is absent"; else pass "refuse persistence when USB is absent"; fi
-[ ! -e "$PERSIST_DIR/hist.coarse" ] && pass "no file written into underlying directory" || fail "no file written into underlying directory"
+grep -q 'old persistent history' "$PERSIST_DIR/hist.coarse" && pass "underlying directory is not overwritten while USB is absent" || fail "underlying directory is not overwritten while USB is absent"
 [ "$persist_ok" = 0 ] && pass "storage status becomes unavailable" || fail "storage status becomes unavailable"
 
 printf '/dev/root / ext4 rw 0 0\n/dev/sda1 %s exfat rw 0 0\n' "$T/usb" > "$NF_MOUNTS"
 expect_external "$PERSIST_DIR" "USB mount is recognized through nested data directory"
 if persist; then pass "persistence resumes after USB mount returns"; else fail "persistence resumes after USB mount returns"; fi
-grep -q 'new RAM history' "$PERSIST_DIR/hist.coarse" && pass "history copied to external storage" || fail "history copied to external storage"
+grep -q 'old persistent history' "$PERSIST_DIR/hist.coarse" && grep -q 'new RAM history' "$PERSIST_DIR/hist.coarse" && pass "USB history and RAM history are merged" || fail "USB history and RAM history are merged"
 [ "$persist_ok" = 1 ] && pass "storage status returns to available" || fail "storage status returns to available"
 
 printf '/dev/root / ext4 rw 0 0\n' > "$NF_MOUNTS"
-echo 'changed while USB absent' > "$DIR/hist.coarse"
+echo 'changed while USB absent' >> "$DIR/hist.coarse"
 if persist; then fail "skip writes after USB removal"; else pass "skip writes after USB removal"; fi
-grep -q 'new RAM history' "$PERSIST_DIR/hist.coarse" && pass "existing USB data is not overwritten while unmounted" || fail "existing USB data is not overwritten while unmounted"
+grep -q 'old persistent history' "$PERSIST_DIR/hist.coarse" && grep -q 'new RAM history' "$PERSIST_DIR/hist.coarse" && pass "existing USB data is not overwritten while unmounted" || fail "existing USB data is not overwritten while unmounted"
 
 printf '/dev/root / ext4 rw 0 0\n/dev/sda1 %s exfat rw 0 0\n' "$T/usb" > "$NF_MOUNTS"
 if persist; then pass "persistence resumes after remount"; else fail "persistence resumes after remount"; fi
-grep -q 'changed while USB absent' "$PERSIST_DIR/hist.coarse" && pass "RAM history is saved after remount" || fail "RAM history is saved after remount"
+grep -q 'old persistent history' "$PERSIST_DIR/hist.coarse" && grep -q 'new RAM history' "$PERSIST_DIR/hist.coarse" && grep -q 'changed while USB absent' "$PERSIST_DIR/hist.coarse" && pass "old and new history survives remount" || fail "old and new history survives remount"
 
 rm -f "$DIR/hist.coarse"
 if restore; then :; fi
