@@ -1231,8 +1231,8 @@ return view.extend({
 			const inferred = [];
 			for (const upstream of Object.keys(byUpstream)) {
 				const clients = Object.values(byUpstream[upstream]);
-				/* Один совпавший адрес недостаточен: это может быть обычная ARP-запись. */
-				if (clients.length < 2) continue;
+				/* IP клиента указывает на MAC активной Wi-Fi-станции, но собственный DHCP MAC другой:
+				 * это признак промежуточного узла даже при единственном клиенте за ним. */
 				for (const c of clients) inferred.push({
 					mac: c.mac, ssid: 'За ретранслятором', band: 'proxy', proxy: true,
 					upstream: c.upstream, proxyState: c.state, signal: null, rx: null, tx: null,
