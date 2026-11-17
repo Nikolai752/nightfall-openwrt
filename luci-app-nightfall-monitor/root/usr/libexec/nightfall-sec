@@ -148,7 +148,7 @@ checks() {   # проверки настроек: [уровень bad|warn|ok, �
 		add ok "SSH: парольный вход root выключен ($([ "$pa" = off ] && echo "PasswordAuth" || echo "RootPasswordAuth")); вход по ключу остаётся доступен."
 	fi
 	if [ "$pa" = on ] && [ "$rpa" = off ]; then
-		add info "SSH: парольная аутентификация для непривилегированных пользователей разрешена; для root запрещена."
+		add ok "SSH: парольная аутентификация для непривилегированных пользователей разрешена; для root запрещена."
 	fi
 	[ "$($UCI -q get uhttpd.main.redirect_https 2>/dev/null)" = "1" ] && add ok "LuCI: http перенаправляется на https." || add warn "LuCI доступен по http (пароль идёт открытым текстом внутри сети). Включите «Redirect all HTTP to HTTPS»."
 	printf '[%s]' "$out"
