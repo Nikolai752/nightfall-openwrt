@@ -107,12 +107,12 @@ backup)    # создать проверенный локальный архив
 	# Keep a private server-side reference: callback_data must stay short and must never contain a path.
 	mkdir -p "$DIR" || fail "не удалось подготовить каталог состояния"
 	umask 077
-	id="$(date +%s)$"
+	id="$(date +%s)$(printf '%04d' "$")"
 	state="$DIR/backup.$id"
 	while [ -e "$state" ] || [ -L "$state" ]; do id="${id}1"; state="$DIR/backup.$id"; done
 	printf '%s\n' "$ARCHIVE" > "$state" || fail "не удалось сохранить ссылку на архив"
 	chmod 600 "$state" 2>/dev/null
-	kb="{\\"inline_keyboard\\":[[{\\"text\\":\\"🔍 Проверить и восстановить\\",\\"callback_data\\":\\"bk:check:$id\\"}]]}"
+	kb='{"inline_keyboard":[[{"text":"🔍 Проверить и восстановить","callback_data":"bk:check:'"$id"'"}]]}'
 	RESP=$(api sendDocument -F "chat_id=$CHAT" -F "document=@$ARCHIVE;filename=$n" -F "caption=Проверенная резервная копия Nightfall. Секреты Telegram исключены. Локальная копия сохранена на роутере." -F "reply_markup=$kb")
 	case "$RESP" in *'"ok":true'*) printf '{"ok":true}\n' ;; *) rm -f "$state"; fail "$(explain "$RESP")" ;; esac ;;
 *)
