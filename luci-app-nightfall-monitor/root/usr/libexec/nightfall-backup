@@ -214,23 +214,17 @@ restore_backup() {
   return 0
  fi
  [ "$mode" = apply ] || fail "неизвестный режим"
- old_token=""
- old_proxy=""
- have_token=0
- have_proxy=0
- if [ -r "$ETC/nightfall-monitor.conf" ]; then
-  if grep -q '^TG_TOKEN=' "$ETC/nightfall-monitor.conf" 2>/dev/null; then
-   old_token=$(grep '^TG_TOKEN=' "$ETC/nightfall-monitor.conf" 2>/dev/null | head -n 1 || true)
-   have_token=1
-  fi
-  if grep -q '^TG_PROXY=' "$ETC/nightfall-monitor.conf" 2>/dev/null; then
-   old_proxy=$(grep '^TG_PROXY=' "$ETC/nightfall-monitor.conf" 2>/dev/null | head -n 1 || true)
-   have_proxy=1
-  fi
- fi
  mkdir -p "$ETC" || fail "не удалось открыть /etc"
  RESTORE_STAGE=$(mktemp -d "$ETC/.nightfall-restore.XXXXXX") || fail "не удалось подготовить транзакцию восстановления"
  mkdir -p "$RESTORE_STAGE/new" "$WORK/rollback" || fail "не удалось подготовить временные файлы"
+ # Keep current Telegram secrets in a private file, never in awk command-line arguments.
+ SECRET_FILE="$RESTORE_STAGE/secrets"
+ (umask 077; : > "$SECRET_FILE") || fail "не удалось подготовить защищённый файл секретов"
+ chmod 600 "$SECRET_FILE" 2>/dev/null
+ if [ -r "$ETC/nightfall-monitor.conf" ]; then
+  sed -n '/^TG_TOKEN=/ { p; q; }' "$ETC/nightfall-monitor.conf" >> "$SECRET_FILE" || fail "не удалось сохранить TG_TOKEN"
+  sed -n '/^TG_PROXY=/ { p; q; }' "$ETC/nightfall-monitor.conf" >> "$SECRET_FILE" || fail "не удалось сохранить TG_PROXY"
+ fi
  : > "$WORK/apply.list"; : > "$WORK/existing.list"; : > "$WORK/missing.list"
  for f in $FILES; do
   [ -f "$WORK/etc/$f" ] || continue
@@ -241,14 +235,21 @@ restore_backup() {
   if [ "$f" = nightfall-monitor.conf ]; then
    # Preserve current secrets exactly, including explicitly empty values.
    # Remove duplicate definitions from the archive and append missing keys.
-   awk -v ht="$have_token" -v st="$old_token" -v hp="$have_proxy" -v sp="$old_proxy" '
-    BEGIN { token_done=0; proxy_done=0 }
-    /^TG_TOKEN=/ { if (ht && !token_done) print st; token_done=1; next }
-    /^TG_PROXY=/ { if (hp && !proxy_done) print sp; proxy_done=1; next }
+   awk -v secret_file="$SECRET_FILE" '
+    BEGIN {
+     while ((getline secret_line < secret_file) > 0) {
+      if (index(secret_line, "TG_TOKEN=") == 1) { token_line=secret_line; have_token=1 }
+      if (index(secret_line, "TG_PROXY=") == 1) { proxy_line=secret_line; have_proxy=1 }
+     }
+     close(secret_file)
+     token_done=0; proxy_done=0
+    }
+    /^TG_TOKEN=/ { if (have_token && !token_done) print token_line; token_done=1; next }
+    /^TG_PROXY=/ { if (have_proxy && !proxy_done) print proxy_line; proxy_done=1; next }
     { print }
     END {
-     if (ht && !token_done) print st
-     if (hp && !proxy_done) print sp
+     if (have_token && !token_done) print token_line
+     if (have_proxy && !proxy_done) print proxy_line
     }
    ' "$RESTORE_STAGE/new/$f" > "$RESTORE_STAGE/new/$f.tmp" || fail "не удалось сохранить текущие секреты"
    mv "$RESTORE_STAGE/new/$f.tmp" "$RESTORE_STAGE/new/$f" || fail "не удалось подготовить конфигурацию"
