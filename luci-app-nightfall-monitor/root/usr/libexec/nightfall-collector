@@ -438,7 +438,7 @@ write_info() {
 		echo "router_nets=$rnets"
 		echo "persist=$([ -n "$PERSIST_DIR" ] && [ "$persist_ok" = 1 ] && echo 1 || echo 0)"
 		echo "persist_dir=$PERSIST_DIR"
-		echo "persist_blocked=$([ -n "$PERSIST_DIR" ] && [ "$persist_ok" = 0 ] && echo 1 || echo 0)"
+		echo "persist_blocked=$([ -n "$PERSIST_DIR" ] && [ "$persist_ok" = 0 ] && [ "${persist_error:-0}" != 1 ] && echo 1 || echo 0)"
 		echo "persist_hours=$PERSIST_HOURS"
 		echo "hist_days=$HIST_DAYS"
 		echo "long_n=$(wc -l < "$DIR/hist.long" 2>/dev/null | tr -d ' ')"
@@ -592,7 +592,19 @@ do_report() {
 # ---------- основной цикл ----------
 now=$(date +%s); started=$now
 persist_ok=1; persist_error=0; persist_error_notified=0
-if [ -n "$PERSIST_DIR" ] && on_flash "$PERSIST_DIR"; then persist_ok=0; fi
+if [ -n "$PERSIST_DIR" ]; then
+	if on_flash "$PERSIST_DIR"; then
+		persist_ok=0
+	else
+		mkdir -p "$PERSIST_DIR" 2>/dev/null
+		if [ "$?" != 0 ] || ! (umask 077; : > "$PERSIST_DIR/.nightfall-write-test.$") 2>/dev/null; then
+			persist_ok=0; persist_error=1; persist_error_notified=1
+			event warn "Не удаётся записать в каталог постоянной истории $PERSIST_DIR; проверьте подключение накопителя и права доступа"
+		else
+			rm -f "$PERSIST_DIR/.nightfall-write-test.$"
+		fi
+	fi
+fi
 # аппаратное ускорение пакетов (HW flow offloading) прячет трафик от счётчиков сетевых портов
 FLOW_HW=0; command -v uci >/dev/null 2>&1 && [ "$(uci -q get firewall.@defaults[0].flow_offloading_hw 2>/dev/null)" = 1 ] && FLOW_HW=1
 case "$HIST_DAYS" in ''|*[!0-9]*) HIST_DAYS=30 ;; esac; [ "$HIST_DAYS" -ge 7 ] || HIST_DAYS=7; [ "$HIST_DAYS" -le 90 ] || HIST_DAYS=90
