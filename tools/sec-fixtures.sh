@@ -34,7 +34,8 @@ P
 echo dropbear > "$T/proc/201/comm"; ln -s 'socket:[5001]' "$T/proc/201/fd/3"
 echo uhttpd > "$T/proc/202/comm"; ln -s 'socket:[5004]' "$T/proc/202/fd/4"
 
-printf 'aa:bb:cc:dd:ee:01|Телефон|1700000000\naa:bb:cc:dd:ee:02|Камера|1700001000\n' > "$T/known"
+KNOWN_NOW=$(date +%s)
+printf 'aa:bb:cc:dd:ee:01|Телефон|%s\naa:bb:cc:dd:ee:02|Камера|%s\n' "$((KNOWN_NOW - 3600))" "$((KNOWN_NOW - 1800))" > "$T/known"
 cat > "$T/uci" <<'U'
 #!/bin/sh
 case "$*" in
