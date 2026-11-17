@@ -698,7 +698,7 @@ while :; do
 				"$NOTIFY" raw answerCallbackQuery -d "callback_query_id=$cb" >/dev/null 2>&1 &   # подтверждение нажатия в фоне, чтобы не задерживать ответ
 				MID=$mid; UMID=""
 				# Keep the document message visible; restore steps are posted as separate messages.
-				case "$dt" in bk:check:*|bk:apply:*|bk:cancel:*) MID="" ;; esac
+				case "$dt" in bk:check:*) MID="" ;; esac
 				# кнопку нажали на старом ответе, который уже не внизу: присылаем новый, старый удаляем
 				if grep -qx "$mid" "$DIR/bot.widgets" 2>/dev/null; then OLD="$mid"; MID=""   # кнопка под виджетом: его правкой не заменить, присылаем новое сообщение
 				elif [ "$CLEAN" = 1 ] && grep -qx "$mid" "$MSGS" 2>/dev/null && [ "$(tail -n 1 "$MSGS")" != "$mid" ]; then OLD=$(cat "$MSGS"); : > "$MSGS"; MID=""; fi
