@@ -148,9 +148,64 @@ restore_backup() {
  say "Перезапустите сборщик: /etc/init.d/nightfall-collector restart"
 }
 
+backup_name() {
+ case "${1:-}" in nightfall-backup-*.tar.gz) printf '%s/%s' "$OUTDIR" "$1" ;; *) fail "недопустимое имя архива" ;; esac
+}
+download_chunk() {
+ archive=$(backup_name "${2:-}")
+ offset=${3:-}; length=${4:-24576}
+ case "$offset:$length" in *[!0-9:]*|:*) fail "неверные параметры загрузки" ;; esac
+ [ -f "$archive" ] && [ ! -L "$archive" ] || fail "архив не найден"
+ size=$(wc -c < "$archive" | tr -d ' ')
+ [ "$offset" -lt "$size" ] || { [ "$offset" -eq 0 ] && [ "$size" -eq 0 ]; } || fail "смещение за пределами архива"
+ [ "$length" -gt 0 ] && [ "$length" -le 24576 ] || fail "неверный размер блока"
+ tail -c "+$((offset + 1))" "$archive" | head -c "$length" | base64 | tr -d '\n'
+}
+upload_start() {
+ id=${2:-}
+ case "$id" in ????????) ;; *) fail "неверный идентификатор загрузки" ;; esac
+ case "$id" in *[!a-f0-9]*) fail "неверный идентификатор загрузки" ;; esac
+ umask 077
+ : > "$OUTDIR/.upload-$id.b64" || fail "не удалось начать загрузку"
+ say "Загрузка начата."
+}
+upload_chunk() {
+ id=${2:-}; chunk=${3:-}
+ case "$id" in ????????) ;; *) fail "неверный идентификатор загрузки" ;; esac
+ case "$id" in *[!a-f0-9]*) fail "неверный идентификатор загрузки" ;; esac
+ [ -n "$chunk" ] && [ "${#chunk}" -le 32768 ] || fail "неверный размер блока"
+ case "$chunk" in *[!A-Za-z0-9+/=]*) fail "недопустимые символы блока" ;; esac
+ file="$OUTDIR/.upload-$id.b64"
+ [ -f "$file" ] && [ ! -L "$file" ] || fail "загрузка не найдена"
+ printf '%s' "$chunk" >> "$file" || fail "не удалось записать блок"
+ say "Блок принят."
+}
+upload_abort() {
+ id=${2:-}
+ case "$id" in ????????) ;; *) fail "неверный идентификатор загрузки" ;; esac
+ case "$id" in *[!a-f0-9]*) fail "неверный идентификатор загрузки" ;; esac
+ rm -f "$OUTDIR/.upload-$id.b64" "$OUTDIR/nightfall-backup-upload-$id.tar.gz"
+ say "Временная загрузка удалена."
+}
+upload_finish() {
+ id=${2:-}
+ case "$id" in ????????) ;; *) fail "неверный идентификатор загрузки" ;; esac
+ case "$id" in *[!a-f0-9]*) fail "неверный идентификатор загрузки" ;; esac
+ encoded="$OUTDIR/.upload-$id.b64"
+ archive="$OUTDIR/nightfall-backup-upload-$id.tar.gz"
+ [ -f "$encoded" ] && [ ! -L "$encoded" ] || fail "загрузка не найдена"
+ encoded_size=$(wc -c < "$encoded" | tr -d ' ')
+ [ "$encoded_size" -gt 0 ] && [ "$encoded_size" -le 7000000 ] || fail "архив пустой или превышает 5 МБ"
+ base64 -d "$encoded" > "$archive.tmp" 2>/dev/null || { rm -f "$archive.tmp"; fail "не удалось декодировать архив"; }
+ rm -f "$encoded"
+ mv "$archive.tmp" "$archive" || fail "не удалось сохранить архив"
+ chmod 600 "$archive" 2>/dev/null
+ inspect_archive "$archive"
+ say "Архив загружен: $archive"
+}
 case "${1:-}" in
- create) create_backup "$@" ;;
+ create) create_backup "$@" ;;\n download) download_chunk "$@" ;;\n upload-start) upload_start "$@" ;;\n upload-chunk) upload_chunk "$@" ;;\n upload-finish) upload_finish "$@" ;;\n upload-abort) upload_abort "$@" ;;
  list) [ -n "${2:-}" ] || fail "укажите путь к архиву"; inspect_archive "$2" ;;
  restore) [ -n "${2:-}" ] || fail "укажите путь к архиву"; restore_backup "$2" "${3:-preview}" ;;
- *) echo "Использование: $0 create [FILE] | list FILE | restore FILE [apply]" >&2; exit 2 ;;
+ *) echo "Использование: $0 create [FILE] | list FILE | restore FILE [apply] | download NAME OFFSET [LENGTH] | upload-start ID | upload-chunk ID BASE64 | upload-finish ID | upload-abort ID" >&2; exit 2 ;;
 esac
