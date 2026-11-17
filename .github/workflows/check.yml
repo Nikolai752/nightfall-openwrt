@@ -69,3 +69,25 @@ jobs:
             dist/nightfall-root.tar.gz.sha256
           if-no-files-found: error
           retention-days: 7
+      - name: Build Telegram restore test archive
+        if: github.event_name == 'pull_request' && github.head_ref == 'feat/telegram-backup-restore-buttons'
+        env:
+          VERSION: v1.27.7-alpha.2-test
+        run: sh ./build-release.sh
+      - name: Verify Telegram restore test archive
+        if: github.event_name == 'pull_request' && github.head_ref == 'feat/telegram-backup-restore-buttons'
+        run: |
+          test -s dist/nightfall-root.tar.gz
+          test -s dist/nightfall-root.tar.gz.sha256
+          (cd dist && sha256sum -c nightfall-root.tar.gz.sha256)
+          tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | grep -q '1.27.7-alpha.2-test'
+      - name: Upload Telegram restore test archive
+        if: success() && github.event_name == 'pull_request' && github.head_ref == 'feat/telegram-backup-restore-buttons'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightfall-test-telegram-restore-v1.27.7-alpha.2-test
+          path: |
+            dist/nightfall-root.tar.gz
+            dist/nightfall-root.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
