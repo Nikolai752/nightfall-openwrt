@@ -628,21 +628,15 @@ restore() {
 			# после длительного отсутствия не затирало архив свежей RAM-историей.
 			case "$f" in
 				extip.log|hist.coarse|temps.coarse|hist.long|wifi.hr|dev.hr|events.log|speed.log)
-					if [ "$f" = apps.hist ]; then
-						cat "$f" "$DIR/$f" | awk '!seen[$0]++' | sort -t'|' -n -k1,1 > "$DIR/$f.merge"
-					else
-						cat "$f" "$DIR/$f" | awk '!seen[$0]++' | sort -n -k1,1 > "$DIR/$f.merge"
-					fi
+					cat "$f" "$DIR/$f" | awk '!seen[$0]++' | sort -n -k1,1 > "$DIR/$f.merge"
 					case "$f" in
 						extip.log) limit=200 ;;
 						hist.coarse|temps.coarse) limit=2016 ;;
 						hist.long) limit=$((HIST_DAYS * 48)) ;;
 						wifi.hr) limit=12000 ;;
-						dev.hr|dev.daily) limit=6000 ;;
+						dev.hr) limit=6000 ;;
 						events.log) limit=300 ;;
 						speed.log) limit=400 ;;
-						apps.hist) limit=18000 ;;
-						traffic.daily) limit=400 ;;
 					esac
 					tail -n "$limit" "$DIR/$f.merge" > "$DIR/$f.trim" && mv "$DIR/$f.trim" "$DIR/$f" || rm -f "$DIR/$f.merge" "$DIR/$f.trim"
 					rm -f "$DIR/$f.merge"
