@@ -1079,6 +1079,7 @@ return view.extend({
 		];
 		const cfgInputs = {};
 		const cfgMsg = E('span', { class: 'nfm-note-s' });
+		const backupMsg = E('span', { class: 'nfm-note-s' });
 		/* Telegram: сначала сохраняем введённое, потом просим роутер определить chat id или отправить проверочное сообщение */
 		const tgMsg = E('div', { class: 'nfm-note-s', style: 'margin-top:6px' });
 		const tgRun = cmd => {
@@ -1156,6 +1157,13 @@ return view.extend({
 				E('button', { class: 'nfm-act', click: () => saveCfg() }, 'Сохранить и применить'),
 				E('button', { class: 'nfm-act', click: () => (S.cfg ? Promise.resolve(S.cfg) : callCfg([ 'get' ]).then(c => (S.cfg = c))).then(c => fillCfg(c && c.defaults)) }, 'Значения по умолчанию'),
 				E('button', { class: 'nfm-act', click: () => copyDiag() }, 'Скопировать диагностику'), cfgMsg ]),
+			E('div', { class: 'nfm-actions', style: 'margin:8px 0 0;align-items:center' }, [
+				E('button', { class: 'nfm-act', click: () => {
+					backupMsg.textContent = 'Создаю и проверяю резервную копию…';
+					fs.exec('/usr/libexec/nightfall-backup', [ 'create' ]).then(r => {
+						backupMsg.textContent = ((r.stdout || '') + (r.stderr || '')).trim() || 'Нет ответа от архиватора.';
+					}).catch(e => { backupMsg.textContent = 'Не удалось создать копию: ' + String((e && e.message) || e); });
+				} }, 'Создать резервную копию сейчас'), backupMsg ]),
 			E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Пустой адрес 1 отключает проверку интернета. История и резервные копии хранятся на подключённом USB/SD; копии лежат в отдельной папке nightfall-backups, количество задаётся выше. Если USB отключён, резервная копия временно создаётся в /tmp. После сохранения сборщик перезапускается, накопленная история не теряется.')
 		]));
 		const jrnTiles = E('div', { class: 'nfm-tiles t4', style: 'margin-bottom:10px' }, [ [ 'jCnt', 'обрывов за 7 дней' ], [ 'jSum', 'без связи суммарно' ], [ 'jAv', 'доступность' ], [ 'jBoot', 'последняя загрузка' ] ]
