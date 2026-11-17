@@ -6,7 +6,7 @@
 [![OpenWrt 25.12](https://img.shields.io/badge/OpenWrt-25.12-00a3b5?style=flat-square&logo=openwrt)](https://openwrt.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](https://opensource.org/licenses/MIT)
 
-A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Monitor** page with history, charts, traffic accounting by device and by application, Telegram notifications and one-click updates. For **OpenWrt 25.12**; no extra packages are needed (`curl` is required only for updates and Telegram).
+A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Monitor** page with history, charts, traffic accounting by device and by application, Telegram notifications and one-click updates. For **OpenWrt 25.12**. The installer checks for `base64` and installs `coreutils-base64` if the BusyBox applet is missing; `curl` is needed only for updates and Telegram.
 
 > **Language note.** The theme's own interface (personalization panel, Overview widgets, Resource Monitor, login screen, notifications) is currently **in Russian only**. Standard LuCI pages (Network, Firewall, etc.) are still translated by LuCI as usual. Contributions are welcome via [Issues](https://github.com/Nikolai752/nightfall-openwrt/issues).
 
@@ -95,13 +95,13 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 - The three summary cards (internet, current speed, speed test, uptime, firmware, temperature, load, memory, device count) are chosen in Personalize → Login screen. You can also upload your own picture instead of the logo. The summary is shown on the local network only.
 
 **Backup**
-- A button in the bot and in the monitor settings sends an archive of your Nightfall settings to Telegram (the bot token is not included).
+- The bot's Backup button creates a verified local archive and sends it to Telegram; the local copy remains on the router. Telegram secrets and OpenWrt network settings are excluded. LuCI can download an archive and restore it after validation.
 - Every 6 hours the bot checks for a new theme version and sends a notice with "Install", "Later" and "Skip this version" buttons (also the "Updates" menu button and `/update`). The install verifies sha256 and the signature and rolls back on error; admins only. Turn it off with `TG_UPDATES=0`.
 
 **Updating from the interface**
 - A "New version available" dialog, one-click install with sha256 and signature checks, rollback on error, release notes after sign-in. See "Updating".
 
-History is kept in RAM (`/tmp`); nothing is written to flash (exceptions: the outage journal, the known-devices list and keys). To keep history across reboots, point it at a folder on a USB drive or SD card.
+Live data is collected in RAM (`/tmp`). To keep history across reboots, set `PERSIST_DIR` to a folder on a USB/SD drive. Nightfall then keeps detailed samples, long-term history (up to 90 days), hourly Wi-Fi signal and hourly traffic. Backups are stored in a separate `nightfall-backups` directory on the same external drive. If the drive is not mounted, history persistence pauses without writing through to the underlying `/overlay`, while backups temporarily fall back to `/tmp`.
 
 ### Lite mode for weak routers
 Set `LITE` in Resource Monitor → settings. `LITE=0` (default) is the full mode: the collector samples every 15 s, per-app accounting and Wi‑Fi history are available. `LITE=1` is Lite: sampling every 60 s, no per-app accounting and no Wi‑Fi history, much lighter on CPU and RAM. The mode that is actually running is shown in the monitor header and in the "Router health" card ("Mode: Full" or "Mode: Lite"); it reflects the running collector, not just the settings file.
@@ -184,7 +184,7 @@ Use the same command as for installation. Your settings are kept. If the version
 
 ### Updating from the interface
 
-When a new version is released, the theme shows a "New version available" dialog. Press "Update": the router downloads the release, verifies its sha256 checksum and installs it; on any error the files are restored from a backup. Since v1.0.11 releases are also signed with a usign key: the router checks the signature against `/etc/nightfall-release.pub` and refuses an archive with a bad signature. The first update to a signed version (v1.0.11) goes by sha256 and brings the public key; after that the signature is always required. See [CHANGELOG.md](CHANGELOG.md) for the history. Afterwards the session restarts and, once you sign in, the changes from `CHANGELOG.md` are shown.
+When a new version is released, the theme shows a "New version available" dialog. Press "Update": the router downloads the release, verifies its sha256 checksum and installs it; on any error the files are restored from a backup. Since v1.0.11 releases are also signed with a usign key: the router checks the signature against `/etc/nightfall-release.pub` and refuses an archive with a bad signature. The first update to a signed version (v1.0.11) goes by sha256 and brings the public key; after that the signature is always required. See [CHANGELOG.md](CHANGELOG.md) for the history. Afterwards the session restarts. Sign in again in the same browser to see the “What’s new” dialog with entries from `CHANGELOG.md`; it is acknowledged only when you press “Got it”. A clean install does not show this dialog. If the changelog cannot be loaded, the theme retries on the next sign-in.
 
 The router needs **curl** to download the release (`apk add curl`, or `opkg install curl` on older releases) and `usign` to verify signatures (already present in OpenWrt 25.12).
 
@@ -240,6 +240,6 @@ Releases are signed with a [usign](https://git.openwrt.org/project/usign.git) ke
 
 The theme version lives in `luci-theme-nightfall/htdocs/luci-static/nightfall/version.json` (shown on the About page); keep it equal to the top entry of `CHANGELOG.md` before a release, `tools/check.sh` verifies this. The asset cache version (`?v=…` in `header.ut`) no longer needs a manual bump: `build-release.sh` stamps the release number into it.
 
-Then create a release with a tag like `v1.0.19` (on the Releases page or with `gh release create`). GitHub Actions builds `nightfall-root.tar.gz`, signs it, attaches the `.sha256` and `.sig` files and updates `latest.json`. Remember to add an entry to `CHANGELOG.md`.
+Then create a release with a tag like `vX.Y.Z` (on the Releases page or with `gh release create`). GitHub Actions builds `nightfall-root.tar.gz`, signs it, attaches the `.sha256` and `.sig` files and updates `latest.json`. Remember to add an entry to `CHANGELOG.md`.
 
 The repository contains no symbolic links (`nightfall-light`, `nightfall-dark`, `prefs.json`): `build-release.sh` creates them. To build an `.apk` with the SDK, create them manually.
