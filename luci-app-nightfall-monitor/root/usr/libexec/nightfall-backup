@@ -36,7 +36,7 @@ allowed() {
   *) return 1 ;;
  esac
 }
-cleanup() { [ -n "${WORK:-}" ] && rm -rf "$WORK"; [ -n "${RESTORE_STAGE:-}" ] && rm -rf "$RESTORE_STAGE"; [ -n "${DEST_TMP:-}" ] && rm -f "$DEST_TMP"; }
+cleanup() { [ -n "${WORK:-}" ] && rm -rf "$WORK"; [ -n "${RESTORE_STAGE:-}" ] && rm -rf "$RESTORE_STAGE"; [ -n "${DEST_TMP:-}" ] && rm -f "$DEST_TMP"; return 0; }
 trap cleanup EXIT HUP INT TERM
 
 create_backup() {
