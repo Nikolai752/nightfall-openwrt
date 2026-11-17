@@ -12,6 +12,7 @@ TG_PROXY=socks5://user:password@127.0.0.1:1080
 TEMP_WARN=80
 EOF
 echo '{"theme":"night"}' > "$ROOT/etc/nightfall-prefs.json"
+dd if=/dev/urandom of="$ROOT/etc/nightfall-journal.log" bs=4096 count=10 2>/dev/null
 echo '{"logo":"custom"}' > "$ROOT/etc/nightfall-logo.json"
 TOOL="$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)/luci-app-nightfall-monitor/root/usr/libexec/nightfall-backup"
 export NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR="$TMP/backups"
@@ -19,12 +20,34 @@ export NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR="$TMP/backups"
 "$TOOL" create
 ARCHIVE=$(find "$TMP/backups" -name '*.tar.gz' -type f | head -n 1)
 [ -n "$ARCHIVE" ]
-"$TOOL" list "$ARCHIVE" | grep -q 'files=3'
-# Проверяем чтение архива блоками и полный цикл загрузки из браузера.
+[ "$(wc -c < "$ARCHIVE" | tr -d ' ')" -gt 0 ]
+gzip -t "$ARCHIVE"
+"$TOOL" list "$ARCHIVE" | grep -q 'files=4'
+# Размер и SHA-256, которые использует браузер для обнаружения пустой/оборванной загрузки.
 NAME=$(basename "$ARCHIVE")
-"$TOOL" download "$NAME" 0 24576 > "$TMP/chunk.b64"
-base64 -d "$TMP/chunk.b64" > "$TMP/downloaded.tar.gz"
+"$TOOL" download-info "$NAME" > "$TMP/info"
+SIZE=$(sed -n 's/.*size=\([0-9][0-9]*\).*/\1/p' "$TMP/info")
+HASH=$(sed -n 's/.*sha256=\([a-f0-9][a-f0-9]*\).*/\1/p' "$TMP/info")
+[ "$SIZE" -eq "$(wc -c < "$ARCHIVE" | tr -d ' ')" ]
+[ "$HASH" = "$(sha256sum "$ARCHIVE" | awk '{ print $1 }')" ]
+# Проверяем передачу несколькими блоками, включая последний неполный блок.
+: > "$TMP/downloaded.tar.gz"
+offset=0
+while [ "$offset" -lt "$SIZE" ]; do
+  "$TOOL" download "$NAME" "$offset" 24576 > "$TMP/chunk.b64"
+  [ -s "$TMP/chunk.b64" ]
+  base64 -d "$TMP/chunk.b64" > "$TMP/part"
+  got=$(wc -c < "$TMP/part" | tr -d ' ')
+  expected=$((SIZE - offset)); [ "$expected" -gt 24576 ] && expected=24576
+  [ "$got" -eq "$expected" ]
+  cat "$TMP/part" >> "$TMP/downloaded.tar.gz"
+  offset=$((offset + got))
+done
 cmp "$ARCHIVE" "$TMP/downloaded.tar.gz"
+# Повторное создание с тем же именем не должно перезаписать предыдущую копию.
+"$TOOL" create "$TMP/backups/repeat.tar.gz" >/dev/null
+"$TOOL" create "$TMP/backups/repeat.tar.gz" >/dev/null
+[ -s "$TMP/backups/repeat.tar.gz" ] && [ -s "$TMP/backups/repeat-1.tar.gz" ]
 ENCODED=$(base64 "$ARCHIVE" | tr -d '\n')
 "$TOOL" upload-start 0123abcd >/dev/null
 "$TOOL" upload-chunk 0123abcd "$ENCODED" >/dev/null
