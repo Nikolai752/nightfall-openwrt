@@ -68,3 +68,13 @@ chk 2 2100 - "расписание группы снято"
 
 echo; echo "ИТОГО: ok=$ok, ошибок=$bad"
 [ "$bad" -eq 0 ]
+
+# Проверка передачи физического LAN-порта из FDB в JSON.
+PORTMAC=aa:bb:cc:dd:ee:02
+printf '%s LAN4\n' "$PORTMAC" > "$T/ports"
+printf '192.168.1.20 dev br-lan lladdr %s REACHABLE\n' "$PORTMAC" > "$T/neigh"
+export NF_NEIGH=$T/neigh NF_WIFI=$T/wifi NF_PORTMAP=$T/ports NF_IP=true NF_PING=false
+: > "$T/wifi"
+r=$(run list)
+want "LAN-порт добавлен в JSON" '"connection":"LAN4"' "$r"
+unset NF_NEIGH NF_WIFI NF_PORTMAP NF_IP NF_PING
