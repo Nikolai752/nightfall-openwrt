@@ -1965,7 +1965,14 @@ const foldSave = m => { try { window.localStorage.setItem(FOLD_KEY, JSON.stringi
 function foldSummary(el, key) {
 	let t = '';
 	if (key === 'nf-apps') { const n = el.querySelector('.nf-apps-sub'); t = n ? n.textContent.replace(/^\s*Крупнее всего:\s*/, '') : ''; }
-	else if (key === 'nf-block') { const tabs = el.querySelectorAll('.nf-blk-tabs button'); t = Array.prototype.map.call(tabs, b => b.textContent.trim()).join(' · '); }
+	else if (key === 'nf-block') {
+		const tabs = el.querySelectorAll('.nf-blk-tabs button');
+		t = Array.prototype.map.call(tabs, b => {
+			const label = b.querySelector('.nf-blk-tab-label');
+			const count = b.querySelector('.nf-blk-tab-count');
+			return [ label ? label.textContent.trim() : '', count ? count.textContent.trim() : '' ].filter(Boolean).join(' ');
+		}).filter(Boolean).join(' · ');
+	}
 	return (t || FOLD[key]).slice(0, 110);
 }
 function xcard(cls, title, body) {
