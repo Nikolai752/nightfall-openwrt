@@ -3001,7 +3001,7 @@ return view.extend({
 					const mac = (c.mac || '').toUpperCase(), h = hints[mac] || hints[mac.toLowerCase()] || {};
 					const lvl = c.proxy ? 0 : c.signal >= -55 ? 4 : c.signal >= -65 ? 3 : c.signal >= -75 ? 2 : 1;
 					const link = x => x && x.rate ? nf0.format(x.rate / 1000) + '\u00a0Мбит/с' : '–';
-					return E('tr', { class: 'nfm-click', title: 'Показать сигнал в динамике', click: c.proxy ? null : () => wifiDialog(mac, h.name || (h.ipaddrs || [])[0] || mac, c) }, [
+					return E('tr', { class: 'nfm-click', title: 'Показать сигнал в динамике', click: () => { if (!c.proxy) wifiDialog(mac, h.name || (h.ipaddrs || [])[0] || mac, c); } }, [
 						E('td', {}, [ h.name || (h.ipaddrs || [])[0] || mac, h.name ? E('span', { class: 'nfm-chip' }, mac) : '' ]),
 						E('td', {}, [ c.ssid, c.proxy ? E('span', { class: 'nfm-chip' }, 'вероятно RE / proxy') : c.band ? E('span', { class: 'nfm-chip' }, BANDS[c.band] || c.band) : '' ]),
 						E('td', {}, c.proxy ? '—' : [ E('span', { class: 'nfm-sig' + (lvl <= 2 ? ' weak' : '') }, [ 1, 2, 3, 4 ].map(n => E('i', { class: n <= lvl ? 'on' : '' }))), `${c.signal} дБм` ]),
