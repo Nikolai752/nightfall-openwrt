@@ -95,7 +95,7 @@ A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Moni
 - The three summary cards (internet, current speed, speed test, uptime, firmware, temperature, load, memory, device count) are chosen in Personalize → Login screen. You can also upload your own picture instead of the logo. The summary is shown on the local network only.
 
 **Backup**
-- The bot's Backup button creates a verified local archive and sends it to Telegram; the local copy remains on the router. Telegram secrets and OpenWrt network settings are excluded. LuCI can download an archive and restore it after validation.
+- The bot's Backup button creates a verified local archive and sends it to Telegram; the local copy remains on the router. Telegram secrets and OpenWrt network settings are excluded. LuCI can create an archive; you can receive it as a file and safely restore it through the Telegram bot or over SSH.
 - Every 6 hours the bot checks for a new theme version and sends a notice with "Install", "Later" and "Skip this version" buttons (also the "Updates" menu button and `/update`). The install verifies sha256 and the signature and rolls back on error; admins only. Turn it off with `TG_UPDATES=0`.
 
 **Updating from the interface**
@@ -124,7 +124,7 @@ The monitor can message you in Telegram when the internet goes down or comes bac
 3. Press "Detect chat id", then "Send test".
 4. Turn on "Send notifications" and save.
 
-**Button bot** (answered to the owner only, i.e. your chat id). Send the bot `/menu` and buttons appear under the message: Status, Clients, Traffic, Apps, Speed, Block and Reboot. The commands `/status`, `/clients`, `/traffic`, `/apps`, `/speed`, `/block`, `/reboot`, `/report` work too. Turn it off with `TG_BOT=0`.
+**Button bot** (in a private chat it responds to the configured owner, `TG_CHAT`; management actions are admin-only). Send `/menu` to show the main menu: **Status**, **Clients**, **Traffic**, **Apps**, **Speed**, **Block**, **Guest Wi-Fi**, **Wake device** (Wake-on-LAN), **Backup**, **Services**, **Reboot**, **Clear chat**, and **Updates**. The Block section also provides device groups and the block log. Service restarts and router reboot require a separate confirmation. Commands include `/menu`, `/help`, `/status`, `/clients`, `/traffic`, `/apps`, `/speed`, `/block`, `/bl` (block log), `/wake`, `/guest`, `/svc`, `/restart`, `/report`, `/update`, and `/widget`. Disable the bot with `TG_BOT=0`.
 
 **Device blocking.** The "Block" button lists devices (🟢 online, 🔴 blocked, ⏰ has a schedule); tapping one cuts it off the internet or restores it. The "Internet access" card on the Overview page does the same and also sets a daily "from … to …" schedule (may cross midnight). Only internet forwarding is blocked, by MAC address (a separate nft table `inet nightfall`); the router and the LAN stay reachable. Phones with a random Wi-Fi address are better blocked in the phone's own settings. The list lives in `/etc/nightfall-block.list`.
 
@@ -134,7 +134,7 @@ The monitor can message you in Telegram when the internet goes down or comes bac
 
 **Groups in the bot.** The "Block" section has a "👥 Groups" button: tapping a group cuts the internet for all its devices or restores it (🟢 working, 🔴 blocked, ⏰ schedule, 📉 quota). Groups are created on the Devices page. A single device can still be restored from its card, but if the group was blocked by hand, restore the group first. Files: `/etc/nightfall-devices.list` (names, icons, groups) and `/etc/nightfall-groups.list` (group rules); both are part of the backup.
 
-**Backup.** The "Backup" button sends a file with your settings (`tar -xzf file -C /` to restore; the bot token is not included, enter it again).
+**Backup and restore.** The "Backup" button creates a verified archive, keeps a local copy on the router, and sends the archive as a separate Telegram file. Tap **"Check and restore"** below that file: the bot validates the archive and displays its contents. Only then does it show a separate **"Restore settings"** confirmation (valid for 5 minutes) and a Cancel button. On success, the bot reports the result and restarts the collector and itself. OpenWrt network settings are not included. `TG_TOKEN` and `TG_PROXY` are not stored in the archive; the current values are preserved from the router's existing configuration. Do not extract the archive manually over `/` or `/etc`. See the [backup and restore guide](docs/backup-restore.md).
 
 **Reboot** from the bot asks for confirmation with a button.
 
