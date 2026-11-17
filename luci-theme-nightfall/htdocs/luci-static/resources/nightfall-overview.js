@@ -380,8 +380,14 @@ function liveStrip() {
 		R.vdDismiss = E('button', { type: 'button', class: 'nf-vd-dismiss', title: 'Скрыть это замечание до изменения состояния', 'aria-label': 'Скрыть замечание' }, '×')
 	]);
 	const verdictDismissKey = 'nightfall-overview-verdict-dismissed';
-	R.vdDismiss.addEventListener('click', () => {
-		try { localStorage.setItem(verdictDismissKey, R.verdict.dataset.signature || ''); } catch (e) {}
+	let dismissedVerdictSignature = '';
+	R.vdDismiss.textContent = 'Понятно';
+	R.vdDismiss.setAttribute('aria-label', 'Понятно');
+	R.vdDismiss.addEventListener('click', ev => {
+		ev.preventDefault();
+		ev.stopPropagation();
+		dismissedVerdictSignature = R.verdict.dataset.signature || '';
+		try { localStorage.setItem(verdictDismissKey, dismissedVerdictSignature); } catch (e) {}
 		R.verdict.hidden = true;
 	});
 	const strip = E('div', { class: 'nf-live' }, [
@@ -665,8 +671,9 @@ function liveStrip() {
 			const signature = k + '|' + all.join('|');
 			R.verdict.setAttribute('data-k', k);
 			R.verdict.dataset.signature = signature;
-			let dismissed = '';
-			try { dismissed = localStorage.getItem(verdictDismissKey) || ''; } catch (e) {}
+			let dismissed = dismissedVerdictSignature;
+			try { dismissed = localStorage.getItem(verdictDismissKey) || dismissed; } catch (e) {}
+			if (dismissed !== signature) dismissedVerdictSignature = '';
 			R.verdict.hidden = k !== 'ok' && dismissed === signature;
 			R.vdDismiss.hidden = k === 'ok';
 			if (k === 'ok') {
