@@ -40,8 +40,8 @@ cat > "$AUTH_UCI" <<'U'
 #!/bin/sh
 case "$*" in
   *"show wireless"*) exec "$NF_UCI_BASE" "$@" ;;
-  *"PasswordAuth"*) echo "${NF_TEST_PA:-on}"; exit 0 ;;
   *"RootPasswordAuth"*) echo "${NF_TEST_RPA:-on}"; exit 0 ;;
+  *"PasswordAuth"*) echo "${NF_TEST_PA:-on}"; exit 0 ;;
 esac
 exec "$NF_UCI_BASE" "$@"
 U
