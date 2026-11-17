@@ -28,7 +28,7 @@ api() {
 
 explain() {  # разбор ответа Telegram: печатает текст ошибки
 	d=$(printf '%s' "$1" | sed -n 's/.*"description":"\([^"]*\)".*/\1/p' | head -n 1)
-	[ -n "$d" ] || d=$(printf '%s' "$1" | head -c 160 | tr -d '"\\n')
+	[ -n "$d" ] || d=$(printf '%s' "$1" | head -c 160 | tr -d '"\\\n')
 	[ -n "$d" ] || d="нет ответа от api.telegram.org (проверьте доступ или укажите прокси)"
 	printf '%s' "$d"
 }
