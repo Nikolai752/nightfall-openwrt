@@ -35,6 +35,10 @@ expect_internal() {
 
 printf '/dev/root / ext4 rw 0 0\n' > "$NF_MOUNTS"
 expect_internal "$PERSIST_DIR" "unmounted USB path resolves to root filesystem"
+PERSIST_DIR="$T/not-mounted/nightfall"
+if persist; then fail "do not create a missing USB path on root storage"; else pass "do not create a missing USB path on root storage"; fi
+[ ! -e "$T/not-mounted" ] && pass "no fallback directory is created on root storage" || fail "no fallback directory is created on root storage"
+PERSIST_DIR="$T/usb/nightfall"
 echo 'new RAM history' > "$DIR/hist.coarse"
 if persist; then fail "refuse persistence when USB is absent"; else pass "refuse persistence when USB is absent"; fi
 grep -q 'old persistent history' "$PERSIST_DIR/hist.coarse" && pass "underlying directory is not overwritten while USB is absent" || fail "underlying directory is not overwritten while USB is absent"
