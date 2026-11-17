@@ -1805,15 +1805,28 @@
 					var blob = new Blob(parts, { type: 'application/gzip' });
 					if (blob.size !== expectedSize) throw new Error('Размер скачанного файла не совпадает: ' + blob.size + ' из ' + expectedSize + ' байт.');
 					if (!parts.length || parts[0].length < 2 || parts[0][0] !== 31 || parts[0][1] !== 139) throw new Error('Полученный файл не имеет заголовка gzip.');
-					/* В браузерах с DecompressionStream дополнительно проверяем gzip CRC и длину потока. */
-					if (window.DecompressionStream && blob.stream && window.Response) {
-						return new window.Response(blob.stream().pipeThrough(new window.DecompressionStream('gzip'))).arrayBuffer().then(function () {
-							saveBackupBlob(parts, name);
-							backupNote('Резервная копия скачана и проверена: ' + name + ' (' + expectedSize + ' байт). SHA-256 роутера: ' + expectedHash);
-						}).catch(function () { throw new Error('Проверка gzip не пройдена: архив повреждён или скачан не полностью.'); });
+					/* SHA-256 сверяем там, где браузер разрешает Web Crypto (обычно HTTPS/localhost). */
+					var verifyHash = Promise.resolve(false);
+					if (window.crypto && window.crypto.subtle && blob.arrayBuffer) {
+						verifyHash = blob.arrayBuffer().then(function (buffer) {
+							return window.crypto.subtle.digest('SHA-256', buffer);
+						}).then(function (digest) {
+							var actualHash = Array.prototype.map.call(new Uint8Array(digest), function (v) { return ('0' + v.toString(16)).slice(-2); }).join('');
+							if (actualHash !== expectedHash) throw new Error('SHA-256 скачанного файла не совпадает с роутером.');
+							return true;
+						});
 					}
-					saveBackupBlob(parts, name);
-					backupNote('Резервная копия скачана: ' + name + ' (' + expectedSize + ' байт). SHA-256 роутера: ' + expectedHash);
+					return verifyHash.then(function (hashChecked) {
+						/* В браузерах с DecompressionStream дополнительно проверяем gzip CRC и длину потока. */
+						if (window.DecompressionStream && blob.stream && window.Response) {
+							return new window.Response(blob.stream().pipeThrough(new window.DecompressionStream('gzip'))).arrayBuffer().then(function () {
+								saveBackupBlob(parts, name);
+								backupNote('Резервная копия скачана и проверена: ' + name + ' (' + expectedSize + ' байт). ' + (hashChecked ? 'SHA-256 подтверждён.' : 'SHA-256 роутера: ' + expectedHash));
+							}).catch(function () { throw new Error('Проверка gzip не пройдена: архив повреждён или скачан не полностью.'); });
+						}
+						saveBackupBlob(parts, name);
+						backupNote('Резервная копия скачана: ' + name + ' (' + expectedSize + ' байт). ' + (hashChecked ? 'SHA-256 подтверждён.' : 'SHA-256 роутера: ' + expectedHash));
+					});
 				});
 			});
 		}).catch(function (e) { backupNote('Не удалось создать или скачать архив: ' + e.message, true); }).then(function () { backupBusyState(false); }, function (e) { backupNote('Ошибка: ' + e.message, true); backupBusyState(false); });
