@@ -253,7 +253,8 @@ upload_finish() {
 }
 case "${1:-}" in
  create) create_backup "$@" ;;
- download-info) download_info "$@" ;;\n download) download_chunk "$@" ;;
+ download-info) download_info "$@" ;;
+ download) download_chunk "$@" ;;
  upload-start) upload_start "$@" ;;
  upload-chunk) upload_chunk "$@" ;;
  upload-finish) upload_finish "$@" ;;
