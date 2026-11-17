@@ -1811,7 +1811,9 @@ function blockCard() {
 			.concat(groups.map(g => [ 'g:' + g, g, all.filter(d => d.group === g).length ]));
 		const shown = defs.filter(x => x[0] === 'all' || x[0] === tab || x[2] > 0);
 		tabsEl.replaceChildren(...shown.map(x => E('button', { type: 'button', class: 'nf-linkbtn' + (tab === x[0] ? ' on' : ''), 'aria-pressed': String(tab === x[0]),
-			click: () => { tab = x[0]; more = false; try { localStorage.setItem('nightfall-blk-tab', tab); } catch (e) { /* ignore */ } render(); } }, [ x[1], E('i', {}, String(x[2])) ])));
+			click: () => { tab = x[0]; more = false; try { localStorage.setItem('nightfall-blk-tab', tab); } catch (e) { /* ignore */ } render(); } }, [
+			E('span', { class: 'nf-blk-tab-label' }, x[1]), E('i', { class: 'nf-blk-tab-count' }, String(x[2]))
+		])));
 		search.hidden = all.length < 8 && !qs;
 		chkBtn.disabled = checking; chkBtn.classList.toggle('spin', checking); chkBtn.textContent = checking ? 'Проверяю…' : 'Проверить сейчас';
 		chkNote.textContent = checkedAt ? 'проверено в ' + new Date(checkedAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';

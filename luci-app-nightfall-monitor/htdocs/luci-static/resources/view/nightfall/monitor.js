@@ -760,7 +760,17 @@ return view.extend({
 		} catch (e) {}
 
 		/* ---------- build DOM ---------- */
-		const rCpu = ring('c-cpu'), rTemp = ring('c-temp'), rMem = ring('c-mem'), rFlash = ring('c-flash'), rNet = ring('c-down');
+		const rCpu = ring('c-cpu'), rTemp = ring('c-temp'), rMem = ring('c-mem'), rNet = ring('c-down');
+		const flashFill = E('i'), flashPct = E('b', {}, '–');
+		const rFlash = {
+			el: E('div', { class: 'nfm-flash-meter' }, [ E('div', { class: 'nfm-flash-track' }, flashFill), flashPct ]),
+			set(pct, text) {
+				const p = Math.max(0, Math.min(100, Number(pct) || 0));
+				flashFill.style.width = p + '%';
+				flashFill.className = p >= 90 ? 'hot' : p >= 75 ? 'warn' : '';
+				flashPct.textContent = text || '–';
+			}
+		};
 		const T = {};  /* text refs */
 		const t = (key, cls) => (T[key] = E('span', { class: cls || '' }, '–'));
 
@@ -984,12 +994,12 @@ return view.extend({
 		const procs = E('div', { hidden: true }, [
 			E('div', { class: 'nfm-grid nfm-g21' }, [ card('Ядра процессора', E('div', {}, [ coresBox, tiles ])), flashCard ]),
 			card([ 'Кто сколько занимает', E('span', { class: 'nfm-note' }, 'память программ — примерно: общие библиотеки входят в каждую') ], E('div', {}, [ memStack, memLegend ])),
+			card([ 'Память по программам за период', E('span', { class: 'nfm-spacer' }), pmPer ], pmBox),
 			card([ 'Программы', E('span', { class: 'nfm-spacer' }),
 				E('input', { class: 'nfm-search', type: 'search', placeholder: 'Поиск…', input: ev => { S.filter = ev.target.value.toLowerCase(); refresh(); } }) ],
 				E('table', { class: 'nfm-table' }, [
 					E('thead', {}, E('tr', {}, [ E('th', {}, 'Имя'), E('th', { class: 'r' }, 'Процессов'),
-						sortTh('cpu', 'Процессор ↓', 'r'), sortTh('mem', 'Память ↓', 'r') ])), procBody ])),
-			card([ 'Память по программам за период', E('span', { class: 'nfm-spacer' }), pmPer ], pmBox)
+						sortTh('cpu', 'Процессор ↓', 'r'), sortTh('mem', 'Память ↓', 'r') ])), procBody ]))
 		]);
 
 		/* history tab */
@@ -2038,9 +2048,25 @@ return view.extend({
 
 		function renderAlerts() {
 			const a = S.alerts && S.alerts.active || [];
-			alertsBox.toggleAttribute('hidden', !a.length);
-			alertsBox.replaceChildren(...a.map(x => E('div', { class: 'nfm-alert' + (x[2] === 'crit' ? ' crit' : '') },
-				[ E('b', {}, x[3]), E('small', {}, 'с ' + fmtTs(x[1])) ])));
+			let dismissed = {};
+			try { dismissed = JSON.parse(window.localStorage.getItem('nfm_alerts_dismissed') || '{}') || {}; } catch (e) {}
+			const visible = a.filter(x => {
+				const key = String(x && x[0] || 'unknown') + ':' + String(x && x[1] || 0);
+				return !dismissed[key];
+			});
+			alertsBox.toggleAttribute('hidden', !visible.length);
+			alertsBox.replaceChildren(...visible.map(x => {
+				const key = String(x && x[0] || 'unknown') + ':' + String(x && x[1] || 0);
+				const title = String(x && x[3] != null && x[3] !== '' ? x[3] : 'Предупреждение без описания');
+				return E('div', { class: 'nfm-alert' + (x[2] === 'crit' ? ' crit' : '') }, [
+					E('div', { class: 'nfm-alert-copy' }, [ E('b', {}, title), E('small', {}, 'с ' + (x && x[1] ? fmtTs(x[1]) : 'время неизвестно')) ]),
+					E('button', { type: 'button', class: 'nfm-alert-dismiss', title: 'Скрыть после просмотра', click: () => {
+						dismissed[key] = Date.now();
+						try { window.localStorage.setItem('nfm_alerts_dismissed', JSON.stringify(dismissed)); } catch (e) {}
+						renderAlerts();
+					} }, 'Понятно')
+				]);
+			}));
 
 			const last = S.alerts && S.alerts.last && S.alerts.last[0];
 			if (!S.alerts) T.wanMini.textContent = S.alerts === false ? 'история не собирается' : '–';
