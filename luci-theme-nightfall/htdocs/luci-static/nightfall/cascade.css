@@ -6489,6 +6489,7 @@ body.nf-blank .modal.login > .spinning {
 	cursor: pointer;
 }
 .nf-vd-dismiss:hover { color: var(--nf-text); background: color-mix(in srgb, var(--nf-vd) 18%, transparent); }
+.nf-vd-dismiss[hidden] { display: none !important; }
 
 /* Wi-Fi clients: compact, even rows instead of oversized vertical gaps. */
 .nf-wifi-b { gap: 0; padding-bottom: 2px; }
