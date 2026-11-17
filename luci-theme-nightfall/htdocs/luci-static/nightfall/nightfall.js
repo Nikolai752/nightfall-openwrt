@@ -1977,7 +1977,7 @@
 	 * Окно «Доступна новая версия» -> роутер сам скачивает релиз и ставит его (/usr/libexec/nightfall-update,
 	 * проверка sha256, откат при ошибке) -> окно «Установлено» и выход из сессии (права обновляются при входе) ->
 	 * после входа окно «Что нового» из CHANGELOG.md. Для скачивания на роутере нужен curl (apk add curl). */
-	var SKIPKEY = 'nightfall-upd-skip', SEENKEY = 'nightfall-seen-ver', updModal = null, updBusy = false;
+	var SKIPKEY = 'nightfall-upd-skip', SEENKEY = 'nightfall-seen-ver', ACKKEY = 'nightfall-whatsnew-ack-v1', updModal = null, updBusy = false;
 	function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
 	function lsSet(k, v) { try { if (v === null) window.localStorage.removeItem(k); else window.localStorage.setItem(k, v); } catch (e) { /* ignore */ } }
 	function fullTag(t) { return /^v/i.test(t) ? t : 'v' + t; }
@@ -2068,18 +2068,35 @@
 	function loadChangelog(url) {
 		return window.fetch(url, { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error('nolog'); return r.text(); }).then(parseChangelog);
 	}
-	/* после входа: если версия изменилась, показываем, что нового */
+	/* После обновления показываем CHANGELOG. Версия считается просмотренной
+	 * только после нажатия «Понятно», а не до сетевой загрузки файла.
+	 * Это позволяет повторить попытку, если CHANGELOG временно недоступен.
+	 */
 	function checkWhatsNew() {
 		if (!verInfo || document.body.classList.contains('nf-blank') || !window.fetch) return;
-		var seen = lsGet(SEENKEY), cur = verInfo.version;
-		if (seen === cur) return;
-		lsSet(SEENKEY, cur);
-		if (!seen || !isNewer(seen, cur)) return;       /* первый запуск или откат на старую: молча */
+		var seen = lsGet(SEENKEY), ack = lsGet(ACKKEY), cur = verInfo.version;
+		var legacy = !ack && !!seen;
+		/* Первый запуск новой установки — без окна. Для существующих установок
+		 * мигрируем старый маркер: прежний код мог отметить версию просмотренной
+		 * ещё до загрузки CHANGELOG и навсегда потерять уведомление.
+		 */
+		if (!ack && !seen) { lsSet(SEENKEY, cur); lsSet(ACKKEY, cur); return; }
+		if (ack && (ack === cur || !isNewer(ack, cur))) return;
 		loadChangelog(BASE + 'CHANGELOG.md?' + Date.now()).then(function (all) {
-			var list = all.filter(function (s) { return isNewer(seen, s.v) && !isNewer(cur, s.v); }).slice(0, 4);
-			if (!list.length) return;
-			openCard('Что нового', 'Панель обновлена', seen, cur, [ renderChanges(list) ], [ h('button', { type: 'button', 'class': 'nf-upd-go', text: 'Понятно', onclick: closeUpd }) ]);
-		}).catch(function () { /* нет файла — без окна */ });
+			var list = legacy
+				? all.filter(function (s) { return !isNewer(cur, s.v); }).slice(0, 4)
+				: all.filter(function (s) { return isNewer(ack, s.v) && !isNewer(cur, s.v); }).slice(0, 4);
+			if (!list.length) {
+				/* Файл успешно получен, но подходящего раздела нет: повторять нечего. */
+				lsSet(ACKKEY, cur); lsSet(SEENKEY, cur);
+				return;
+			}
+			openCard('Что нового', 'Панель обновлена', legacy ? '' : ack, cur, [ renderChanges(list) ], [
+				h('button', { type: 'button', 'class': 'nf-upd-go', text: 'Понятно', onclick: function () {
+					lsSet(ACKKEY, cur); lsSet(SEENKEY, cur); closeUpd();
+				} })
+			]);
+		}).catch(function () { /* не отмечаем просмотренным: повторим после следующего входа */ });
 	}
 	function restartSession() {
 		var env = window.L && window.L.env;
