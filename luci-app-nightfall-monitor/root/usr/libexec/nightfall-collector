@@ -666,7 +666,7 @@ restore() {
 					;;
 				dev.daily)
 					cmp -s "$f" "$DIR/$f" && continue
-					awk '{ k=$1 "|" $2 "|" $5; d[k]+=$3; u[k]+=$4 } END { for (k in d) { split(k,a,"|"); printf "%s %s %.0f %.0f %s\n",a[1],a[2],d[k],u[k],a[3] } }' "$f" "$DIR/$f" | sort -n -k1,1 | tail -n 6000 > "$DIR/$f.merge"
+					awk '{ k=$1 "|" $2 "|" $5; d[k]+=$3; u[k]+=$4 } END { for (k in d) { split(k,a,/[|]/); printf "%s %s %.0f %.0f %s\n",a[1],a[2],d[k],u[k],a[3] } }' "$f" "$DIR/$f" | sort -n -k1,1 | tail -n 6000 > "$DIR/$f.merge"
 					mv "$DIR/$f.merge" "$DIR/$f" 2>/dev/null || rm -f "$DIR/$f.merge"
 					;;
 				apps.hist)
