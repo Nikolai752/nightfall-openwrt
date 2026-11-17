@@ -28,6 +28,7 @@ PERSIST_ANY=0
 persist_ok=1
 persist_error=0
 persist_error_notified=0
+persist_need_restore=1
 NF_MOUNTS="$T/mounts"
 
 ok=0
