@@ -186,7 +186,7 @@ wget -qO- https://raw.githubusercontent.com/Nikolai752/nightfall-openwrt/main/in
 | `--check` | только показать установленную и последнюю версию |
 | `--force` | переустановить, даже если версия уже последняя |
 | `--list` | показать последние версии, чтобы выбрать нужную |
-| `--version v1.27.7` | поставить конкретную версию (можно и более старую) |
+| `--version v1.27.8` | поставить конкретную версию (можно и более старую) |
 | `--file ПУТЬ` | поставить из локального архива |
 
 **Вручную, без интернета на роутере:** скачайте `nightfall-root.tar.gz` из [Releases](https://github.com/Nikolai752/nightfall-openwrt/releases/latest) и `install-update.sh`, положите рядом и выполните:
