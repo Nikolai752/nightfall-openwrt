@@ -1179,14 +1179,18 @@ return view.extend({
 		/* ---- v1.23.0: диапазоны, рекомендации и журнал подключений Wi‑Fi ---- */
 		/* ---- «Кто дома» (по Wi‑Fi) и необычная активность (по трафику за дни) ---- */
 		function renderDevExtra() {
-			const R = S.wq, cl = S.wifi || [], up = m => String(m).toUpperCase();
-			const here = {}; for (const c of cl) if (c.mac) here[up(c.mac)] = true;
+			const R = S.wq, cl = wifiDisplayRows(), up = m => String(m).toUpperCase();
+			const here = {}, via = {};
+			for (const c of cl) if (c.mac && (!c.proxy || [ 'REACHABLE', 'DELAY', 'PROBE' ].includes(c.proxyState))) {
+				here[up(c.mac)] = true;
+				if (c.proxy) via[up(c.mac)] = true;
+			}
 			const st = {};
 			for (const e of (R && R.events) || []) { const m = up(e[1]), o = st[m] = st[m] || { join: 0, leave: 0 }; if (e[2] === 'join') o.join = Math.max(o.join, e[0]); else o.leave = Math.max(o.leave, e[0]); }
 			for (const m in here) st[m] = st[m] || { join: 0, leave: 0 };
 			const rows = Object.keys(st).map(m => ({ m, home: !!here[m], t: here[m] ? st[m].join : st[m].leave })).sort((a, b) => (b.home - a.home) || (b.t - a.t));
 			homeBox.replaceChildren(...(rows.length ? rows.map(x => E('div', { class: 'nfm-ev-i ' + (x.home ? 'ok' : 'info') }, [ E('i'), E('time', {}, x.home ? 'дома' : 'не в сети'),
-				E('span', {}, devName(x.m) + (x.t ? (x.home ? ' · подключился ' : ' · ушёл ') + fmtTs(x.t) : '')) ])) : [ E('div', { class: 'nfm-empty' }, R || S.wifi ? 'Пока нет данных о подключениях по Wi‑Fi.' : 'Загружаю…') ]));
+				E('span', {}, devName(x.m) + (via[x.m] ? ' · через ретранслятор' : '') + (x.t ? (x.home ? ' · подключился ' : ' · ушёл ') + fmtTs(x.t) : '')) ])) : [ E('div', { class: 'nfm-empty' }, R || S.wifi ? 'Пока нет данных о подключениях по Wi‑Fi.' : 'Загружаю…') ]));
 			/* необычная активность: сегодня заметно больше обычного или устройство отдаёт много больше, чем получает */
 			const base = {};
 			for (const x of (S.dd && S.dd.rows) || []) { const k = x[4] && x[4] !== '-' ? up(x[4]) : x[1]; const b = base[k] = base[k] || {}; b[x[0]] = (b[x[0]] || 0) + (+x[2]) + (+x[3]); }
