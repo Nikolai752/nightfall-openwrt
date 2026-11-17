@@ -300,18 +300,63 @@ do_devices() {  # трафик по устройствам: разница сч�
 			: > "$DIR/dev.day"
 		fi
 	fi
-	# учёт по устройствам до версии 1.12.1 мог завышаться: один раз обнуляем накопленные суточные итоги
-	if [ "$(cat "$DIR/acct.v" 2>/dev/null)" != 2 ]; then
+	# Версия 3: пересобираем суточные итоги после перехода от эвристики private-IP к реальным LAN-подсетям.
+	# Старые итоги могли включать WAN/VPN-адреса и не могут быть достоверно исправлены задним числом.
+	if [ "$(cat "$DIR/acct.v" 2>/dev/null)" != 3 ]; then
 		: > "$DIR/dev.day"; : > "$DIR/dev.yday"; : > "$DIR/apps.day"; : > "$DIR/apps.hist"; rm -f "$DIR/ct.state"
-		echo 2 > "$DIR/acct.v"
+		echo 3 > "$DIR/acct.v"
 	fi
-	first=0; [ -s "$DIR/ct.state" ] || first=1
+	# Строим список реальных клиентских IPv4-подсетей по connected routes основной таблицы.
+# WAN-подсеть допускается только при наличии в ней DHCP-клиента (режим «на одной ноге»).
+: > "$DIR/client.nets"
+ip -4 route show table main 2>/dev/null | awk -v wan="$wdev" -v lf="$LEASES" '
+	function num(ip, a) { split(ip, a, "."); return (((a[1] * 256 + a[2]) * 256 + a[3]) * 256 + a[4]) }
+	{
+		net = $1
+		if (net !~ /^[0-9.]+\/[0-9]+$/) next
+		split(net, p, "/"); bits = p[2] + 0
+		if (bits < 8 || bits > 30) next
+		dev = ""; scope = ""; proto = ""
+		for (i = 1; i <= NF; i++) {
+			if ($i == "dev") dev = $(i + 1)
+			if ($i == "scope") scope = $(i + 1)
+			if ($i == "proto") proto = $(i + 1)
+		}
+		if (scope != "link" && proto != "kernel") next
+		if (dev == wan) {
+			sz = 2 ^ (32 - bits); base = num(p[1]); lo = base - (base % sz); found = 0
+			while ((getline l < lf) > 0) { split(l, f, " "); x = num(f[3]); if (f[3] ~ /^[0-9.]+$/ && x >= lo && x < lo + sz) { found = 1; break } }
+			close(lf)
+			if (!found) next
+		}
+		print net
+	}' > "$DIR/client.nets"
+# Исключаем все текущие адреса самого роутера, включая VPN /32 и WAN.
+for ra in $(ip -4 addr show 2>/dev/null | awk '/inet / { split($2, a, "/"); print a[1] }'); do
+	grep -qx "$ra" "$DIR/router.ips" 2>/dev/null || echo "$ra" >> "$DIR/router.ips"
+done
+first=0; [ -s "$DIR/ct.state" ] || first=1
 	rm -f "$DIR/ct.state.new"
-	head -n 40000 "$CT" 2>/dev/null | awk -v statef="$DIR/ct.state" -v newf="$DIR/ct.state.new" -v dayf="$DIR/dev.day" \
+	head -n 40000 "$CT" 2>/dev/null | awk -v netf="$DIR/client.nets" -v routerf="$DIR/router.ips" -v statef="$DIR/ct.state" -v newf="$DIR/ct.state.new" -v dayf="$DIR/dev.day" \
 		-v ratef="$DIR/dev.rate.new" -v tmpf="$DIR/dev.day.tmp" -v svcf="$DIR/svc.raw" -v dstf="$DIR/dst.raw" -v dt="$dtm" -v first="$first" -v ts="$now" \
 		-v apps="$APPS" -v mapf="$DIR/dns.map" -v appf="$DIR/apps.day" -v appn="$DIR/apps.day.tmp" -v rules="$RULES" -v urules="$RULES_USER" '
-	function isprivate(ip) { return ip ~ /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|127\.|169\.254\.)/ || ip ~ /^(f[cdef]|FE|FC|FD)/ || ip == "::1" || ip ~ /^0000:0000:0000:0000:0000:0000:0000:0001$/ }
+	function isprivate(ip) { return ip ~ /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|127\.|169\.254\.)/ || ip ~ /^(f[cdef]|FE|FC|FD|fe80:)/ || ip == "::1" || ip ~ /^0000:0000:0000:0000:0000:0000:0000:0001$/ }
+	function ipnum(ip, a) { split(ip, a, "."); return (((a[1] * 256 + a[2]) * 256 + a[3]) * 256 + a[4]) }
+	function isrouter(ip) { return ip in router }
+	function islan(ip,   i, p, bits, size, base, addr) {
+		if (index(ip, ":")) return isprivate(ip)
+		if (ip !~ /^[0-9.]+$/) return 0
+		addr = ipnum(ip)
+		for (i = 1; i <= nn; i++) {
+			split(nets[i], p, "/"); bits = p[2] + 0; size = 2 ^ (32 - bits)
+			base = ipnum(p[1]); base -= (base % size)
+			if (addr >= base && addr < base + size) return 1
+		}
+		return 0
+	}
 	BEGIN {
+		while ((getline l < netf) > 0) if (l != "") nets[++nn] = l; close(netf)
+		while ((getline l < routerf) > 0) if (l != "") router[l] = 1; close(routerf)
 		while ((getline l < statef) > 0) { split(l, a, " "); po[a[1]] = a[2]; pr[a[1]] = a[3] }
 		close(statef)
 		while ((getline l < dayf) > 0) { split(l, a, " "); dd[a[1]] = a[2] + 0; du[a[1]] = a[3] + 0 }
@@ -348,8 +393,8 @@ do_devices() {  # трафик по устройствам: разница сч�
 			else if (substr(f, 1, 6) == "bytes=") { nb++; if (nb == 1) ob = substr(f, 7) + 0; else if (nb == 2) rb = substr(f, 7) + 0 }
 		}
 		if (nb < 2 || src == "" || dst == "") next
-		if (!isprivate(src) && $1 == "ipv4") next          # соединение извне, не устройство локальной сети
-		if (isprivate(src) && isprivate(dst)) next          # трафик внутри сети/до роутера — не интернет
+		if (!islan(src) || isrouter(src)) next                 # источник должен принадлежать реальной LAN/VLAN-подсети
+		if (islan(dst) || isrouter(dst)) next                  # LAN↔LAN и обращения к роутеру не считаем интернетом
 		key = $1 "|" $3 "|" src ">" dst ":" sp ">" dp
 		# одинаковые «адрес:порт» бывают у нескольких записей (старая в TIME_WAIT и новая): складываем их счётчики,
 		# иначе одна запись «уменьшалась» и каждый цикл засчитывалась заново целиком (завышение в сотни раз)
@@ -367,7 +412,7 @@ do_devices() {  # трафик по устройствам: разница сч�
 		cu[src] += do_; cd[src] += dr_
 		if (do_ + dr_ > 0) {
 			sk = src " " sp3[key] " " (sdp[key] == "" ? "-" : sdp[key]); sv_d[sk] += dr_; sv_u[sk] += do_
-			if (!isprivate(dst)) {
+			if (!islan(dst) && !isrouter(dst)) {
 				dk = src " " dst; ds_d[dk] += dr_; ds_u[dk] += do_
 				if (apps == 1) { ak = src "|" appof(tolower(dst)); adl[ak] += dr_; aul[ak] += do_ }
 			}
