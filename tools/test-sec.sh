@@ -34,6 +34,25 @@ want "проверка: устаревшее шифрование" '["warn","С�
 want "проверка: хорошее шифрование" '["ok","Сеть «Home»: шифрование sae-mixed' "$out"
 nowant "проверка: выключенная сеть не считается" "«Off»" "$out"
 want "проверка: SSH только по ключам" '["ok","SSH: вход по паролю выключен' "$out"
+# Dropbear: root password login requires both PasswordAuth and RootPasswordAuth.
+AUTH_UCI="$T/uci-auth"
+cat > "$AUTH_UCI" <<'U'
+#!/bin/sh
+case "$*" in
+  *"show wireless"*) exec "$NF_UCI_BASE" "$@" ;;
+  *"PasswordAuth"*) echo "${NF_TEST_PA:-on}"; exit 0 ;;
+  *"RootPasswordAuth"*) echo "${NF_TEST_RPA:-on}"; exit 0 ;;
+esac
+exec "$NF_UCI_BASE" "$@"
+U
+chmod +x "$AUTH_UCI"
+NF_UCI_BASE="$T/uci" NF_UCI="$AUTH_UCI" NF_TEST_PA=on NF_TEST_RPA=on sh "$S" summary > "$T/auth-on.json"
+want "SSH: оба параметра on — пароль root разрешён" '["warn","SSH: парольный вход root включён' "$(cat "$T/auth-on.json")"
+NF_UCI_BASE="$T/uci" NF_UCI="$AUTH_UCI" NF_TEST_PA=on NF_TEST_RPA=off sh "$S" summary > "$T/auth-root-off.json"
+want "SSH: RootPasswordAuth off — пароль root запрещён" '["ok","SSH: парольный вход root выключен (RootPasswordAuth)' "$(cat "$T/auth-root-off.json")"
+want "SSH: RootPasswordAuth off не скрывает пароль для обычных пользователей" '["ok","SSH: парольная аутентификация для непривилегированных пользователей разрешена' "$(cat "$T/auth-root-off.json")"
+NF_UCI_BASE="$T/uci" NF_UCI="$AUTH_UCI" NF_TEST_PA=off NF_TEST_RPA=on sh "$S" summary > "$T/auth-all-off.json"
+want "SSH: PasswordAuth off выключает парольную аутентификацию" '["ok","SSH: парольный вход root выключен (PasswordAuth)' "$(cat "$T/auth-all-off.json")"
 want "проверка: LuCI по http" '["warn","LuCI доступен по http' "$out"
 want "политика входящего на WAN" '"wan_input":"REJECT"' "$out"
 nowant "соединение ESTABLISHED не считается портом" '50000' "$(echo "$out" | sed 's/"ssh",1,"root","192.168.1.10"//')"
