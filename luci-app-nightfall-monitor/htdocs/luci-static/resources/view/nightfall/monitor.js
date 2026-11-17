@@ -760,7 +760,17 @@ return view.extend({
 		} catch (e) {}
 
 		/* ---------- build DOM ---------- */
-		const rCpu = ring('c-cpu'), rTemp = ring('c-temp'), rMem = ring('c-mem'), rFlash = ring('c-flash'), rNet = ring('c-down');
+		const rCpu = ring('c-cpu'), rTemp = ring('c-temp'), rMem = ring('c-mem'), rNet = ring('c-down');
+		const flashFill = E('i'), flashPct = E('b', {}, '–');
+		const rFlash = {
+			el: E('div', { class: 'nfm-flash-meter' }, [ E('div', { class: 'nfm-flash-track' }, flashFill), flashPct ]),
+			set(pct, text) {
+				const p = Math.max(0, Math.min(100, Number(pct) || 0));
+				flashFill.style.width = p + '%';
+				flashFill.className = p >= 90 ? 'hot' : p >= 75 ? 'warn' : '';
+				flashPct.textContent = text || '–';
+			}
+		};
 		const T = {};  /* text refs */
 		const t = (key, cls) => (T[key] = E('span', { class: cls || '' }, '–'));
 
