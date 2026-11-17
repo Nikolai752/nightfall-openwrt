@@ -48,9 +48,16 @@ cmp "$ARCHIVE" "$TMP/downloaded.tar.gz"
 "$TOOL" create "$TMP/backups/repeat.tar.gz" >/dev/null
 "$TOOL" create "$TMP/backups/repeat.tar.gz" >/dev/null
 [ -s "$TMP/backups/repeat.tar.gz" ] && [ -s "$TMP/backups/repeat-1.tar.gz" ]
-ENCODED=$(base64 "$ARCHIVE" | tr -d '\n')
 "$TOOL" upload-start 0123abcd >/dev/null
-"$TOOL" upload-chunk 0123abcd "$ENCODED" >/dev/null
+offset=0; index=0
+while [ "$offset" -lt "$SIZE" ]; do
+  dd if="$ARCHIVE" bs=24576 skip="$index" count=1 2>/dev/null | base64 | tr -d '\n' > "$TMP/upload.b64"
+  ENCODED=$(cat "$TMP/upload.b64")
+  [ -n "$ENCODED" ] && [ "${#ENCODED}" -le 32768 ]
+  "$TOOL" upload-chunk 0123abcd "$ENCODED" >/dev/null
+  bytes=$((SIZE - offset)); [ "$bytes" -gt 24576 ] && bytes=24576
+  offset=$((offset + bytes)); index=$((index + 1))
+done
 "$TOOL" upload-finish 0123abcd > "$TMP/upload-preview"
 grep -q 'Архив загружен:' "$TMP/upload-preview"
 UPLOADED="$TMP/backups/nightfall-backup-upload-0123abcd.tar.gz"
@@ -67,5 +74,32 @@ grep -q 'Предварительный просмотр' "$TMP/preview"
 grep -q 'changed' "$ROOT/etc/nightfall-prefs.json"
 "$TOOL" restore "$ARCHIVE" apply > "$TMP/restore"
 grep -q 'night' "$ROOT/etc/nightfall-prefs.json"
-grep -q '^TG_TOKEN=current-secret-token$' "$ROOT/etc/nightfall-monitor.conf"
+grep -q '^TG_TOKEN=current-secret-token
+ "$ROOT/etc/nightfall-monitor.conf"
+
+# Ошибка на середине применения должна вернуть уже заменённые файлы.
+ROOT2="$TMP/rollback-root"
+mkdir -p "$ROOT2/etc"
+printf 'TG=1\nTG_TOKEN=rollback-token\n' > "$ROOT2/etc/nightfall-monitor.conf"
+echo '{"theme":"keep"}' > "$ROOT2/etc/nightfall-prefs.json"
+echo '{"logo":"keep"}' > "$ROOT2/etc/nightfall-logo.json"
+mkdir -p "$TMP/failbin"
+cat > "$TMP/failbin/mv" <<'EOF'
+#!/bin/sh
+if [ "$2" = "$FAIL_TARGET" ] && [ ! -f "$FAIL_MARKER" ]; then
+  : > "$FAIL_MARKER"
+  exit 1
+fi
+exec /bin/mv "$@"
+EOF
+chmod +x "$TMP/failbin/mv"
+if PATH="$TMP/failbin:$PATH" FAIL_TARGET="$ROOT2/etc/nightfall-prefs.json" FAIL_MARKER="$TMP/mv-failed" NF_ROOT="$ROOT2" NF_TMP="$TMP" NF_BACKUP_DIR="$TMP/backups" "$TOOL" restore "$ARCHIVE" apply > "$TMP/rollback.out" 2>&1; then
+  echo "restore unexpectedly succeeded despite injected mv failure" >&2
+  exit 1
+fi
+grep -q 'исходные настройки возвращены' "$TMP/rollback.out"
+grep -q '^TG_TOKEN=rollback-token
+ "$ROOT2/etc/nightfall-monitor.conf"
+grep -q '"theme":"keep"' "$ROOT2/etc/nightfall-prefs.json"
+grep -q '"logo":"keep"' "$ROOT2/etc/nightfall-logo.json"
 echo 'Nightfall backup/restore tests passed'
