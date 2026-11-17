@@ -12,7 +12,7 @@ ROOT=${NF_ROOT:-}
 ETC="${ROOT}/etc"
 TMP=${NF_TMP:-/tmp}
 OUTDIR=${NF_BACKUP_DIR:-$TMP/nightfall-backups}
-TOOL_VERSION=1.27.0
+TOOL_VERSION=1.27.2
 FILES="
 nightfall-monitor.conf
 nightfall-prefs.json
@@ -29,6 +29,18 @@ nightfall-release.pub
 "
 
 fail() { echo "Ошибка: $*" >&2; exit 1; }
+base64_available() {
+ [ -n "${NF_BASE64:-}" ] && [ -x "$NF_BASE64" ] && return 0
+ [ -z "${NF_BASE64:-}" ] && command -v base64 >/dev/null 2>&1 && return 0
+ [ -z "${NF_BASE64:-}" ] && command -v busybox >/dev/null 2>&1 && busybox base64 </dev/null >/dev/null 2>&1 && return 0
+ return 1
+}
+base64_encode() {
+ if [ -n "${NF_BASE64:-}" ]; then "$NF_BASE64"; elif command -v base64 >/dev/null 2>&1; then base64; else busybox base64; fi
+}
+base64_decode() {
+ if [ -n "${NF_BASE64:-}" ]; then "$NF_BASE64" -d; elif command -v base64 >/dev/null 2>&1; then base64 -d; else busybox base64 -d; fi
+}
 say() { printf '%s\n' "$*"; }
 allowed() {
  case "$1" in
@@ -200,6 +212,7 @@ download_info() {
  printf "size=%s sha256=%s\n" "$size" "$hash"
 }
 download_chunk() {
+ base64_available || fail "не найдена base64. Установите пакет coreutils-base64 (apk add coreutils-base64) или используйте сборку BusyBox с applet base64"
  archive=$(backup_name "${2:-}")
  offset=${3:-}; length=${4:-24576}
  case "$offset:$length" in *[!0-9:]*|:*) fail "неверные параметры загрузки" ;; esac
@@ -207,7 +220,7 @@ download_chunk() {
  size=$(wc -c < "$archive" | tr -d ' ')
  [ "$offset" -le "$size" ] || fail "смещение за пределами архива"
  [ "$length" -gt 0 ] && [ "$length" -le 24576 ] || fail "неверный размер блока"
- tail -c "+$((offset + 1))" "$archive" | head -c "$length" | base64 | tr -d '\n'
+ tail -c "+$((offset + 1))" "$archive" | head -c "$length" | base64_encode | tr -d '\n'
 }
 upload_start() {
  id=${2:-}
@@ -239,6 +252,7 @@ upload_abort() {
  say "Временная загрузка удалена."
 }
 upload_finish() {
+ base64_available || fail "не найдена base64. Установите пакет coreutils-base64 (apk add coreutils-base64) или используйте сборку BusyBox с applet base64"
  id=${2:-}
  case "$id" in ????????) ;; *) fail "неверный идентификатор загрузки" ;; esac
  case "$id" in *[!a-f0-9]*) fail "неверный идентификатор загрузки" ;; esac
@@ -248,7 +262,7 @@ upload_finish() {
  encoded_size=$(wc -c < "$encoded" | tr -d ' ')
  [ "$encoded_size" -gt 0 ] && [ "$encoded_size" -le 7000000 ] || fail "архив пустой или превышает 5 МБ"
  [ ! -e "$archive.tmp" ] && [ ! -L "$archive.tmp" ] || rm -f "$archive.tmp"
- (set -C; base64 -d "$encoded" > "$archive.tmp") 2>/dev/null || { rm -f "$archive.tmp"; fail "не удалось безопасно декодировать архив"; }
+ (set -C; base64_decode < "$encoded" > "$archive.tmp") 2>/dev/null || { rm -f "$archive.tmp"; fail "не удалось безопасно декодировать архив"; }
  rm -f "$encoded"
  mv "$archive.tmp" "$archive" || fail "не удалось сохранить архив"
  chmod 600 "$archive" 2>/dev/null

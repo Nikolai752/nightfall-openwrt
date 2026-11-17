@@ -25,12 +25,19 @@ ARCHIVE=$(find "$TMP/backups" -name '*.tar.gz' -type f | head -n 1)
 gzip -t "$ARCHIVE"
 "$TOOL" list "$ARCHIVE" > "$TMP/list"
 grep -q 'files=4' "$TMP/list"
+grep -q 'tool_version=1.27.2' "$TMP/list"
 NAME=$(basename "$ARCHIVE")
 "$TOOL" download-info "$NAME" > "$TMP/info"
 SIZE=$(sed -n 's/.*size=\([0-9][0-9]*\).*/\1/p' "$TMP/info")
 HASH=$(sed -n 's/.*sha256=\([a-f0-9][a-f0-9]*\).*/\1/p' "$TMP/info")
 [ "$SIZE" -eq "$(wc -c < "$ARCHIVE" | tr -d ' ')" ]
 [ "$HASH" = "$(sha256sum "$ARCHIVE" | awk '{ print $1 }')" ]
+
+echo "== clear error when base64 is unavailable =="
+if NF_BASE64="$TMP/no-such-base64" "$TOOL" download "$NAME" 0 100 > "$TMP/no-base64.out" 2>&1; then
+  echo "download unexpectedly succeeded without base64" >&2; exit 1
+fi
+grep -q 'не найдена base64' "$TMP/no-base64.out"
 
 echo "== multi-chunk browser download =="
 : > "$TMP/downloaded.tar.gz"
