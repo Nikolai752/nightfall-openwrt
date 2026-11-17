@@ -564,7 +564,7 @@ persist() {
 	case "/$rel/" in */../*) persist_warn "Некорректный путь постоянной истории: $PERSIST_DIR" 1; return 1 ;; esac
 
 	# При первом подключении или после возврата USB объединяем временную RAM-историю с архивной.
-	[ "$persist_ok" = 1 ] || restore
+	[ "${persist_need_restore:-0}" = 1 ] && restore
 
 	# Переход внутрь mount удерживает файловую систему на время записи: штатное отключение не
 	# сможет незаметно переключить путь в нижележащий overlay.
@@ -602,8 +602,8 @@ persist() {
 }
 
 restore() {
-	local mi mp rel f
-	[ "${persist_ok:-0}" = 1 ] && return 0
+	local mi mp rel f rc
+	[ "${persist_need_restore:-0}" = 1 ] || return 0
 	[ -n "$PERSIST_DIR" ] || return 0
 	mi=$(persist_mount_info "$PERSIST_DIR")
 	[ -n "$mi" ] && ! on_flash "$PERSIST_DIR" || return 0
@@ -677,6 +677,9 @@ restore() {
 			esac
 		done
 	)
+	rc=$?
+	[ "$rc" = 0 ] && persist_need_restore=0
+	return "$rc"
 }
 
 # ---------- журнал перезагрузок и обрывов связи (редкие короткие записи на флеш) ----------
@@ -759,7 +762,7 @@ do_report() {
 now=$(date +%s); started=$now
 # Состояние постоянного хранилища определяется заново при каждой записи.
 # Не создаём PERSIST_DIR до подтверждения внешнего mount: иначе отсутствующая USB станет каталогом на overlay.
-persist_ok=0; persist_error=0; persist_error_notified=0
+persist_ok=0; persist_error=0; persist_error_notified=0; persist_need_restore=1
 # аппаратное ускорение пакетов (HW flow offloading) прячет трафик от счётчиков сетевых портов
 FLOW_HW=0; command -v uci >/dev/null 2>&1 && [ "$(uci -q get firewall.@defaults[0].flow_offloading_hw 2>/dev/null)" = 1 ] && FLOW_HW=1
 case "$HIST_DAYS" in ''|*[!0-9]*) HIST_DAYS=30 ;; esac; [ "$HIST_DAYS" -ge 7 ] || HIST_DAYS=7; [ "$HIST_DAYS" -le 90 ] || HIST_DAYS=90
