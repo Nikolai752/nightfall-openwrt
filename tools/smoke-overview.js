@@ -41,13 +41,21 @@ window.__mod = mod; mod.__init__();
 		await p.route('**/*', r => {
 			const u = new URL(r.request().url());
 			if (u.pathname === '/page') return r.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="ru" data-nf-theme="dark"><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><link rel=stylesheet href="/c.css"></head><body><main><div id="view"><h2>Статус</h2>' +
-				[ 'Система', 'Память', 'Сеть', 'Wi-Fi' ].map(t => '<div class="cbi-section"><div class="cbi-title"><h3>' + t + '</h3></div><div class="table"><div class="tr"><div class="td left">Строка</div><div class="td left">значение</div></div></div></div>').join('') + '</div></main></body></html>' });
+				[ 'Система', 'Память', 'Сеть', 'Wi-Fi' ].map(t => '<div class="cbi-section"><div class="cbi-title"><h3>' + t + '</h3></div><div class="table"><div class="tr"><div class="td left">Строка</div><div class="td left">значение</div></div></div></div>').join('') +
+				'<div class="ifacebox"><div class="ifacebox-head">lan1</div><div class="ifacebox-body"><img src="/icons/port_down.svg"><br>no link</div></div>' +
+				'</div></main></body></html>' });
 			if (u.pathname === '/c.css') return r.fulfill({ contentType: 'text/css', body: fs.readFileSync(CSS) });
 			return r.fulfill({ status: 404, body: '' });
 		});
 		await p.goto('http://t.local/page');
 		await p.addScriptTag({ content: 'const SRC = ' + JSON.stringify(SRC) + ';\n' + BOOT });
 		await p.waitForTimeout(3500);
+		if (await p.locator('.ifacebox .nf-port-edit').count() !== 1) bad(vn + ': не появилась кнопка переименования порта с текстовым заголовком LuCI');
+		await p.evaluate(() => { window.prompt = () => 'Тестовый порт'; });
+		await p.click('.ifacebox .nf-port-edit');
+		const portName = await p.locator('.ifacebox .nf-port-title').textContent().catch(() => '');
+		if (portName !== 'Тестовый порт') bad(vn + ': пользовательская подпись порта не применилась');
+		if (await p.evaluate(() => JSON.parse(localStorage.getItem('nightfall-port-labels-v1') || '{}').lan1) !== 'Тестовый порт') bad(vn + ': подпись порта не сохранилась в localStorage');
 		const t0 = await p.evaluate(() => document.body.textContent);
 		if (!/Всё в порядке|Есть замечания|Требует внимания/.test(t0)) bad(vn + ': нет строки-вывода');
 		if (!t0.includes('⚙ Вид')) bad(vn + ': нет меню «Вид»');
