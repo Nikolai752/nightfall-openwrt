@@ -1395,7 +1395,19 @@ function enhanceBadges(view) {
 		if (!img) return;
 		const head = box.querySelector('.ifacebox-head');
 		if (head) {
-			const titleEl = head.querySelector('strong, h3, h4') || head.firstElementChild;
+			let titleEl = head.querySelector('strong, h3, h4, .nf-port-title');
+			if (!titleEl) {
+				/* LuCI 25.12 renders the port name as a bare text node, not as strong/h3.
+				   Wrap that node so the edit control has a stable target and survives observer passes. */
+				const textNode = Array.from(head.childNodes).find(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+				if (textNode) {
+					titleEl = document.createElement('span');
+					titleEl.className = 'nf-port-title';
+					titleEl.textContent = textNode.textContent.trim();
+					head.replaceChild(titleEl, textNode);
+				}
+				else titleEl = head.firstElementChild;
+			}
 			if (titleEl) {
 				if (!box.hasAttribute('data-nf-port-key')) box.setAttribute('data-nf-port-key', titleEl.textContent.trim());
 				const key = box.getAttribute('data-nf-port-key');
