@@ -365,5 +365,6 @@ case "${1:-}" in
  upload-abort) upload_abort "$@" ;;
  list) [ -n "${2:-}" ] || fail "укажите путь к архиву"; inspect_archive "$2" ;;
  restore) [ -n "${2:-}" ] || fail "укажите путь к архиву"; restore_backup "$2" "${3:-preview}" ;;
- *) echo "Использование: $0 create [FILE] | list FILE | restore FILE [apply] | download-info NAME | download NAME OFFSET [LENGTH] | upload-start ID | upload-chunk ID BASE64 | upload-finish ID | upload-abort ID" >&2; exit 2 ;;
+ restore-name) [ -n "${2:-}" ] || fail "укажите имя архива"; restore_backup "$(backup_name "$2")" "${3:-preview}" ;;
+ *) echo "Использование: $0 create [FILE] | list FILE | restore FILE [apply] | download-info NAME | download NAME OFFSET [LENGTH] | restore-name NAME [apply] | upload-start ID | upload-chunk ID BASE64 | upload-finish ID | upload-abort ID" >&2; exit 2 ;;
 esac
