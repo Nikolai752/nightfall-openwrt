@@ -2168,18 +2168,18 @@ function healthCard() {
 			else if (s.ping > 80) add(6, 'warn', 'Пинг ' + nf0.format(s.ping) + ' мс');
 		}
 		if (s.loss != null && s.loss > 2) add(s.loss > 10 ? 20 : 10, s.loss > 10 ? 'bad' : 'warn', 'Потери ' + nf0.format(s.loss) + '%');
+		const [ cpuMid, cpuBad ] = thr('cpu', 60, 85), [ memMid, memBad ] = thr('mem', 70, 88), [ tempMid, tempBad ] = thr('temp', 70, 85);
 		if (s.cpu != null) {
-			if (s.cpu > 90) add(20, 'bad', 'Процессор ' + nf0.format(s.cpu) + '%');
-			else if (s.cpu > 70) add(8, 'warn', 'Процессор ' + nf0.format(s.cpu) + '%');
+			if (s.cpu >= cpuBad) add(20, 'bad', 'Процессор ' + nf0.format(s.cpu) + '%');
+			else if (s.cpu >= cpuMid) add(8, 'warn', 'Процессор ' + nf0.format(s.cpu) + '%');
 		}
 		if (s.mem != null) {
-			if (s.mem > 90) add(20, 'bad', 'Память ' + nf0.format(s.mem) + '%');
-			else if (s.mem > 80) add(8, 'warn', 'Память ' + nf0.format(s.mem) + '%');
+			if (s.mem >= memBad) add(20, 'bad', 'Память ' + nf0.format(s.mem) + '%');
+			else if (s.mem >= memMid) add(8, 'warn', 'Память ' + nf0.format(s.mem) + '%');
 		}
 		if (s.temp != null) {
-			if (s.temp > 80) add(25, 'bad', 'Жарко ' + nf0.format(s.temp) + ' °C');
-			else if (s.temp > 70) add(12, 'warn', 'Тепло ' + nf0.format(s.temp) + ' °C');
-			else if (s.temp > 60) add(4, 'warn', 'Температура ' + nf0.format(s.temp) + ' °C');
+			if (s.temp >= tempBad) add(25, 'bad', 'Жарко ' + nf0.format(s.temp) + ' °C');
+			else if (s.temp >= tempMid) add(12, 'warn', 'Тепло ' + nf0.format(s.temp) + ' °C');
 		}
 		score = Math.max(0, Math.min(100, Math.round(score)));
 		const bad = f.filter(x => x[0] !== 'ok');
