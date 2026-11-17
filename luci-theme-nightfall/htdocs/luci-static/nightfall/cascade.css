@@ -6389,3 +6389,15 @@ html .nf-dlg .nf-info, html .nf-dlg .nf-info-row { box-sizing: border-box; }
  html .nf-wifi-b .nf-sta > small { grid-column: 2; }
  html .nf-wifi-b .nf-sta-d { margin-left: 0; }
 }
+
+
+/* Flash usage is a wide capacity meter, not a small ring in a large tile */
+html .nfm .nfm-flash-meter { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; margin-top: 8px; }
+html .nfm .nfm-flash-track { position: relative; flex: 1 1 auto; min-width: 70px; height: 12px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--nfm-text) 12%, transparent); box-shadow: inset 0 1px 2px #0002; }
+html .nfm .nfm-flash-track i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #16a6a0, #0b8fbd); transition: width .45s ease; }
+html .nfm .nfm-flash-track i.warn { background: linear-gradient(90deg, #e0a800, #f59e0b); }
+html .nfm .nfm-flash-track i.hot { background: linear-gradient(90deg, #e87942, #d13438); }
+html .nfm .nfm-flash-meter > b { flex: none; min-width: 46px; text-align: right; font-size: 15px; font-variant-numeric: tabular-nums; }
+html .nfm .nfm-metric:has(.nfm-flash-meter) { align-items: stretch; }
+html .nfm .nfm-metric:has(.nfm-flash-meter) .nfm-metric-info { min-width: 0; flex: 1 1 auto; }
+html .nfm .nfm-metric:has(.nfm-flash-meter) .nfm-flash-meter { margin-top: 12px; }
