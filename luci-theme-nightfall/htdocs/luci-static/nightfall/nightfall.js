@@ -9,7 +9,7 @@
 
 	var KEY = 'nightfall-prefs-v1';
 	var root = document.documentElement;
-	var DEFAULTS = { fontFam: '', icStyle: 'line', ovThrCpu: '60,85', ovThrTemp: '70,85', ovThrMem: '70,88', ovOrder: 'net,wan,cpu,temp,mem,ct,up,cli,loss,sig,day,stor', ovHide: 'ct,up,cli,loss,sig,day,stor', ovTv: 2, ovLay: 'std', swipe: true, mode: 'auto', accent: '', motion: true, liteAuto: true, loginCells: [ 'net', 'up', 'fw' ], loginLogo: false, ovWide: false, ovCols: '0', bg: 'mica', bgScale: 100,
+	var DEFAULTS = { navOpenMode: 'click', fontFam: '', icStyle: 'line', ovThrCpu: '60,85', ovThrTemp: '70,85', ovThrMem: '70,88', ovOrder: 'net,wan,cpu,temp,mem,ct,up,cli,loss,sig,day,stor', ovHide: 'ct,up,cli,loss,sig,day,stor', ovTv: 2, ovLay: 'std', swipe: true, mode: 'auto', accent: '', motion: true, liteAuto: true, loginCells: [ 'net', 'up', 'fw' ], loginLogo: false, ovWide: false, ovCols: '0', bg: 'mica', bgScale: 100,
 		density: 'normal', font: 'md', radius: 'md', glass: 'on', loginClock: true, loginInfo: true, loginBg: 'mica', ovLive: true, ovBadges: true,
 		style: '', preset: 'win11', navMini: false, schedule: false, nightFrom: '20:00', dayFrom: '07:00', netBar: true, constLogin: true, constApp: false, constKind: 'net',
 		updCheck: true, ovSize: 'md', glassTone: 'auto', glassBlur: 28, glassAlpha: 100, hints: true, chart: 'area', chartSmooth: true, chartPal: 'accent', chartW: '2', chartGrid: true, chartThr: false, chartShine: true, ovRing: true, wxLat: '', wxLon: '', cusOn: false, cusBg: '', cusCard: '', cusText: '', cusRadius: 0, cusFont: '', cusShadow: '', loginPhoto: false, ovTop: true, ovApps: true, ovBlock: true, ovWifi: true, ovEvents: true, ovHealth: true, ovQuick: true };
@@ -1276,7 +1276,7 @@
 		img.src = url;
 	}
 
-	function applyAll() { applyMode(); applyMotion(); applyBg(); applyLook(); applyCustom(); applyFont(); applyPhoto(); syncConst(); try { document.dispatchEvent(new CustomEvent('nf-prefs')); } catch (e) { /* старый браузер */ } }
+	function applyAll() { root.setAttribute('data-nf-nav-open', prefs.navOpenMode === 'hover' ? 'hover' : 'click'); applyMode(); applyMotion(); applyBg(); applyLook(); applyCustom(); applyFont(); applyPhoto(); syncConst(); try { document.dispatchEvent(new CustomEvent('nf-prefs')); } catch (e) { /* старый браузер */ } }
 
 	var txTimer;
 	function themeFade() {
@@ -1291,7 +1291,7 @@
 		prefs[key] = value;
 		if (key === 'radius') prefs.cusRadius = 0;
 		if (key === 'ovOrder' || key === 'ovHide') prefs.ovLay = '';
-		if (key !== 'preset' && key !== 'schedule' && key !== 'nightFrom' && key !== 'dayFrom' && key !== 'mode' && key !== 'navMini' && key !== 'netBar' && key !== 'swipe' && key !== 'fontFam' && key !== 'icStyle' && key.indexOf('login') !== 0 && key.indexOf('const') !== 0 && key.indexOf('ov') !== 0) prefs.preset = '';
+		if (key !== 'preset' && key !== 'schedule' && key !== 'nightFrom' && key !== 'dayFrom' && key !== 'mode' && key !== 'navMini' && key !== 'navOpenMode' && key !== 'netBar' && key !== 'swipe' && key !== 'fontFam' && key !== 'icStyle' && key.indexOf('login') !== 0 && key.indexOf('const') !== 0 && key.indexOf('ov') !== 0) prefs.preset = '';
 		save();
 		applyAll();
 		refreshPanel();
@@ -1521,7 +1521,7 @@
 		var ovLay = h('div', { 'class': 'nf-pop-sec nf-desk' }, [ h('div', { 'class': 'nf-pop-l', text: 'Раскладка карточек' }), sw('ovWide', 'Один столбец (карточки на всю ширину)') ]
 			.concat(seg2('ovCols', 'Столбцов (без пустых мест)', [ [ '0', 'Авто' ], [ '1', '1' ], [ '2', '2' ], [ '3', '3' ] ], true))
 			.concat(seg2('ovSize', 'Размер карточек', [ [ 'sm', 'Компактные' ], [ 'md', 'Обычные' ], [ 'lg', 'Крупные' ] ], true)));
-		var ui = h('div', { 'class': 'nf-pop-sec' }, [ h('div', { 'class': 'nf-pop-l', text: 'Интерфейс' }) ].concat(desk(sw('navMini', 'Свёрнутое меню (значки)')), [ sw('constApp', 'Анимация на фоне страниц'), sw('netBar', 'Полоса состояния интернета'), sw('swipe', 'Свайп между вкладками страницы') ], desk(sw('hints', 'Подсказки по терминам')), [ refs.install,
+		var ui = h('div', { 'class': 'nf-pop-sec' }, [ h('div', { 'class': 'nf-pop-l', text: 'Интерфейс' }) ].concat(desk(sw('navMini', 'Свёрнутое меню (значки)')), seg2('navOpenMode', 'Раскрытие меню', [ [ 'click', 'По клику' ], [ 'hover', 'По наведению' ] ], true), [ sw('constApp', 'Анимация на фоне страниц'), sw('netBar', 'Полоса состояния интернета'), sw('swipe', 'Свайп между вкладками страницы') ], desk(sw('hints', 'Подсказки по терминам')), [ refs.install,
 			h('div', { 'class': 'nf-pop-note', text: 'Приложение: в Chrome и Edge установка работает по HTTPS, на iPhone — «Поделиться → На экран Домой».' })
 		]));
 
@@ -2056,6 +2056,7 @@
 		[ [ 'density', 'normal' ], [ 'font', 'md' ], [ 'fontFam', '' ], [ 'icStyle', 'line' ], [ 'radius', 'md' ], [ 'glass', 'on' ], [ 'chart', 'area' ], [ 'chartPal', 'accent' ], [ 'chartW', '2' ], [ 'loginBg', 'mica' ], [ 'constKind', 'net' ], [ 'glassTone', 'auto' ], [ 'ovSize', 'md' ] ].forEach(function (k) {
 			Object.keys(refs[k[0]]).forEach(function (v) { refs[k[0]][v].setAttribute('aria-pressed', String((prefs[k[0]] || k[1]) === v)); });
 		});
+		Object.keys(refs.navOpenMode).forEach(function (k) { refs.navOpenMode[k].setAttribute('aria-pressed', String((prefs.navOpenMode || 'click') === k)); });
 		Object.keys(refs.preset).forEach(function (k) { refs.preset[k].setAttribute('aria-pressed', String(prefs.preset === k)); });
 		refs.schedule.checked = !!prefs.schedule;
 		if (refs.upd) refs.upd.checked = prefs.updCheck !== false;
