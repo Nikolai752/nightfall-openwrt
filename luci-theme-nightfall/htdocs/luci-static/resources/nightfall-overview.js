@@ -646,7 +646,8 @@ function liveStrip() {
 		const t = lastOf(S.temp);
 		if (t != null) {
 			setNum(R.tempV, nf1.format(t) + ' °C');
-			R.tempBadge.replaceChildren(t >= 85 ? badge('bad', 'Жарко') : t >= 70 ? badge('warn', 'Тепло') : badge('ok', 'Норма'));
+			const [ tempMid, tempBad ] = thr('temp', 70, 85);
+			R.tempBadge.replaceChildren(t >= tempBad ? badge('bad', 'Жарко') : t >= tempMid ? badge('warn', 'Тепло') : badge('ok', 'Норма'));
 			R.tempS.textContent = 'процессор';
 		}
 		else { R.tempV.textContent = '–'; R.tempS.textContent = 'нет датчика'; R.tempBadge.replaceChildren(); }
@@ -664,9 +665,10 @@ function liveStrip() {
 		{
 			const bad = [], warn = [], memP = 100 * used / m.total, loss = S.loss != null ? S.loss : null;
 			if (S.online === false) bad.push('нет связи с интернетом');
-			if (t != null && t >= 85) bad.push('перегрев ' + nf0.format(t) + ' °C'); else if (t != null && t >= 70) warn.push('температура ' + nf0.format(t) + ' °C');
-			if (memP >= 90) bad.push('память заполнена на ' + nf0.format(memP) + '%'); else if (memP >= 80) warn.push('память ' + nf0.format(memP) + '%');
-			if (cpu != null && cpu >= 90) warn.push('процессор ' + nf0.format(cpu) + '%');
+			const [ tempMid, tempBad ] = thr('temp', 70, 85), [ memMid, memBad ] = thr('mem', 70, 88), [ cpuMid, cpuBad ] = thr('cpu', 60, 85);
+			if (t != null && t >= tempBad) bad.push('перегрев ' + nf0.format(t) + ' °C'); else if (t != null && t >= tempMid) warn.push('температура ' + nf0.format(t) + ' °C');
+			if (memP >= memBad) bad.push('память заполнена на ' + nf0.format(memP) + '%'); else if (memP >= memMid) warn.push('память ' + nf0.format(memP) + '%');
+			if (cpu != null && cpu >= cpuBad) bad.push('высокая нагрузка процессора ' + nf0.format(cpu) + '%'); else if (cpu != null && cpu >= cpuMid) warn.push('процессор ' + nf0.format(cpu) + '%');
 			if (loss != null && loss >= 5) warn.push('потери пакетов ' + nf1.format(loss) + '%');
 			const k = bad.length ? 'bad' : warn.length ? 'warn' : 'ok', all = bad.concat(warn);
 			const signature = k + '|' + all.join('|');
@@ -2166,18 +2168,18 @@ function healthCard() {
 			else if (s.ping > 80) add(6, 'warn', 'Пинг ' + nf0.format(s.ping) + ' мс');
 		}
 		if (s.loss != null && s.loss > 2) add(s.loss > 10 ? 20 : 10, s.loss > 10 ? 'bad' : 'warn', 'Потери ' + nf0.format(s.loss) + '%');
+		const [ cpuMid, cpuBad ] = thr('cpu', 60, 85), [ memMid, memBad ] = thr('mem', 70, 88), [ tempMid, tempBad ] = thr('temp', 70, 85);
 		if (s.cpu != null) {
-			if (s.cpu > 90) add(20, 'bad', 'Процессор ' + nf0.format(s.cpu) + '%');
-			else if (s.cpu > 70) add(8, 'warn', 'Процессор ' + nf0.format(s.cpu) + '%');
+			if (s.cpu >= cpuBad) add(20, 'bad', 'Процессор ' + nf0.format(s.cpu) + '%');
+			else if (s.cpu >= cpuMid) add(8, 'warn', 'Процессор ' + nf0.format(s.cpu) + '%');
 		}
 		if (s.mem != null) {
-			if (s.mem > 90) add(20, 'bad', 'Память ' + nf0.format(s.mem) + '%');
-			else if (s.mem > 80) add(8, 'warn', 'Память ' + nf0.format(s.mem) + '%');
+			if (s.mem >= memBad) add(20, 'bad', 'Память ' + nf0.format(s.mem) + '%');
+			else if (s.mem >= memMid) add(8, 'warn', 'Память ' + nf0.format(s.mem) + '%');
 		}
 		if (s.temp != null) {
-			if (s.temp > 80) add(25, 'bad', 'Жарко ' + nf0.format(s.temp) + ' °C');
-			else if (s.temp > 70) add(12, 'warn', 'Тепло ' + nf0.format(s.temp) + ' °C');
-			else if (s.temp > 60) add(4, 'warn', 'Температура ' + nf0.format(s.temp) + ' °C');
+			if (s.temp >= tempBad) add(25, 'bad', 'Жарко ' + nf0.format(s.temp) + ' °C');
+			else if (s.temp >= tempMid) add(12, 'warn', 'Тепло ' + nf0.format(s.temp) + ' °C');
 		}
 		score = Math.max(0, Math.min(100, Math.round(score)));
 		const bad = f.filter(x => x[0] !== 'ok');
@@ -2315,7 +2317,7 @@ function eventsCard() {
 
 function quickCard() {
 	const note = E('div', { class: 'nf-qnote', role: 'status', 'aria-live': 'polite' });
-	const body = E('div', { class: 'nf-quick-b' });
+	const body = E('div', { class: 'nf-quick-b nf-quick-b-four' });
 	const el = xcard('nf-quick', 'Быстрые действия', body);
 
 	function icon(path) {
@@ -2366,56 +2368,29 @@ function quickCard() {
 		return callReboot().then(waitBack);
 	}, '<path d="M12 3v8"/><path d="M6.5 6.5a8 8 0 1 0 11 0"/>');
 
-	const more = E('details', { class: 'nf-quick-more' });
-	const summary = E('summary', { class: 'nf-qa nf-qa-more', title: 'Дополнительные действия', 'aria-label': 'Дополнительные действия' }, [
-		icon('<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>')
-	]);
-	const menu = E('div', { class: 'nf-quick-menu' });
-
-	const wake = E('button', { type: 'button', class: 'nf-quick-menu-item' }, 'Разбудить устройство');
-	wake.addEventListener('click', () => {
-		more.open = false;
+	const wake = action('Разбудить устройство', 'Введите MAC в окне', () => {
 		const mac = (window.prompt('Введите MAC-адрес устройства (AA:BB:CC:DD:EE:FF):') || '').trim().toUpperCase();
-		if (!mac) return;
-		if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) {
-			note.textContent = 'Некорректный MAC-адрес. Пример: AA:BB:CC:DD:EE:FF';
-			return;
-		}
+		if (!mac) { note.textContent = 'Пробуждение отменено.'; return Promise.resolve(); }
+		if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) throw new Error('некорректный MAC-адрес');
 		note.textContent = 'Отправляю Wake-on-LAN пакет…';
-		fs.exec('/usr/bin/etherwake', [ '-b', '-i', 'br-lan', mac ]).then(r => {
+		return fs.exec('/usr/bin/etherwake', [ '-b', '-i', 'br-lan', mac ]).then(r => {
 			if (r.code !== 0) throw new Error(r.stderr || ('код ' + r.code));
 			note.textContent = 'Пакет пробуждения отправлен: ' + mac;
-		}).catch(err => { note.textContent = 'Не удалось разбудить устройство: ' + (err.message || err) + '. Проверьте наличие etherwake.'; });
-	});
+		});
+	}, '<path d="M3 8h13v10H3z"/><path d="M16 11h3l2 2v5h-5"/><circle cx="7" cy="19" r="1.5"/><circle cx="18" cy="19" r="1.5"/>');
 
-	const copy = E('button', { type: 'button', class: 'nf-quick-menu-item' }, 'Скопировать диагностику');
-	copy.addEventListener('click', () => {
-		more.open = false;
+	const copy = action('Скопировать диагностику', 'Нажмите ещё раз', () => {
 		note.textContent = 'Собираю диагностику…';
-		Promise.all([ callBoard(), callIfaces(), callWireless() ]).then(data => {
+		return Promise.all([ callBoard(), callIfaces(), callWireless() ]).then(data => {
 			const report = 'Nightfall — диагностика\n' + JSON.stringify({ board: data[0], interfaces: data[1], wireless: data[2] }, null, 2);
 			if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('браузер не разрешил доступ к буферу обмена');
 			return navigator.clipboard.writeText(report);
-		}).then(() => { note.textContent = 'Диагностика скопирована в буфер обмена.'; })
-		.catch(err => { note.textContent = 'Не удалось скопировать диагностику: ' + (err.message || err); });
-	});
+		}).then(() => { note.textContent = 'Диагностика скопирована в буфер обмена.'; });
+	}, '<path d="M7 3h8l4 4v14H7z"/><path d="M15 3v5h4M10 13h6M10 17h6"/>');
 
-	const menuReboot = E('button', { type: 'button', class: 'nf-quick-menu-item danger' }, 'Перезагрузить роутер');
-	menuReboot.addEventListener('click', () => {
-		more.open = false;
-		if (!window.confirm('Перезагрузить роутер? Все подключения временно прервутся.')) return;
-		note.textContent = 'Роутер перезагружается…';
-		callReboot().then(waitBack).catch(err => { note.textContent = 'Не удалось перезагрузить роутер: ' + (err.message || err); });
-	});
-
-	menu.append(wake, copy, menuReboot);
-	more.append(summary, menu);
-	document.addEventListener('click', ev => { if (more.open && !more.contains(ev.target)) more.open = false; });
-
-	body.append(wifi, reboot, more, note);
+	body.append(wifi, reboot, wake, copy, note);
 	return { el, contains: n => el.contains(n), start() {} };
 }
-
 /* ---------- init ---------- */
 
 return baseclass.extend({

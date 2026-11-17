@@ -6694,3 +6694,59 @@ html .nf-quick-b .nf-qnote { grid-column: 1 / -1; }
 	html .nf-quick-b > .nf-qa { grid-column: 1 / -1; }
 	html .nf-quick-b .nf-qa-more { grid-column: 2; grid-row: 1; }
 }
+
+
+/* v1.26.7: four always-visible compact actions; keep the existing card footprint. */
+html .nf-quick-b.nf-quick-b-four {
+	display: grid !important;
+	grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+	align-items: center !important;
+	gap: 8px !important;
+}
+html .nf-quick-b-four > .nf-qa {
+	display: inline-flex !important;
+	width: 100% !important;
+	min-width: 0 !important;
+	min-height: 40px !important;
+	height: 40px !important;
+	flex: initial !important;
+	align-items: center !important;
+	justify-content: center !important;
+	gap: 7px !important;
+	padding: 0 9px !important;
+	border-radius: 11px !important;
+	white-space: nowrap !important;
+	font-size: 12px !important;
+	line-height: 1.15 !important;
+}
+html .nf-quick-b-four .nf-qa-icon {
+	display: block;
+	width: 17px;
+	height: 17px;
+	min-width: 17px;
+	flex: 0 0 17px;
+	fill: none;
+	stroke: var(--nf-accent, #1677d2);
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+html .nf-quick-b-four > .nf-qa:disabled { opacity: .55; cursor: wait; }
+html .nf-quick-b-four > .nf-qa.arm {
+	border-color: var(--warn-color-high, #e6a000) !important;
+	background: var(--nf-warn-bg, #fff4ce) !important;
+	color: var(--nf-warn-fg, #9d5d00) !important;
+}
+html .nf-quick-b-four .nf-qnote {
+	grid-column: 1 / -1;
+	min-height: 0;
+	font-size: 11px;
+}
+@media (max-width: 760px) {
+	html .nf-quick-b.nf-quick-b-four { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+	html .nf-quick-b-four > .nf-qa { min-height: 38px !important; height: 38px !important; }
+}
+@media (max-width: 380px) {
+	html .nf-quick-b.nf-quick-b-four { grid-template-columns: minmax(0, 1fr) !important; }
+	html .nf-quick-b-four > .nf-qa { justify-content: flex-start !important; padding: 0 12px !important; }
+}
