@@ -504,10 +504,12 @@ write_info() {
 persist_mount_info() {
 	p=$1
 	[ -n "$p" ] || return 1
+	local p
+	p=$1
 	awk -v p="$p" '
 		function unescape(s) {
-			gsub(/\\\\040/, " ", s); gsub(/\\\\011/, "\t", s)
-			gsub(/\\\\012/, "\n", s); gsub(/\\\\134/, "\\\\", s)
+			gsub(/\\040/, " ", s); gsub(/\\011/, "\t", s)
+			gsub(/\\012/, "\n", s); gsub(/\\134/, "\\", s)
 			return s
 		}
 		BEGIN { while (length(p) > 1 && substr(p, length(p), 1) == "/") p = substr(p, 1, length(p) - 1) }
@@ -521,6 +523,7 @@ persist_mount_info() {
 }
 
 on_flash() {    # 0 = встроенное/неподтверждённое хранилище (запись запрещена), 1 = внешний mount
+	local mi fd mp
 	mi=$(persist_mount_info "$1")
 	[ -n "$mi" ] || return 0
 	fd=${mi%%|*}; mp=${mi#*|}
@@ -551,6 +554,7 @@ persist_warn() {
 }
 
 persist() {
+	local mi mp rel rc
 	[ -n "$PERSIST_DIR" ] || return 0
 	mi=$(persist_mount_info "$PERSIST_DIR")
 	if [ -z "$mi" ] || on_flash "$PERSIST_DIR"; then
@@ -599,6 +603,7 @@ persist() {
 }
 
 restore() {
+	local mi mp rel
 	[ -n "$PERSIST_DIR" ] || return 0
 	mi=$(persist_mount_info "$PERSIST_DIR")
 	[ -n "$mi" ] && ! on_flash "$PERSIST_DIR" || return 0
