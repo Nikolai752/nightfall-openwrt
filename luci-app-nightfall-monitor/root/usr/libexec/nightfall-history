@@ -59,7 +59,7 @@ devs_json() {   # devs_json FILE [skip-first-line]
 neigh_json() {  # соседи по сети: «адрес → MAC» (IPv4 и IPv6), чтобы привязывать трафик к устройству, а не к адресу
 	printf '['
 	{ if [ -n "$NF_NEIGH" ]; then cat "$NF_NEIGH"; else ip neigh show 2>/dev/null; fi; } | awk '
-		/lladdr/ && $NF != "FAILED" && $NF != "INCOMPLETE" && $1 !~ /^fe80:/ { m = ""; for (i = 1; i < NF; i++) if ($i == "lladdr") m = tolower($(i + 1)); if (m ~ /^[0-9a-f][0-9a-f](:[0-9a-f][0-9a-f])+$/) printf "%s[\"%s\",\"%s\"]", (n++ ? "," : ""), $1, m }'
+		/lladdr/ && $1 !~ /^fe80:/ { m = ""; st = $NF; for (i = 1; i < NF; i++) if ($i == "lladdr") m = tolower($(i + 1)); if (m ~ /^[0-9a-f][0-9a-f](:[0-9a-f][0-9a-f])+$/) printf "%s[\"%s\",\"%s\",\"%s\"]", (n++ ? "," : ""), $1, m, st }'
 	printf ']'
 }
 

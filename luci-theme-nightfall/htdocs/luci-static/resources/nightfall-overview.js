@@ -18,6 +18,15 @@ const APPSBIN = '/usr/libexec/nightfall-apps';
 const ORDER_KEY = 'nightfall-overview-order-v1';
 const SIZE_KEY = 'nightfall-overview-size-v1';
 const HEIGHT_KEY = 'nightfall-overview-h-v1';
+const PORT_LABEL_KEY = 'nightfall-port-labels-v1';
+function portLabelsLoad() {
+	try { return JSON.parse(localStorage.getItem(PORT_LABEL_KEY) || '{}') || {}; }
+	catch (e) { return {}; }
+}
+function portLabelsSave(v) {
+	try { localStorage.setItem(PORT_LABEL_KEY, JSON.stringify(v)); return true; }
+	catch (e) { return false; }
+}
 const WIN = 600;            /* seconds shown in mini graphs */
 const EVERY = 3000;         /* ms between samples */
 const ALERTS_EVERY = 5;     /* ping / alerts every N samples */
@@ -1384,6 +1393,36 @@ function enhanceBadges(view) {
 	view.querySelectorAll('.ifacebox').forEach(box => {
 		const img = box.querySelector('.ifacebox-body > img[src*="port_"], .ifacebox-body > img[src*="/pse_"]');
 		if (!img) return;
+		const head = box.querySelector('.ifacebox-head');
+		if (head) {
+			const titleEl = head.querySelector('strong, h3, h4') || head.firstElementChild;
+			if (titleEl) {
+				if (!box.hasAttribute('data-nf-port-key')) box.setAttribute('data-nf-port-key', titleEl.textContent.trim());
+				const key = box.getAttribute('data-nf-port-key');
+				if (key) {
+					const custom = portLabelsLoad()[key] || '';
+					if (titleEl.textContent !== (custom || key)) titleEl.textContent = custom || key;
+					let edit = head.querySelector(':scope > .nf-port-edit');
+					if (!edit) {
+						edit = document.createElement('button');
+						edit.type = 'button'; edit.className = 'nf-port-edit'; edit.textContent = '✎'; edit.style.cssText = 'margin-left:6px;border:0;background:transparent;color:inherit;cursor:pointer;opacity:.7;padding:2px 5px;border-radius:6px;font:inherit';
+						edit.title = 'Изменить подпись карточки (только в этом браузере)';
+						edit.setAttribute('aria-label', 'Изменить подпись порта ' + key);
+						edit.addEventListener('click', ev => {
+							ev.preventDefault(); ev.stopPropagation();
+							const current = portLabelsLoad()[key] || '';
+							const value = window.prompt('Подпись для карточки ' + key + '. Пустое поле вернёт исходное название:', current);
+							if (value === null) return;
+							const next = portLabelsLoad(), label = value.trim().slice(0, 40);
+							if (label) next[key] = label; else delete next[key];
+							if (!portLabelsSave(next)) { window.alert('Не удалось сохранить подпись в браузере.'); return; }
+							titleEl.textContent = label || key;
+						});
+						head.appendChild(edit);
+					}
+				}
+			}
+		}
 		const up = /_up\.svg/.test(img.getAttribute('src'));
 		const state = up ? 'up' : 'down';
 		if (box.getAttribute('data-nf-port') !== state) box.setAttribute('data-nf-port', state);

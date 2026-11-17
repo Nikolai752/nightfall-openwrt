@@ -60,7 +60,7 @@ wireless.cfgD.encryption='none'
 W
 exit 0 ;;
 *redirect_https*) exit 0 ;;
-*PasswordAuth*) echo 0; exit 0 ;;
+*"PasswordAuth"*|*"RootPasswordAuth"*) echo 0; exit 0 ;;
 esac
 cat <<'X'
 firewall.cfg1=zone
