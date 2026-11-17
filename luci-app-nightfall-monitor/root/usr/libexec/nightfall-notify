@@ -107,7 +107,7 @@ backup)    # создать проверенный локальный архив
 	# Keep a private server-side reference: callback_data must stay short and must never contain a path.
 	mkdir -p "$DIR" || fail "не удалось подготовить каталог состояния"
 	umask 077
-	id="$(date +%s)$(printf '%04d' "$")"
+	id="$(date +%s)$(awk 'BEGIN { srand(); printf "%04d", int(rand()*10000) }')"
 	state="$DIR/backup.$id"
 	while [ -e "$state" ] || [ -L "$state" ]; do id="${id}1"; state="$DIR/backup.$id"; done
 	printf '%s\n' "$ARCHIVE" > "$state" || fail "не удалось сохранить ссылку на архив"
