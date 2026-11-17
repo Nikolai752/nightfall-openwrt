@@ -168,7 +168,8 @@ restore_backup() {
    rollback_error=0
    while IFS= read -r old; do
     [ -n "$old" ] || continue
-    if cp -p "$WORK/rollback/$old" "$ETC/$old.rollback.$$" && mv "$ETC/$old.rollback.$$" "$ETC/$old"; then :; else rollback_error=1; rm -f "$ETC/$old.rollback.$$"; fi
+    # Освобождаем место от частично установленного файла перед возвратом старого.
+    if rm -f "$ETC/$old" && cp -p "$WORK/rollback/$old" "$ETC/$old.rollback.$" && mv "$ETC/$old.rollback.$" "$ETC/$old"; then :; else rollback_error=1; rm -f "$ETC/$old.rollback.$"; fi
    done < "$WORK/existing.list"
    while IFS= read -r new; do
     [ -n "$new" ] || continue
