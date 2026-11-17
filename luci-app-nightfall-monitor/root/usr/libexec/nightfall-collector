@@ -603,6 +603,7 @@ persist() {
 
 restore() {
 	local mi mp rel f
+	[ "${persist_ok:-0}" = 1 ] && return 0
 	[ -n "$PERSIST_DIR" ] || return 0
 	mi=$(persist_mount_info "$PERSIST_DIR")
 	[ -n "$mi" ] && ! on_flash "$PERSIST_DIR" || return 0
