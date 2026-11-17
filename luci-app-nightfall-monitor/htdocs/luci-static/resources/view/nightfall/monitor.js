@@ -1201,8 +1201,44 @@ return view.extend({
 			}
 			susBox.replaceChildren(...(out.length ? out.map(o => E('div', { class: 'nfm-ev-i nt warn' }, [ E('i'), E('span', {}, o[1]) ])) : [ E('div', { class: 'nfm-empty' }, S.devRows ? 'Ничего необычного: трафик устройств в пределах их обычного.' : 'Загружаю…') ]));
 		}
+		/* Клиенты за ретранслятором: DHCP хранит их собственные MAC,
+		 * а ip neigh может показывать MAC промежуточной Wi-Fi-станции.
+		 * Не склеиваем такие устройства по proxy MAC — только добавляем отдельные строки,
+		 * когда несколько DHCP-клиентов сходятся на одну реально ассоциированную станцию.
+		 */
+		function wifiDisplayRows() {
+			const direct = (S.wifi || []).slice();
+			const directMacs = new Set(direct.map(c => String(c.mac || '').toUpperCase()).filter(Boolean));
+			const stationMacs = new Set(directMacs);
+			const byUpstream = {};
+			const dv = S.devs || {};
+			const neigh = new Map((dv.neigh || []).map(x => [ String(x[0]), { mac: String(x[1] || '').toUpperCase(), state: String(x[2] || '').toUpperCase() } ]));
+			for (const mac0 of Object.keys(hints || {})) {
+				const mac = String(mac0).toUpperCase();
+				if (!mac || directMacs.has(mac)) continue;
+				const h = hints[mac0] || {};
+				for (const ip of h.ipaddrs || []) {
+					const n = neigh.get(String(ip));
+					if (!n || !stationMacs.has(n.mac)) continue;
+					const a = byUpstream[n.mac] || (byUpstream[n.mac] = {});
+					a[mac] = { mac, ip: String(ip), upstream: n.mac, state: n.state };
+				}
+			}
+			const inferred = [];
+			for (const upstream of Object.keys(byUpstream)) {
+				const clients = Object.values(byUpstream[upstream]);
+				/* Один совпавший адрес недостаточен: это может быть обычная ARP-запись. */
+				if (clients.length < 2) continue;
+				for (const c of clients) inferred.push({
+					mac: c.mac, ssid: 'За ретранслятором', band: 'proxy', proxy: true,
+					upstream: c.upstream, proxyState: c.state, signal: null, rx: null, tx: null,
+					connected_time: null
+				});
+			}
+			return direct.concat(inferred);
+		}
 		function renderWifiExtra() {
-			const cl = S.wifi || [], R = S.wq;
+			const cl = wifiDisplayRows(), R = S.wq;
 			const bands = {};
 			for (const c of cl) { const b = c.band || '?'; const e = bands[b] = bands[b] || { n: 0, sum: 0, rate: 0, rn: 0 }; e.n++; if (c.signal) e.sum += c.signal; if (c.rx && c.rx.rate) { e.rate += c.rx.rate; e.rn++; } }
 			const bk = Object.keys(bands).sort();
@@ -1952,7 +1988,7 @@ return view.extend({
 		function fetchExtras() {
 			const jobs = [];
 			if (due('alerts', ALERTS_EVERY * INTERVAL)) jobs.push(callHistory([ 'alerts' ]).then(r => { S.alerts = r; }));
-			if (onTab('net', 'devs', 'overview') && due('devs', DEVICES_EVERY * INTERVAL)) jobs.push(callHistory([ 'devices' ]).then(r => { S.devs = r; }));
+			if (onTab('net', 'devs', 'overview', 'wifi') && due('devs', DEVICES_EVERY * INTERVAL)) jobs.push(callHistory([ 'devices' ]).then(r => { S.devs = r; }));
 			if (due('mode', 60)) jobs.push(callHistory([ 'mode' ]).then(setMode));
 			if (onTab('hist', 'log') && due('hist', HIST_EVERY * INTERVAL)) jobs.push(callHistory([ 'series', RANGES[S.range][0] ]).then(r => { S.hist = r; }));
 			if (S.tab === 'hist' && due('tr', 300)) jobs.push(callHistory([ 'traffic' ]).then(r => { S.tr = r; }));
@@ -2959,18 +2995,18 @@ return view.extend({
 			}
 
 			/* wifi clients */
-			T.wifiMini.textContent = S.wifi ? nf0.format(S.wifi.length) : '–';
+			T.wifiMini.textContent = S.wifi ? nf0.format(wifiDisplayRows().length) : '–';
 			if (onTab('net', 'wifi')) {
-				const rows = (S.wifi || []).slice().sort((a, b) => (b.signal || -999) - (a.signal || -999)).map(c => {
+				const rows = wifiDisplayRows().slice().sort((a, b) => (b.signal || -999) - (a.signal || -999)).map(c => {
 					const mac = (c.mac || '').toUpperCase(), h = hints[mac] || hints[mac.toLowerCase()] || {};
-					const lvl = c.signal >= -55 ? 4 : c.signal >= -65 ? 3 : c.signal >= -75 ? 2 : 1;
+					const lvl = c.proxy ? 0 : c.signal >= -55 ? 4 : c.signal >= -65 ? 3 : c.signal >= -75 ? 2 : 1;
 					const link = x => x && x.rate ? nf0.format(x.rate / 1000) + '\u00a0Мбит/с' : '–';
-					return E('tr', { class: 'nfm-click', title: 'Показать сигнал в динамике', click: () => wifiDialog(mac, h.name || (h.ipaddrs || [])[0] || mac, c) }, [
+					return E('tr', { class: 'nfm-click', title: 'Показать сигнал в динамике', click: c.proxy ? null : () => wifiDialog(mac, h.name || (h.ipaddrs || [])[0] || mac, c) }, [
 						E('td', {}, [ h.name || (h.ipaddrs || [])[0] || mac, h.name ? E('span', { class: 'nfm-chip' }, mac) : '' ]),
-						E('td', {}, [ c.ssid, c.band ? E('span', { class: 'nfm-chip' }, BANDS[c.band] || c.band) : '' ]),
-						E('td', {}, [ E('span', { class: 'nfm-sig' + (lvl <= 2 ? ' weak' : '') }, [ 1, 2, 3, 4 ].map(n => E('i', { class: n <= lvl ? 'on' : '' }))), `${c.signal} дБм` ]),
-						E('td', { class: 'r' }, link(c.tx)), E('td', { class: 'r' }, link(c.rx)),
-						E('td', { class: 'r' }, c.connected_time != null ? fmtDur(c.connected_time) : '–') ]);
+						E('td', {}, [ c.ssid, c.proxy ? E('span', { class: 'nfm-chip' }, 'вероятно RE / proxy') : c.band ? E('span', { class: 'nfm-chip' }, BANDS[c.band] || c.band) : '' ]),
+						E('td', {}, c.proxy ? '—' : [ E('span', { class: 'nfm-sig' + (lvl <= 2 ? ' weak' : '') }, [ 1, 2, 3, 4 ].map(n => E('i', { class: n <= lvl ? 'on' : '' }))), `${c.signal} дБм` ]),
+						E('td', { class: 'r' }, c.proxy ? '—' : link(c.tx)), E('td', { class: 'r' }, c.proxy ? '—' : link(c.rx)),
+						E('td', { class: 'r' }, c.proxy ? ((c.proxyState === 'REACHABLE' || c.proxyState === 'DELAY' || c.proxyState === 'PROBE') ? 'через ретранслятор · доступен' : 'через ретранслятор · не подтверждён') : c.connected_time != null ? fmtDur(c.connected_time) : '–') ]);
 				});
 				wifiBody.replaceChildren(...(rows.length ? rows : [ E('tr', {}, E('td', { colspan: 6, class: 'nfm-empty' },
 					S.wifi ? 'Подключённых Wi-Fi клиентов нет' : 'Данные о Wi-Fi недоступны' + (wifiErr ? ' (' + wifiErr + ')' : ''))) ]));
