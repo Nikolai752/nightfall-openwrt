@@ -825,7 +825,17 @@ return view.extend({
 			metric(rMem, 'Память', E('div', { class: 'nfm-v' }, [ t('memMain') ]), E('div', { class: 'nfm-s' }, [ t('memSub') ])),
 			metric(rNet, 'Интернет', E('div', { class: 'nfm-v' }, [ t('netMain') ]), E('div', { class: 'nfm-s' }, [ t('netSub') ]))
 		]);
-		const flashCard = metric(rFlash, 'Флеш', E('div', { class: 'nfm-v' }, [ t('flashMain') ]), E('div', { class: 'nfm-s' }, [ t('flashSub') ]));
+		const flashCard = E('section', { class: 'nfm-card nfm-flash-card' }, [
+			E('div', { class: 'nfm-flash-head' }, [
+				E('div', { class: 'nfm-flash-title' }, 'Флеш-память'),
+				E('span', { class: 'nfm-flash-caption' }, 'Накопитель роутера')
+			]),
+			E('div', { class: 'nfm-flash-values' }, [
+				E('div', { class: 'nfm-v' }, [ t('flashMain') ]),
+				E('div', { class: 'nfm-s' }, [ t('flashSub') ])
+			]),
+			rFlash.el
+		]);
 
 		const mainChart = chart({
 			right: true,
@@ -992,7 +1002,7 @@ return view.extend({
 				E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Показаны десять самых «толстых» программ. «Возможна утечка» ставится, если память почти все замеры только росла и выросла больше чем на 30% и 5 МБ.'));
 		}
 		const procs = E('div', { hidden: true }, [
-			E('div', { class: 'nfm-grid nfm-g21' }, [ card('Ядра процессора', E('div', {}, [ coresBox, tiles ])), flashCard ]),
+			E('div', { class: 'nfm-grid nfm-g21 nfm-proc-overview' }, [ card('Ядра процессора', E('div', {}, [ coresBox, tiles ])), flashCard ]),
 			card([ 'Кто сколько занимает', E('span', { class: 'nfm-note' }, 'память программ — примерно: общие библиотеки входят в каждую') ], E('div', {}, [ memStack, memLegend ])),
 			card([ 'Память по программам за период', E('span', { class: 'nfm-spacer' }), pmPer ], pmBox),
 			card([ 'Программы', E('span', { class: 'nfm-spacer' }),
