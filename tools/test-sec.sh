@@ -33,7 +33,7 @@ want "проверка: сеть без пароля" '["bad","Сеть «Guest�
 want "проверка: устаревшее шифрование" '["warn","Сеть «Old» допускает устаревшее' "$out"
 want "проверка: хорошее шифрование" '["ok","Сеть «Home»: шифрование sae-mixed' "$out"
 nowant "проверка: выключенная сеть не считается" "«Off»" "$out"
-want "проверка: SSH только по ключам" '["ok","SSH: вход по паролю выключен' "$out"
+want "проверка: SSH только по ключам" '["ok","SSH: парольный вход root выключен (PasswordAuth)' "$out"
 # Dropbear: root password login requires both PasswordAuth and RootPasswordAuth.
 AUTH_UCI="$T/uci-auth"
 cat > "$AUTH_UCI" <<'U'
@@ -172,9 +172,8 @@ want "procmem: выдача содержит обе свежие точки" '[[
 want "procmem: вторая точка с двумя программами" '[["dnsmasq",9000],["uhttpd",3000]]' "$pj"
 nowant "procmem: старая точка отфильтрована" '"old"' "$pj"
 # Соседняя таблица отдаёт состояние записи вместе с MAC: REACHABLE/STALE нельзя смешивать.
-mkdir -p "$T/neigh"
-printf '192.168.1.191 dev br-lan lladdr de:0d:ab:73:aa:8e REACHABLE\\n192.168.1.192 dev br-lan lladdr de:0d:ab:73:aa:8e STALE\\n192.168.1.193 dev br-lan FAILED\\n' > "$T/neigh"
-nj=$(NF_DIR="$T/pm" NF_NEIGH="$T/neigh" sh "$H" devices)
+printf '192.168.1.191 dev br-lan lladdr de:0d:ab:73:aa:8e REACHABLE\\n192.168.1.192 dev br-lan lladdr de:0d:ab:73:aa:8e STALE\\n192.168.1.193 dev br-lan FAILED\\n' > "$T/neigh.txt"
+nj=$(NF_DIR="$T/pm" NF_NEIGH="$T/neigh.txt" sh "$H" devices)
 want "devices: MAC прокси и состояние REACHABLE сохранены" '["192.168.1.191","de:0d:ab:73:aa:8e","REACHABLE"]' "$nj"
 want "devices: состояние STALE не теряется" '["192.168.1.192","de:0d:ab:73:aa:8e","STALE"]' "$nj"
 nowant "devices: FAILED сосед не выдаётся как доступный" '192.168.1.193' "$nj"
