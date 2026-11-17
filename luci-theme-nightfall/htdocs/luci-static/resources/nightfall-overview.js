@@ -669,6 +669,9 @@ function liveStrip() {
 			try { dismissed = localStorage.getItem(verdictDismissKey) || ''; } catch (e) {}
 			R.verdict.hidden = k !== 'ok' && dismissed === signature;
 			R.vdDismiss.hidden = k === 'ok';
+			if (k === 'ok') {
+				try { localStorage.removeItem(verdictDismissKey); } catch (e) {}
+			}
 			R.vdT.textContent = k === 'ok' ? 'Всё в порядке' : k === 'bad' ? 'Требует внимания' : 'Есть замечания';
 			R.vdS.textContent = k === 'ok' ? [ S.online === true ? 'интернет работает' : '', t != null ? 'температура ' + nf0.format(t) + ' °C' : '', 'память ' + nf0.format(memP) + '%' ].filter(Boolean).join(' · ') : all.join(' · ');
 		}
