@@ -1824,18 +1824,7 @@
 		getLatestTag().then(function (tag) {
 			try { window.localStorage.setItem(UKEY, JSON.stringify({ tag: tag, t: Date.now() })); } catch (e) { /* ignore */ }
 			paintVer(); if (announce) offerUpdate(false);
-			if (manual && refs.updNote) {
-				var available = updAvail();
-				if (available) {
-					refs.updNote.textContent = 'Доступно обновление (' + fullTag(available) + ').';
-					refs.updNote.classList.remove('bad');
-					offerUpdate(true);
-				}
-				else {
-					refs.updNote.textContent = 'Установлена последняя версия (' + fullTag(tag) + ').';
-					refs.updNote.classList.remove('bad');
-				}
-			}
+			if (manual && refs.updNote && !updAvail()) { refs.updNote.textContent = 'Установлена последняя версия (' + (/^v/i.test(tag) ? tag : 'v' + tag) + ').'; refs.updNote.classList.remove('bad'); }
 		}).catch(function () {
 			if (announce) offerUpdate(false);
 			if (manual && refs.updNote) { refs.updNote.textContent = 'Не удалось проверить: GitHub не ответил или исчерпан лимит запросов. Попробуйте позже.'; refs.updNote.classList.add('bad'); }
