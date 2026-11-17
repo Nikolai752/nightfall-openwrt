@@ -123,8 +123,8 @@ AUTO_OUT="$TMP/usb/nightfall-backups"
 if ! NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR= NF_MOUNTS="$TMP/mounts" "$TOOL" create > "$TMP/auto1" 2>&1; then cat "$TMP/auto1"; exit 1; fi
 cat "$TMP/auto1"
 grep -q 'Хранилище: USB/SD' "$TMP/auto1"
-NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR= NF_MOUNTS="$TMP/mounts" NF_BACKUP_KEEP=2 "$TOOL" create > "$TMP/auto2"
-NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR= NF_MOUNTS="$TMP/mounts" NF_BACKUP_KEEP=2 "$TOOL" create > "$TMP/auto3"
+NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR= NF_MOUNTS="$TMP/mounts" "$TOOL" create > "$TMP/auto2"
+NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR= NF_MOUNTS="$TMP/mounts" "$TOOL" create > "$TMP/auto3"
 [ "$(find "$AUTO_OUT" -maxdepth 1 -type f -name 'nightfall-backup-*.tar.gz' | wc -l | tr -d ' ')" -eq 2 ]
 echo "USB backup target and keep-last-2 rotation: ok"
 
