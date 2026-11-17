@@ -134,8 +134,22 @@ checks() {   # проверки настроек: [уровень bad|warn|ok, �
 		while IFS='|' read -r lv tx; do add "$lv" "$tx"; done < "$DIR/.chk.$$"
 	fi
 	rm -f "$DIR/.chk.$$" 2>/dev/null
-	# вход по SSH паролем и HTTPS для LuCI
-	[ "$($UCI -q get dropbear.@dropbear[0].PasswordAuth 2>/dev/null)" = "0" ] && add ok "SSH: вход по паролю выключен, только ключи." || add warn "SSH: вход по паролю включён. Надёжнее ключи (System → Administration → SSH-Keys), затем выключить пароль."
+	# Dropbear: PasswordAuth управляет парольной аутентификацией в целом,
+	# RootPasswordAuth отдельно запрещает парольный вход root (-g).
+	# Для root парольный вход возможен, только если оба параметра включены.
+	pa=$($UCI -q get dropbear.@dropbear[0].PasswordAuth 2>/dev/null)
+	rpa=$($UCI -q get dropbear.@dropbear[0].RootPasswordAuth 2>/dev/null)
+	# Значения по умолчанию Dropbear/OpenWrt — включено; учитываем также старые bool-значения.
+	case "$pa" in 0|off|false|no|disabled) pa=off ;; *) pa=on ;; esac
+	case "$rpa" in 0|off|false|no|disabled) rpa=off ;; *) rpa=on ;; esac
+	if [ "$pa" = on ] && [ "$rpa" = on ]; then
+		add warn "SSH: парольный вход root включён (PasswordAuth и RootPasswordAuth). Для защиты отключите парольную аутентификацию и используйте SSH-ключи."
+	else
+		add ok "SSH: парольный вход root выключен ($([ "$pa" = off ] && echo "PasswordAuth" || echo "RootPasswordAuth")); вход по ключу остаётся доступен."
+	fi
+	if [ "$pa" = on ] && [ "$rpa" = off ]; then
+		add info "SSH: парольная аутентификация для непривилегированных пользователей разрешена; для root запрещена."
+	fi
 	[ "$($UCI -q get uhttpd.main.redirect_https 2>/dev/null)" = "1" ] && add ok "LuCI: http перенаправляется на https." || add warn "LuCI доступен по http (пароль идёт открытым текстом внутри сети). Включите «Redirect all HTTP to HTTPS»."
 	printf '[%s]' "$out"
 }
