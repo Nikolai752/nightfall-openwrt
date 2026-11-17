@@ -167,7 +167,9 @@ upload_start() {
  case "$id" in *[!a-f0-9]*) fail "неверный идентификатор загрузки" ;; esac
  mkdir -p "$OUTDIR" 2>/dev/null || fail "не удалось создать каталог резервных копий"
  umask 077
- : > "$OUTDIR/.upload-$id.b64" || fail "не удалось начать загрузку"
+ upload_file="$OUTDIR/.upload-$id.b64"
+ [ ! -e "$upload_file" ] && [ ! -L "$upload_file" ] || fail "идентификатор загрузки уже используется"
+ (set -C; : > "$upload_file") 2>/dev/null || fail "не удалось безопасно начать загрузку"
  say "Загрузка начата."
 }
 upload_chunk() {
@@ -197,7 +199,8 @@ upload_finish() {
  [ -f "$encoded" ] && [ ! -L "$encoded" ] || fail "загрузка не найдена"
  encoded_size=$(wc -c < "$encoded" | tr -d ' ')
  [ "$encoded_size" -gt 0 ] && [ "$encoded_size" -le 7000000 ] || fail "архив пустой или превышает 5 МБ"
- base64 -d "$encoded" > "$archive.tmp" 2>/dev/null || { rm -f "$archive.tmp"; fail "не удалось декодировать архив"; }
+ [ ! -e "$archive.tmp" ] && [ ! -L "$archive.tmp" ] || rm -f "$archive.tmp"
+ (set -C; base64 -d "$encoded" > "$archive.tmp") 2>/dev/null || { rm -f "$archive.tmp"; fail "не удалось безопасно декодировать архив"; }
  rm -f "$encoded"
  mv "$archive.tmp" "$archive" || fail "не удалось сохранить архив"
  chmod 600 "$archive" 2>/dev/null
