@@ -117,8 +117,8 @@ grep -q '"logo":"keep"' "$ROOT2/etc/nightfall-logo.json"
 
 echo "== automatic USB destination and retention =="
 mkdir -p "$TMP/usb/nightfall"
-printf '\\nPERSIST_DIR=%s\\n' "$TMP/usb/nightfall" >> "$ROOT/etc/nightfall-monitor.conf"
-printf '/dev/root / ext4 rw 0 0\\n/dev/sda1 %s exfat rw 0 0\\n' "$TMP/usb" > "$TMP/mounts"
+printf '\nPERSIST_DIR=%s\n' "$TMP/usb/nightfall" >> "$ROOT/etc/nightfall-monitor.conf"
+printf '/dev/root / ext4 rw 0 0\n/dev/sda1 %s exfat rw 0 0\n' "$TMP/usb" > "$TMP/mounts"
 AUTO_OUT="$TMP/usb/nightfall-backups"
 NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR= NF_MOUNTS="$TMP/mounts" NF_BACKUP_KEEP=2 "$TOOL" create > "$TMP/auto1"
 grep -q 'Хранилище: USB/SD' "$TMP/auto1"
@@ -128,7 +128,7 @@ NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR= NF_MOUNTS="$TMP/mounts" NF_BACKUP_K
 echo "USB backup target and keep-last-2 rotation: ok"
 
 echo "== safe temporary fallback when USB is absent =="
-printf '/dev/root / ext4 rw 0 0\\n' > "$TMP/mounts"
+printf '/dev/root / ext4 rw 0 0\n' > "$TMP/mounts"
 NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR= NF_MOUNTS="$TMP/mounts" "$TOOL" create > "$TMP/fallback"
 grep -q 'Хранилище: временное' "$TMP/fallback"
 [ -d "$TMP/nightfall-backups" ]
