@@ -671,8 +671,13 @@ function liveStrip() {
 			const signature = k + '|' + all.join('|');
 			R.verdict.setAttribute('data-k', k);
 			R.verdict.dataset.signature = signature;
-			let dismissed = dismissedVerdictSignature;
-			try { dismissed = localStorage.getItem(verdictDismissKey) || dismissed; } catch (e) {}
+			let dismissed = '';
+			try { dismissed = localStorage.getItem(verdictDismissKey) || ''; } catch (e) {}
+			if (dismissedVerdictSignature === signature) dismissed = signature;
+			if (dismissed && dismissed !== signature) {
+				try { localStorage.removeItem(verdictDismissKey); } catch (e) {}
+				dismissed = '';
+			}
 			if (dismissed !== signature) dismissedVerdictSignature = '';
 			R.verdict.hidden = k !== 'ok' && dismissed === signature;
 			R.vdDismiss.hidden = k === 'ok';
