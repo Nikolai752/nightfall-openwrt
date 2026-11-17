@@ -23,7 +23,8 @@ ARCHIVE=$(find "$TMP/backups" -name '*.tar.gz' -type f | head -n 1)
 [ -n "$ARCHIVE" ]
 [ "$(wc -c < "$ARCHIVE" | tr -d ' ')" -gt 0 ]
 gzip -t "$ARCHIVE"
-"$TOOL" list "$ARCHIVE" | grep -q 'files=4'
+"$TOOL" list "$ARCHIVE" > "$TMP/list"
+grep -q 'files=4' "$TMP/list"
 NAME=$(basename "$ARCHIVE")
 "$TOOL" download-info "$NAME" > "$TMP/info"
 SIZE=$(sed -n 's/.*size=\([0-9][0-9]*\).*/\1/p' "$TMP/info")
