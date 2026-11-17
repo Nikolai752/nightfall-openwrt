@@ -6,7 +6,7 @@
 [![OpenWrt 25.12](https://img.shields.io/badge/OpenWrt-25.12-00a3b5?style=flat-square&logo=openwrt)](https://openwrt.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](https://opensource.org/licenses/MIT)
 
-Тема для LuCI в стиле Windows 11 и Liquid Glass плюс страница **«Монитор ресурсов»** с историей, графиками, учётом трафика по устройствам и приложениям, уведомлениями в Telegram и обновлением в один клик. Для **OpenWrt 25.12**, без дополнительных пакетов (`curl` нужен только для обновления и Telegram).
+Тема для LuCI в стиле Windows 11 и Liquid Glass плюс страница **«Монитор ресурсов»** с историей, графиками, учётом трафика по устройствам и приложениям, уведомлениями в Telegram и обновлением в один клик. Для **OpenWrt 25.12**; установщик сам проверяет и при необходимости устанавливает `coreutils-base64` для резервного копирования (`curl` нужен только для обновления и Telegram).
 
 ## Скриншоты
 
