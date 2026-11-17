@@ -1,14 +1,16 @@
 #!/bin/sh
 # Заглушки роутера для проверок nightfall-sec: sh tools/sec-fixtures.sh КАТАЛОГ (T=каталог)
 T=${1:-$T}
-cat > "$T/log.txt" <<'L'
-Mon Nov 16 02:10:01 2026 authpriv.warn dropbear[111]: Bad password attempt for 'root' from 203.0.113.5:40022
-Mon Nov 16 02:10:05 2026 authpriv.warn dropbear[112]: Bad password attempt for 'admin' from 203.0.113.5:40023
-Mon Nov 16 02:10:09 2026 authpriv.warn dropbear[113]: Login attempt for nonexistent user from 198.51.100.7:5000
-Mon Nov 16 02:11:00 2026 authpriv.notice dropbear[114]: Password auth succeeded for 'root' from 192.168.1.10:50000
-Mon Nov 16 02:12:00 2026 authpriv.info luci: failed login on / for root from 203.0.113.9
-Mon Nov 16 02:13:00 2026 authpriv.info luci: accepted login on / for root from 192.168.1.10
-Mon Nov 16 02:14:00 2026 daemon.info something: unrelated
+# Метки времени формируются относительно текущего запуска: интерфейс показывает недавние события.
+STAMP=$(date '+%a %b %e %H:%M:%S %Y')
+cat > "$T/log.txt" <<L
+$STAMP authpriv.warn dropbear[111]: Bad password attempt for 'root' from 203.0.113.5:40022
+$STAMP authpriv.warn dropbear[112]: Bad password attempt for 'admin' from 203.0.113.5:40023
+$STAMP authpriv.warn dropbear[113]: Login attempt for nonexistent user from 198.51.100.7:5000
+$STAMP authpriv.notice dropbear[114]: Password auth succeeded for 'root' from 192.168.1.10:50000
+$STAMP authpriv.info luci: failed login on / for root from 203.0.113.9
+$STAMP authpriv.info luci: accepted login on / for root from 192.168.1.10
+$STAMP daemon.info something: unrelated
 L
 printf '#!/bin/sh\ncat %s\n' "$T/log.txt" > "$T/logread"; chmod +x "$T/logread"
 
@@ -32,7 +34,8 @@ P
 echo dropbear > "$T/proc/201/comm"; ln -s 'socket:[5001]' "$T/proc/201/fd/3"
 echo uhttpd > "$T/proc/202/comm"; ln -s 'socket:[5004]' "$T/proc/202/fd/4"
 
-printf 'aa:bb:cc:dd:ee:01|Телефон|1700000000\naa:bb:cc:dd:ee:02|Камера|1700001000\n' > "$T/known"
+KNOWN_NOW=$(date +%s)
+printf 'aa:bb:cc:dd:ee:01|Телефон|%s\naa:bb:cc:dd:ee:02|Камера|%s\n' "$((KNOWN_NOW - 3600))" "$((KNOWN_NOW - 1800))" > "$T/known"
 cat > "$T/uci" <<'U'
 #!/bin/sh
 case "$*" in
@@ -98,7 +101,7 @@ exit 0
 N
 chmod +x "$T/nft"
 # журнал DNS (dnsmasq с logqueries)
-cat > "$T/dnslog.txt" <<'L'
+cat > "$T/dnslog.txt" <<'DNSLOG'
 Mon Nov 16 02:10:01 2026 daemon.info dnsmasq[1]: query[A] www.youtube.com from 192.168.1.10
 Mon Nov 16 02:10:01 2026 daemon.info dnsmasq[1]: forwarded www.youtube.com to 1.1.1.1
 Mon Nov 16 02:10:02 2026 daemon.info dnsmasq[1]: query[AAAA] r1.googlevideo.com from 192.168.1.10
@@ -109,6 +112,6 @@ Mon Nov 16 02:10:05 2026 daemon.info dnsmasq[1]: reply nope.example.org is NXDOM
 Mon Nov 16 02:10:06 2026 daemon.info dnsmasq[1]: query[A] nope.example.org from 192.168.1.10
 Mon Nov 16 02:10:06 2026 daemon.info dnsmasq[1]: config nope.example.org is NXDOMAIN
 Mon Nov 16 02:10:07 2026 authpriv.warn dropbear[5]: query[A] fake.test from 1.2.3.4
-L
+DNSLOG
 printf '#!/bin/sh\ncat %s\n' "$T/dnslog.txt" > "$T/dnslogread"; chmod +x "$T/dnslogread"
-printf '#!/bin/sh\n[ "$2" = "dhcp.@dnsmasq[0].logqueries" ] && echo 1\n' > "$T/uci_dns"; chmod +x "$T/uci_dns"
+printf '#!/bin/sh\n[ "$3" = "dhcp.@dnsmasq[0].logqueries" ] && echo 1\n' > "$T/uci_dns"; chmod +x "$T/uci_dns"

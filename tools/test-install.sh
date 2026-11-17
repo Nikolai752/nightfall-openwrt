@@ -74,6 +74,20 @@ out=$(run "$R" --force); echo "$out" | grep -q "Установлена верс�
 out=$(run "$R" --check); echo "$out" | grep -q "Обновление не требуется" && pass "--check при актуальной версии" || fail "--check: $out"
 out=$(run "$T/r3b" --check); echo "$out" | grep -q "Доступно обновление" && pass "--check при чистой системе" || fail "--check (чисто): $out"
 
+echo "== обновление без возможности создать rollback-копию =="
+R=$T/r10; run "$R" --version v1.0.0 >/dev/null
+mkdir -p "$T/failtar"
+cat > "$T/failtar/tar" <<'EOF'
+#!/bin/sh
+case "$1:$2" in
+  -czf:*backup.tar.gz) exit 1 ;;
+esac
+exec /bin/tar "$@"
+EOF
+chmod +x "$T/failtar/tar"
+out=$(cat "$REPO/install-update.sh" | env PATH="$T/failtar:$PATH" NF_ROOT="$R" NF_TMP="$T/tmp" NF_API="$B/api.json" NF_RAW="$B" NF_DL="$B/dl" sh -s -- 2>&1)
+echo "$out" | grep -q "обновление отменено" && [ "$(ver "$R")" = 1.0.0 ] && pass "ошибка backup останавливает обновление до замены файлов" || fail "обновление продолжилось или изменило версию: $out"
+
 echo "== защита от битых релизов =="
 R=$T/r4; run "$R" --version v1.0.0 >/dev/null
 out=$(run "$R" --version v3.0.0); echo "$out" | grep -q "лежит архив версии 2.0.0" && [ "$(ver "$R")" = 1.0.0 ] && pass "архив не той версии отклонён, файлы не тронуты" || fail "не той версии: $out ($(ver "$R"))"

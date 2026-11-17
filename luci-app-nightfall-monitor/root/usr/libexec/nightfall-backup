@@ -36,7 +36,7 @@ allowed() {
   *) return 1 ;;
  esac
 }
-cleanup() { [ -n "${WORK:-}" ] && rm -rf "$WORK"; }
+cleanup() { [ -n "${WORK:-}" ] && rm -rf "$WORK"; [ -n "${RESTORE_STAGE:-}" ] && rm -rf "$RESTORE_STAGE"; [ -n "${DEST_TMP:-}" ] && rm -f "$DEST_TMP"; return 0; }
 trap cleanup EXIT HUP INT TERM
 
 create_backup() {
@@ -47,6 +47,11 @@ create_backup() {
  [ -n "$host" ] || host=router
  [ -n "$dest" ] || dest="$OUTDIR/nightfall-backup-$host-$(date +%Y%m%d-%H%M%S).tar.gz"
  case "$dest" in *.tar.gz) ;; *) fail "имя архива должно оканчиваться на .tar.gz" ;; esac
+ if [ -e "$dest" ] || [ -L "$dest" ]; then
+  base=${dest%.tar.gz}; n=1
+  while [ -e "$base-$n.tar.gz" ] || [ -L "$base-$n.tar.gz" ]; do n=$((n + 1)); done
+  dest="$base-$n.tar.gz"
+ fi
  parent=${dest%/*}; [ "$parent" = "$dest" ] && parent=.
  mkdir -p "$parent" 2>/dev/null || fail "не удалось создать каталог назначения"
  WORK=$(mktemp -d "$TMP/nightfall-backup.XXXXXX" 2>/dev/null) || fail "не удалось создать временный каталог"
@@ -72,8 +77,13 @@ create_backup() {
  } > "$WORK/MANIFEST.txt"
  (cd "$WORK" && sha256sum etc/nightfall-* > MANIFEST.sha256) || fail "не удалось посчитать контрольные суммы"
  { for f in $FILES; do [ -f "$WORK/etc/$f" ] && echo "etc/$f"; done; echo MANIFEST.txt; echo MANIFEST.sha256; } > "$WORK/archive.list"
- tar -czf "$dest.tmp" -C "$WORK" -T "$WORK/archive.list" || fail "не удалось собрать архив"
- mv "$dest.tmp" "$dest" || fail "не удалось сохранить архив"
+ DEST_TMP="$dest.tmp"
+ tar -czf "$DEST_TMP" -C "$WORK" -T "$WORK/archive.list" || fail "не удалось собрать архив"
+ gzip -t "$DEST_TMP" 2>/dev/null || fail "созданный gzip-архив не прошёл проверку целостности"
+ tar -tzf "$DEST_TMP" >/dev/null 2>&1 || fail "созданный tar-архив не прошёл проверку состава"
+ [ "$(wc -c < "$DEST_TMP" | tr -d ' ')" -gt 0 ] || fail "создан пустой архив"
+ mv "$DEST_TMP" "$dest" || fail "не удалось сохранить архив"
+ DEST_TMP=
  chmod 600 "$dest" 2>/dev/null
  say "Резервная копия создана: $dest"
  say "Файлов: $count"
@@ -112,7 +122,10 @@ inspect_archive() {
  find "$WORK" -type l -print | grep -q . && fail "в распакованной копии обнаружена символическая ссылка"
  say "Архив проверен. Состав:"
  cat "$WORK/MANIFEST.txt"
- for f in $FILES; do [ -f "$WORK/etc/$f" ] && say "  /etc/$f"; done
+ for f in $FILES; do
+  if [ -f "$WORK/etc/$f" ]; then say "  /etc/$f"; fi
+ done
+ return 0
 }
 
 restore_backup() {
@@ -125,31 +138,66 @@ restore_backup() {
   return 0
  fi
  [ "$mode" = apply ] || fail "неизвестный режим"
- # Если в текущей конфигурации задан токен, сохраняем его: в архиве секретов нет.
  old_token=""
  if [ -r "$ETC/nightfall-monitor.conf" ]; then
   old_token=$(grep '^TG_TOKEN=' "$ETC/nightfall-monitor.conf" 2>/dev/null | head -n 1 || true)
  fi
+ mkdir -p "$ETC" || fail "не удалось открыть /etc"
+ RESTORE_STAGE=$(mktemp -d "$ETC/.nightfall-restore.XXXXXX") || fail "не удалось подготовить транзакцию восстановления"
+ mkdir -p "$RESTORE_STAGE/new" "$WORK/rollback" || fail "не удалось подготовить временные файлы"
+ : > "$WORK/apply.list"; : > "$WORK/existing.list"; : > "$WORK/missing.list"
  for f in $FILES; do
   [ -f "$WORK/etc/$f" ] || continue
-  mkdir -p "$ETC" || fail "не удалось открыть /etc"
-  cp "$WORK/etc/$f" "$ETC/$f.restore" || fail "не удалось подготовить $f"
-  chmod 600 "$ETC/$f.restore" 2>/dev/null
-  if [ "$f" = nightfall-monitor.conf ] && [ -n "$old_token" ]; then
-   awk -v saved="$old_token" 'BEGIN { done=0 } /^TG_TOKEN=/ { if (!done) print saved; done=1; next } { print } END { if (!done) print saved }' "$ETC/$f.restore" > "$ETC/$f.restore.tmp" || fail "не удалось сохранить текущий токен"
-   mv "$ETC/$f.restore.tmp" "$ETC/$f.restore" || fail "не удалось обновить конфигурацию"
+  if [ -L "$ETC/$f" ] || { [ -e "$ETC/$f" ] && [ ! -f "$ETC/$f" ]; }; then
+   fail "небезопасный тип текущего файла /etc/$f; восстановление остановлено"
   fi
-  mv "$ETC/$f.restore" "$ETC/$f" || fail "не удалось установить $f"
+  cp -p "$WORK/etc/$f" "$RESTORE_STAGE/new/$f" || fail "не удалось подготовить $f"
+  if [ "$f" = nightfall-monitor.conf ] && [ -n "$old_token" ]; then
+   awk -v saved="$old_token" 'BEGIN { done=0 } /^TG_TOKEN=/ { if (!done) print saved; done=1; next } { print } END { if (!done) print saved }' "$RESTORE_STAGE/new/$f" > "$RESTORE_STAGE/new/$f.tmp" || fail "не удалось сохранить текущий токен"
+   mv "$RESTORE_STAGE/new/$f.tmp" "$RESTORE_STAGE/new/$f" || fail "не удалось подготовить конфигурацию"
+  fi
+  if [ -f "$ETC/$f" ]; then
+   cp -p "$ETC/$f" "$WORK/rollback/$f" || fail "не удалось сохранить текущий файл /etc/$f"
+   echo "$f" >> "$WORK/existing.list"
+  else
+   echo "$f" >> "$WORK/missing.list"
+  fi
+  echo "$f" >> "$WORK/apply.list"
  done
+ while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  if ! mv "$RESTORE_STAGE/new/$f" "$ETC/$f"; then
+   say "Ошибка установки /etc/$f. Возвращаю исходные настройки…"
+   rollback_error=0
+   while IFS= read -r old; do
+    [ -n "$old" ] || continue
+    # Освобождаем место от частично установленного файла перед возвратом старого.
+    if rm -f "$ETC/$old" && cp -p "$WORK/rollback/$old" "$ETC/$old.rollback.$" && mv "$ETC/$old.rollback.$" "$ETC/$old"; then :; else rollback_error=1; rm -f "$ETC/$old.rollback.$"; fi
+   done < "$WORK/existing.list"
+   while IFS= read -r new; do
+    [ -n "$new" ] || continue
+    rm -f "$ETC/$new" || rollback_error=1
+   done < "$WORK/missing.list"
+   [ "$rollback_error" = 0 ] && fail "восстановление отменено; исходные настройки возвращены" || fail "КРИТИЧЕСКАЯ ОШИБКА: не удалось полностью вернуть исходные настройки. Проверьте /etc вручную"
+  fi
+ done < "$WORK/apply.list"
+ chmod 600 "$ETC/nightfall-monitor.conf" 2>/dev/null
  chmod 644 "$ETC/nightfall-prefs.json" "$ETC/nightfall-logo.json" "$ETC/nightfall-bg.json" 2>/dev/null
  say "Настройки Nightfall восстановлены."
  say "Сетевые настройки OpenWrt не менялись. TG_TOKEN сохранён из текущей конфигурации."
  say "Проверьте TG_PROXY и при необходимости задайте его заново."
  say "Перезапустите сборщик: /etc/init.d/nightfall-collector restart"
 }
-
 backup_name() {
  case "${1:-}" in nightfall-backup-*.tar.gz) printf '%s/%s' "$OUTDIR" "$1" ;; *) fail "недопустимое имя архива" ;; esac
+}
+download_info() {
+ archive=$(backup_name "${2:-}")
+ [ -f "$archive" ] && [ ! -L "$archive" ] || fail "архив не найден"
+ size=$(wc -c < "$archive" | tr -d ' ')
+ [ "$size" -gt 0 ] || fail "архив пустой"
+ hash=$(sha256sum "$archive" | awk '{ print $1 }') || fail "не удалось проверить архив"
+ printf "size=%s sha256=%s\n" "$size" "$hash"
 }
 download_chunk() {
  archive=$(backup_name "${2:-}")
@@ -209,6 +257,7 @@ upload_finish() {
 }
 case "${1:-}" in
  create) create_backup "$@" ;;
+ download-info) download_info "$@" ;;
  download) download_chunk "$@" ;;
  upload-start) upload_start "$@" ;;
  upload-chunk) upload_chunk "$@" ;;
@@ -216,5 +265,5 @@ case "${1:-}" in
  upload-abort) upload_abort "$@" ;;
  list) [ -n "${2:-}" ] || fail "укажите путь к архиву"; inspect_archive "$2" ;;
  restore) [ -n "${2:-}" ] || fail "укажите путь к архиву"; restore_backup "$2" "${3:-preview}" ;;
- *) echo "Использование: $0 create [FILE] | list FILE | restore FILE [apply] | download NAME OFFSET [LENGTH] | upload-start ID | upload-chunk ID BASE64 | upload-finish ID | upload-abort ID" >&2; exit 2 ;;
+ *) echo "Использование: $0 create [FILE] | list FILE | restore FILE [apply] | download-info NAME | download NAME OFFSET [LENGTH] | upload-start ID | upload-chunk ID BASE64 | upload-finish ID | upload-abort ID" >&2; exit 2 ;;
 esac

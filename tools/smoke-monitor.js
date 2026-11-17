@@ -17,7 +17,7 @@ const EXEC = (cmd, args) => {
 	if (n === 'nightfall-stats') return run('nightfall-stats', args);
 	if (n === 'nightfall-sec' || n === 'nightfall-diag' || n === 'nightfall-log') return run(n, args);
 	if (n === 'nightfall-dns') return run(n, args, { NF_LOGREAD: path.join(T, 'dnslogread'), NF_UCI: path.join(T, 'uci_dns') });
-	if (n === 'nightfall-history') return args[0] === 'devices' ? '{"now":1794786100,"ts":1794786090,"rate":[],"day":[["192.168.1.20",5000000,1000000]],"yday":[],"neigh":[["192.168.1.20","aa:bb:cc:dd:ee:01"]],"info":{}}' : args[0] === 'wifi' && !args[1] ? '{"now":1794786100,"rows":[],"events":[[1794786000,"aa:bb:cc:dd:ee:01","join","phy0"],[1794785000,"aa:bb:cc:dd:ee:01","leave","phy0"]]}' : args[0] === 'extip' ? '{"now":1794786100,"rows":[[1794700000,"203.0.113.7",0],[1794780000,"100.64.3.9",1]]}' : args[0] === 'procmem' ? '{"now":1794786100,"rows":[[1794780000,[["dnsmasq",10000],["uhttpd",3000]]],[1794780900,[["dnsmasq",13000],["uhttpd",3000]]],[1794781800,[["dnsmasq",16000],["uhttpd",3000]]],[1794782700,[["dnsmasq",19000],["uhttpd",3000]]],[1794783600,[["dnsmasq",22000],["uhttpd",3000]]],[1794784500,[["dnsmasq",25000],["uhttpd",3000]]],[1794785400,[["dnsmasq",28000],["uhttpd",3000]]],[1794786300,[["dnsmasq",31000],["uhttpd",3000]]]]}' : args[0] === 'known' ? '{"now":1794786100,"rows":[["AA:BB:CC:DD:EE:01","x",1794700000]]}' : args[0] === 'mode' ? '{"mode":"full","step":15}' : args[0] === 'journal' ? JSON.stringify({ now: NOW, rows: [[ NOW - 120, 'outage', 120, 'нет интернета' ], [ NOW - 600, 'boot', 0, 'Загрузка роутера' ]] }) : '{}';
+	if (n === 'nightfall-history') return args[0] === 'devices' ? JSON.stringify({ now: NOW, ts: NOW - 10, rate: [], day: [["192.168.1.20", 5000000, 1000000]], yday: [], neigh: [["192.168.1.20", "aa:bb:cc:dd:ee:01"]], info: {} }) : args[0] === 'wifi' && !args[1] ? JSON.stringify({ now: NOW, rows: [], events: [[NOW - 60, "aa:bb:cc:dd:ee:01", "join", "phy0"], [NOW - 120, "aa:bb:cc:dd:ee:01", "leave", "phy0"]] }) : args[0] === 'extip' ? JSON.stringify({ now: NOW, rows: [[NOW - 86400, "203.0.113.7", 0], [NOW - 60, "100.64.3.9", 1]] }) : args[0] === 'procmem' ? JSON.stringify({ now: NOW, rows: Array.from({ length: 8 }, (_, i) => [NOW - (7 - i) * 900, [["dnsmasq", 10000 + i * 3000], ["uhttpd", 3000]]]) }) : args[0] === 'known' ? '{"now":1794786100,"rows":[["AA:BB:CC:DD:EE:01","x",1794700000]]}' : args[0] === 'mode' ? '{"mode":"full","step":15}' : args[0] === 'journal' ? JSON.stringify({ now: NOW, rows: [[ NOW - 120, 'outage', 120, 'нет интернета' ], [ NOW - 600, 'boot', 0, 'Загрузка роутера' ]] }) : '{}';
 	if (n === 'nightfall-block') return args[0] === 'log' ? JSON.stringify({ ok: true, log: [[ NOW - 20, 'aa:bb', 'Камера', 'on', 'вручную (интерфейс)' ], [ NOW - 10, 'aa:bb', 'Камера', 'off', 'по расписанию' ]] }) : '{"ok":true}';
 	return '';
 };
@@ -44,7 +44,11 @@ const viewM = { extend: o => o };
 const rpcM = { declare: spec => (...a) => ok(spec.object === 'system' ? { model: 'Тестовый роутер', hostname: 'test' } : spec.object === 'network.interface' ? { interface: [] } : spec.object === 'luci-rpc' ? {} : spec.expect && Array.isArray(spec.expect.results) ? [] : {}) };
 const fsM = { exec: (c, a) => window.__exec(c, a || []).then(s => ({ code: 0, stdout: s, stderr: '' })), read: () => ok(''), stat: () => ok(null), lines: () => ok([]) };
 const uiM = { addNotification() {}, showModal(t, c) { const d = document.createElement('div'); d.id = 'mock-modal'; d.append(t); [].concat(c).forEach(x => d.append(x)); document.body.append(d); }, hideModal() { const d = document.getElementById('mock-modal'); if (d) d.remove(); }, tabs: {}, createHandlerFn: f => f };
-const pollM = { add(f) { window.setInterval(f, 400); }, remove() {}, start() {}, stop() {} };
+// Smoke-тест проверяет статичный набор фикстур. Таймер LuCI-поллинга здесь отключён:
+// периодический rerender заменял DOM вкладок во время Playwright click и вызывал случайные таймауты.
+// Polling остаётся управляемым: тест запускает один tick после каждого переключения вкладки.
+const pollM = { fn: null, add(f) { this.fn = f; }, remove() {}, start() {}, stop() {} };
+window.__runMonitorTick = () => pollM.fn ? pollM.fn() : Promise.resolve();
 const netM = { getWifiNetworks: () => ok([]), getHostHints: () => ok({ getMACHints: () => [] }) };
 window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevId', SRC.replace(/^'require[^\\n]*\\n/gm, '')))(viewM, rpcM, fsM, pollM, uiM, netM, { identify: () => null });
 `;
@@ -69,7 +73,7 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 		const tabs = await p.$$eval('.nfm-tab.nfm-ti', els => els.map(e => e.getAttribute('data-ic')));
 		for (const k of [ 'overview', 'net', 'wifi', 'devs', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist' ]) if (!tabs.includes(k)) bad(vn + ': нет вкладки ' + k);
 		for (const k of [ 'overview', 'procs', 'wifi', 'devs', 'diag', 'sec', 'log', 'net', 'hist' ]) {
-			await p.click(`.nfm-tab.nfm-ti[data-ic="${k}"]`); await p.waitForTimeout(k === 'sec' || k === 'log' ? 3000 : 1500);
+			await p.click(`.nfm-tab.nfm-ti[data-ic="${k}"]`); await p.evaluate(() => window.__runMonitorTick()); await p.waitForTimeout(k === 'sec' || k === 'log' ? 3000 : 1500);
 			const vis = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm > div[hidden], .nfm > div:not([hidden])')).filter(x => !x.hasAttribute('hidden') && x.className === '').map(x => x.textContent.slice(0, 4000)).join('\n'));
 			if (names[k] && !vis.includes(names[k])) bad(vn + ': вкладка ' + k + ' не показала «' + names[k] + '»');
 			if (k === 'sec') {
