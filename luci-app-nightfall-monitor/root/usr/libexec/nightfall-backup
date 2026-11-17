@@ -97,7 +97,7 @@ trap cleanup EXIT HUP INT TERM
 
 create_backup() {
  dest=${2:-}
- mkdir -p "$OUTDIR" 2>/dev/null || fail "не удалось создать каталог $OUTDIR"
+ [ ! -L "$OUTDIR" ] || fail "каталог резервных копий не может быть символической ссылкой"\n mkdir -p "$OUTDIR" 2>/dev/null || fail "не удалось создать каталог $OUTDIR"\n [ -d "$OUTDIR" ] && [ ! -L "$OUTDIR" ] || fail "небезопасный каталог резервных копий"
  host=$(cat "${ROOT}/proc/sys/kernel/hostname" 2>/dev/null || echo router)
  host=$(printf '%s' "$host" | tr -cd 'A-Za-z0-9_.-')
  [ -n "$host" ] || host=router
