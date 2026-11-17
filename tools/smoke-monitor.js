@@ -46,7 +46,9 @@ const fsM = { exec: (c, a) => window.__exec(c, a || []).then(s => ({ code: 0, st
 const uiM = { addNotification() {}, showModal(t, c) { const d = document.createElement('div'); d.id = 'mock-modal'; d.append(t); [].concat(c).forEach(x => d.append(x)); document.body.append(d); }, hideModal() { const d = document.getElementById('mock-modal'); if (d) d.remove(); }, tabs: {}, createHandlerFn: f => f };
 // Smoke-тест проверяет статичный набор фикстур. Таймер LuCI-поллинга здесь отключён:
 // периодический rerender заменял DOM вкладок во время Playwright click и вызывал случайные таймауты.
-const pollM = { add() {}, remove() {}, start() {}, stop() {} };
+// Polling остаётся управляемым: тест запускает один tick после каждого переключения вкладки.
+const pollM = { fn: null, add(f) { this.fn = f; }, remove() {}, start() {}, stop() {} };
+window.__runMonitorTick = () => pollM.fn ? pollM.fn() : Promise.resolve();
 const netM = { getWifiNetworks: () => ok([]), getHostHints: () => ok({ getMACHints: () => [] }) };
 window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevId', SRC.replace(/^'require[^\\n]*\\n/gm, '')))(viewM, rpcM, fsM, pollM, uiM, netM, { identify: () => null });
 `;
@@ -71,7 +73,7 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 		const tabs = await p.$$eval('.nfm-tab.nfm-ti', els => els.map(e => e.getAttribute('data-ic')));
 		for (const k of [ 'overview', 'net', 'wifi', 'devs', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist' ]) if (!tabs.includes(k)) bad(vn + ': нет вкладки ' + k);
 		for (const k of [ 'overview', 'procs', 'wifi', 'devs', 'diag', 'sec', 'log', 'net', 'hist' ]) {
-			await p.click(`.nfm-tab.nfm-ti[data-ic="${k}"]`); await p.waitForTimeout(k === 'sec' || k === 'log' ? 3000 : 1500);
+			await p.click(`.nfm-tab.nfm-ti[data-ic="${k}"]`); await p.evaluate(() => window.__runMonitorTick()); await p.waitForTimeout(k === 'sec' || k === 'log' ? 3000 : 1500);
 			const vis = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm > div[hidden], .nfm > div:not([hidden])')).filter(x => !x.hasAttribute('hidden') && x.className === '').map(x => x.textContent.slice(0, 4000)).join('\n'));
 			if (names[k] && !vis.includes(names[k])) bad(vn + ': вкладка ' + k + ' не показала «' + names[k] + '»');
 			if (k === 'sec') {
