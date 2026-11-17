@@ -1,15 +1,16 @@
 #!/bin/sh
 # Заглушки роутера для проверок nightfall-sec: sh tools/sec-fixtures.sh КАТАЛОГ (T=каталог)
 T=${1:-$T}
-cat > "$T/log.txt" <<'L'
-Mon Nov 16 02:10:01 2026 authpriv.warn dropbear[111]: Bad password attempt for 'root' from 203.0.113.5:40022
-Mon Nov 16 02:10:05 2026 authpriv.warn dropbear[112]: Bad password attempt for 'admin' from 203.0.113.5:40023
-Mon Nov 16 02:10:09 2026 authpriv.warn dropbear[113]: Login attempt for nonexistent user from 198.51.100.7:5000
-Mon Nov 16 02:11:00 2026 authpriv.notice dropbear[114]: Password auth succeeded for 'root' from 192.168.1.10:50000
-Mon Nov 16 02:12:00 2026 authpriv.info luci: failed login on / for root from 203.0.113.9
-Mon Nov 16 02:13:00 2026 authpriv.info luci: accepted login on / for root from 192.168.1.10
-Mon Nov 16 02:14:00 2026 daemon.info something: unrelated
-L
+# Метки времени формируются относительно текущего запуска: интерфейс показывает недавние события.
+STAMP=$(date '+%a %b %e %H:%M:%S %Y')
+cat > "$T/log.txt" <<L
+$STAMP authpriv.warn dropbear[111]: Bad password attempt for 'root' from 203.0.113.5:40022
+$STAMP authpriv.warn dropbear[112]: Bad password attempt for 'admin' from 203.0.113.5:40023
+$STAMP authpriv.warn dropbear[113]: Login attempt for nonexistent user from 198.51.100.7:5000
+$STAMP authpriv.notice dropbear[114]: Password auth succeeded for 'root' from 192.168.1.10:50000
+$STAMP authpriv.info luci: failed login on / for root from 203.0.113.9
+$STAMP authpriv.info luci: accepted login on / for root from 192.168.1.10
+$STAMP daemon.info something: unrelated
 printf '#!/bin/sh\ncat %s\n' "$T/log.txt" > "$T/logread"; chmod +x "$T/logread"
 
 # /proc: слушают sshd на всех адресах, uhttpd на всех, служба только на 127.0.0.1, UDP dns
