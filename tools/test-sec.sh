@@ -172,7 +172,7 @@ want "procmem: выдача содержит обе свежие точки" '[[
 want "procmem: вторая точка с двумя программами" '[["dnsmasq",9000],["uhttpd",3000]]' "$pj"
 nowant "procmem: старая точка отфильтрована" '"old"' "$pj"
 # Соседняя таблица отдаёт состояние записи вместе с MAC: REACHABLE/STALE нельзя смешивать.
-printf '192.168.1.191 dev br-lan lladdr de:0d:ab:73:aa:8e REACHABLE\\n192.168.1.192 dev br-lan lladdr de:0d:ab:73:aa:8e STALE\\n192.168.1.193 dev br-lan FAILED\\n' > "$T/neigh.txt"
+printf '192.168.1.191 dev br-lan lladdr de:0d:ab:73:aa:8e REACHABLE\n192.168.1.192 dev br-lan lladdr de:0d:ab:73:aa:8e STALE\n192.168.1.193 dev br-lan FAILED\\n' > "$T/neigh.txt"
 nj=$(NF_DIR="$T/pm" NF_NEIGH="$T/neigh.txt" sh "$H" devices)
 want "devices: MAC прокси и состояние REACHABLE сохранены" '["192.168.1.191","de:0d:ab:73:aa:8e","REACHABLE"]' "$nj"
 want "devices: состояние STALE не теряется" '["192.168.1.192","de:0d:ab:73:aa:8e","STALE"]' "$nj"
