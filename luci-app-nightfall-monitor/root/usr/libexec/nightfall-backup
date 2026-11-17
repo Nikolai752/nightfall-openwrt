@@ -205,7 +205,12 @@ upload_finish() {
  say "Архив загружен: $archive"
 }
 case "${1:-}" in
- create) create_backup "$@" ;;\n download) download_chunk "$@" ;;\n upload-start) upload_start "$@" ;;\n upload-chunk) upload_chunk "$@" ;;\n upload-finish) upload_finish "$@" ;;\n upload-abort) upload_abort "$@" ;;
+ create) create_backup "$@" ;;
+ download) download_chunk "$@" ;;
+ upload-start) upload_start "$@" ;;
+ upload-chunk) upload_chunk "$@" ;;
+ upload-finish) upload_finish "$@" ;;
+ upload-abort) upload_abort "$@" ;;
  list) [ -n "${2:-}" ] || fail "укажите путь к архиву"; inspect_archive "$2" ;;
  restore) [ -n "${2:-}" ] || fail "укажите путь к архиву"; restore_backup "$2" "${3:-preview}" ;;
  *) echo "Использование: $0 create [FILE] | list FILE | restore FILE [apply] | download NAME OFFSET [LENGTH] | upload-start ID | upload-chunk ID BASE64 | upload-finish ID | upload-abort ID" >&2; exit 2 ;;
