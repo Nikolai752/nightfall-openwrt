@@ -196,7 +196,13 @@ while IFS= read -r f; do
 done < "$WORK/files.list"
 HAVEBAK=0
 if [ -s "$WORK/exist.list" ]; then
-	tar -czf "$WORK/backup.tar.gz" -C "${ROOT:-/}" -T "$WORK/exist.list" 2>/dev/null && HAVEBAK=1 || die "не удалось сохранить прежние файлы; обновление отменено, установленная версия не изменена"
+	if tar -czf "$WORK/backup.tar.gz" -C "${ROOT:-/}" -T "$WORK/exist.list" 2>/dev/null; then
+		HAVEBAK=1
+	else
+		# Сборщик и бот уже остановлены перед заменой файлов — вернём их, раз обновление отменяется.
+		[ -z "$ROOT" ] && /etc/init.d/nightfall-collector restart 2>/dev/null
+		die "не удалось сохранить прежние файлы; обновление отменено, установленная версия не изменена"
+	fi
 fi
 
 [ -n "$ROOT" ] && mkdir -p "$ROOT"
@@ -205,7 +211,10 @@ if ! tar -xzf "$ARCH" -C "${ROOT:-/}"; then
 	say "Ошибка распаковки, возвращаю прежние файлы…"
 	while IFS= read -r f; do rm -rf "${ROOT:?}/$f"; done < "$WORK/added.list"
 	if [ "$HAVEBAK" = 1 ]; then
-		tar -xzf "$WORK/backup.tar.gz" -C "${ROOT:-/}" 2>/dev/null || die "КРИТИЧЕСКАЯ ОШИБКА: обновление не установлено, но автоматический возврат прежних файлов не удался. Проверьте файлы вручную и свободное место (df -h)."
+		if ! tar -xzf "$WORK/backup.tar.gz" -C "${ROOT:-/}" 2>/dev/null; then
+			die "КРИТИЧЕСКАЯ ОШИБКА: обновление не установлено, но автоматический возврат прежних файлов не удался. Проверьте файлы вручную и свободное место (df -h)."
+		fi
+		[ -z "$ROOT" ] && /etc/init.d/nightfall-collector restart 2>/dev/null
 	fi
 	die "не удалось распаковать архив (нет места в /overlay? проверьте: df -h)"
 fi
