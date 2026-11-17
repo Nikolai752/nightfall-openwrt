@@ -2503,6 +2503,10 @@ return view.extend({
 			];
 			const est = i.persist === '1' && kb ? kb * 24 / hrs : 0;
 			flashBox.replaceChildren(
+				...(i.persist_error === '1' ? [ E('div', { class: 'nfm-hint', style: 'border-color:#e5484d' }, [
+					E('b', { class: 'nfm-warn' }, 'Не удалось сохранить историю. '),
+					'Проверьте, подключён ли накопитель, существует ли папка и есть ли права на запись. После исправления сборщик повторит сохранение автоматически.'
+				]) ] : []),
 				...(i.persist_blocked === '1' ? [ E('div', { class: 'nfm-hint', style: 'border-color:#e5484d' }, [ E('b', { class: 'nfm-warn' }, 'Запись заблокирована. '),
 					`Папка ${i.persist_dir} находится на встроенной флеш-памяти роутера, её нельзя изнашивать. Укажите папку на USB или SD-карте. Если это eMMC, SSD или SD-карта, которую можно писать, поставьте «Разрешить сохранение на встроенный накопитель» в 1.` ]) ] : []),
 				E('div', { class: 'nfm-lst' }, rows.map(([ a, b ]) => E('div', {}, [ E('b', {}, a), E('div', { class: 'nfm-note-s' }, b) ]))),
