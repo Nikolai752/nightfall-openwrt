@@ -71,7 +71,8 @@ create_backup() {
   echo "network_config=not included"
  } > "$WORK/MANIFEST.txt"
  (cd "$WORK" && sha256sum etc/nightfall-* > MANIFEST.sha256) || fail "не удалось посчитать контрольные суммы"
- tar -czf "$dest.tmp" -C "$WORK" etc MANIFEST.txt MANIFEST.sha256 || fail "не удалось собрать архив"
+ { for f in $FILES; do [ -f "$WORK/etc/$f" ] && echo "etc/$f"; done; echo MANIFEST.txt; echo MANIFEST.sha256; } > "$WORK/archive.list"
+ tar -czf "$dest.tmp" -C "$WORK" -T "$WORK/archive.list" || fail "не удалось собрать архив"
  mv "$dest.tmp" "$dest" || fail "не удалось сохранить архив"
  chmod 600 "$dest" 2>/dev/null
  say "Резервная копия создана: $dest"
