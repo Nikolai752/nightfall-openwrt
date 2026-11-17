@@ -24,7 +24,7 @@ case "$BACKUP_KEEP" in ''|*[!0-9]*) BACKUP_KEEP=5 ;; esac
 # but only when that path is actually covered by a mounted external block device.
 backup_mount_dir() {
  p=${NF_PERSIST_DIR:-}
- [ -n "$p" ] || p=$(awk -F= '$1 == "PERSIST_DIR" { v=$2; sub(/^[[:space:]]*"/, "", v); sub(/"[[:space:]]*$/, "", v); sub(/[ \\t#].*$/, "", v); print v; exit }' "$CONF" 2>/dev/null)
+ [ -n "$p" ] || p=$(awk -F= '$1 == "PERSIST_DIR" { v=$2; sub(/^[[:space:]]*"/, "", v); sub(/"[[:space:]]*$/, "", v); sub(/[[:space:]#].*$/, "", v); print v; exit }' "$CONF" 2>/dev/null)
  [ "${NF_BACKUP_DEBUG:-0}" = 1 ] && echo "backup-debug: p=$p conf=$CONF mounts=$MOUNTS" >&2\n [ -n "$p" ] && [ "${p#/}" != "$p" ] || return 1
  [ -r "$MOUNTS" ] || return 1
  mi=$(awk -v p="$p" '
