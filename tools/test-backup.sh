@@ -20,6 +20,18 @@ export NF_ROOT="$ROOT" NF_TMP="$TMP" NF_BACKUP_DIR="$TMP/backups"
 ARCHIVE=$(find "$TMP/backups" -name '*.tar.gz' -type f | head -n 1)
 [ -n "$ARCHIVE" ]
 "$TOOL" list "$ARCHIVE" | grep -q 'files=3'
+# Проверяем чтение архива блоками и полный цикл загрузки из браузера.
+NAME=$(basename "$ARCHIVE")
+"$TOOL" download "$NAME" 0 24576 > "$TMP/chunk.b64"
+base64 -d "$TMP/chunk.b64" > "$TMP/downloaded.tar.gz"
+cmp "$ARCHIVE" "$TMP/downloaded.tar.gz"
+ENCODED=$(base64 "$ARCHIVE" | tr -d '\n')
+"$TOOL" upload-start 0123abcd >/dev/null
+"$TOOL" upload-chunk 0123abcd "$ENCODED" >/dev/null
+"$TOOL" upload-finish 0123abcd > "$TMP/upload-preview"
+grep -q 'Архив загружен:' "$TMP/upload-preview"
+UPLOADED="$TMP/backups/nightfall-backup-upload-0123abcd.tar.gz"
+cmp "$ARCHIVE" "$UPLOADED"
 tar -xOzf "$ARCHIVE" etc/nightfall-monitor.conf | grep -q '^TG_TOKEN=$'
 tar -xOzf "$ARCHIVE" etc/nightfall-monitor.conf | grep -q '^TG_PROXY=$'
 ! tar -xOzf "$ARCHIVE" etc/nightfall-monitor.conf | grep -q 'old-secret-token'

@@ -6836,3 +6836,8 @@ body.nf-blank .modal.login > .spinning::before {
 	padding: 5px 4px 0 !important;
 	margin: 0 !important;
 }
+
+/* v20261117a: блок резервного копирования в персонализации */
+.nf-pop .nf-backup-sec { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--nf-stroke); }
+.nf-pop .nf-backup-sec .nf-pop-ionote { white-space: pre-line; overflow-wrap: anywhere; text-align: left; line-height: 1.45; }
+.nf-pop .nf-backup-sec button:disabled { opacity: .55; cursor: wait; }

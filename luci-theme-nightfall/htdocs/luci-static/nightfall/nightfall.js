@@ -1604,6 +1604,17 @@
 					]),
 					refs.ioNote = h('div', { 'class': 'nf-pop-ionote', role: 'status' })
 				]),
+				h('div', { 'class': 'nf-pop-sec nf-backup-sec' }, [
+					h('div', { 'class': 'nf-pop-l', text: 'Резервная копия настроек роутера' }),
+					h('div', { 'class': 'nf-pop-note', text: 'Создаёт архив настроек Nightfall на роутере и сразу скачивает его на устройство. Для восстановления выберите ранее сохранённый архив. Секреты Telegram и сетевые настройки OpenWrt в архив не входят.' }),
+					h('div', { 'class': 'nf-pop-io' }, [
+						h('button', { type: 'button', text: 'Создать и скачать', onclick: createAndDownloadBackup }),
+						h('button', { type: 'button', text: 'Выбрать архив', onclick: function () { refs.backupFile.click(); } }),
+						refs.backupFile = h('input', { type: 'file', accept: '.tar.gz,application/gzip,application/x-gzip', hidden: true, onchange: function (ev) { uploadAndPreviewBackup(ev.target.files && ev.target.files[0]); ev.target.value = ''; } })
+					]),
+					h('div', { 'class': 'nf-pop-io' }, [ refs.backupApply = h('button', { type: 'button', text: 'Восстановить настройки', hidden: true, onclick: applyUploadedBackup }) ]),
+					refs.backupNote = h('div', { 'class': 'nf-pop-ionote', role: 'status', 'aria-live': 'polite' })
+				]),
 				h('div', { 'class': 'nf-pop-sec nf-pop-about' }, [
 					h('div', { 'class': 'nf-pop-l', text: 'О теме' }),
 					refs.ver = h('div', { 'class': 'nf-ver' }),
@@ -1728,6 +1739,103 @@
 		ed.addEventListener('input', function (ev) { if (ev.target.type === 'range') paintRange(ev.target); });
 		document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && ed.classList.contains('open')) ed.classList.remove('open'); });
 		document.body.appendChild(ed);
+	}
+
+	/* ---------- резервная копия настроек Nightfall на роутере ---------- */
+	var backupRestorePath = '', backupBusy = false;
+	function backupNote(text, bad) {
+		if (!refs.backupNote) return;
+		refs.backupNote.textContent = text;
+		refs.backupNote.classList.toggle('bad', !!bad);
+	}
+	function backupExec(args) {
+		var env = sid();
+		if (!env || !window.fetch) return Promise.reject(new Error('Сначала войдите в LuCI.'));
+		return window.fetch(env.ubuspath || '/ubus/', { method: 'POST', cache: 'no-store', headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'call', params: [ env.sessionid, 'file', 'exec', { command: '/usr/libexec/nightfall-backup', params: args } ] })
+		}).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (j) {
+			var res = j && j.result;
+			if (!res || res[0] !== 0) throw new Error(res && res[0] === 6 ? 'Нет прав на резервное копирование. Выйдите и войдите в LuCI заново.' : (j && j.error && j.error.message) || 'Ошибка вызова роутера.');
+			var data = res[1] || {};
+			if (data.code !== undefined && +data.code !== 0) throw new Error(String(data.stderr || data.stdout || 'Команда завершилась с ошибкой.').trim());
+			return String(data.stdout || '').replace(/\s+$/, '');
+		});
+	}
+	function backupBusyState(on) {
+		backupBusy = !!on;
+		if (!pop) return;
+		Array.prototype.forEach.call(pop.querySelectorAll('.nf-backup-sec button'), function (b) { b.disabled = backupBusy; });
+	}
+	function decodeBackupChunk(b64) {
+		var raw = window.atob(b64), bytes = new Uint8Array(raw.length);
+		for (var i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+		return bytes;
+	}
+	function saveBackupBlob(parts, name) {
+		var blob = new Blob(parts, { type: 'application/gzip' }), url = URL.createObjectURL(blob), a = h('a', { href: url, download: name });
+		a.addEventListener('click', function (ev) { ev.stopPropagation(); });
+		document.body.appendChild(a); a.click();
+		window.setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1500);
+	}
+	function createAndDownloadBackup() {
+		if (backupBusy) return;
+		backupBusyState(true); backupNote('Создаю резервную копию…');
+		backupExec([ 'create' ]).then(function (out) {
+			var m = out.match(/Резервная копия создана:\s*(\/[^\s]+\.tar\.gz)/);
+			if (!m) throw new Error(out || 'Роутер не сообщил путь к архиву.');
+			var path = m[1], name = path.split('/').pop(), parts = [], offset = 0, chunkSize = 24576;
+			backupNote('Архив создан. Скачиваю на устройство…');
+			function next() {
+				return backupExec([ 'download', name, String(offset), String(chunkSize) ]).then(function (b64) {
+					if (!b64) { saveBackupBlob(parts, name); backupNote('Резервная копия скачана: ' + name); return; }
+					var bytes = decodeBackupChunk(b64); if (!bytes.length) { saveBackupBlob(parts, name); backupNote('Резервная копия скачана: ' + name); return; }
+					parts.push(bytes); offset += bytes.length;
+					if (offset > 5 * 1024 * 1024) throw new Error('Архив превышает безопасный лимит скачивания 5 МБ.');
+					return next();
+				});
+			}
+			return next();
+		}).catch(function (e) { backupNote('Не удалось создать или скачать архив: ' + e.message, true); }).then(function () { backupBusyState(false); }, function (e) { backupNote('Ошибка: ' + e.message, true); backupBusyState(false); });
+	}
+	function readFileChunk(file, start, end) {
+		return new Promise(function (resolve, reject) {
+			var rd = new FileReader();
+			rd.onload = function () { var s = String(rd.result || ''), i = s.indexOf(','); resolve(i >= 0 ? s.slice(i + 1) : ''); };
+			rd.onerror = function () { reject(new Error('Не удалось прочитать выбранный файл.')); };
+			rd.readAsDataURL(file.slice(start, end));
+		});
+	}
+	function uploadAndPreviewBackup(file) {
+		if (!file || backupBusy) return;
+		if (!/\.tar\.gz$/i.test(file.name) || file.size < 1 || file.size > 5 * 1024 * 1024) { backupNote('Выберите архив .tar.gz размером до 5 МБ.', true); return; }
+		var id = (Date.now().toString(16) + Math.floor(Math.random() * 0xffffffff).toString(16)).slice(-8).toLowerCase();
+		backupRestorePath = ''; refs.backupApply.hidden = true;
+		backupBusyState(true); backupNote('Подготавливаю загрузку архива…');
+		var chunkSize = 24576, offset = 0;
+		backupExec([ 'upload-start', id ]).then(function sendNext() {
+			if (offset >= file.size) return backupExec([ 'upload-finish', id ]);
+			var start = offset, end = Math.min(file.size, start + chunkSize);
+			return readFileChunk(file, start, end).then(function (b64) {
+				return backupExec([ 'upload-chunk', id, b64 ]).then(function () { offset = end; backupNote('Загружено ' + Math.round(offset / file.size * 100) + '%…'); return sendNext(); });
+			});
+		}).then(function (out) {
+			var m = out.match(/Архив загружен:\s*(\/[^\s]+\.tar\.gz)/);
+			if (!m) throw new Error(out || 'Не удалось проверить загруженный архив.');
+			backupRestorePath = m[1]; refs.backupApply.hidden = false;
+			backupNote(out + '\nАрхив проверен. Нажмите «Восстановить настройки», когда будете готовы.');
+		}).catch(function (e) {
+			backupExec([ 'upload-abort', id ]).catch(function () {});
+			backupNote('Загрузка или проверка не удалась: ' + e.message, true);
+		}).then(function () { backupBusyState(false); });
+	}
+	function applyUploadedBackup() {
+		if (!backupRestorePath || backupBusy) return;
+		if (!window.confirm('Восстановить настройки Nightfall из выбранного архива? Текущие настройки Nightfall будут заменены. Сетевые настройки OpenWrt не меняются; текущий TG_TOKEN сохраняется.')) return;
+		backupBusyState(true); backupNote('Восстанавливаю настройки…');
+		backupExec([ 'restore', backupRestorePath, 'apply' ]).then(function (out) {
+			backupNote(out + '\nПерезагрузите страницу LuCI, чтобы применить настройки персонализации.');
+			backupRestorePath = ''; refs.backupApply.hidden = true;
+		}).catch(function (e) { backupNote('Восстановление не выполнено: ' + e.message, true); }).then(function () { backupBusyState(false); });
 	}
 
 	/* ---------- экспорт и импорт настроек вида одним файлом ---------- */
