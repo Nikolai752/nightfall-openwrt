@@ -1758,7 +1758,7 @@
 			if (!res || res[0] !== 0) throw new Error(res && res[0] === 6 ? 'Нет прав на резервное копирование. Выйдите и войдите в LuCI заново.' : (j && j.error && j.error.message) || 'Ошибка вызова роутера.');
 			var data = res[1] || {};
 			if (data.code !== undefined && +data.code !== 0) throw new Error(String(data.stderr || data.stdout || 'Команда завершилась с ошибкой.').trim());
-			return String(data.stdout || '').replace(/\\s+$/, '');
+			return String(data.stdout || '').replace(/\s+$/, '');
 		});
 	}
 	function backupBusyState(on) {
@@ -1781,7 +1781,7 @@
 		if (backupBusy) return;
 		backupBusyState(true); backupNote('Создаю резервную копию…');
 		backupExec([ 'create' ]).then(function (out) {
-			var m = out.match(/Резервная копия создана:\\s*(\\/[^\\s]+\\.tar\\.gz)/);
+			var m = out.match(/Резервная копия создана:\s*(\/[^\s]+\.tar\.gz)/);
 			if (!m) throw new Error(out || 'Роутер не сообщил путь к архиву.');
 			var path = m[1], name = path.split('/').pop(), parts = [], offset = 0, chunkSize = 24576;
 			backupNote('Архив создан. Скачиваю на устройство…');
@@ -1807,7 +1807,7 @@
 	}
 	function uploadAndPreviewBackup(file) {
 		if (!file || backupBusy) return;
-		if (!/\\.tar\\.gz$/i.test(file.name) || file.size < 1 || file.size > 5 * 1024 * 1024) { backupNote('Выберите архив .tar.gz размером до 5 МБ.', true); return; }
+		if (!/\.tar\.gz$/i.test(file.name) || file.size < 1 || file.size > 5 * 1024 * 1024) { backupNote('Выберите архив .tar.gz размером до 5 МБ.', true); return; }
 		var id = (Date.now().toString(16) + Math.floor(Math.random() * 0xffffffff).toString(16)).slice(-8).toLowerCase();
 		backupRestorePath = ''; refs.backupApply.hidden = true;
 		backupBusyState(true); backupNote('Подготавливаю загрузку архива…');
@@ -1819,10 +1819,10 @@
 				return backupExec([ 'upload-chunk', id, b64 ]).then(function () { offset = end; backupNote('Загружено ' + Math.round(offset / file.size * 100) + '%…'); return sendNext(); });
 			});
 		}).then(function (out) {
-			var m = out.match(/Архив загружен:\\s*(\\/[^\\s]+\\.tar\\.gz)/);
+			var m = out.match(/Архив загружен:\s*(\/[^\s]+\.tar\.gz)/);
 			if (!m) throw new Error(out || 'Не удалось проверить загруженный архив.');
 			backupRestorePath = m[1]; refs.backupApply.hidden = false;
-			backupNote(out + '\\nАрхив проверен. Нажмите «Восстановить настройки», когда будете готовы.');
+			backupNote(out + '\nАрхив проверен. Нажмите «Восстановить настройки», когда будете готовы.');
 		}).catch(function (e) {
 			backupExec([ 'upload-abort', id ]).catch(function () {});
 			backupNote('Загрузка или проверка не удалась: ' + e.message, true);
@@ -1833,7 +1833,7 @@
 		if (!window.confirm('Восстановить настройки Nightfall из выбранного архива? Текущие настройки Nightfall будут заменены. Сетевые настройки OpenWrt не меняются; текущий TG_TOKEN сохраняется.')) return;
 		backupBusyState(true); backupNote('Восстанавливаю настройки…');
 		backupExec([ 'restore', backupRestorePath, 'apply' ]).then(function (out) {
-			backupNote(out + '\\nПерезагрузите страницу LuCI, чтобы применить настройки персонализации.');
+			backupNote(out + '\nПерезагрузите страницу LuCI, чтобы применить настройки персонализации.');
 			backupRestorePath = ''; refs.backupApply.hidden = true;
 		}).catch(function (e) { backupNote('Восстановление не выполнено: ' + e.message, true); }).then(function () { backupBusyState(false); });
 	}
