@@ -11,6 +11,7 @@ $STAMP authpriv.notice dropbear[114]: Password auth succeeded for 'root' from 19
 $STAMP authpriv.info luci: failed login on / for root from 203.0.113.9
 $STAMP authpriv.info luci: accepted login on / for root from 192.168.1.10
 $STAMP daemon.info something: unrelated
+SYSLOG_FIXTURES
 printf '#!/bin/sh\ncat %s\n' "$T/log.txt" > "$T/logread"; chmod +x "$T/logread"
 
 # /proc: слушают sshd на всех адресах, uhttpd на всех, служба только на 127.0.0.1, UDP dns
@@ -99,7 +100,7 @@ exit 0
 N
 chmod +x "$T/nft"
 # журнал DNS (dnsmasq с logqueries)
-cat > "$T/dnslog.txt" <<'L'
+cat > "$T/dnslog.txt" <<'DNSLOG'
 Mon Nov 16 02:10:01 2026 daemon.info dnsmasq[1]: query[A] www.youtube.com from 192.168.1.10
 Mon Nov 16 02:10:01 2026 daemon.info dnsmasq[1]: forwarded www.youtube.com to 1.1.1.1
 Mon Nov 16 02:10:02 2026 daemon.info dnsmasq[1]: query[AAAA] r1.googlevideo.com from 192.168.1.10
@@ -110,6 +111,6 @@ Mon Nov 16 02:10:05 2026 daemon.info dnsmasq[1]: reply nope.example.org is NXDOM
 Mon Nov 16 02:10:06 2026 daemon.info dnsmasq[1]: query[A] nope.example.org from 192.168.1.10
 Mon Nov 16 02:10:06 2026 daemon.info dnsmasq[1]: config nope.example.org is NXDOMAIN
 Mon Nov 16 02:10:07 2026 authpriv.warn dropbear[5]: query[A] fake.test from 1.2.3.4
-L
+DNSLOG
 printf '#!/bin/sh\ncat %s\n' "$T/dnslog.txt" > "$T/dnslogread"; chmod +x "$T/dnslogread"
 printf '#!/bin/sh\n[ "$3" = "dhcp.@dnsmasq[0].logqueries" ] && echo 1\n' > "$T/uci_dns"; chmod +x "$T/uci_dns"
