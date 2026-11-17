@@ -157,7 +157,7 @@ download_chunk() {
  case "$offset:$length" in *[!0-9:]*|:*) fail "неверные параметры загрузки" ;; esac
  [ -f "$archive" ] && [ ! -L "$archive" ] || fail "архив не найден"
  size=$(wc -c < "$archive" | tr -d ' ')
- [ "$offset" -lt "$size" ] || { [ "$offset" -eq 0 ] && [ "$size" -eq 0 ]; } || fail "смещение за пределами архива"
+ [ "$offset" -le "$size" ] || fail "смещение за пределами архива"
  [ "$length" -gt 0 ] && [ "$length" -le 24576 ] || fail "неверный размер блока"
  tail -c "+$((offset + 1))" "$archive" | head -c "$length" | base64 | tr -d '\n'
 }
@@ -165,6 +165,7 @@ upload_start() {
  id=${2:-}
  case "$id" in ????????) ;; *) fail "неверный идентификатор загрузки" ;; esac
  case "$id" in *[!a-f0-9]*) fail "неверный идентификатор загрузки" ;; esac
+ mkdir -p "$OUTDIR" 2>/dev/null || fail "не удалось создать каталог резервных копий"
  umask 077
  : > "$OUTDIR/.upload-$id.b64" || fail "не удалось начать загрузку"
  say "Загрузка начата."
