@@ -1405,7 +1405,7 @@ function enhanceBadges(view) {
 					let edit = head.querySelector(':scope > .nf-port-edit');
 					if (!edit) {
 						edit = document.createElement('button');
-						edit.type = 'button'; edit.className = 'nf-port-edit'; edit.textContent = '✎';
+						edit.type = 'button'; edit.className = 'nf-port-edit'; edit.textContent = '✎'; edit.style.cssText = 'margin-left:6px;border:0;background:transparent;color:inherit;cursor:pointer;opacity:.7;padding:2px 5px;border-radius:6px;font:inherit';
 						edit.title = 'Изменить подпись карточки (только в этом браузере)';
 						edit.setAttribute('aria-label', 'Изменить подпись порта ' + key);
 						edit.addEventListener('click', ev => {
