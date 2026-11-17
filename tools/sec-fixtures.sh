@@ -11,7 +11,7 @@ $STAMP authpriv.notice dropbear[114]: Password auth succeeded for 'root' from 19
 $STAMP authpriv.info luci: failed login on / for root from 203.0.113.9
 $STAMP authpriv.info luci: accepted login on / for root from 192.168.1.10
 $STAMP daemon.info something: unrelated
-SYSLOG_FIXTURES
+L
 printf '#!/bin/sh\ncat %s\n' "$T/log.txt" > "$T/logread"; chmod +x "$T/logread"
 
 # /proc: слушают sshd на всех адресах, uhttpd на всех, служба только на 127.0.0.1, UDP dns
