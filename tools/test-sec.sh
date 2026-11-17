@@ -17,7 +17,11 @@ want "неудачных входов в LuCI: 1" '"failed_luci":1' "$out"
 want "самый частый адрес-нарушитель" '["203.0.113.5",2]' "$out"
 want "успешный вход виден" '"ssh",1,"root","192.168.1.10"' "$out"
 want "LuCI: вход отмечен" '"luci",0,"root","203.0.113.9"' "$out"
-want "новые устройства: последнее первым" '["aa:bb:cc:dd:ee:02","Камера",1700001000]' "$out"
+printf '%s' "$out" | node -e '
+const d = JSON.parse(require("fs").readFileSync(0, "utf8"));
+const rows = d.newdev || [];
+if (rows.length < 2 || rows[0][0] !== "aa:bb:cc:dd:ee:02" || rows[0][1] !== "Камера" || rows[1][0] !== "aa:bb:cc:dd:ee:01" || !(rows[0][2] > rows[1][2])) process.exit(1);
+' && { ok=$((ok + 1)); echo "ok  новые устройства: последнее первым"; } || { bad=$((bad + 1)); echo "ОШИБКА: новые устройства: неверный порядок или метки времени"; }
 want "порт 22 слушает dropbear на всех адресах" '["tcp",22,"all","dropbear"]' "$out"
 want "порт 8080 слушает только локально" '["tcp",8080,"local"' "$out"
 want "порт 80 по IPv6 — uhttpd" '["tcp",80,"all","uhttpd"]' "$out"
