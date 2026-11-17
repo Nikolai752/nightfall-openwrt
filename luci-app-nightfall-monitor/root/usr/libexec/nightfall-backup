@@ -44,7 +44,7 @@ if [ -n "${NF_BACKUP_DIR:-}" ]; then
  OUTDIR=$NF_BACKUP_DIR
  BACKUP_STORAGE=explicit
 else
- AUTO_BACKUP_DIR=$(backup_mount_dir 2>/dev/null || true)
+ AUTO_BACKUP_DIR=$(backup_mount_dir || true)
  if [ -n "$AUTO_BACKUP_DIR" ]; then OUTDIR=$AUTO_BACKUP_DIR; BACKUP_MOUNT=${AUTO_BACKUP_DIR%/nightfall-backups}; BACKUP_STORAGE=external
  else OUTDIR=$TMP/nightfall-backups; BACKUP_STORAGE=temporary
  fi
