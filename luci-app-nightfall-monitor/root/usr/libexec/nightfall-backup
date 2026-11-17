@@ -1,0 +1,156 @@
+#!/bin/sh
+# Nightfall: локальная резервная копия и безопасное восстановление настроек.
+#   nightfall-backup create [FILE]       создать архив (по умолчанию /tmp/nightfall-backups/)
+#   nightfall-backup list FILE           проверить архив и показать состав
+#   nightfall-backup restore FILE        только предварительный просмотр
+#   nightfall-backup restore FILE apply  восстановить после проверки архива
+#
+# Для тестов: NF_ROOT, NF_TMP, NF_BACKUP_DIR.
+set -u
+
+ROOT=${NF_ROOT:-}
+ETC="${ROOT}/etc"
+TMP=${NF_TMP:-/tmp}
+OUTDIR=${NF_BACKUP_DIR:-$TMP/nightfall-backups}
+TOOL_VERSION=1.27.0
+FILES="
+nightfall-monitor.conf
+nightfall-prefs.json
+nightfall-logo.json
+nightfall-bg.json
+nightfall-block.list
+nightfall-block.log
+nightfall-devices.list
+nightfall-groups.list
+nightfall-known.list
+nightfall-apps.list
+nightfall-journal.log
+nightfall-release.pub
+"
+
+fail() { echo "Ошибка: $*" >&2; exit 1; }
+say() { printf '%s\n' "$*"; }
+allowed() {
+ case "$1" in
+  nightfall-monitor.conf|nightfall-prefs.json|nightfall-logo.json|nightfall-bg.json|nightfall-block.list|nightfall-block.log|nightfall-devices.list|nightfall-groups.list|nightfall-known.list|nightfall-apps.list|nightfall-journal.log|nightfall-release.pub) return 0 ;;
+  *) return 1 ;;
+ esac
+}
+cleanup() { [ -n "${WORK:-}" ] && rm -rf "$WORK"; }
+trap cleanup EXIT HUP INT TERM
+
+create_backup() {
+ dest=${2:-}
+ mkdir -p "$OUTDIR" 2>/dev/null || fail "не удалось создать каталог $OUTDIR"
+ host=$(cat "${ROOT}/proc/sys/kernel/hostname" 2>/dev/null || echo router)
+ host=$(printf '%s' "$host" | tr -cd 'A-Za-z0-9_.-')
+ [ -n "$host" ] || host=router
+ [ -n "$dest" ] || dest="$OUTDIR/nightfall-backup-$host-$(date +%Y%m%d-%H%M%S).tar.gz"
+ case "$dest" in *.tar.gz) ;; *) fail "имя архива должно оканчиваться на .tar.gz" ;; esac
+ parent=${dest%/*}; [ "$parent" = "$dest" ] && parent=.
+ mkdir -p "$parent" 2>/dev/null || fail "не удалось создать каталог назначения"
+ WORK=$(mktemp -d "$TMP/nightfall-backup.XXXXXX" 2>/dev/null) || fail "не удалось создать временный каталог"
+ mkdir -p "$WORK/etc" || fail "не удалось подготовить архив"
+ count=0
+ for f in $FILES; do
+  [ -f "$ETC/$f" ] && [ ! -L "$ETC/$f" ] || continue
+  cp -p "$ETC/$f" "$WORK/etc/$f" || fail "не удалось скопировать $f"
+  count=$((count + 1))
+ done
+ [ "$count" -gt 0 ] || fail "на роутере не найдены файлы настроек Nightfall"
+ if [ -f "$WORK/etc/nightfall-monitor.conf" ]; then
+  sed -i 's/^TG_TOKEN=.*/TG_TOKEN=/; s/^TG_PROXY=.*/TG_PROXY=/' "$WORK/etc/nightfall-monitor.conf" || fail "не удалось удалить секреты из копии"
+ fi
+ {
+  echo "Nightfall backup"
+  echo "format=1"
+  echo "tool_version=$TOOL_VERSION"
+  echo "created=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  echo "files=$count"
+  echo "secrets=TG_TOKEN,TG_PROXY excluded"
+  echo "network_config=not included"
+ } > "$WORK/MANIFEST.txt"
+ (cd "$WORK" && sha256sum etc/nightfall-* > MANIFEST.sha256) || fail "не удалось посчитать контрольные суммы"
+ { for f in $FILES; do [ -f "$WORK/etc/$f" ] && echo "etc/$f"; done; echo MANIFEST.txt; echo MANIFEST.sha256; } > "$WORK/archive.list"
+ tar -czf "$dest.tmp" -C "$WORK" -T "$WORK/archive.list" || fail "не удалось собрать архив"
+ mv "$dest.tmp" "$dest" || fail "не удалось сохранить архив"
+ chmod 600 "$dest" 2>/dev/null
+ say "Резервная копия создана: $dest"
+ say "Файлов: $count"
+ say "TG_TOKEN и TG_PROXY не включены. Сетевые настройки OpenWrt не включены."
+}
+
+inspect_archive() {
+ archive=$1
+ [ -f "$archive" ] || fail "архив не найден: $archive"
+ command -v tar >/dev/null 2>&1 || fail "не найден tar"
+ command -v sha256sum >/dev/null 2>&1 || fail "не найден sha256sum"
+ listing="$TMP/nightfall-backup-list.$$"
+ tar -tzf "$archive" > "$listing" 2>/dev/null || { rm -f "$listing"; fail "архив повреждён или не является gzip-архивом"; }
+ bad=0; count=0
+ while IFS= read -r p; do
+  case "$p" in
+   etc/nightfall-* )
+    name=${p#etc/}
+    allowed "$name" || bad=1
+    case "$p" in */../*|../*|/*) bad=1 ;; esac
+    count=$((count + 1))
+    ;;
+   MANIFEST.txt|MANIFEST.sha256) ;;
+   *) bad=1 ;;
+  esac
+ done < "$listing"
+ rm -f "$listing"
+ [ "$bad" = 0 ] || fail "архив содержит недопустимые пути или файлы"
+ [ "$count" -gt 0 ] || fail "в архиве нет настроек Nightfall"
+ # В архиве разрешены только обычные файлы; ссылки и специальные типы запрещены.
+ tar -tvzf "$archive" 2>/dev/null | awk 'substr($1,1,1) != "-" { bad=1 } END { exit bad }' || fail "в архиве обнаружены ссылки или специальные файлы"
+ WORK=$(mktemp -d "$TMP/nightfall-restore.XXXXXX" 2>/dev/null) || fail "не удалось создать временный каталог"
+ tar -xzf "$archive" -C "$WORK" || fail "не удалось распаковать архив"
+ [ -f "$WORK/MANIFEST.txt" ] && [ -f "$WORK/MANIFEST.sha256" ] || fail "в архиве отсутствует манифест"
+ (cd "$WORK" && sha256sum -c MANIFEST.sha256 >/dev/null 2>&1) || fail "контрольные суммы не совпали; восстановление запрещено"
+ find "$WORK" -type l -print | grep -q . && fail "в распакованной копии обнаружена символическая ссылка"
+ say "Архив проверен. Состав:"
+ cat "$WORK/MANIFEST.txt"
+ for f in $FILES; do [ -f "$WORK/etc/$f" ] && say "  /etc/$f"; done
+}
+
+restore_backup() {
+ archive=$1
+ mode=${2:-preview}
+ inspect_archive "$archive"
+ if [ "$mode" != apply ]; then
+  say "Предварительный просмотр завершён. Для восстановления выполните:"
+  say "  /usr/libexec/nightfall-backup restore '$archive' apply"
+  return 0
+ fi
+ [ "$mode" = apply ] || fail "неизвестный режим"
+ # Если в текущей конфигурации задан токен, сохраняем его: в архиве секретов нет.
+ old_token=""
+ if [ -r "$ETC/nightfall-monitor.conf" ]; then
+  old_token=$(grep '^TG_TOKEN=' "$ETC/nightfall-monitor.conf" 2>/dev/null | head -n 1 || true)
+ fi
+ for f in $FILES; do
+  [ -f "$WORK/etc/$f" ] || continue
+  mkdir -p "$ETC" || fail "не удалось открыть /etc"
+  cp "$WORK/etc/$f" "$ETC/$f.restore" || fail "не удалось подготовить $f"
+  chmod 600 "$ETC/$f.restore" 2>/dev/null
+  if [ "$f" = nightfall-monitor.conf ] && [ -n "$old_token" ]; then
+   awk -v saved="$old_token" 'BEGIN { done=0 } /^TG_TOKEN=/ { if (!done) print saved; done=1; next } { print } END { if (!done) print saved }' "$ETC/$f.restore" > "$ETC/$f.restore.tmp" || fail "не удалось сохранить текущий токен"
+   mv "$ETC/$f.restore.tmp" "$ETC/$f.restore" || fail "не удалось обновить конфигурацию"
+  fi
+  mv "$ETC/$f.restore" "$ETC/$f" || fail "не удалось установить $f"
+ done
+ chmod 644 "$ETC/nightfall-prefs.json" "$ETC/nightfall-logo.json" "$ETC/nightfall-bg.json" 2>/dev/null
+ say "Настройки Nightfall восстановлены."
+ say "Сетевые настройки OpenWrt не менялись. TG_TOKEN сохранён из текущей конфигурации."
+ say "Проверьте TG_PROXY и при необходимости задайте его заново."
+ say "Перезапустите сборщик: /etc/init.d/nightfall-collector restart"
+}
+
+case "${1:-}" in
+ create) create_backup "$@" ;;
+ list) [ -n "${2:-}" ] || fail "укажите путь к архиву"; inspect_archive "$2" ;;
+ restore) [ -n "${2:-}" ] || fail "укажите путь к архиву"; restore_backup "$2" "${3:-preview}" ;;
+ *) echo "Использование: $0 create [FILE] | list FILE | restore FILE [apply]" >&2; exit 2 ;;
+esac

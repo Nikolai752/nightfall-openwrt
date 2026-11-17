@@ -18,6 +18,8 @@ jobs:
         run: sh tools/test-temps.sh
       - name: Безопасность и диагностика
         run: sh tools/test-sec.sh
+      - name: Резервная копия и восстановление Nightfall
+        run: sh tools/test-backup.sh
       - name: Расписание блокировки
         run: sh tools/test-block.sh
       - name: Тесты установки, обновления и удаления

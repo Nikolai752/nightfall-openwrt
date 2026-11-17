@@ -41,6 +41,9 @@
 				],
 				"/usr/libexec/nightfall-dns": [
 					"exec"
+				],
+				"/usr/libexec/nightfall-backup": [
+					"exec"
 				]
 			},
 			"uci": [
@@ -99,6 +102,9 @@
 					"exec"
 				],
 				"/usr/libexec/nightfall-block": [
+					"exec"
+				],
+				"/usr/libexec/nightfall-backup": [
 					"exec"
 				]
 			},
