@@ -25,13 +25,22 @@ ARCHIVE=$(find "$TMP/backups" -name '*.tar.gz' -type f | head -n 1)
 gzip -t "$ARCHIVE"
 "$TOOL" list "$ARCHIVE" > "$TMP/list"
 grep -q 'files=4' "$TMP/list"
-grep -q 'tool_version=1.27.7' "$TMP/list"
+grep -q 'tool_version=1.27.8' "$TMP/list"
 NAME=$(basename "$ARCHIVE")
 "$TOOL" download-info "$NAME" > "$TMP/info"
 SIZE=$(sed -n 's/.*size=\([0-9][0-9]*\).*/\1/p' "$TMP/info")
 HASH=$(sed -n 's/.*sha256=\([a-f0-9][a-f0-9]*\).*/\1/p' "$TMP/info")
 [ "$SIZE" -eq "$(wc -c < "$ARCHIVE" | tr -d ' ')" ]
 [ "$HASH" = "$(sha256sum "$ARCHIVE" | awk '{ print $1 }')" ]
+
+echo "== backup metadata from previous releases remains readable =="
+mkdir -p "$TMP/legacy"
+tar -xzf "$ARCHIVE" -C "$TMP/legacy"
+sed -i 's/^tool_version=.*/tool_version=1.27.7/' "$TMP/legacy/MANIFEST.txt"
+(cd "$TMP/legacy" && sha256sum etc/nightfall-* > MANIFEST.sha256)
+tar -czf "$TMP/legacy-backup.tar.gz" -C "$TMP/legacy" etc MANIFEST.txt MANIFEST.sha256
+"$TOOL" list "$TMP/legacy-backup.tar.gz" > "$TMP/legacy-list"
+grep -q 'tool_version=1.27.7' "$TMP/legacy-list"
 
 echo "== clear error when base64 is unavailable =="
 if NF_BASE64="$TMP/no-such-base64" "$TOOL" download "$NAME" 0 100 > "$TMP/no-base64.out" 2>&1; then
