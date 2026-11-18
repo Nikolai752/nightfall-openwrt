@@ -20,7 +20,7 @@ LOG
 sh "$HELPER" "$ROOT/luci-app-nightfall-monitor/root/usr/share/nightfall/apps.list" "$TMP/no-user-rules" "$TMP/map" "$NOW" < "$TMP/dns.log"
 has() { grep -Fqx "$1" "$TMP/map" || { echo "FAIL: missing $1" >&2; cat "$TMP/map" >&2; exit 1; }; }
 lacks() { grep -Fq "$1" "$TMP/map" && { echo "FAIL: unexpected $1" >&2; exit 1; } || :; }
-has "192.0.2.2|FreshApp|$NOW"
+has "192.0.2.2|FreshApp|$((NOW-60))"
 has "192.0.2.3|Одноклассники|$((NOW-60))"
 has "192.0.2.4|Прочее · rtbcdn.ru|$((NOW-60))"
 lacks "192.0.2.1|"
