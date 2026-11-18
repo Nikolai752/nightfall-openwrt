@@ -449,7 +449,7 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 		key = $1 "|" $3 "|" src ">" dst ":" sp ">" dp
 		# одинаковые «адрес:порт» бывают у нескольких записей (старая в TIME_WAIT и новая): складываем их счётчики,
 		# иначе одна запись «уменьшалась» и каждый цикл засчитывалась заново целиком (завышение в сотни раз)
-		if (key in so) { so[key] += ob; sr[key] += rb; next }
+		if (key in so) { so[key] += ob; sr[key] += rb; if (sroute[key] != routeof(mark)) sroute[key] = "Unknown"; next }
 		so[key] = ob; sr[key] = rb; sa[key] = src; sd[key] = dst; sp3[key] = $3; sdp[key] = dp; sroute[key] = routeof(mark)
 	}
 	function account(key,   ob, rb, src, dst, do_, dr_, sk, dk, ak) {
