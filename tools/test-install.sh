@@ -155,6 +155,19 @@ R=$T/u3; mkfs "$R"; un "$R" --theme-only >/dev/null
 R=$T/u4; mkfs "$R"; un "$R" --purge >/dev/null; [ -z "$(left "$R")" ] && pass "--purge (старое имя) работает как полное удаление" || fail "--purge"
 R=$T/u5; mkfs "$R"; un "$R" >/dev/null; un "$R" >/dev/null && pass "повторное удаление не падает" || fail "повторное удаление"
 un "$T/u5" --нет >/dev/null 2>&1; [ $? -eq 2 ] && pass "неизвестный параметр -> код 2" || fail "код при неизвестном параметре"
+echo "== безопасность архива: ссылки запрещены до распаковки =="
+R=$T/r12; run "$R" --version v1.0.0 >/dev/null
+mkdir -p "$T/malicious/www/luci-static/nightfall"
+cp "$T/stage.2.0.0/www/luci-static/nightfall/version.json" "$T/malicious/www/luci-static/nightfall/version.json"
+ln -s ../../../../etc/passwd "$T/malicious/www/luci-static/nightfall/escape"
+tar -czf "$T/malicious.tar.gz" -C "$T/malicious" .
+out=$(run "$R" --file "$T/malicious.tar.gz" 2>&1 || true)
+if [ "$(ver "$R")" = 1.0.0 ] && echo "$out" | grep -q "ссылки или специальные файлы"; then
+  pass "архив с symlink отклонён, установленная версия не изменилась"
+else
+  fail "архив с symlink не был отклонён: $out (версия $(ver "$R"))"
+fi
+
 rm -rf dist
 
 echo; echo "ИТОГО: ok=$ok, ошибок=$bad"
