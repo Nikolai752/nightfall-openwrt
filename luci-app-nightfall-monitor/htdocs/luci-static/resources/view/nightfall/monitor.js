@@ -143,7 +143,7 @@ const XCSS = `
 .nfm-app-summary .nfm-tile { min-width:0; }
 .nfm-app-summary .nfm-tile small { display:block; margin-top:3px; }
 .nfm-app-categories { display:grid; gap:7px; }
-.nfm-app-distribution { display:grid; grid-template-columns:minmax(190px,260px) minmax(0,1fr); align-items:center; gap:clamp(18px,3vw,42px); min-height:250px; }
+.nfm-app-distribution { display:grid; grid-template-columns:minmax(190px,260px) minmax(0,1fr); align-items:start; gap:clamp(18px,3vw,42px); min-height:250px; }
 .nfm-app-donut-layout { display:contents; }
 .nfm-app-donut { width:clamp(180px,19vw,236px); height:clamp(180px,19vw,236px); justify-self:center; display:grid; place-items:center; border-radius:50%; }
 .nfm-app-donut-center { width:66%; height:66%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; border:1px solid var(--nfm-border); border-radius:50%; background:var(--nfm-card); }
