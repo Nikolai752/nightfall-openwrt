@@ -9,3 +9,6 @@ grep -q "lsSet(ACKKEY, cur); lsSet(SEENKEY, cur); closeUpd();" "$SRC"
 grep -q "catch(function () { /\* не отмечаем просмотренным: повторим после следующего входа \*/ });" "$SRC"
 node tools/test-whats-new.js
 echo "Проверка восстановления окна «Что нового» пройдена."
+grep -q "function showWhatsNew()" "$SRC"
+grep -q "text: 'Что нового', onclick: showWhatsNew" "$SRC"
+grep -q "Не подтверждаем просмотр: возможно, CHANGELOG ещё не опубликован" "$SRC"
