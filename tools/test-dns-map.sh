@@ -16,16 +16,19 @@ Nov 18 19:11:00 dnsmasq[1]: query[A] static.netflix.com from 127.0.0.1
 Nov 18 19:11:00 dnsmasq[1]: reply static.netflix.com is 203.0.113.12
 Nov 18 19:11:01 dnsmasq[1]: query[A] video.youtube.com from 127.0.0.1
 Nov 18 19:11:01 dnsmasq[1]: reply video.youtube.com is 203.0.113.12
+Nov 18 19:11:02 dnsmasq[1]: query[A] calls.okcdn.ru from 127.0.0.1
+Nov 18 19:11:02 dnsmasq[1]: reply calls.okcdn.ru is 203.0.113.14
 LOG
 sh "$HELPER" "$ROOT/luci-app-nightfall-monitor/root/usr/share/nightfall/apps.list" "$TMP/no-user-rules" "$TMP/map" "$NOW" < "$TMP/dns.log"
 has() { grep -Fqx "$1" "$TMP/map" || { echo "FAIL: missing $1" >&2; cat "$TMP/map" >&2; exit 1; }; }
 lacks() { grep -Fq "$1" "$TMP/map" && { echo "FAIL: unexpected $1" >&2; exit 1; } || :; }
 has "192.0.2.2|FreshApp|$((NOW-60))"
-has "192.0.2.3|Одноклассники|$((NOW-60))"
+has "192.0.2.3|Прочее · okcdn.ru|$((NOW-60))"
 has "192.0.2.4|Прочее · rtbcdn.ru|$((NOW-60))"
 lacks "192.0.2.1|"
 has "203.0.113.10|YouTube|$NOW"
 has "203.0.113.11|Прочее · example.com|$NOW"
 has "203.0.113.12|Netflix|$NOW"
 has "203.0.113.12|YouTube|$NOW"
+has "203.0.113.14|MAX|$NOW"
 echo "DNS application map tests: all passed."
