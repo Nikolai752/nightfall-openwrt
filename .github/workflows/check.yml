@@ -58,11 +58,17 @@ jobs:
         run: sh ./build-release.sh
       - name: Verify VPN-aware router test archive
         if: github.event_name == 'pull_request' && github.head_ref == 'feature/vpn-aware-app-traffic'
+        env:
+          VERSION: v1.27.12-alpha.6-vpn-aware-test
         run: |
+          set -eu
           test -s dist/nightfall-root.tar.gz
           test -s dist/nightfall-root.tar.gz.sha256
           (cd dist && sha256sum -c nightfall-root.tar.gz.sha256)
-          tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | grep -q '1.27.12-alpha.1-vpn-aware-test'
+          EXPECTED_VERSION="${VERSION#v}"
+          ARCHIVE_VERSION=$(tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+          test -n "$ARCHIVE_VERSION"
+          test "$ARCHIVE_VERSION" = "$EXPECTED_VERSION"
       - name: Upload VPN-aware router test archive
         if: success() && github.event_name == 'pull_request' && github.head_ref == 'feature/vpn-aware-app-traffic'
         uses: actions/upload-artifact@v4
