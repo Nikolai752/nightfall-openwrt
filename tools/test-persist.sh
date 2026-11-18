@@ -12,10 +12,11 @@ mkdir -p "$T/usb/nightfall" "$T/ram"
 echo 'old persistent history' > "$T/usb/nightfall/hist.coarse"
 echo '20261117' > "$T/usb/nightfall/day.date"
 echo '192.168.1.2 100 200' > "$T/usb/nightfall/dev.day"
-echo '192.168.1.2|video|1000|2000' > "$T/usb/nightfall/apps.day"
+echo '192.168.1.2|video|Direct|1000|2000' > "$T/usb/nightfall/apps.day"
+echo '2' > "$T/usb/nightfall/apps.v"
 echo '20261117 10000 20000' > "$T/usb/nightfall/traffic.daily"
 echo '20261116 192.168.1.2 500 600 aa:bb:cc:dd:ee:ff' > "$T/usb/nightfall/dev.daily"
-echo '20261116|192.168.1.2|video|700|800' > "$T/usb/nightfall/apps.hist"
+echo '20261116|192.168.1.2|video|Direct|700|800' > "$T/usb/nightfall/apps.hist"
 
 awk '
   /^PFILES=/ { print; next }
@@ -29,7 +30,7 @@ event() { printf '%s|%s\n' "$1" "$2" >> "$T/events"; }
 
 PERSIST_DIR="$T/usb/nightfall"
 DIR="$T/ram"
-PFILES="hist.coarse day.date dev.day apps.day traffic.daily dev.daily apps.hist"
+PFILES="hist.coarse day.date dev.day apps.day apps.v traffic.daily dev.daily apps.hist"
 PERSIST_ANY=0
 persist_ok=1
 persist_error=0
@@ -62,10 +63,11 @@ PERSIST_DIR="$T/usb/nightfall"
 # Data collected in RAM while USB is unavailable.
 echo '20261117' > "$DIR/day.date"
 echo '192.168.1.2 30 40' > "$DIR/dev.day"
-echo '192.168.1.2|video|300|400' > "$DIR/apps.day"
+echo '192.168.1.2|video|Direct|300|400' > "$DIR/apps.day"
+echo '2' > "$DIR/apps.v"
 echo '20261117 300 400' > "$DIR/traffic.daily"
 echo '20261116 192.168.1.2 50 60 aa:bb:cc:dd:ee:ff' > "$DIR/dev.daily"
-echo '20261116|192.168.1.2|video|70|80' > "$DIR/apps.hist"
+echo '20261116|192.168.1.2|video|Direct|70|80' > "$DIR/apps.hist"
 echo 'new RAM history' > "$DIR/hist.coarse"
 
 if persist; then fail "refuse persistence when USB is absent"; else pass "refuse persistence when USB is absent"; fi
