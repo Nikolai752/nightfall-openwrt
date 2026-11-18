@@ -39,8 +39,17 @@ BEGIN {
   # Keep only observations made in the last six hours. Old two-column maps expire on upgrade.
   while ((getline l < map)>0) {
     n=split(l,a,"|")
-    if (n>=3 && a[3] ~ /^[0-9]+$/ && a[3]+0 >= now-21600 && a[1]!="" && a[2]!="")
-      put(tolower(a[1]),a[2])
+    if (n>=3 && a[3] ~ /^[0-9]+$/ && a[3]+0 >= now-21600 && a[1]!="" && a[2]!="") {
+      app=a[2]
+      # Re-evaluate retained fallback domain observations against the current catalog.
+      # This upgrades existing IP mappings immediately after a catalog update without
+      # waiting for another client DNS query; unresolved/shared CDN names stay fallback.
+      if (app ~ /^Прочее · /) {
+        resolved=cls(substr(app,10))
+        if (resolved!="") app=resolved
+      }
+      put(tolower(a[1]),app)
+    }
   }
   close(map)
 }
