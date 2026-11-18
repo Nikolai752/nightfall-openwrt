@@ -243,7 +243,7 @@ do_dns() {
 			if (a != "") print tolower(v) "|" a >> map
 		}'
 		# DNS ответы повторяются в журнале; оставляем каждую уникальную пару IP|app один раз.
-		# Разные приложения для одного IP сохраняются, порядок первого появления не меняется.
+		# Несколько разных приложений на одном IP сохраняются в map, но ниже такой IP будет помечен неоднозначным.
 		if [ -s "$DIR/dns.map" ]; then
 			awk '!seen[$0]++' "$DIR/dns.map" > "$DIR/dns.map.tmp" && mv "$DIR/dns.map.tmp" "$DIR/dns.map"
 		fi
@@ -430,7 +430,18 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 		while ((getline l < dayf) > 0) { split(l, a, " "); dd[a[1]] = a[2] + 0; du[a[1]] = a[3] + 0 }
 		close(dayf)
 		if (apps == 1) {
-			while ((getline l < mapf) > 0) { split(l, a, "|"); if (a[2] != "") am[a[1]] = a[2] }
+			while ((getline l < mapf) > 0) {
+				split(l, a, "|"); ip = a[1]; name = a[2]
+				if (ip == "" || name == "") continue
+				if (name !~ /^Прочее( ·|$)/) {
+					if (!(ip in am_known)) am_known[ip] = name
+					else if (am_known[ip] != name) am_conflict[ip] = 1
+				}
+				else if (!(ip in am_fallback)) am_fallback[ip] = name
+				else if (am_fallback[ip] != name) am_fallback_conflict[ip] = 1
+			}
+			for (ip in am_known) am[ip] = (ip in am_conflict ? "Прочее" : am_known[ip])
+			for (ip in am_fallback) if (!(ip in am)) am[ip] = (ip in am_fallback_conflict ? "Прочее" : am_fallback[ip])
 			close(mapf)
 			ld(urules); ld(rules)
 			while ((getline l < appf) > 0) { split(l, a, "|"); k = a[1] "|" a[2] "|" a[3]; adl[k] = a[4] + 0; aul[k] = a[5] + 0 }
