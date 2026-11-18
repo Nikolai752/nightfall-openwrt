@@ -152,7 +152,7 @@ const XCSS = `
 .nfm-app-legend-row { display:grid; grid-template-columns:9px minmax(0,1fr) auto; gap:8px; align-items:center; font-size:12px; }
 .nfm-app-legend-row b { white-space:nowrap; font-variant-numeric:tabular-nums; }
 .nfm-app-legend-dot { width:9px; height:9px; border-radius:3px; background:var(--nfm-app-color); }
-.nfm-app-category { border:1px solid var(--nfm-border); border-radius:9px; background:var(--nfm-card2); overflow:hidden; }
+.nfm-app-category { border:1px solid var(--nfm-border); border-radius:var(--nf-radius-in, 9px); background:var(--nfm-card2); overflow:hidden; }
 .nfm-app-category > summary { display:grid; grid-template-columns:12px minmax(0,1fr) auto auto; gap:8px 12px; align-items:center; padding:11px 12px; cursor:pointer; list-style:none; font-size:13px; }
 .nfm-app-category > summary::-webkit-details-marker { display:none; }
 .nfm-app-category > summary::before { content:'›'; color:var(--nfm-dim); font-size:18px; transform:rotate(0); transition:transform .15s; }
