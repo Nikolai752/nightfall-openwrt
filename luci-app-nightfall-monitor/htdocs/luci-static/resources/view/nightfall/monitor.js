@@ -1918,18 +1918,21 @@ return view.extend({
 			E('option', { value: 'day' }, 'Сегодня'), E('option', { value: '7' }, '7 дней'), E('option', { value: '30' }, '30 дней')
 		]);
 		const appDevice = E('select', { class: 'nfm-sel', 'aria-label': 'Устройство для статистики приложений', change: ev => { S.appDevice = ev.target.value; renderAppTraffic(); } }, E('option', { value: '' }, 'Все устройства'));
+		let appRenderedData = null, appRenderedPeriod = null, appRenderedDevice = null;
 		function renderAppTraffic() {
 			const d = S.appTraffic;
 			if (d === undefined) { appTrafficBody.replaceChildren(E('div', { class: 'nfm-empty' }, 'Загружаю статистику приложений…')); return; }
 			if (!d || typeof d.enabled === 'undefined') { appTrafficBody.replaceChildren(E('div', { class: 'nfm-empty' }, 'Не удалось получить статистику. Проверьте, что сборщик Nightfall запущен.')); return; }
 			if (d.lite) { appTrafficBody.replaceChildren(E('div', { class: 'nfm-empty' }, [ E('b', {}, 'Учёт приложений недоступен в режиме Lite'), E('span', {}, 'Для экономии ресурсов режим Lite отключает DNS-журнал и разбор трафика по приложениям. Переключите монитор в режим «Мощный», если роутер справляется с нагрузкой.') ])); return; }
 			if (!d.enabled) { appTrafficBody.replaceChildren(E('div', { class: 'nfm-empty' }, [ E('b', {}, 'Учёт трафика по приложениям выключен'), E('span', {}, 'Включите его в настройках монитора: История → Настройки → «Учёт трафика по приложениям». После включения потребуется время, чтобы накопить DNS-сопоставления.') ])); return; }
+			if (d === appRenderedData && S.appPeriod === appRenderedPeriod && S.appDevice === appRenderedDevice) return;
 			const periodDays = S.appPeriod === '30' ? 30 : S.appPeriod === '7' ? 7 : 1;
 			const ips = Array.from(new Set([ ...(d.day || []).map(r => r[0]), ...(d.hist || []).map(r => r[1]) ])).filter(Boolean).sort();
 			if (!ips.includes(S.appDevice)) S.appDevice = '';
 			appDevice.replaceChildren(E('option', { value: '' }, 'Все устройства'), ...ips.map(ip => E('option', { value: ip }, (names[ip] || ip) + (names[ip] ? ' · ' + ip : ''))));
 			appDevice.value = S.appDevice;
 			appPeriod.value = S.appPeriod;
+			appRenderedData = d; appRenderedPeriod = S.appPeriod; appRenderedDevice = S.appDevice;
 			const result = sumMonitorAppTraffic(d, periodDays, S.appDevice);
 			const total = result.total, fmtShare = n => total ? nf1.format(n / total * 100) + '%' : '0%';
 			const summary = E('div', { class: 'nfm-tiles t4 nfm-app-summary' }, [
