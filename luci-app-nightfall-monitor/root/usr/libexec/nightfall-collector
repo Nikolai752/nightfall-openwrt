@@ -242,6 +242,11 @@ do_dns() {
 			if (a == "") { a = sld(chain ? cur : name); if (a != "" && a ~ /\./) a = "Прочее · " a; else a = "" }
 			if (a != "") print tolower(v) "|" a >> map
 		}'
+		# DNS ответы повторяются в журнале; оставляем каждую уникальную пару IP|app один раз.
+		# Разные приложения для одного IP сохраняются, порядок первого появления не меняется.
+		if [ -s "$DIR/dns.map" ]; then
+			awk '!seen[$0]++' "$DIR/dns.map" > "$DIR/dns.map.tmp" && mv "$DIR/dns.map.tmp" "$DIR/dns.map"
+		fi
 		n=$(wc -l < "$DIR/dns.map" 2>/dev/null | tr -d ' ')
 		if [ "${n:-0}" -gt 20000 ]; then tail -n 12000 "$DIR/dns.map" > "$DIR/dns.map.tmp" && mv "$DIR/dns.map.tmp" "$DIR/dns.map"; fi
 	fi
@@ -356,6 +361,8 @@ tunnel_present=0
 for ti in $(ip -o link show 2>/dev/null | awk -F': ' '$0 ~ /<[^>]*UP[,>]/ { sub(/@.*/, "", $2); print $2 }'); do
 	vpn_tunnel_dev "$ti" && { tunnel_present=1; break; }
 done
+# Сохраняем selectors обеих семейств адресов: второй проход не должен стирать IPv4.
+: > "$DIR/vpn.rules"
 for fam in 4 6; do
 	ip -"$fam" rule show 2>/dev/null | awk '
 		function hx(s,   i,c,n) { sub(/^0x/, "", s); s=tolower(s); n=0; for(i=1;i<=length(s);i++){ c=index("0123456789abcdef",substr(s,i,1))-1; if(c<0)return -1; n=n*16+c } return n }
@@ -372,7 +379,7 @@ for fam in 4 6; do
 			else policy=1
 		}
 		END { print "META",policy+0 }
-	' > "$DIR/vpn.rules"
+	' >> "$DIR/vpn.rules"
 	policy_unknown=0; vpn_rule_found=0
 	while read -r rv rm rt; do
 		[ "$rv" = META ] && { policy_unknown=$rm; continue; }
