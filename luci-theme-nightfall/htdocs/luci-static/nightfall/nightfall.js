@@ -1620,6 +1620,7 @@
 					refs.ver = h('div', { 'class': 'nf-ver' }),
 					h('label', { 'class': 'nf-pop-row' }, [ h('span', { text: 'Проверять обновления раз в неделю' }), h('span', { 'class': 'cbi-checkbox' }, [ refs.upd = h('input', { type: 'checkbox', onchange: function (ev) { set('updCheck', ev.target.checked); } }) ]) ]),
 					h('div', { 'class': 'nf-pop-io' }, [
+						h('button', { type: 'button', text: 'Что нового', onclick: showWhatsNew }),
 						h('button', { type: 'button', text: 'Проверить', onclick: function () { checkUpdate(true); } }),
 						h('a', { 'class': 'nf-pop-btn', href: 'https://github.com/' + REPO + '/releases', target: '_blank', rel: 'noopener', text: 'Страница релизов' })
 					]),
@@ -2084,6 +2085,27 @@
 	function loadChangelog(url) {
 		return window.fetch(url, { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error('nolog'); return r.text(); }).then(parseChangelog);
 	}
+	function showWhatsNew() {
+		if (!verInfo || !window.fetch) return;
+		loadChangelog(BASE + 'CHANGELOG.md?' + Date.now()).then(function (all) {
+			var list = all.filter(function (s) { return !isNewer(verInfo.version, s.v); }).slice(0, 4);
+			if (!list.length) {
+				openCard('Что нового', 'История изменений', null, verInfo.version, [
+					h('p', { 'class': 'nf-upd-note', text: 'Для установленной версии пока нет опубликованного раздела в CHANGELOG.md.' })
+				], [ h('button', { type: 'button', 'class': 'nf-upd-go', text: 'Закрыть', onclick: closeUpd }) ]);
+				return;
+			}
+			openCard('Что нового', 'Панель обновлена', list[list.length - 1].v, verInfo.version, [ renderChanges(list) ], [
+				h('button', { type: 'button', 'class': 'nf-upd-go', text: 'Понятно', onclick: function () {
+					lsSet(ACKKEY, verInfo.version); lsSet(SEENKEY, verInfo.version); closeUpd();
+				} })
+			]);
+		}).catch(function () {
+			openCard('Что нового', 'Не удалось загрузить журнал', null, verInfo.version, [
+				h('p', { 'class': 'nf-upd-note', text: 'CHANGELOG.md временно недоступен. Попробуйте ещё раз позже.' })
+			], [ h('button', { type: 'button', 'class': 'nf-upd-go', text: 'Закрыть', onclick: closeUpd }) ]);
+		});
+	}
 	/* После обновления показываем CHANGELOG. Версия считается просмотренной
 	 * только после нажатия «Понятно», а не до сетевой загрузки файла.
 	 * Это позволяет повторить попытку, если CHANGELOG временно недоступен.
@@ -2103,8 +2125,7 @@
 				? all.filter(function (s) { return !isNewer(cur, s.v); }).slice(0, 4)
 				: all.filter(function (s) { return isNewer(ack, s.v) && !isNewer(cur, s.v); }).slice(0, 4);
 			if (!list.length) {
-				/* Файл успешно получен, но подходящего раздела нет: повторять нечего. */
-				lsSet(ACKKEY, cur); lsSet(SEENKEY, cur);
+				/* Не подтверждаем просмотр: возможно, CHANGELOG ещё не опубликован вместе с релизом. */
 				return;
 			}
 			openCard('Что нового', 'Панель обновлена', legacy ? list[list.length - 1].v : ack, cur, [ renderChanges(list) ], [
