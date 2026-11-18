@@ -39,7 +39,7 @@ tar -xzf "$ARCHIVE" -C "$TMP/legacy"
 sed -i 's/^tool_version=.*/tool_version=1.27.7/' "$TMP/legacy/MANIFEST.txt"
 (cd "$TMP/legacy" && {
   sha256sum etc/nightfall-* > MANIFEST.sha256
-  printf '%s\\n' etc/nightfall-* MANIFEST.txt MANIFEST.sha256 > archive.list
+  printf '%s\n' etc/nightfall-* MANIFEST.txt MANIFEST.sha256 > archive.list
   tar -czf "$TMP/legacy-backup.tar.gz" -T archive.list
 })
 "$TOOL" list "$TMP/legacy-backup.tar.gz" > "$TMP/legacy-list"
