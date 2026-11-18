@@ -11,11 +11,31 @@ function load(f, line, a, d, n, i) {
     n = split(line, a, "|")
     if (n < 2 || a[1] == "") { print "FAIL: malformed rule: " line > "/dev/stderr"; failed++; continue }
     split(a[2], d, " ")
-    for (i in d) if (d[i] != "" && !(d[i] in dom)) dom[d[i]] = a[1]
+    for (i in d) if (d[i] != "") {
+      if (index(d[i], "*")) { nglob++; gpat[nglob] = d[i]; gapp[nglob] = a[1] }
+      else if (!(d[i] in dom)) dom[d[i]] = a[1]
+    }
   }
   close(f)
 }
-function cls(n, p) { n = tolower(n); while (1) { if (n in dom) return dom[n]; p = index(n, "."); if (!p) return ""; n = substr(n, p + 1) } }
+function globmatch(s, p, si, pi, star, mark, c) {
+  si = 1; pi = 1; star = 0; mark = 0
+  while (si <= length(s)) {
+    c = substr(p, pi, 1)
+    if (pi <= length(p) && c == substr(s, si, 1)) { si++; pi++ }
+    else if (pi <= length(p) && c == "*") { star = pi; mark = si; pi++ }
+    else if (star) { pi = star + 1; si = ++mark }
+    else return 0
+  }
+  while (substr(p, pi, 1) == "*") pi++
+  return pi > length(p)
+}
+function cls(n, p, i) {
+  n = tolower(n); sub(/\.$/, "", n); p = n
+  while (1) { if (p in dom) return dom[p]; p = index(p, "."); if (!p) break; p = substr(p, p + 1) }
+  for (i = 1; i <= nglob; i++) if (globmatch(n, gpat[i])) return gapp[i]
+  return ""
+}
 function check(host, want, got) { got = cls(host); if (got != want) { printf "FAIL: %s -> <%s>, expected <%s>\n", host, got, want > "/dev/stderr"; failed++ } else printf "OK: %s -> %s\n", host, got }
 BEGIN {
   load(rules)
@@ -29,6 +49,8 @@ BEGIN {
   check("i.okcdn.ru", "")
   check("calls.okcdn.ru", "MAX")
   check("videowebrtc.okcdn.ru", "MAX")
+  check("videostun17.okcdn.ru", "MAX")
+  check("call123-abc.vkuser.net", "MAX")
   check("ok.ru", "Одноклассники")
   check("vkuserphoto.ru", "ВКонтакте")
   check("vkuser.net", "")
