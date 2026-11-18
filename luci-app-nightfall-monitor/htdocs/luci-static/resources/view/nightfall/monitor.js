@@ -144,7 +144,7 @@ const XCSS = `
 .nfm-app-summary .nfm-tile small { display:block; margin-top:3px; }
 .nfm-app-categories { display:grid; gap:8px; }
 .nfm-app-category { border:1px solid var(--nfm-border); border-radius:9px; background:var(--nfm-card2); overflow:hidden; }
-.nfm-app-category > summary { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:8px 12px; align-items:center; padding:11px 12px; cursor:pointer; list-style:none; font-size:13px; }
+.nfm-app-category > summary { display:grid; grid-template-columns:12px minmax(0,1fr) auto auto; gap:8px 12px; align-items:center; padding:11px 12px; cursor:pointer; list-style:none; font-size:13px; }
 .nfm-app-category > summary::-webkit-details-marker { display:none; }
 .nfm-app-category > summary::before { content:'›'; color:var(--nfm-dim); font-size:18px; transform:rotate(0); transition:transform .15s; }
 .nfm-app-category[open] > summary::before { transform:rotate(90deg); }
@@ -218,6 +218,13 @@ function appTrafficCategory(name) {
 		return 'Не определено';
 	}
 	return APP_TRAFFIC_CATEGORIES[name] || 'Другие приложения';
+}
+
+function appTrafficDisplayName(name) {
+	const m = /^Прочее(?: · (.+))?$/.exec(name || '');
+	if (!m) return name || 'Неизвестное приложение';
+	const domain = m[1] || '';
+	return ({ 'Нет DNS-имени': 'IP без DNS-имени', 'Общий IP (CDN)': 'Общий IP / CDN', 'Несколько доменов': 'Несколько доменов' })[domain] || domain || 'IP без DNS-имени';
 }
 
 function sumMonitorAppTraffic(data, days, ip) {
@@ -1924,7 +1931,7 @@ return view.extend({
 				const details = E('details', { class: 'nfm-app-category' }, [
 					E('summary', {}, [ E('span', {}, c.name), E('b', {}, fmtBytes(c.total)), E('small', {}, fmtShare(c.total)) ]),
 					E('div', { class: 'nfm-app-category-items' }, apps.map(a => E('div', { class: 'nfm-app-item' }, [
-						E('span', { class: 'nfm-app-item-name' }, a.name.replace(/^Прочее(?: · )?/, '') || 'IP без DNS-имени'),
+						E('span', { class: 'nfm-app-item-name' }, appTrafficDisplayName(a.name)),
 						E('span', { class: 'nfm-app-item-route' }, [ 'VPN', 'Direct', 'Unknown' ].filter(k => a.routes[k] > 0).map(k => E('small', { class: 'nfm-chip', title: (k === 'VPN' ? 'VPN' : k === 'Direct' ? 'Напрямую' : 'Неизвестный маршрут') + ': ' + fmtBytes(a.routes[k]) }, (k === 'VPN' ? 'VPN' : k === 'Direct' ? 'Напрямую' : 'Неизв.') + ' ' + fmtBytes(a.routes[k])))),
 						E('b', {}, fmtBytes(a.total))
 					])))
@@ -1939,7 +1946,7 @@ return view.extend({
 				E('small', {}, [ 'VPN', 'Direct', 'Unknown' ].filter(k => a.routes[k] > 0).map(k => (k === 'VPN' ? 'VPN' : k === 'Direct' ? 'Напрямую' : 'Неизв.') + ': ' + fmtBytes(a.routes[k])).join(' · '))
 			])) : [ E('div', { class: 'nfm-empty' }, 'Нераспознанных записей пока нет.') ]);
 			const appsBox = E('div', { class: 'nfm-app-top-list' }, top.length ? top.map(a => E('div', { class: 'nfm-host' }, [
-				E('span', {}, [ a.name.replace(/^Прочее(?: · )?/, '') || 'IP без DNS-имени', E('small', {}, a.category) ]),
+				E('span', {}, [ appTrafficDisplayName(a.name), E('small', {}, a.category) ]),
 				E('b', {}, fmtBytes(a.total)),
 				E('div', { class: 'nfm-bar' }, E('div', { class: 'nfm-bar-fill ' + (a.category === 'Не определено' ? 'gx' : 'c-cpu'), style: 'width:' + (a.total / Math.max(1, top[0].total) * 100).toFixed(1) + '%' }))
 			])) : [ E('div', { class: 'nfm-empty' }, 'За выбранный период трафик ещё не накоплен.') ]);
