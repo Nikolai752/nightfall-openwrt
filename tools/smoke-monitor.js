@@ -55,8 +55,14 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 (async () => {
 	const b = await chromium.launch();
 	const names = { wifi: 'Wi-Fi клиенты', devs: 'Доступ в интернет', apps: 'Трафик по категориям', diag: 'Диагностика сети', sec: 'Сводка безопасности', log: 'Журнал событий' };
-	for (const [vn, vp] of [ [ 'desktop', { width: 1280, height: 900 } ], [ 'mobile', { width: 390, height: 800 } ] ]) {
-		const p = await b.newPage({ viewport: vp, isMobile: vn === 'mobile', hasTouch: vn === 'mobile' });
+	for (const [vn, vp] of [
+		[ 'desktop', { width: 1280, height: 900 } ],
+		[ 'mobile', { width: 390, height: 800 } ],
+		[ 'iphone-15-pro-max', { width: 430, height: 932 } ],
+		[ 'iphone-16-pro-max', { width: 440, height: 956 } ]
+	]) {
+		const mobile = vn !== 'desktop';
+		const p = await b.newPage({ viewport: vp, isMobile: mobile, hasTouch: mobile });
 		const errs = [];
 		p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
 		await p.exposeFunction('__exec', (c, a) => EXEC(c, a));
@@ -159,6 +165,16 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				await p.selectOption('select[aria-label="Устройство для статистики приложений"]', '192.168.1.20');
 				await p.selectOption('select[aria-label="Период статистики приложений"]', '7');
 				await p.waitForTimeout(250);
+				const geometry = await p.evaluate(() => {
+					const panel = document.querySelector('.nfm-app-distribution');
+					const donut = document.querySelector('.nfm-app-donut');
+					const legend = document.querySelector('.nfm-app-legend');
+					const a = panel.getBoundingClientRect(), d = donut.getBoundingClientRect(), l = legend.getBoundingClientRect();
+					return { panelRight: a.right, viewport: innerWidth, donutTop: d.top, legendTop: l.top, panelWidth: a.width };
+				});
+				if (geometry.panelRight > geometry.viewport + 1) bad(vn + ': панель распределения выходит за ширину экрана');
+				if (mobile && geometry.legendTop < geometry.donutTop + 100) bad(vn + ': легенда не расположена под диаграммой на телефоне');
+				if (!mobile && geometry.legendTop > geometry.donutTop + 80) bad(vn + ': легенда не расположена рядом с диаграммой на десктопе');
 				await p.screenshot({ path: path.join(OUT, 'monitor-app-traffic-' + vn + '.png'), fullPage: true });
 			}
 			if (k === 'procs') {
