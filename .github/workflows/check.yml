@@ -13,6 +13,22 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: ./tools/check.sh
+      - name: Сборка кандидата стабильного релиза 1.28.0
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/resource-monitor-app-traffic'
+        env:
+          VERSION: v1.28.0
+        run: sh ./build-release.sh
+      - name: Проверка установочного архива 1.28.0
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/resource-monitor-app-traffic'
+        env:
+          VERSION: v1.28.0
+        run: |
+          set -eu
+          test -s dist/nightfall-root.tar.gz
+          test -s dist/nightfall-root.tar.gz.sha256
+          (cd dist && sha256sum -c nightfall-root.tar.gz.sha256)
+          tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | grep -q '"version": "1.28.0"'
+          tar -xOf dist/nightfall-root.tar.gz ./usr/share/ucode/luci/template/themes/nightfall/header.ut | grep -q '?v=1.28.0'
       - name: Проверка службы и скриптов мониторинга
         run: sh tools/test-service.sh
       - name: "USB-хранилище: отключение и восстановление"
