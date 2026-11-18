@@ -70,7 +70,7 @@ BEGIN {
   if(app!="") put(tolower(v),app,now,host)
 }
 END {
-  for(k in seen) { split(k,a,SUBSEP); print a[1] "|" a[2] "|" seen[k] }
+  for(k in seen) { split(k,a,SUBSEP); print a[1] "|" seen_app[k] "|" seen[k] "|" a[2] }
 }' | sort -t '|' -k3,3nr | head -n 20000 > "$TMP"
 mv "$TMP" "$MAP"
 trap - EXIT HUP INT TERM
