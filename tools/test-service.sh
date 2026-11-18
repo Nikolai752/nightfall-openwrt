@@ -12,12 +12,12 @@ for f in "$INIT" "$COLLECTOR" "$BACKUP" "$UPDATE" "$UNINSTALL"; do
   sh -n "$f"
 done
 
-grep -q '^USE_PROCD=1$' "$INIT"
+grep -Fq 'USE_PROCD=1' "$INIT"
 grep -q 'procd_set_param command /usr/libexec/nightfall-collector' "$INIT"
 grep -q 'procd_set_param respawn' "$INIT"
 grep -q 'procd_set_param nice 10' "$INIT"
 grep -q 'procd_set_param command /usr/libexec/nightfall-bot' "$INIT"
-grep -q 'if [ "$(cfg TG)" = 1 ]' "$INIT"
+grep -Fq 'if [ "$(cfg TG)" = 1 ]' "$INIT"
 
 # Lite mode must lower collection frequency and disable the two optional collectors.
 grep -q 'if [ "$LITE" = 1 ]' "$COLLECTOR"
