@@ -340,8 +340,10 @@ done
 # Собираем фактические policy-route selectors. Не предполагаем фиксированные имена интерфейсов или значения fwmark.
 vpn_tunnel_dev() {
 	[ -n "$1" ] || return 1
-	vi=$(ip -d link show dev "$1" 2>/dev/null)
-	case "$vi" in *wireguard*|*"tun"*) return 0 ;; esac
+	vi=$(ip -d link show dev "$1" 2>/dev/null | tr 'A-Z' 'a-z')
+	# AmneziaWG reports its link kind as "amneziawg", not "wireguard";
+	# custom interface names (for example zmwarp) therefore need type detection.
+	case "$vi" in *wireguard*|*amneziawg*|*"tun"*) return 0 ;; esac
 	vt=$(ip tuntap show dev "$1" 2>/dev/null)
 	case "$vt" in "$1: tun"*|"$1: tap"*) return 0 ;; esac
 	case "$1" in wg*|tun*|tap*|tailscale*|zt*|xfrm*|gre*|gretap*|ipip*|sit*|vti*) return 0 ;; esac
