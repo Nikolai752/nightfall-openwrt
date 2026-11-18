@@ -1850,7 +1850,7 @@ function appsCard() {
 				const routeBadges = [ 'VPN', 'Direct', 'Unknown' ].filter(route => r.routes[route] > 0).map(route => E('small', {
 						class: 'nf-apps-route nf-apps-route-' + route.toLowerCase(),
 						title: (route === 'VPN' ? 'VPN' : route === 'Direct' ? 'Напрямую' : 'Неизвестно') + ': ' + fmtBytes(r.routes[route])
-					}, (route === 'VPN' ? 'VPN' : route === 'Direct' ? 'Прямо' : '?') + ' · ' + fmtBytes(r.routes[route])));
+					}, (route === 'VPN' ? 'VPN' : route === 'Direct' ? 'Прямо' : 'Неизв.') + ' · ' + fmtBytes(r.routes[route])));
 				content.push(E('div', { class: 'nf-apps-r', style: '--c:' + (APP_COLORS[r.a] || 'var(--nf-text-dim)') }, [
 					E('div', { class: 'nf-apps-n' }, [
 						E('div', { class: 'nf-apps-title' }, [ r.a === 'Прочее' ? E('i') : appGlyph(r.a), E('b', {}, r.a) ]),
@@ -1863,12 +1863,30 @@ function appsCard() {
 				]));
 				/* из чего состоит «Прочее»: самые тяжёлые домены (по ним можно добавить правило в /etc/nightfall-apps.list) */
 				if (r.a === 'Прочее') {
-					const top = Object.keys(other).map(k => { const a = k.split(String.fromCharCode(31)); const label = (a[0] || 'прямые адреса без имени') + ' · ' + (a[1] === 'VPN' ? 'VPN' : a[1] === 'Direct' ? 'напрямую' : 'неизвестно'); return { k: label.replace(/[\x00-\x1f\x7f]/g, ''), t: other[k][0] + other[k][1] }; }).filter(x => x.t > 0).sort((x, y) => y.t - x.t);
+					const top = Object.keys(other).map(k => {
+						const a = k.split(String.fromCharCode(31));
+						const route = a[1] === 'VPN' ? 'VPN' : a[1] === 'Direct' ? 'Direct' : 'Unknown';
+						return { domain: a[0] || 'IP без имени', route, t: other[k][0] + other[k][1] };
+					}).filter(x => x.t > 0).sort((x, y) => y.t - x.t);
 					if (top.length) {
-						const shown = showOther ? top : top.slice(0, 4);
-						content.push(E('div', { class: 'nf-apps-other' }, [
-							E('div', { class: 'nf-apps-sub' }, [ E('b', {}, 'Состав «Прочее»'), E('span', {}, top.length + ' записей') ].concat(shown.map(x => E('span', { class: 'nf-apps-chip', title: x.k }, [ x.k + ' ', E('b', {}, fmtBytes(x.t)) ])))),
-							top.length > 8 ? E('button', { type: 'button', class: 'nf-apps-more', click: () => { showOther = !showOther; render(); } }, showOther ? 'Свернуть список' : 'Ещё домены (' + top.length + ')') : null
+						const otherTotal = top.reduce((n, x) => n + x.t, 0);
+						const shown = showOther ? top : top.slice(0, 6);
+						content.push(E('section', { class: 'nf-apps-other-panel', 'aria-label': 'Состав нераспознанного трафика' }, [
+							E('div', { class: 'nf-apps-other-head' }, [
+								E('div', { class: 'nf-apps-other-heading' }, [
+									E('b', {}, 'Не распознано'),
+									E('span', {}, top.length + ' сочетаний домена и маршрута')
+								]),
+								E('strong', {}, fmtBytes(otherTotal))
+							]),
+							E('p', { class: 'nf-apps-other-note' }, 'Домен известен, но пока нет надёжного правила, чтобы отнести его к конкретному приложению. Общие CDN намеренно остаются здесь.'),
+							E('div', { class: 'nf-apps-other-list' }, shown.map(x => E('div', { class: 'nf-apps-other-row' }, [
+								E('span', { class: 'nf-apps-other-domain', title: x.domain }, x.domain),
+								E('small', { class: 'nf-apps-other-route nf-apps-route-' + x.route.toLowerCase() }, x.route === 'VPN' ? 'VPN' : x.route === 'Direct' ? 'Напрямую' : 'Неизв.'),
+								E('b', { class: 'nf-apps-other-size' }, fmtBytes(x.t)),
+								E('span', { class: 'nf-apps-other-share' }, nf1.format(x.t / otherTotal * 100) + '%')
+							]))),
+							top.length > 6 ? E('button', { type: 'button', class: 'nf-apps-more', 'aria-expanded': String(showOther), click: () => { showOther = !showOther; render(); } }, showOther ? 'Свернуть список' : 'Показать все (' + top.length + ')') : null
 						]));
 					}
 				}
