@@ -2011,8 +2011,9 @@ return view.extend({
 			]));
 			const primaryLegend = E('div', { class: 'nfm-app-legend' }, legendRows.slice(0, 6));
 			const remaining = legendRows.slice(6);
+			const remainingTotal = result.categories.slice(6).reduce((sum, c) => sum + c.total, 0);
 			if (remaining.length) primaryLegend.appendChild(E('details', { class: 'nfm-app-legend-more' }, [
-				E('summary', {}, [ E('span', {}, 'Прочие (' + remaining.length + ' категорий)'), E('span', {}, fmtBytes(remaining.reduce((sum, c) => sum + (Number(c.textContent) || 0), 0))) ]),
+				E('summary', {}, [ E('span', {}, 'Прочие (' + remaining.length + ' категорий)'), E('span', {}, fmtBytes(remainingTotal)) ]),
 				E('div', { class: 'nfm-app-legend' }, remaining)
 			]));
 			const donutBox = E('div', { class: 'nfm-app-distribution' }, [ donut, primaryLegend ]);
