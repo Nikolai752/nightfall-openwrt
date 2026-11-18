@@ -29,10 +29,11 @@ function sld(n,   p,k) {
   if (length(p[k])==2 && p[k-1] ~ /^(co|com|net|org|gov|edu|ac)$/) return p[k-2] "." p[k-1] "." p[k]
   return p[k-1] "." p[k]
 }
-function put(ip,app,key) {
+function put(ip,app,stamp,key) {
   if (ip=="" || app=="") return
   key=ip SUBSEP app
-  seen[key]=now
+  stamp=(stamp=="" ? now : stamp+0)
+  if (!(key in seen) || stamp>seen[key]) seen[key]=stamp
 }
 BEGIN {
   load(urules); load(rules)
@@ -48,7 +49,7 @@ BEGIN {
         resolved=cls(substr(app,10))
         if (resolved!="") app=resolved
       }
-      put(tolower(a[1]),app)
+      put(tolower(a[1]),app,a[3])
     }
   }
   close(map)
@@ -64,7 +65,7 @@ BEGIN {
   if(v !~ /^[0-9a-fA-F.:]+$/) next
   app=""; if(chain) app=cls(cur); if(app=="") app=cls(name)
   if(app=="") { app=sld(chain ? cur : name); if(app!="" && app ~ /\./) app="Прочее · " app; else app="" }
-  if(app!="") put(tolower(v),app)
+  if(app!="") put(tolower(v),app,now)
 }
 END {
   for(k in seen) { split(k,a,SUBSEP); print a[1] "|" a[2] "|" seen[k] }
