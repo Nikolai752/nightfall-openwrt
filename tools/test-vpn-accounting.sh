@@ -23,19 +23,20 @@ BEGIN {
   rf[1] = "4"; rv[1] = 1048576; rm[1] = 267386880; rc[1] = "VPN"
   rf[2] = "4"; rv[2] = 5242880; rm[2] = 267386880; rc[2] = "VPN"
   rf[3] = "6"; rv[3] = 1048576; rm[3] = 267386880; rc[3] = "VPN"
-  main_dev["4"] = "eth0"; main_tunnel["4"] = 0; policy_unknown["4"] = 0
-  main_dev["6"] = "eth0"; main_tunnel["6"] = 0; policy_unknown["6"] = 0
+  main_dev["4"] = "eth0"; main_tunnel["4"] = 0; policy_unknown["4"] = 0; tunnel_present["4"] = 1; vpn_rule_found["4"] = 1
+  main_dev["6"] = "eth0"; main_tunnel["6"] = 0; policy_unknown["6"] = 0; tunnel_present["6"] = 1; vpn_rule_found["6"] = 1
   check("VLESS/WARP route mark 0x40100000", routeof("1074790400", "4"), "VPN")
   check("second VPN route mark 0x40500000", routeof("1078984704", "4"), "VPN")
   check("IPv6 selective VPN route mark", routeof("1074790400", "6"), "VPN")
   check("Zapret-only mark is not mistaken for VPN", routeof("1073741824", "4"), "Direct")
   check("unmarked flow on ordinary WAN", routeof("0", "4"), "Direct")
+  check("missing conntrack mark with VPN rules is Unknown", routeof("", "4"), "Unknown")
 
-  nr = 0
+  nr = 0; tunnel_present["4"] = 0; vpn_rule_found["4"] = 0
   check("router without VPN classifies WAN as Direct", routeof("0", "4"), "Direct")
   main_dev["4"] = "wg0"; main_tunnel["4"] = 1
   check("full-tunnel WireGuard default route", routeof("0", "4"), "VPN")
-  main_dev["4"] = "eth0"; main_tunnel["4"] = 0; policy_unknown["4"] = 1
+  main_dev["4"] = "eth0"; main_tunnel["4"] = 0; policy_unknown["4"] = 1; tunnel_present["4"] = 1; vpn_rule_found["4"] = 0
   check("unsupported source-policy routing stays Unknown", routeof("0", "4"), "Unknown")
   nr = 1; rf[1] = "4"; rv[1] = 123; rm[1] = 255; rc[1] = "Unknown"
   check("matching non-tunnel policy route stays Unknown", routeof("123", "4"), "Unknown")
