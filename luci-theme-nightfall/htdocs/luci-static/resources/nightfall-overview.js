@@ -1850,7 +1850,7 @@ function appsCard() {
 				const routeBadges = [ 'VPN', 'Direct', 'Unknown' ].filter(route => r.routes[route] > 0).map(route => E('small', {
 						class: 'nf-apps-route nf-apps-route-' + route.toLowerCase(),
 						title: (route === 'VPN' ? 'VPN' : route === 'Direct' ? 'Напрямую' : 'Неизвестно') + ': ' + fmtBytes(r.routes[route])
-					}, (route === 'VPN' ? 'VPN' : route === 'Direct' ? 'Прямо' : '?')));
+					}, (route === 'VPN' ? 'VPN' : route === 'Direct' ? 'Прямо' : '?') + ' · ' + fmtBytes(r.routes[route])));
 				content.push(E('div', { class: 'nf-apps-r', style: '--c:' + (APP_COLORS[r.a] || 'var(--nf-text-dim)') }, [
 					E('div', { class: 'nf-apps-n' }, [
 						E('div', { class: 'nf-apps-title' }, [ r.a === 'Прочее' ? E('i') : appGlyph(r.a), E('b', {}, r.a) ]),
@@ -1863,7 +1863,7 @@ function appsCard() {
 				]));
 				/* из чего состоит «Прочее»: самые тяжёлые домены (по ним можно добавить правило в /etc/nightfall-apps.list) */
 				if (r.a === 'Прочее') {
-					const top = Object.keys(other).map(k => { const a = k.split('\\u001f'); return { k: (a[0] || 'прямые адреса без имени') + ' · ' + (a[1] === 'VPN' ? 'VPN' : a[1] === 'Direct' ? 'напрямую' : 'неизвестно'), t: other[k][0] + other[k][1] }; }).filter(x => x.t > 0).sort((x, y) => y.t - x.t);
+					const top = Object.keys(other).map(k => { const a = k.split('\u001f'); return { k: (a[0] || 'прямые адреса без имени') + ' · ' + (a[1] === 'VPN' ? 'VPN' : a[1] === 'Direct' ? 'напрямую' : 'неизвестно'), t: other[k][0] + other[k][1] }; }).filter(x => x.t > 0).sort((x, y) => y.t - x.t);
 					if (top.length) {
 						const shown = showOther ? top : top.slice(0, 4);
 						content.push(E('div', { class: 'nf-apps-other' }, [
