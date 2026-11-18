@@ -189,10 +189,34 @@ awk '
 }
 END { exit bad }
 ' "$WORK/all.list" || die "в архиве недопустимые пути"
-# Не допускаем ссылки и специальные файлы: извлекаются только обычные файлы и каталоги.
+# Проверяем типы записей: разрешены только 7 штатных symlink Nightfall.
 tar -tvzf "$ARCH" > "$WORK/verbose.list" 2>/dev/null || die "не удалось проверить типы записей архива"
-awk 'substr($1,1,1) != "-" && substr($1,1,1) != "d" { bad=1 } END { exit bad }' "$WORK/verbose.list" ||
-  die "в архиве обнаружены ссылки или специальные файлы"
+# Разрешаем только штатные symlink Nightfall; любые другие ссылки и спецфайлы запрещены.
+validate_archive_types() {
+  awk '
+  function allowed(p, t) {
+    return (p == "./usr/share/ucode/luci/template/themes/nightfall-dark" && t == "nightfall") ||
+           (p == "./usr/share/ucode/luci/template/themes/nightfall-light" && t == "nightfall") ||
+           (p == "./www/luci-static/nightfall-dark" && t == "nightfall") ||
+           (p == "./www/luci-static/nightfall-light" && t == "nightfall") ||
+           (p == "./www/luci-static/nightfall/bg.json" && t == "/etc/nightfall-bg.json") ||
+           (p == "./www/luci-static/nightfall/prefs.json" && t == "/etc/nightfall-prefs.json") ||
+           (p == "./www/luci-static/nightfall/logo.json" && t == "/etc/nightfall-logo.json")
+  }
+  {
+    type=substr($0,1,1)
+    if (type == "-" || type == "d") next
+    if (type != "l") { bad=1; next }
+    n=split($0, pair, " -> ")
+    if (n != 2) { bad=1; next }
+    path=pair[1]; sub(/^.* /, "", path)
+    target=pair[2]
+    if (!allowed(path,target) || seen[path]++) bad=1
+  }
+  END { exit bad }
+  ' "$1"
+}
+validate_archive_types "$WORK/verbose.list" || die "в архиве обнаружены недопустимые ссылки или специальные файлы"
 NEW=$(archive_ver "$ARCH")
 [ -n "$NEW" ] || die "в архиве нет файла версии (слишком старый или повреждённый архив)"
 if [ -n "$TAG" ] && [ "$NEW" != "${TAG#v}" ]; then
