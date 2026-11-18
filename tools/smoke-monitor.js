@@ -17,7 +17,14 @@ const EXEC = (cmd, args) => {
 	if (n === 'nightfall-stats') return run('nightfall-stats', args);
 	if (n === 'nightfall-sec' || n === 'nightfall-diag' || n === 'nightfall-log') return run(n, args);
 	if (n === 'nightfall-dns') return run(n, args, { NF_LOGREAD: path.join(T, 'dnslogread'), NF_UCI: path.join(T, 'uci_dns') });
-	if (n === 'nightfall-history') return args[0] === 'devices' ? JSON.stringify({ now: NOW, ts: NOW - 10, rate: [], day: [["192.168.1.20", 5000000, 1000000]], yday: [], neigh: [["192.168.1.20", "aa:bb:cc:dd:ee:01"]], info: {} }) : args[0] === 'wifi' && !args[1] ? JSON.stringify({ now: NOW, rows: [], events: [[NOW - 60, "aa:bb:cc:dd:ee:01", "join", "phy0"], [NOW - 120, "aa:bb:cc:dd:ee:01", "leave", "phy0"]] }) : args[0] === 'extip' ? JSON.stringify({ now: NOW, rows: [[NOW - 86400, "203.0.113.7", 0], [NOW - 60, "100.64.3.9", 1]] }) : args[0] === 'procmem' ? JSON.stringify({ now: NOW, rows: Array.from({ length: 8 }, (_, i) => [NOW - (7 - i) * 900, [["dnsmasq", 10000 + i * 3000], ["uhttpd", 3000]]]) }) : args[0] === 'known' ? '{"now":1794786100,"rows":[["AA:BB:CC:DD:EE:01","x",1794700000]]}' : args[0] === 'mode' ? '{"mode":"full","step":15}' : args[0] === 'journal' ? JSON.stringify({ now: NOW, rows: [[ NOW - 120, 'outage', 120, 'нет интернета' ], [ NOW - 600, 'boot', 0, 'Загрузка роутера' ]] }) : '{}';
+	if (n === 'nightfall-history') {
+		if (args[0] === 'series') {
+			const step = args[1] === 'long' ? 1800 : 15;
+			const rows = Array.from({ length: 12 }, (_, i) => [ NOW - (11 - i) * step, 12, 35, 48, 120000, 24000, 8, 24, 0, 10, 100000 ]);
+			return JSON.stringify({ now: NOW, range: args[1], rows, events: [], active: [], info: { started: NOW - 86400, step: 15, long_n: 48, persist: '1', hist_days: 30 } });
+		}
+		return args[0] === 'devices' ? JSON.stringify({ now: NOW, ts: NOW - 10, rate: [], day: [["192.168.1.20", 5000000, 1000000]], yday: [], neigh: [["192.168.1.20", "aa:bb:cc:dd:ee:01"]], info: {} }) : args[0] === 'wifi' && !args[1] ? JSON.stringify({ now: NOW, rows: [], events: [[NOW - 60, "aa:bb:cc:dd:ee:01", "join", "phy0"], [NOW - 120, "aa:bb:cc:dd:ee:01", "leave", "phy0"]] }) : args[0] === 'extip' ? JSON.stringify({ now: NOW, rows: [["203.0.113.7", NOW - 86400, 0], ["100.64.3.9", NOW - 60, 1]] }) : args[0] === 'procmem' ? JSON.stringify({ now: NOW, rows: Array.from({ length: 8 }, (_, i) => [NOW - (7 - i) * 900, [["dnsmasq", 10000 + i * 3000], ["uhttpd", 3000]]]) }) : args[0] === 'known' ? '{"now":1794786100,"rows":[["AA:BB:CC:DD:EE:01","x",1794700000]]}' : args[0] === 'mode' ? '{"mode":"full","step":15}' : args[0] === 'journal' ? JSON.stringify({ now: NOW, rows: [[ NOW - 120, 'outage', 120, 'нет интернета' ], [ NOW - 600, 'boot', 0, 'Загрузка роутера' ]] }) : '{}';
+	}
 	if (n === 'nightfall-block') return args[0] === 'log' ? JSON.stringify({ ok: true, log: [[ NOW - 20, 'aa:bb', 'Камера', 'on', 'вручную (интерфейс)' ], [ NOW - 10, 'aa:bb', 'Камера', 'off', 'по расписанию' ]] }) : '{"ok":true}';
 	return '';
 };
@@ -131,6 +138,15 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				const dn = await p.evaluate(() => document.body.textContent);
 				if (!dn.includes('DNS-запросы') || !dn.includes('Куда чаще обращаются')) bad(vn + ': нет карточки DNS во вкладке «Сеть»');
 				if (!dn.includes('Адрес WAN и CGNAT') || !dn.includes('CGNAT')) bad(vn + ': нет карточки CGNAT во вкладке «Сеть»');
+			}
+			if (k === 'hist') {
+				const q = await p.evaluate(() => ({
+					score: document.querySelector('.nfm-quality-score .score')?.textContent,
+					grade: document.querySelector('.nfm-quality-score .label')?.textContent,
+					hint: document.querySelector('.nfm-quality-score .hint')?.textContent
+				}));
+				if (q.score !== '100' || q.grade !== 'Отлично') bad(vn + ': индекс качества WAN неверен: ' + JSON.stringify(q));
+				if (!q.hint || !q.hint.includes('доступность 100,0%')) bad(vn + ': нет расшифровки индекса качества WAN: ' + JSON.stringify(q));
 			}
 			if (k === 'diag') {
 				await p.click('text=Проверить всё: шлюз, интернет, DNS'); await p.waitForTimeout(6000);
