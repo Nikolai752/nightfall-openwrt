@@ -1743,26 +1743,30 @@ function ymd(d) { return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.
 /* суммы по приложениям за период: today — строки «ip, приложение, вниз, вверх», hist — то же с датой первой колонкой.
    «Прочее · домен» сворачивается в «Прочее», а домены уходят в подробности (other). */
 function sumApps(data, days, ip) {
-	const tot = {}, other = {};
-	const add = (a, d, u) => {
+	const tot = {}, other = {}, routes = { VPN: 0, Direct: 0, Unknown: 0 };
+	const add = (a, route, d, u) => {
+		route = [ 'VPN', 'Direct', 'Unknown' ].includes(route) ? route : 'Unknown';
 		const m = /^Прочее(?: · (.+))?$/.exec(a);
 		if (m) {
-			const t = other[m[1] || ''] || (other[m[1] || ''] = [ 0, 0 ]);
+			const k = (m[1] || '') + '\u001f' + route;
+			const t = other[k] || (other[k] = [ 0, 0 ]);
 			t[0] += d; t[1] += u;
 			a = 'Прочее';
 		}
-		const t = tot[a] || (tot[a] = [ 0, 0 ]);
+		const k = a + '\u001f' + route;
+		const t = tot[k] || (tot[k] = [ 0, 0, a, route ]);
 		t[0] += d; t[1] += u;
+		routes[route] += d + u;
 	};
-	for (const [ i, a, d, u ] of data.day || []) if (!ip || i === ip) add(a, d, u);
+	for (const r of data.day || []) if (!ip || r[0] === ip) add(r[1], r.length >= 5 ? r[2] : 'Unknown', r.length >= 5 ? r[3] : r[2], r.length >= 5 ? r[4] : r[3]);
 	if (days > 1) {
 		const t = String(data.today || '');
 		const base = /^\d{8}$/.test(t) ? new Date(+t.slice(0, 4), +t.slice(4, 6) - 1, +t.slice(6, 8)) : new Date();
 		base.setDate(base.getDate() - (days - 1));
 		const from = ymd(base);
-		for (const [ dt, i, a, d, u ] of data.hist || []) if (+dt >= from && (!ip || i === ip)) add(a, d, u);
+		for (const r of data.hist || []) if (+r[0] >= from && (!ip || r[1] === ip)) add(r[2], r.length >= 6 ? r[3] : 'Unknown', r.length >= 6 ? r[4] : r[3], r.length >= 6 ? r[5] : r[4]);
 	}
-	return { tot, other };
+	return { tot, other, routes };
 }
 
 function appsCard() {
@@ -1821,8 +1825,8 @@ function appsCard() {
 		const seg = E('div', { class: 'nf-apps-seg', role: 'group', 'aria-label': 'Период' }, PERIODS.map(x =>
 			E('button', { type: 'button', 'aria-pressed': String(x[0] === period), click: () => { period = x[0]; render(); } }, x[1])));
 
-		const { tot, other } = sumApps(data, p[2], dev);
-		const rows = Object.keys(tot).map(a => ({ a, d: tot[a][0], u: tot[a][1], t: tot[a][0] + tot[a][1] })).filter(r => r.t > 0).sort((x, y) => (x.a === 'Прочее') - (y.a === 'Прочее') || y.t - x.t);
+		const { tot, other, routes } = sumApps(data, p[2], dev);
+		const rows = Object.keys(tot).map(k => ({ a: tot[k][2], route: tot[k][3], d: tot[k][0], u: tot[k][1], t: tot[k][0] + tot[k][1] })).filter(r => r.t > 0).sort((x, y) => (x.a === 'Прочее') - (y.a === 'Прочее') || y.t - x.t);
 		const sum = rows.reduce((n, r) => n + r.t, 0);
 		const list = rows.slice(0, 9);
 		const content = [];
@@ -1833,21 +1837,21 @@ function appsCard() {
 			const mx = Math.max(1, ...list.map(r => r.t));
 			list.forEach(r => {
 				content.push(E('div', { class: 'nf-apps-r', style: '--c:' + (APP_COLORS[r.a] || 'var(--nf-text-dim)') }, [
-					E('div', { class: 'nf-apps-n' }, [ r.a === 'Прочее' ? E('i') : appGlyph(r.a), E('b', {}, r.a) ]),
+					E('div', { class: 'nf-apps-n' }, [ r.a === 'Прочее' ? E('i') : appGlyph(r.a), E('b', {}, r.a), E('small', { style: 'font-size:10px;padding:2px 6px;border-radius:99px;background:' + (r.route === 'VPN' ? 'rgba(139,92,246,.16);color:#a78bfa' : r.route === 'Direct' ? 'rgba(34,197,94,.13);color:#22c55e' : 'rgba(148,163,184,.16);color:var(--nf-text-dim)') }, r.route === 'VPN' ? 'VPN' : r.route === 'Direct' ? 'Напрямую' : 'Неизвестно') ]),
 					E('div', { class: 'nf-top-bar' }, E('i', { style: 'width:' + Math.max(2, Math.round(r.t / mx * 100)) + '%' })),
 					E('div', { class: 'nf-apps-v' }, [ E('b', {}, fmtBytes(r.t)), E('span', {}, '↓ ' + fmtBytes(r.d) + ' · ↑ ' + fmtBytes(r.u)) ]),
 					E('div', { class: 'nf-apps-p' }, sum ? nf0.format(r.t / sum * 100) + '%' : '')
 				]));
 				/* из чего состоит «Прочее»: самые тяжёлые домены (по ним можно добавить правило в /etc/nightfall-apps.list) */
 				if (r.a === 'Прочее') {
-					const top = Object.keys(other).map(k => ({ k: k || 'прямые адреса без имени', t: other[k][0] + other[k][1] })).filter(x => x.t > 0).sort((x, y) => y.t - x.t).slice(0, 6);
+					const top = Object.keys(other).map(k => { const a = k.split('\u001f'); return { k: (a[0] || 'прямые адреса без имени') + ' · ' + (a[1] === 'VPN' ? 'VPN' : a[1] === 'Direct' ? 'напрямую' : 'неизвестно'), t: other[k][0] + other[k][1] }; }).filter(x => x.t > 0).sort((x, y) => y.t - x.t).slice(0, 6);
 					if (top.length) content.push(E('div', { class: 'nf-apps-sub' }, [ E('span', {}, 'Крупнее всего:') ].concat(top.map(x => E('span', { class: 'nf-apps-chip', title: x.k }, [ x.k + ' ', E('b', {}, fmtBytes(x.t)) ])))));
 				}
 			});
 		}
 		body.replaceChildren(E('div', { class: 'nf-apps-bar' }, [ seg, sel ]), ...content,
 			E('div', { class: 'nf-apps-f' }, [
-				E('span', {}, 'Всего ' + fmtBytes(sum) + '. Данные приблизительные: известные VPN-серверы можно выделить отдельно в настройках монитора (IP:порт). Содержимое внутри зашифрованного туннеля и DNS-over-HTTPS/DoT определить нельзя.'),
+				E('span', {}, 'Всего ' + fmtBytes(sum) + ' · VPN ' + fmtBytes(routes.VPN) + ' · напрямую ' + fmtBytes(routes.Direct) + ' · не определено ' + fmtBytes(routes.Unknown) + '. Классификация основана на доступных правилах маршрутизации; при нестандартной схеме часть соединений может быть отмечена как неизвестная.'),
 				E('button', { type: 'button', class: 'nf-apps-stop', click: () => toggle('disable', 'Выключить учёт трафика по приложениям?\n\nЖурнал DNS в dnsmasq будет возвращён к прежним настройкам.') }, 'Выключить учёт')
 			]));
 	}
