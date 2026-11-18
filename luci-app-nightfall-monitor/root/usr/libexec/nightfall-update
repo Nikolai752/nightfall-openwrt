@@ -41,15 +41,45 @@ fetch() { # url out
 }
 
 rollback() {
-	if [ -f "$WORK/backup.tar.gz" ]; then
-		# сначала удаляем файлы, которых до обновления не было, затем возвращаем старые
-		[ -f "$WORK/added.list" ] && while IFS= read -r f; do rm -f "$ROOT/$f"; done < "$WORK/added.list"
-		tar -xzf "$WORK/backup.tar.gz" -C "${ROOT:-/}" 2>/dev/null
+	# Удаляем все файлы, которых не было до обновления. Ошибка удаления
+	# не должна скрываться: иначе новая версия может остаться частично.
+	ROLLBACK_ERROR=0
+	if [ -f "$WORK/added.list" ]; then
+		while IFS= read -r f; do
+			[ -n "$f" ] || continue
+			case "$f" in /*|../*|*/../*|*/..) ROLLBACK_ERROR=1; continue ;; esac
+			rm -f "$ROOT/$f" 2>/dev/null || ROLLBACK_ERROR=1
+			if [ -e "$ROOT/$f" ] || [ -L "$ROOT/$f" ]; then ROLLBACK_ERROR=1; fi
+		done < "$WORK/added.list"
 	fi
+
+	# Если старые файлы существовали, резервная копия обязательна.
+	if [ -f "$WORK/backup.tar.gz" ]; then
+		tar -xzf "$WORK/backup.tar.gz" -C "${ROOT:-/}" 2>/dev/null || ROLLBACK_ERROR=1
+	elif [ -s "$WORK/exist.list" ]; then
+		ROLLBACK_ERROR=1
+	fi
+
+	# Проверяем результат восстановления, а не только код возврата tar.
+	if [ -f "$WORK/exist.list" ]; then
+		while IFS= read -r f; do
+			[ -n "$f" ] || continue
+			if [ ! -e "$ROOT/$f" ] && [ ! -L "$ROOT/$f" ]; then ROLLBACK_ERROR=1; fi
+		done < "$WORK/exist.list"
+	fi
+	[ "$ROLLBACK_ERROR" -eq 0 ]
 }
 
 fail() { # msg [rollback]
-	[ -n "$2" ] && { rollback; state rolledback 100 "$1 Изменения отменены, прежняя версия возвращена."; } || state error 100 "$1"
+	if [ -n "$2" ]; then
+		if rollback; then
+			state rolledback 100 "$1 Изменения отменены, прежние файлы восстановлены."
+		else
+			state rollback_failed 100 "$1 КРИТИЧЕСКАЯ ОШИБКА: автоматический откат НЕ выполнен полностью. Требуется ручное восстановление из резервной копии."
+		fi
+	else
+		state error 100 "$1"
+	fi
 	rmdir "$LOCK" 2>/dev/null
 	exit 1
 }
