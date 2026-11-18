@@ -26,9 +26,10 @@ while [ "$#" -gt 0 ]; do
     *) url=$1; shift ;;
   esac
 done
+archive=${NF_TEST_ARCHIVE:-nightfall-root.tar.gz}
 case "$url" in
-  */nightfall-root.tar.gz.sha256) cp "$NF_TEST_FIXTURES/nightfall-root.tar.gz.sha256" "$out" ;;
-  */nightfall-root.tar.gz) cp "$NF_TEST_FIXTURES/nightfall-root.tar.gz" "$out" ;;
+  */nightfall-root.tar.gz.sha256) cp "$NF_TEST_FIXTURES/$archive.sha256" "$out" ;;
+  */nightfall-root.tar.gz) cp "$NF_TEST_FIXTURES/$archive" "$out" ;;
   *) exit 22 ;;
 esac
 EOF
@@ -64,7 +65,7 @@ run_case() {
   set +e
   PATH="$T/bin:/usr/bin:/bin" \
     NF_ROOT="$root" NF_TMP="$tmp" NF_BASE="https://fixture" NF_NORELOAD=1 \
-    NF_TEST_FIXTURES="$T/fixtures" NF_TEST_TMP="$tmp" NF_TEST_FAIL_BACKUP="$fail_backup" \
+    NF_TEST_FIXTURES="$T/fixtures" NF_TEST_TMP="$tmp" NF_TEST_FAIL_BACKUP="$fail_backup" NF_TEST_ARCHIVE="${4:-nightfall-root.tar.gz}" \
     sh "$UPDATER" run >/dev/null 2>&1
   rc=$?
   set -e
@@ -97,4 +98,21 @@ else
   exit 1
 fi
 
-echo "ИТОГО: LuCI updater rollback tests passed"
+
+echo "== отклонение архива с символической ссылкой =="
+mkdir -p "$T/malicious/www/luci-static/nightfall"
+cp "$T/stage/www/luci-static/nightfall/version.json" "$T/malicious/www/luci-static/nightfall/version.json"
+ln -s ../../../../etc/passwd "$T/malicious/www/luci-static/nightfall/escape"
+tar -czf "$T/fixtures/nightfall-malicious.tar.gz" -C "$T/malicious" .
+(cd "$T/fixtures" && sha256sum nightfall-malicious.tar.gz > nightfall-malicious.tar.gz.sha256)
+R="$T/root-malicious"; D="$T/tmp-malicious"
+if run_case "$R" "$D" 0 nightfall-malicious.tar.gz &&
+   grep -q '"state":"error"' "$D/nightfall-update.status" &&
+   [ ! -e "$R/etc/passwd" ]; then
+  echo "ok   архив с symlink отклонён до распаковки"
+else
+  echo "FAIL архив с symlink не был безопасно отклонён: $(cat "$D/nightfall-update.status" 2>/dev/null)"
+  exit 1
+fi
+
+echo "ИТОГО: LuCI updater security/rollback tests passed"
