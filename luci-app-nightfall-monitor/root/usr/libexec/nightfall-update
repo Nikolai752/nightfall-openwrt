@@ -147,8 +147,23 @@ run)
 	tar -tzf "$WORK/new.tar.gz" > "$WORK/all.list" 2>/dev/null || fail "Архив повреждён."
 	grep -q 'luci-static/nightfall/' "$WORK/all.list" || fail "В архиве нет файлов темы Nightfall."
 	grep -q 'luci-static/nightfall/version.json' "$WORK/all.list" || fail "В архиве нет файла версии."
-	# в архиве только относительные пути без выхода из корня
-	grep -q '^/\|\.\./' "$WORK/all.list" && fail "В архиве недопустимые пути."
+	# Проверяем каждый компонент пути: запрещаем абсолютные пути и ".."
+	# в любой позиции (включая завершающий компонент "foo/..").
+	awk '
+	{
+		p=$0
+		if (p ~ /^\\//) bad=1
+		sub(/^\\.\\//, "", p)
+		n=split(p, part, "/")
+		for (i=1; i<=n; i++) if (part[i] == "..") bad=1
+	}
+	END { exit bad }
+	' "$WORK/all.list" || fail "В архиве недопустимые пути."
+	# Разрешены только обычные файлы и каталоги. Symlink/hardlink и спецфайлы
+	# запрещены: tar не должен иметь возможности писать за пределами ROOT.
+	tar -tvzf "$WORK/new.tar.gz" 2>/dev/null |
+		awk 'substr($1,1,1) != "-" && substr($1,1,1) != "d" { bad=1 } END { exit bad }' ||
+		fail "В архиве обнаружены ссылки или специальные файлы."
 	EXPECTED=$( { tar -xzOf "$WORK/new.tar.gz" ./www/luci-static/nightfall/version.json 2>/dev/null || tar -xzOf "$WORK/new.tar.gz" www/luci-static/nightfall/version.json 2>/dev/null; } | sed -n 's/.*"version"[^"]*"\([^"]*\)".*/\1/p' | head -n1)
 	[ -n "$EXPECTED" ] || fail "В архиве отсутствует корректный файл версии."
 
