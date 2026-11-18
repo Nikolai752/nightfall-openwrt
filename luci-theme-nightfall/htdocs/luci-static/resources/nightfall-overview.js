@@ -1866,7 +1866,14 @@ function appsCard() {
 					const top = Object.keys(other).map(k => {
 						const a = k.split(String.fromCharCode(31));
 						const route = a[1] === 'VPN' ? 'VPN' : a[1] === 'Direct' ? 'Direct' : 'Unknown';
-						return { domain: a[0] || 'IP без имени', route, t: other[k][0] + other[k][1] };
+						const raw = a[0] || 'Нет DNS-имени';
+						const reasons = {
+							'Нет DNS-имени': 'Для IP не найдено актуального DNS-имени. Возможны прямое IP-подключение, DoH/DoT, внешний DNS, истёкшая запись или отсутствие DNS-журнала.',
+							'Общий IP (CDN)': 'Один IP встретился у нескольких известных приложений. Трафик оставлен нераспознанным, чтобы не приписывать его неверному сервису.',
+							'Несколько доменов': 'У IP обнаружено несколько разных неизвестных доменов. Нельзя безопасно выбрать один из них.'
+						};
+						const names = { 'Нет DNS-имени': 'IP без DNS-имени', 'Общий IP (CDN)': 'Общий IP / CDN', 'Несколько доменов': 'Несколько доменов' };
+						return { domain: names[raw] || raw, reason: reasons[raw] || '', route, t: other[k][0] + other[k][1] };
 					}).filter(x => x.t > 0).sort((x, y) => y.t - x.t);
 					if (top.length) {
 						const otherTotal = top.reduce((n, x) => n + x.t, 0);
@@ -1879,9 +1886,9 @@ function appsCard() {
 								]),
 								E('strong', {}, fmtBytes(otherTotal))
 							]),
-							E('p', { class: 'nf-apps-other-note' }, 'Домен известен, но пока нет надёжного правила, чтобы отнести его к конкретному приложению. Общие CDN намеренно остаются здесь.'),
+							E('p', { class: 'nf-apps-other-note' }, 'IP без DNS-имени может означать прямое подключение, DoH/DoT, внешний DNS или истёкшую запись. Общие CDN и конфликтующие домены остаются здесь, пока приложение нельзя определить надёжно.'),
 							E('div', { class: 'nf-apps-other-list' }, shown.map(x => E('div', { class: 'nf-apps-other-row' }, [
-								E('span', { class: 'nf-apps-other-domain', title: x.domain }, x.domain),
+								E('span', { class: 'nf-apps-other-domain', title: x.reason || x.domain }, x.domain),
 								E('small', { class: 'nf-apps-other-route nf-apps-route-' + x.route.toLowerCase() }, x.route === 'VPN' ? 'VPN' : x.route === 'Direct' ? 'Напрямую' : 'Неизв.'),
 								E('b', { class: 'nf-apps-other-size' }, fmtBytes(x.t)),
 								E('span', { class: 'nf-apps-other-share' }, nf1.format(x.t / otherTotal * 100) + '%')
