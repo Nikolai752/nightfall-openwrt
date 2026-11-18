@@ -88,6 +88,32 @@ chmod +x "$T/failtar/tar"
 out=$(cat "$REPO/install-update.sh" | env PATH="$T/failtar:$PATH" NF_ROOT="$R" NF_TMP="$T/tmp" NF_API="$B/api.json" NF_RAW="$B" NF_DL="$B/dl" sh -s -- 2>&1)
 echo "$out" | grep -q "обновление отменено" && [ "$(ver "$R")" = 1.0.0 ] && pass "ошибка backup останавливает обновление до замены файлов" || fail "обновление продолжилось или изменило версию: $out"
 
+echo "== откат при несовпадении версии после распаковки =="
+R=$T/r11; run "$R" --version v1.0.0 >/dev/null
+mkdir -p "$T/mismatch-tar"
+cat > "$T/mismatch-tar/tar" <<'EOF'
+#!/bin/sh
+case "$1:$2" in
+  -xzf:*nightfall-root.tar.gz)
+    archive=$2; shift 2
+    /bin/tar -xzf "$archive" "$@" || exit $?
+    while [ $# -gt 0 ]; do
+      if [ "$1" = -C ]; then root=$2; break; fi
+      shift
+    done
+    printf '{ "version": "9.9.9" }\\n' > "$root/www/luci-static/nightfall/version.json"
+    exit 0
+    ;;
+esac
+exec /bin/tar "$@"
+EOF
+chmod +x "$T/mismatch-tar/tar"
+out=$(cat "$REPO/install-update.sh" | env PATH="$T/mismatch-tar:$PATH" NF_ROOT="$R" NF_TMP="$T/tmp" NF_API="$B/api.json" NF_RAW="$B" NF_DL="$B/dl" sh -s -- 2>&1)
+[ "$(ver "$R")" = 1.0.0 ] && grep -q "прежняя версия восстановлена" <<EOF_OUT
+$out
+EOF_OUT
+  pass "несовпадение итоговой версии возвращает предыдущую установку" || fail "пост-установочная проверка не восстановила старую версию: $out"
+
 echo "== защита от битых релизов =="
 R=$T/r4; run "$R" --version v1.0.0 >/dev/null
 out=$(run "$R" --version v3.0.0); echo "$out" | grep -q "лежит архив версии 2.0.0" && [ "$(ver "$R")" = 1.0.0 ] && pass "архив не той версии отклонён, файлы не тронуты" || fail "не той версии: $out ($(ver "$R"))"
