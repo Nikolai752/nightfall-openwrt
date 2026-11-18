@@ -706,7 +706,7 @@ restore() {
 		on_flash "$PWD" && exit 1
 		[ -n "$rel" ] && { [ -d "$rel" ] || exit 0; cd "$rel" 2>/dev/null || exit 1; }
 		on_flash "$PWD" && exit 1
-		app_version=$(cat apps.v 2>/dev/null)
+		app_version=$(cat apps.v 2>/dev/null || true)
 		for f in $PFILES; do
 			case "$f" in apps.day|apps.hist|apps.v) [ "$app_version" = 2 ] || continue ;; esac
 			[ -f "$f" ] || continue
