@@ -6259,6 +6259,25 @@ body.nf-blank #modal_overlay > .modal.login { --nf-mw: 380px; width: 100%; max-w
 	html .table .tr.placeholder > .td em.spinning { padding: 10px 0 10px 32px !important; text-align: left; }
 }
 
+/* Mobile empty-state alignment: keep the placeholder row and its cell at the full
+   table width even when mobile.css turns tables into flex/card layouts. */
+@media (max-width: 899px), (max-device-width: 854px) {
+	html body #view .table:has(> .tr.placeholder) {
+		display: flex !important; flex-direction: column !important; align-items: stretch !important;
+		width: 100% !important; min-width: 0 !important;
+	}
+	html body #view .table:has(> .tr.placeholder) > .tr.placeholder {
+		display: flex !important; flex: 0 0 auto !important; flex-direction: column !important;
+		align-self: stretch !important; width: 100% !important; min-width: 0 !important;
+	}
+	html body #view .table:has(> .tr.placeholder) > .tr.placeholder > .td {
+		display: flex !important; flex: 0 0 auto !important; align-items: center !important;
+		justify-content: center !important; width: 100% !important; max-width: 100% !important;
+		min-width: 0 !important; margin: 0 !important; text-align: center !important;
+		box-sizing: border-box !important;
+	}
+}
+
 /* Расписание блокировки: окна с днями недели (v1.17.0) */
 .nf-dv-sched { margin: 10px 0 0; padding: 10px 0 0; border-top: 1px solid var(--nf-border, rgba(127,127,127,.25)); }
 .nf-dv-win > span { flex: 1 1 auto; }
