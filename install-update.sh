@@ -170,7 +170,7 @@ else
 			usign -V -m "$ARCH" -p "$PUB" -x "$WORK/new.sig" >/dev/null 2>&1 || die "подпись релиза не подходит, архив не установлен"
 			say "Подпись проверена."
 		else
-			say "Внимание: usign не найден, подпись не проверена (контрольная сумма совпала)."
+			die "в системе установлен ключ проверки релизов, но usign не найден. Установка остановлена; восстановите пакет usign."
 		fi
 	fi
 fi
@@ -178,7 +178,45 @@ fi
 # --- проверка архива ---
 tar -tzf "$ARCH" > "$WORK/all.list" 2>/dev/null || die "архив повреждён"
 grep -q 'luci-static/nightfall/' "$WORK/all.list" || die "в архиве нет файлов темы Nightfall"
-grep -q '^/\|\.\./' "$WORK/all.list" && die "в архиве недопустимые пути"
+# Проверяем каждый компонент пути, включая завершающий компонент "..".
+awk '
+{
+  p=$0
+  if (substr(p,1,1) == "/") bad=1
+  if (substr(p,1,2) == "./") p=substr(p,3)
+  n=split(p, part, "/")
+  for (i=1; i<=n; i++) if (part[i] == "..") bad=1
+}
+END { exit bad }
+' "$WORK/all.list" || die "в архиве недопустимые пути"
+# Проверяем типы записей: разрешены только 7 штатных symlink Nightfall.
+tar -tvzf "$ARCH" > "$WORK/verbose.list" 2>/dev/null || die "не удалось проверить типы записей архива"
+# Разрешаем только штатные symlink Nightfall; любые другие ссылки и спецфайлы запрещены.
+validate_archive_types() {
+  awk '
+  function allowed(p, t) {
+    return (p == "./usr/share/ucode/luci/template/themes/nightfall-dark" && t == "nightfall") ||
+           (p == "./usr/share/ucode/luci/template/themes/nightfall-light" && t == "nightfall") ||
+           (p == "./www/luci-static/nightfall-dark" && t == "nightfall") ||
+           (p == "./www/luci-static/nightfall-light" && t == "nightfall") ||
+           (p == "./www/luci-static/nightfall/bg.json" && t == "/etc/nightfall-bg.json") ||
+           (p == "./www/luci-static/nightfall/prefs.json" && t == "/etc/nightfall-prefs.json") ||
+           (p == "./www/luci-static/nightfall/logo.json" && t == "/etc/nightfall-logo.json")
+  }
+  {
+    type=substr($0,1,1)
+    if (type == "-" || type == "d") next
+    if (type != "l") { bad=1; next }
+    n=split($0, pair, " -> ")
+    if (n != 2) { bad=1; next }
+    path=pair[1]; sub(/^.* /, "", path)
+    target=pair[2]
+    if (!allowed(path,target) || seen[path]++) bad=1
+  }
+  END { exit bad }
+  ' "$1"
+}
+validate_archive_types "$WORK/verbose.list" || die "в архиве обнаружены недопустимые ссылки или специальные файлы"
 NEW=$(archive_ver "$ARCH")
 [ -n "$NEW" ] || die "в архиве нет файла версии (слишком старый или повреждённый архив)"
 if [ -n "$TAG" ] && [ "$NEW" != "${TAG#v}" ]; then
@@ -233,6 +271,20 @@ if ! tar -xzf "$ARCH" -C "${ROOT:-/}"; then
 		[ -z "$ROOT" ] && /etc/init.d/nightfall-collector restart 2>/dev/null
 	fi
 	die "не удалось распаковать архив (нет места в /overlay? проверьте: df -h)"
+fi
+
+# Проверяем результат до регистрации и перезапуска служб. Несовпадение версии — такой же сбой установки.
+NOW=$(installed)
+if [ "$NOW" != "$NEW" ]; then
+	say "После распаковки обнаружена версия ${NOW:-не определена}, ожидалась $NEW. Возвращаю прежние файлы…"
+	while IFS= read -r f; do rm -rf "${ROOT:-}/$f"; done < "$WORK/added.list"
+	if [ "$HAVEBAK" = 1 ]; then
+		if ! tar -xzf "$WORK/backup.tar.gz" -C "${ROOT:-/}" 2>/dev/null; then
+			die "КРИТИЧЕСКАЯ ОШИБКА: версия не совпала, автоматический возврат прежних файлов не удался. Проверьте файлы вручную и свободное место (df -h)."
+		fi
+	fi
+	[ -z "$ROOT" ] && /etc/init.d/nightfall-collector restart 2>/dev/null
+	die "проверка версии после распаковки не пройдена; прежняя версия восстановлена"
 fi
 
 # --- права и регистрация ---

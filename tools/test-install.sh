@@ -24,6 +24,14 @@ mkrel() { # версия [версия_внутри_архива]
 	printf '#!/bin/sh\necho %s\n' "$v" > "$s/usr/libexec/nightfall-config"
 	printf '#!/bin/sh\n' > "$s/etc/init.d/nightfall-collector"
 	echo '{}' > "$s/usr/share/luci/menu.d/luci-theme-nightfall.json"
+	mkdir -p "$s/usr/share/ucode/luci/template/themes" "$s/www/luci-static"
+	ln -s nightfall "$s/usr/share/ucode/luci/template/themes/nightfall-dark"
+	ln -s nightfall "$s/usr/share/ucode/luci/template/themes/nightfall-light"
+	ln -s nightfall "$s/www/luci-static/nightfall-dark"
+	ln -s nightfall "$s/www/luci-static/nightfall-light"
+	ln -s /etc/nightfall-bg.json "$s/www/luci-static/nightfall/bg.json"
+	ln -s /etc/nightfall-prefs.json "$s/www/luci-static/nightfall/prefs.json"
+	ln -s /etc/nightfall-logo.json "$s/www/luci-static/nightfall/logo.json"
 	d=$T/www/dl/download/v$v; mkdir -p "$d"
 	tar -czf "$d/nightfall-root.tar.gz" -C "$s" .
 	( cd "$d" && sha256sum nightfall-root.tar.gz > nightfall-root.tar.gz.sha256 )
@@ -88,6 +96,33 @@ chmod +x "$T/failtar/tar"
 out=$(cat "$REPO/install-update.sh" | env PATH="$T/failtar:$PATH" NF_ROOT="$R" NF_TMP="$T/tmp" NF_API="$B/api.json" NF_RAW="$B" NF_DL="$B/dl" sh -s -- 2>&1)
 echo "$out" | grep -q "обновление отменено" && [ "$(ver "$R")" = 1.0.0 ] && pass "ошибка backup останавливает обновление до замены файлов" || fail "обновление продолжилось или изменило версию: $out"
 
+echo "== откат при несовпадении версии после распаковки =="
+R=$T/r11; run "$R" --version v1.0.0 >/dev/null
+mkdir -p "$T/mismatch-tar"
+cat > "$T/mismatch-tar/tar" <<'EOF'
+#!/bin/sh
+case "$1:$2" in
+  -xzf:*nightfall-root.tar.gz)
+    archive=$2; shift 2
+    /bin/tar -xzf "$archive" "$@" || exit $?
+    while [ $# -gt 0 ]; do
+      if [ "$1" = -C ]; then root=$2; break; fi
+      shift
+    done
+    printf '{ "version": "9.9.9" }\\n' > "$root/www/luci-static/nightfall/version.json"
+    exit 0
+    ;;
+esac
+exec /bin/tar "$@"
+EOF
+chmod +x "$T/mismatch-tar/tar"
+out=$(cat "$REPO/install-update.sh" | env PATH="$T/mismatch-tar:$PATH" NF_ROOT="$R" NF_TMP="$T/tmp" NF_API="$B/api.json" NF_RAW="$B" NF_DL="$B/dl" sh -s -- 2>&1)
+if [ "$(ver "$R")" = 1.0.0 ] && printf '%s\\n' "$out" | grep -q "прежняя версия восстановлена"; then
+  pass "несовпадение итоговой версии возвращает предыдущую установку"
+else
+  fail "пост-установочная проверка не восстановила старую версию: $out"
+fi
+
 echo "== защита от битых релизов =="
 R=$T/r4; run "$R" --version v1.0.0 >/dev/null
 out=$(run "$R" --version v3.0.0); echo "$out" | grep -q "лежит архив версии 2.0.0" && [ "$(ver "$R")" = 1.0.0 ] && pass "архив не той версии отклонён, файлы не тронуты" || fail "не той версии: $out ($(ver "$R"))"
@@ -128,6 +163,19 @@ R=$T/u3; mkfs "$R"; un "$R" --theme-only >/dev/null
 R=$T/u4; mkfs "$R"; un "$R" --purge >/dev/null; [ -z "$(left "$R")" ] && pass "--purge (старое имя) работает как полное удаление" || fail "--purge"
 R=$T/u5; mkfs "$R"; un "$R" >/dev/null; un "$R" >/dev/null && pass "повторное удаление не падает" || fail "повторное удаление"
 un "$T/u5" --нет >/dev/null 2>&1; [ $? -eq 2 ] && pass "неизвестный параметр -> код 2" || fail "код при неизвестном параметре"
+echo "== безопасность архива: штатные ссылки разрешены, посторонние запрещены =="
+R=$T/r12; run "$R" --version v1.0.0 >/dev/null
+mkdir -p "$T/malicious/www/luci-static/nightfall"
+cp "$T/stage.2.0.0/www/luci-static/nightfall/version.json" "$T/malicious/www/luci-static/nightfall/version.json"
+ln -s ../../../../etc/passwd "$T/malicious/www/luci-static/nightfall/escape"
+tar -czf "$T/malicious.tar.gz" -C "$T/malicious" .
+out=$(run "$R" --file "$T/malicious.tar.gz" 2>&1 || true)
+if [ "$(ver "$R")" = 1.0.0 ] && echo "$out" | grep -q "недопустимые ссылки или специальные файлы"; then
+  pass "посторонний symlink отклонён, штатные ссылки не ослабили защиту"
+else
+  fail "архив с symlink не был отклонён: $out (версия $(ver "$R"))"
+fi
+
 rm -rf dist
 
 echo; echo "ИТОГО: ok=$ok, ошибок=$bad"
