@@ -119,6 +119,8 @@ run)
 	grep -q 'luci-static/nightfall/version.json' "$WORK/all.list" || fail "В архиве нет файла версии."
 	# в архиве только относительные пути без выхода из корня
 	grep -q '^/\|\.\./' "$WORK/all.list" && fail "В архиве недопустимые пути."
+	EXPECTED=$( { tar -xzOf "$WORK/new.tar.gz" ./www/luci-static/nightfall/version.json 2>/dev/null || tar -xzOf "$WORK/new.tar.gz" www/luci-static/nightfall/version.json 2>/dev/null; } | sed -n 's/.*"version"[^"]*"\([^"]*\)".*/\1/p' | head -n1)
+	[ -n "$EXPECTED" ] || fail "В архиве отсутствует корректный файл версии."
 
 	state installing 65 "Сохраняю копию текущих файлов"
 	sed 's|^\./||; /\/$/d; /^$/d' "$WORK/all.list" > "$WORK/files.list"
@@ -133,6 +135,7 @@ run)
 	state installing 75 "Устанавливаю"
 	tar -xzf "$WORK/new.tar.gz" -C "${ROOT:-/}" || fail "Ошибка распаковки." rollback
 	[ -f "$VERF" ] || fail "После установки не найдена версия темы." rollback
+	[ "$(version)" = "$EXPECTED" ] || fail "После установки версия не совпала с версией архива; прежние файлы возвращены." rollback
 
 	chmod 755 "$ROOT"/usr/libexec/nightfall-* "$ROOT"/etc/init.d/nightfall-collector 2>/dev/null
 	for f in "$ROOT/etc/uci-defaults/30_luci-theme-nightfall" "$ROOT/etc/uci-defaults/40_nightfall-collector"; do
