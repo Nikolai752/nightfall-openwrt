@@ -450,6 +450,12 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 		if (tp && !vr) return "Unknown"
 		return "Direct"
 	}
+	# A route change during a live conntrack flow makes that interval ambiguous.
+	# Keep the newly observed route in state, but account this interval as Unknown.
+	function route_delta(previous, current) {
+		if (previous == "" || previous == current) return current
+		return "Unknown"
+	}
 	function appof(ip,   i) {
 		if (ip in am) return am[ip]
 		for (i = 1; i <= npf; i++) if (index(ip, pf[i]) == 1) return pfa[i]
@@ -477,7 +483,8 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 	}
 	function account(key,   ob, rb, src, dst, do_, dr_, sk, dk, ak, route) {
 		ob = so[key]; rb = sr[key]; src = sa[key]; dst = sd[key]; route = sroute[key]
-		printf "%s %.0f %.0f %s\n", key, ob, rb, route > newf
+		printf "%s %.0f %.0f %s\n", key, ob, rb, sroute[key] > newf
+		if (key in po) route = route_delta(pc[key], route)
 		if (first) return
 		if (key in po) { do_ = ob - po[key]; dr_ = rb - pr[key]; if (do_ < 0) do_ = ob; if (dr_ < 0) dr_ = rb }
 		else { do_ = ob; dr_ = rb }
