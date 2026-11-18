@@ -17,7 +17,7 @@ const EXEC = (cmd, args) => {
 	if (n === 'nightfall-stats') return run('nightfall-stats', args);
 	if (n === 'nightfall-sec' || n === 'nightfall-diag' || n === 'nightfall-log') return run(n, args);
 	if (n === 'nightfall-dns') return run(n, args, { NF_LOGREAD: path.join(T, 'dnslogread'), NF_UCI: path.join(T, 'uci_dns') });
-	if (n === 'nightfall-history') return args[0] === 'devices' ? JSON.stringify({ now: NOW, ts: NOW - 10, rate: [], day: [["192.168.1.20", 5000000, 1000000]], yday: [], neigh: [["192.168.1.20", "aa:bb:cc:dd:ee:01"]], info: {} }) : args[0] === 'wifi' && !args[1] ? JSON.stringify({ now: NOW, rows: [], events: [[NOW - 60, "aa:bb:cc:dd:ee:01", "join", "phy0"], [NOW - 120, "aa:bb:cc:dd:ee:01", "leave", "phy0"]] }) : args[0] === 'extip' ? JSON.stringify({ now: NOW, rows: [[NOW - 86400, "203.0.113.7", 0], [NOW - 60, "100.64.3.9", 1]] }) : args[0] === 'procmem' ? JSON.stringify({ now: NOW, rows: Array.from({ length: 8 }, (_, i) => [NOW - (7 - i) * 900, [["dnsmasq", 10000 + i * 3000], ["uhttpd", 3000]]]) }) : args[0] === 'known' ? '{"now":1794786100,"rows":[["AA:BB:CC:DD:EE:01","x",1794700000]]}' : args[0] === 'mode' ? '{"mode":"full","step":15}' : args[0] === 'journal' ? JSON.stringify({ now: NOW, rows: [[ NOW - 120, 'outage', 120, 'нет интернета' ], [ NOW - 600, 'boot', 0, 'Загрузка роутера' ]] }) : '{}';
+	if (n === 'nightfall-history') return args[0] === 'apps' ? JSON.stringify({ enabled: 1, lite: 0, today: '20261118', day: [["192.168.1.20", "ВКонтакте", "VPN", 1048576, 51200], ["192.168.1.20", "Прочее · okcdn.ru", "Direct", 2097152, 1024], ["192.168.1.20", "Прочее · Нет DNS-имени", "Unknown", 512000, 1000], ["192.168.1.20", "Telegram", "VPN", 256000, 1000]], hist: [] }) : args[0] === 'devices' ? JSON.stringify({ now: NOW, ts: NOW - 10, rate: [], day: [["192.168.1.20", 5000000, 1000000]], yday: [], neigh: [["192.168.1.20", "aa:bb:cc:dd:ee:01"]], info: {} }) : args[0] === 'wifi' && !args[1] ? JSON.stringify({ now: NOW, rows: [], events: [[NOW - 60, "aa:bb:cc:dd:ee:01", "join", "phy0"], [NOW - 120, "aa:bb:cc:dd:ee:01", "leave", "phy0"]] }) : args[0] === 'extip' ? JSON.stringify({ now: NOW, rows: [[NOW - 86400, "203.0.113.7", 0], [NOW - 60, "100.64.3.9", 1]] }) : args[0] === 'procmem' ? JSON.stringify({ now: NOW, rows: Array.from({ length: 8 }, (_, i) => [NOW - (7 - i) * 900, [["dnsmasq", 10000 + i * 3000], ["uhttpd", 3000]]]) }) : args[0] === 'known' ? '{"now":1794786100,"rows":[["AA:BB:CC:DD:EE:01","x",1794700000]]}' : args[0] === 'mode' ? '{"mode":"full","step":15}' : args[0] === 'journal' ? JSON.stringify({ now: NOW, rows: [[ NOW - 120, 'outage', 120, 'нет интернета' ], [ NOW - 600, 'boot', 0, 'Загрузка роутера' ]] }) : '{}';
 	if (n === 'nightfall-block') return args[0] === 'log' ? JSON.stringify({ ok: true, log: [[ NOW - 20, 'aa:bb', 'Камера', 'on', 'вручную (интерфейс)' ], [ NOW - 10, 'aa:bb', 'Камера', 'off', 'по расписанию' ]] }) : '{"ok":true}';
 	return '';
 };
@@ -54,7 +54,7 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 `;
 (async () => {
 	const b = await chromium.launch();
-	const names = { wifi: 'Wi-Fi клиенты', devs: 'Доступ в интернет', diag: 'Диагностика сети', sec: 'Сводка безопасности', log: 'Журнал событий' };
+	const names = { wifi: 'Wi-Fi клиенты', devs: 'Доступ в интернет', apps: 'Трафик по категориям', diag: 'Диагностика сети', sec: 'Сводка безопасности', log: 'Журнал событий' };
 	for (const [vn, vp] of [ [ 'desktop', { width: 1280, height: 900 } ], [ 'mobile', { width: 390, height: 800 } ] ]) {
 		const p = await b.newPage({ viewport: vp, isMobile: vn === 'mobile', hasTouch: vn === 'mobile' });
 		const errs = [];
@@ -71,8 +71,8 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 		await p.evaluate(async () => { const m = window.__mod; const d = await m.load(); document.getElementById('m').appendChild(m.render(d)); });
 		await p.waitForTimeout(2500);
 		const tabs = await p.$$eval('.nfm-tab.nfm-ti', els => els.map(e => e.getAttribute('data-ic')));
-		for (const k of [ 'overview', 'net', 'wifi', 'devs', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist' ]) if (!tabs.includes(k)) bad(vn + ': нет вкладки ' + k);
-		for (const k of [ 'overview', 'procs', 'wifi', 'devs', 'diag', 'sec', 'log', 'net', 'hist' ]) {
+		for (const k of [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist' ]) if (!tabs.includes(k)) bad(vn + ': нет вкладки ' + k);
+		for (const k of [ 'overview', 'procs', 'wifi', 'devs', 'apps', 'diag', 'sec', 'log', 'net', 'hist' ]) {
 			await p.click(`.nfm-tab.nfm-ti[data-ic="${k}"]`); await p.evaluate(() => window.__runMonitorTick()); await p.waitForTimeout(k === 'sec' || k === 'log' ? 3000 : 1500);
 			const vis = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm > div[hidden], .nfm > div:not([hidden])')).filter(x => !x.hasAttribute('hidden') && x.className === '').map(x => x.textContent.slice(0, 4000)).join('\n'));
 			if (names[k] && !vis.includes(names[k])) bad(vn + ': вкладка ' + k + ' не показала «' + names[k] + '»');
@@ -140,6 +140,14 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 			if (k === 'devs') {
 				const dt = await p.evaluate(() => document.body.textContent);
 				for (const w of [ 'Кто дома', 'Необычная активность' ]) if (!dt.includes(w)) bad(vn + ': в «Устройствах» нет «' + w + '»');
+			}
+			if (k === 'apps') {
+				const at = await p.evaluate(() => document.body.textContent);
+				for (const w of [ 'Трафик приложений', 'Трафик по категориям', 'Социальные сети', 'CDN и инфраструктура', 'Не распознано', 'VPN', 'Напрямую' ]) if (!at.includes(w)) bad(vn + ': во вкладке «Трафик» нет «' + w + '»');
+				await p.selectOption('select[aria-label="Устройство для статистики приложений"]', '192.168.1.20');
+				await p.selectOption('select[aria-label="Период статистики приложений"]', '7');
+				await p.waitForTimeout(250);
+				await p.screenshot({ path: path.join(OUT, 'monitor-app-traffic-' + vn + '.png'), fullPage: true });
 			}
 			if (k === 'procs') {
 				await p.waitForTimeout(1500);
