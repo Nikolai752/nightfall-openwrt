@@ -54,6 +54,21 @@ BEGIN {
   am["8.8.8.8"] = "Google"
   check("application identity remains Google", appof("8.8.8.8"), "Google")
   check("VPN endpoint is not renamed to VPN application", appof("195.19.105.24"), "Прочее")
+  mapadd("203.0.113.1", "YouTube")
+  mapadd("203.0.113.1", "Прочее · googlevideo.com")
+  mapfinish()
+  check("one known service wins over generic DNS alias", appof("203.0.113.1"), "YouTube")
+  mapadd("203.0.113.2", "YouTube")
+  mapadd("203.0.113.2", "Netflix")
+  mapfinish()
+  check("shared IP for two known services stays unclassified", appof("203.0.113.2"), "Прочее")
+  mapadd("203.0.113.3", "Прочее · cdn.example")
+  mapadd("203.0.113.3", "Прочее · media.example")
+  mapfinish()
+  check("ambiguous unknown domains do not pick the last DNS name", appof("203.0.113.3"), "Прочее")
+  mapadd("203.0.113.4", "Прочее · unique.example")
+  mapfinish()
+  check("single unknown domain remains available for detail", appof("203.0.113.4"), "Прочее · unique.example")
   if (failed) exit 1
 }
 AWK
