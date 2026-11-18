@@ -694,7 +694,7 @@ persist_check() {
 }
 
 restore() {
-	local mi mp rel f rc
+	local mi mp rel f rc app_version
 	[ "${persist_need_restore:-0}" = 1 ] || return 0
 	[ -n "$PERSIST_DIR" ] || return 0
 	mi=$(persist_mount_info "$PERSIST_DIR")
@@ -706,7 +706,9 @@ restore() {
 		on_flash "$PWD" && exit 1
 		[ -n "$rel" ] && { [ -d "$rel" ] || exit 0; cd "$rel" 2>/dev/null || exit 1; }
 		on_flash "$PWD" && exit 1
+		app_version=$(cat apps.v 2>/dev/null)
 		for f in $PFILES; do
+			case "$f" in apps.day|apps.hist|apps.v) [ "$app_version" = 2 ] || continue ;; esac
 			[ -f "$f" ] || continue
 			if [ ! -f "$DIR/$f" ]; then
 				cp "$f" "$DIR/$f" 2>/dev/null || :
