@@ -6976,3 +6976,49 @@ body.nf-blank .modal.login > .spinning::before {
 .nf-apps-r .nf-apps-stack .nf-apps-seg-direct { background:#22c55e !important; }
 .nf-apps-r .nf-apps-stack .nf-apps-seg-unknown { background:#9ca3af !important; }
 .nf-apps-stack i { flex:0 0 auto; min-width:2px; }
+
+
+/* v20261119: compact, readable application-traffic card across router layouts. */
+.nf-apps-bar {
+	display:flex;
+	align-items:center;
+	justify-content:space-between;
+	gap:8px;
+	flex-wrap:nowrap;
+	margin-bottom:8px;
+	min-width:0;
+}
+.nf-apps-seg { flex:0 0 auto; min-width:0; }
+.nf-apps-dev { flex:0 1 190px; width:190px; min-width:0; }
+.nf-apps-summary { gap:6px; margin:0 0 8px; }
+.nf-apps-summary-item { padding:6px 9px; border-radius:8px; gap:1px 6px; }
+.nf-apps-summary-item span { font-size:calc(10px * var(--nf-fsz,1)); }
+.nf-apps-summary-item b { font-size:calc(13px * var(--nf-fsz,1)); }
+.nf-apps-r { grid-template-columns:minmax(112px,1.15fr) minmax(65px,2fr) minmax(108px,9em) 2.6em; gap:6px 9px; padding:8px 0; }
+.nf-apps-n { gap:3px; }
+.nf-apps-routes { gap:3px; }
+.nf-apps-route { padding:2px 5px; font-size:9px; line-height:1.25; }
+.nf-apps-v span { font-size:calc(10px * var(--nf-fsz,1)); }
+.nf-apps-sub { gap:5px; padding-bottom:7px; font-size:calc(11px * var(--nf-fsz,1)); }
+.nf-apps-chip { padding:2px 7px; font-size:calc(10px * var(--nf-fsz,1)); }
+.nf-apps-f { padding-top:8px; font-size:calc(11px * var(--nf-fsz,1)); }
+
+@media (max-width:640px) {
+	.nf-apps-bar { display:grid; grid-template-columns:auto minmax(0,1fr); gap:6px; }
+	.nf-apps-seg { max-width:100%; }
+	.nf-apps-dev { width:100%; max-width:none; flex:1 1 auto; }
+	.nf-apps-r { grid-template-columns:minmax(105px,1fr) minmax(82px,8.5em) 2.4em; gap:5px 7px; }
+	.nf-apps-r .nf-apps-n { grid-column:1; }
+	.nf-apps-r .nf-apps-v { grid-column:2; }
+	.nf-apps-r .nf-apps-p { grid-column:3; }
+	.nf-apps-r .nf-top-bar { grid-column:1 / -1; order:4; }
+}
+@media (max-width:390px) {
+	.nf-apps-summary { gap:4px; }
+	.nf-apps-summary-item { padding:5px 6px; }
+	.nf-apps-summary-item span { font-size:9px; }
+	.nf-apps-summary-item b { font-size:11px; }
+	.nf-apps-r { grid-template-columns:minmax(90px,1fr) minmax(72px,7.2em) 2.1em; gap:5px; }
+	.nf-apps-v { font-size:11px; }
+	.nf-apps-v span { font-size:9px; }
+}
