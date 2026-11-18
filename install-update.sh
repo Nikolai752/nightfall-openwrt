@@ -178,7 +178,21 @@ fi
 # --- проверка архива ---
 tar -tzf "$ARCH" > "$WORK/all.list" 2>/dev/null || die "архив повреждён"
 grep -q 'luci-static/nightfall/' "$WORK/all.list" || die "в архиве нет файлов темы Nightfall"
-grep -q '^/\|\.\./' "$WORK/all.list" && die "в архиве недопустимые пути"
+# Проверяем каждый компонент пути, включая завершающий компонент "..".
+awk '
+{
+  p=$0
+  if (substr(p,1,1) == "/") bad=1
+  if (substr(p,1,2) == "./") p=substr(p,3)
+  n=split(p, part, "/")
+  for (i=1; i<=n; i++) if (part[i] == "..") bad=1
+}
+END { exit bad }
+' "$WORK/all.list" || die "в архиве недопустимые пути"
+# Не допускаем ссылки и специальные файлы: извлекаются только обычные файлы и каталоги.
+tar -tvzf "$ARCH" 2>/dev/null |
+  awk 'substr($1,1,1) != "-" && substr($1,1,1) != "d" { bad=1 } END { exit bad }' ||
+  die "в архиве обнаружены ссылки или специальные файлы"
 NEW=$(archive_ver "$ARCH")
 [ -n "$NEW" ] || die "в архиве нет файла версии (слишком старый или повреждённый архив)"
 if [ -n "$TAG" ] && [ "$NEW" != "${TAG#v}" ]; then
