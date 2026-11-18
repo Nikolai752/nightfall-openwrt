@@ -207,48 +207,7 @@ do_dns() {
 	off=$(cat "$DIR/dns.off" 2>/dev/null); case "$off" in ''|*[!0-9]*) off=0 ;; esac
 	[ "$size" -ge "$off" ] || off=0
 	if [ "$size" -gt "$off" ]; then
-		tail -c +$((off + 1)) "$DNSLOG" 2>/dev/null | awk -v rules="$RULES" -v urules="$RULES_USER" -v map="$DIR/dns.map" '
-		function load(f,   l, a, n, d, i) {
-			while ((getline l < f) > 0) {
-				if (l ~ /^#/ || l == "") continue
-				n = split(l, a, "|"); if (n < 2) continue
-				split(a[2], d, " "); for (i in d) if (!(d[i] in dom)) dom[d[i]] = a[1]
-			}
-			close(f)
-		}
-		function cls(n,   p) {
-			n = tolower(n)
-			while (1) { if (n in dom) return dom[n]; p = index(n, "."); if (!p) return ""; n = substr(n, p + 1) }
-		}
-		# «основное» имя для неопознанных адресов: последние две части (example.com), для co.uk/com.ru и т. п. три
-		function sld(n,   p, k, i) {
-			n = tolower(n); gsub(/[^a-z0-9.-]/, "", n); sub(/\.$/, "", n)
-			k = split(n, p, ".")
-			if (k <= 2) return n
-			if (length(p[k]) == 2 && p[k - 1] ~ /^(co|com|net|org|gov|edu|ac)$/) return p[k - 2] "." p[k - 1] "." p[k]
-			return p[k - 1] "." p[k]
-		}
-		BEGIN { load(urules); load(rules) }
-		{
-			k = 0
-			for (i = 1; i <= NF; i++) if ($i ~ /^query\[/ || $i == "reply" || $i == "cached") { k = i; break }
-			if (!k) next
-			if ($k ~ /^query\[/) { cur = $(k + 1); chain = 0; next }
-			name = $(k + 1); v = $(k + 3)
-			if ($(k + 2) != "is") next
-			if (v == "<CNAME>") { chain = 1; next }
-			if (v !~ /^[0-9a-fA-F.:]+$/) next
-			a = ""; if (chain) a = cls(cur); if (a == "") a = cls(name)   # youtube.com -> CNAME на адреса Google: выигрывает исходное имя запроса
-			if (a == "") { a = sld(chain ? cur : name); if (a != "" && a ~ /\./) a = "Прочее · " a; else a = "" }
-			if (a != "") print tolower(v) "|" a >> map
-		}'
-		# DNS ответы повторяются в журнале; оставляем каждую уникальную пару IP|app один раз.
-		# Несколько разных приложений на одном IP сохраняются в map, но ниже такой IP будет помечен неоднозначным.
-		if [ -s "$DIR/dns.map" ]; then
-			awk '!seen[$0]++' "$DIR/dns.map" > "$DIR/dns.map.tmp" && mv "$DIR/dns.map.tmp" "$DIR/dns.map"
-		fi
-		n=$(wc -l < "$DIR/dns.map" 2>/dev/null | tr -d ' ')
-		if [ "${n:-0}" -gt 20000 ]; then tail -n 12000 "$DIR/dns.map" > "$DIR/dns.map.tmp" && mv "$DIR/dns.map.tmp" "$DIR/dns.map"; fi
+		tail -c +$((off + 1)) "$DNSLOG" 2>/dev/null | sh "${NF_DNSMAP:-/usr/libexec/nightfall-dns-map}" "$RULES" "$RULES_USER" "$DIR/dns.map" "$now"
 	fi
 	# журнал не должен расти бесконечно
 	if [ "$size" -gt 1048576 ]; then : > "$DNSLOG"; size=0; fi
@@ -430,7 +389,7 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 		while ((getline l < dayf) > 0) { split(l, a, " "); dd[a[1]] = a[2] + 0; du[a[1]] = a[3] + 0 }
 		close(dayf)
 		if (apps == 1) {
-			while ((getline l < mapf) > 0) { split(l, a, "|"); mapadd(a[1], a[2]) }
+			while ((getline l < mapf) > 0) { split(l, a, "|"); if (a[3] ~ /^[0-9]+$/ && a[3] >= ts - 21600) mapadd(a[1], a[2]) }
 			mapfinish()
 			close(mapf)
 			ld(urules); ld(rules)
