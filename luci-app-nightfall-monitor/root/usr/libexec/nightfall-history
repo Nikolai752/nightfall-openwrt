@@ -120,10 +120,10 @@ apps)
 	dm=0; [ -r "$DIR/dns.map" ] && dm=$(wc -l < "$DIR/dns.map" | tr -d ' ')
 	printf '{"now":%s,"enabled":%s,"dnsmap":%s,"today":"%s","day":[' "$now" "${en:-0}" "${dm:-0}" "$(cat "$DIR/day.date" 2>/dev/null)"
 	rips=" $(router_ips) "; rnets=$(router_nets)   # трафик самого роутера (VPN, прокси) повторяет трафик устройств, в приложениях его не считаем
-	[ -r "$DIR/apps.day" ] && awk -F'|' -v rips="$rips" -v nets="$rnets" "$AWKR"'NF >= 4 && !mine($1) { gsub(/["\\]/, "", $2); printf "%s[\"%s\",\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3, $4 }' "$DIR/apps.day"
+	[ -r "$DIR/apps.day" ] && awk -F'|' -v rips="$rips" -v nets="$rnets" "$AWKR"'NF >= 5 && !mine($1) { gsub(/["\\\\]/, "", $2); gsub(/["\\\\]/, "", $3); printf "%s[\"%s\",\"%s\",\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3, $4, $5 }' "$DIR/apps.day"
 	printf '],"hist":['
-	[ -r "$DIR/apps.hist" ] && awk -F'|' -v rips="$rips" -v nets="$rnets" "$AWKR"'NF >= 5 && !mine($2) { gsub(/["\\]/, "", $3); printf "%s[\"%s\",\"%s\",\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3, $4, $5 }' "$DIR/apps.hist"
-	printf ']}\n' ;;
+	[ -r "$DIR/apps.hist" ] && awk -F'|' -v rips="$rips" -v nets="$rnets" "$AWKR"'NF >= 6 && !mine($2) { gsub(/["\\\\]/, "", $3); gsub(/["\\\\]/, "", $4); printf "%s[\"%s\",\"%s\",\"%s\",\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3, $4, $5, $6 }' "$DIR/apps.hist"
+	printf ']}\\n' ;;
 journal)
 	printf '{"now":%s,"rows":' "$now"; journal_json
 	up=0; read -r up _ < /proc/uptime; up=${up%.*}
