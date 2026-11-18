@@ -75,7 +75,7 @@ window.__mod = mod; mod.__init__();
 		const appPct = await p.locator('.nf-apps-p').allTextContents();
 		const pctSum = appPct.reduce((n, x) => n + (parseFloat(x.replace(',', '.')) || 0), 0);
 		if (Math.abs(pctSum - 100) > 2) bad(vn + ': проценты видимых категорий не сходятся с общим объёмом (' + pctSum + '%)');
-		if (!/Всего\\s+\\d/.test(appText)) bad(vn + ': итоговый объём не отображается в карточке приложений');
+		if (!/Всего\s+\d/.test(appText)) bad(vn + ': итоговый объём не отображается в карточке приложений');
 		if (await p.locator('.ifacebox .nf-port-edit').count() !== 1) bad(vn + ': не появилась кнопка переименования порта с текстовым заголовком LuCI');
 		await p.evaluate(() => { window.prompt = () => 'Тестовый порт'; });
 		await p.click('.ifacebox .nf-port-edit');
