@@ -5,7 +5,7 @@ HELPER="$ROOT/luci-app-nightfall-monitor/root/usr/libexec/nightfall-dns-map"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT HUP INT TERM
 NOW=1795032000
-printf '192.0.2.1|StaleApp|%s\n192.0.2.2|FreshApp|%s\n192.0.2.3|Прочее · okcdn.ru|%s\n192.0.2.4|Прочее · rtbcdn.ru|%s\n' "$((NOW-30000))" "$((NOW-60))" "$((NOW-60))" "$((NOW-60))" > "$TMP/map"
+printf '192.0.2.1|StaleApp|%s\n192.0.2.2|WrongApp|%s\n192.0.2.3|Одноклассники|%s\n192.0.2.4|RuTube|%s\n192.0.2.5|LegacyApp|%s\n' "$((NOW-30000))" "$((NOW-60))" "$((NOW-60))" "$((NOW-60))" "$((NOW-60))" > "$TMP/map"
 cat > "$TMP/dns.log" <<'LOG'
 Nov 18 19:10:58 dnsmasq[1]: query[A] www.youtube.com from 127.0.0.1
 Nov 18 19:10:58 dnsmasq[1]: reply www.youtube.com is <CNAME>
