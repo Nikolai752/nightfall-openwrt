@@ -16,7 +16,7 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           awk -v version="$VERSION" '
-            $0 == "## v" version " · " substr($0, length("## v" version " · ") + 1) {
+            index($0, "## v" version " · ") == 1 {
               if (!found) {
                 found=1
                 print "# Nightfall v" version
