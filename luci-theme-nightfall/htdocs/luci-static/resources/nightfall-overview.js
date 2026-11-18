@@ -1824,7 +1824,11 @@ function appsCard() {
 		const { tot, other } = sumApps(data, p[2], dev);
 		const rows = Object.keys(tot).map(a => ({ a, d: tot[a][0], u: tot[a][1], t: tot[a][0] + tot[a][1] })).filter(r => r.t > 0).sort((x, y) => (x.a === 'Прочее') - (y.a === 'Прочее') || y.t - x.t);
 		const sum = rows.reduce((n, r) => n + r.t, 0);
-		const list = rows.slice(0, 9);
+		// «Прочее» нельзя терять за лимитом первых 9 строк: там часто лежит
+		// значительная часть трафика, в том числе сервисы с DoH/DoT или неизвестными доменами.
+		const otherRow = rows.find(r => r.a === 'Прочее');
+		const knownRows = rows.filter(r => r.a !== 'Прочее');
+		const list = otherRow ? knownRows.slice(0, 8).concat(otherRow) : knownRows.slice(0, 9);
 		const content = [];
 		if (!list.length) {
 			content.push(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Пока пусто'), E('span', {}, data.dnsmap > 0 ? 'Данных за этот период ещё нет.' : 'Журнал DNS пока пуст. Подождите несколько минут, пока устройства сделают запросы. Если ничего не появляется, проверьте, что устройства используют DNS роутера (а не DoH/DoT в браузере или телефоне).') ]));
@@ -1847,7 +1851,7 @@ function appsCard() {
 		}
 		body.replaceChildren(E('div', { class: 'nf-apps-bar' }, [ seg, sel ]), ...content,
 			E('div', { class: 'nf-apps-f' }, [
-				E('span', {}, 'Всего ' + fmtBytes(sum) + '. Данные приблизительные: трафик через VPN и шифрованный DNS определить нельзя.'),
+				E('span', {}, 'Всего ' + fmtBytes(sum) + '. Учтённый трафик распределён по показанным приложениям и «Прочее». Через VPN и шифрованный DNS точное приложение определить нельзя.'),
 				E('button', { type: 'button', class: 'nf-apps-stop', click: () => toggle('disable', 'Выключить учёт трафика по приложениям?\n\nЖурнал DNS в dnsmasq будет возвращён к прежним настройкам.') }, 'Выключить учёт')
 			]));
 	}
