@@ -223,5 +223,22 @@ printf '/dev/root / ext4 rw 0 0\n' > "$NF_MOUNTS"
 expect_internal "$PERSIST_DIR" "PERSIST_ANY never permits the root overlay"
 
 echo
+# Legacy app history without apps.v must never be merged into route-aware RAM counters.
+printf '/dev/root / ext4 rw 0 0\n/dev/sda1 %s exfat rw 0 0\n' "$T/usb" > "$NF_MOUNTS"
+PERSIST_DIR="$T/usb/legacy"
+DIR="$T/ram-legacy"
+mkdir -p "$PERSIST_DIR" "$DIR"
+PFILES="apps.day apps.hist apps.v"
+echo '192.168.1.2|video|900|901' > "$PERSIST_DIR/apps.day"
+echo '20261116|192.168.1.2|video|700|701' > "$PERSIST_DIR/apps.hist"
+echo '192.168.1.2|video|Direct|100|101' > "$DIR/apps.day"
+echo '20261117|192.168.1.2|video|Direct|200|201' > "$DIR/apps.hist"
+echo '2' > "$DIR/apps.v"
+persist_need_restore=1
+restore
+grep -q '^192\.168\.1\.2|video|Direct|100|101$' "$DIR/apps.day" && pass "legacy USB daily app counters are not merged" || fail "legacy USB daily app counters are not merged"
+grep -q '^20261117|192\.168\.1\.2|video|Direct|200|201$' "$DIR/apps.hist" && pass "legacy USB app history is not merged" || fail "legacy USB app history is not merged"
+[ "$(cat "$DIR/apps.v")" = 2 ] && pass "route-aware app schema marker is preserved" || fail "route-aware app schema marker is preserved"
+
 echo "ИТОГО: ok=$ok, ошибок=$bad"
 [ "$bad" -eq 0 ]
