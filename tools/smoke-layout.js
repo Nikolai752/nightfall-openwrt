@@ -87,6 +87,31 @@ let fail = 0; const bad = m => { console.log('ОШИБКА: ' + m); fail = 1; };
 	for (const k of ['карточка настроек', 'окно сканирования'])
 		if (mo[k].dx > 4 || mo[k].w < mo[k].tw - 30) bad('телефон, ' + k + ': «пусто» не по центру (сдвиг ' + Math.round(mo[k].dx) + ', ширина ' + Math.round(mo[k].w) + ' из ' + Math.round(mo[k].tw) + ')');
 	if (mo.spin.w > 24 || mo.spin.gap < 2) bad('телефон: индикатор сканирования: ' + Math.round(mo.spin.w) + ' px, зазор до текста ' + Math.round(mo.spin.gap) + ' px');
+
+	// Матрица узких экранов: ловим горизонтальное переполнение при разных ширинах
+	// телефона, а не только на одном эталонном viewport 390 px.
+	for (const width of [ 320, 360, 375, 390, 414, 430, 600, 768 ]) {
+		await mp.setViewportSize({ width, height: 800 });
+		await mp.waitForTimeout(60);
+		const box = await mp.evaluate(() => {
+			const t = document.querySelector('#t2'), td = t.querySelector('.placeholder .td');
+			const a = t.getBoundingClientRect(), c = td.getBoundingClientRect();
+			return {
+				viewport: document.documentElement.clientWidth,
+				document: document.documentElement.scrollWidth,
+				tableRight: a.right,
+				cellRight: c.right,
+				centerDelta: Math.abs((c.left + c.width / 2) - (a.left + a.width / 2))
+			};
+		});
+		if (box.document > box.viewport + 1)
+			bad('экран ' + width + ' px: горизонтальное переполнение страницы (' + box.document + ' px)');
+		if (box.tableRight > box.viewport + 1)
+			bad('экран ' + width + ' px: DHCP-таблица выходит за viewport (' + Math.round(box.tableRight) + ' px)');
+		if (box.centerDelta > 4)
+			bad('экран ' + width + ' px: пустое состояние смещено на ' + Math.round(box.centerDelta) + ' px');
+	}
+	await mp.setViewportSize({ width: 390, height: 800 });
 	// запасной JS: даже если стили сжимают ячейку с !important на самом элементе-строке (специфичнее наших), nightfall.js растягивает её
 	const NJS = fs.readFileSync(path.join(__dirname, '..', 'luci-theme-nightfall', 'htdocs', 'luci-static', 'nightfall', 'nightfall-empty.js'), 'utf8');
 	await mp.addStyleTag({ content: 'html body .table .tr.placeholder > .td { width: 40% !important; flex: 0 0 40% !important; display: inline-block !important; position: absolute !important; left: 0 !important; }' });
