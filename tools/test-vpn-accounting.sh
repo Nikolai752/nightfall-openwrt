@@ -20,13 +20,15 @@ function check(name, got, want) {
 BEGIN {
   # Typical selective-routing marks, discovered from ip rule at runtime.
   nr = 2
-  rv[1] = 1048576; rm[1] = 267386880; rc[1] = "VPN"
-  rv[2] = 5242880; rm[2] = 267386880; rc[2] = "VPN"
-  main_dev = "eth0"; main_tunnel = 0; policy_unknown = 0
-  check("VLESS/WARP route mark 0x40100000", routeof("1074790400"), "VPN")
-  check("second VPN route mark 0x40500000", routeof("1078984704"), "VPN")
-  check("Zapret-only mark is not mistaken for VPN", routeof("1073741824"), "Direct")
-  check("unmarked flow on ordinary WAN", routeof("0"), "Direct")
+  rf[1] = "4"; rv[1] = 1048576; rm[1] = 267386880; rc[1] = "VPN"
+  rf[2] = "4"; rv[2] = 5242880; rm[2] = 267386880; rc[2] = "VPN"
+  rf[3] = "6"; rv[3] = 1048576; rm[3] = 267386880; rc[3] = "VPN"
+  main_dev["4"] = "eth0"; main_tunnel["4"] = 0; policy_unknown["4"] = 0
+  main_dev["6"] = "eth0"; main_tunnel["6"] = 0; policy_unknown["6"] = 0
+  check("VLESS/WARP route mark 0x40100000", routeof("1074790400", "4"), "VPN")
+  check("second VPN route mark 0x40500000", routeof("1078984704", "4"), "VPN")
+  check("Zapret-only mark is not mistaken for VPN", routeof("1073741824", "4"), "Direct")
+  check("unmarked flow on ordinary WAN", routeof("0", "4"), "Direct")
 
   nr = 0
   check("router without VPN classifies WAN as Direct", routeof("0"), "Direct")
