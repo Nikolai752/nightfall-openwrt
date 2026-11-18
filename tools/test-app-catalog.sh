@@ -71,6 +71,7 @@ BEGIN {
   check("edge.skype.com", "Skype")
   check("api.max.ru", "MAX")
   check("static.wb.ru", "Wildberries")
+  check("api.wibes.ru", "Wibes")
   check("cdn.ozon.ru", "Ozon")
   check("githubusercontent.com", "GitHub")
   check("drive.google.com", "Google Drive")
