@@ -12,6 +12,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: ./tools/check.sh
+      - name: Проверка службы и скриптов мониторинга
+        run: sh tools/test-service.sh
       - name: "USB-хранилище: отключение и восстановление"
         run: sh tools/test-persist.sh
       - name: Тесты бота (без Telegram)
