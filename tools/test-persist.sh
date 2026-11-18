@@ -80,7 +80,115 @@ expect_external "$PERSIST_DIR" "USB mount is recognized through nested data dire
 if persist; then pass "persistence resumes after USB mount returns"; else fail "persistence resumes after USB mount returns"; fi
 grep -q 'old persistent history' "$PERSIST_DIR/hist.coarse" && grep -q 'new RAM history' "$PERSIST_DIR/hist.coarse" && pass "USB history and RAM history are merged" || fail "USB history and RAM history are merged"
 grep -q '^192\.168\.1\.2 130 240$' "$PERSIST_DIR/dev.day" && pass "device daily counters are added" || fail "device daily counters are added"
-grep -q '^192\.168\.1\.2|video|1300|2400$' "$PERSIST_DIR/apps.day" && pass "application daily counters are added" || fail "application daily counters are added"
+grep -q '^192\.168\.1\.2|video|Direct|1300|2400 && pass "application daily counters are added" || fail "application daily counters are added"
+grep -q '^20261117 10300 20400$' "$PERSIST_DIR/traffic.daily" && pass "WAN daily counters are added" || fail "WAN daily counters are added"
+grep -q '^20261116 192\.168\.1\.2 550 660 aa:bb:cc:dd:ee:ff$' "$PERSIST_DIR/dev.daily" && pass "historical device counters are merged" || fail "historical device counters are merged"
+grep -q '^20261116|192\.168\.1\.2|video|Direct|770|880 && pass "historical application counters are merged" || fail "historical application counters are merged"
+[ "$persist_ok" = 1 ] && pass "storage status returns to available" || fail "storage status returns to available"
+
+# Disconnect again: RAM keeps collecting; USB data is not touched.
+printf '/dev/root / ext4 rw 0 0\n' > "$NF_MOUNTS"
+echo 'changed while USB absent' >> "$DIR/hist.coarse"
+if persist_check; then fail "detect USB removal during periodic check"; else pass "detect USB removal during periodic check"; fi
+[ "$persist_ok" = 0 ] && pass "periodic check marks persistence unavailable" || fail "periodic check marks persistence unavailable"
+grep -q 'old persistent history' "$PERSIST_DIR/hist.coarse" && grep -q 'new RAM history' "$PERSIST_DIR/hist.coarse" && pass "existing USB data is not overwritten while unmounted" || fail "existing USB data is not overwritten while unmounted"
+
+# Reconnect: history is merged, already synchronized daily totals are not double-counted.
+printf '/dev/root / ext4 rw 0 0\n/dev/sda1 %s exfat rw 0 0\n' "$T/usb" > "$NF_MOUNTS"
+if persist_check; then pass "persistence resumes immediately after remount check"; else fail "persistence resumes immediately after remount check"; fi
+grep -q 'old persistent history' "$PERSIST_DIR/hist.coarse" && grep -q 'new RAM history' "$PERSIST_DIR/hist.coarse" && grep -q 'changed while USB absent' "$PERSIST_DIR/hist.coarse" && pass "old and new history survives remount" || fail "old and new history survives remount"
+grep -q '^192\.168\.1\.2 130 240$' "$PERSIST_DIR/dev.day" && pass "daily counters are not double-counted on repeated remount" || fail "daily counters are not double-counted on repeated remount"
+
+# A fresh RAM directory can restore the archived history.
+rm -f "$DIR/hist.coarse"
+persist_need_restore=1
+restore
+grep -q 'changed while USB absent' "$DIR/hist.coarse" && pass "history restore works from mounted USB" || fail "history restore works from mounted USB"
+
+# PERSIST_ANY may allow a custom non-root mount, but never root/overlay.
+printf '/dev/root / ext4 rw 0 0\n/dev/mapper/data %s ext4 rw 0 0\n' "$T/usb" > "$NF_MOUNTS"
+PERSIST_ANY=0
+expect_internal "$PERSIST_DIR" "unknown block source is denied by default"
+PERSIST_ANY=1
+expect_external "$PERSIST_DIR" "PERSIST_ANY permits a non-root custom mount"
+printf '/dev/root / ext4 rw 0 0\n' > "$NF_MOUNTS"
+expect_internal "$PERSIST_DIR" "PERSIST_ANY never permits the root overlay"
+
+echo
+echo "ИТОГО: ok=$ok, ошибок=$bad"
+[ "$bad" -eq 0 ]
+ "$PERSIST_DIR/apps.day" && pass "application daily counters are added" || fail "application daily counters are added"
+grep -q '^20261117 10300 20400$' "$PERSIST_DIR/traffic.daily" && pass "WAN daily counters are added" || fail "WAN daily counters are added"
+grep -q '^20261116 192\.168\.1\.2 550 660 aa:bb:cc:dd:ee:ff$' "$PERSIST_DIR/dev.daily" && pass "historical device counters are merged" || fail "historical device counters are merged"
+grep -q '^20261116|192\.168\.1\.2|video|770|880$' "$PERSIST_DIR/apps.hist" && pass "historical application counters are merged" || fail "historical application counters are merged"
+[ "$persist_ok" = 1 ] && pass "storage status returns to available" || fail "storage status returns to available"
+
+# Disconnect again: RAM keeps collecting; USB data is not touched.
+printf '/dev/root / ext4 rw 0 0\n' > "$NF_MOUNTS"
+echo 'changed while USB absent' >> "$DIR/hist.coarse"
+if persist_check; then fail "detect USB removal during periodic check"; else pass "detect USB removal during periodic check"; fi
+[ "$persist_ok" = 0 ] && pass "periodic check marks persistence unavailable" || fail "periodic check marks persistence unavailable"
+grep -q 'old persistent history' "$PERSIST_DIR/hist.coarse" && grep -q 'new RAM history' "$PERSIST_DIR/hist.coarse" && pass "existing USB data is not overwritten while unmounted" || fail "existing USB data is not overwritten while unmounted"
+
+# Reconnect: history is merged, already synchronized daily totals are not double-counted.
+printf '/dev/root / ext4 rw 0 0\n/dev/sda1 %s exfat rw 0 0\n' "$T/usb" > "$NF_MOUNTS"
+if persist_check; then pass "persistence resumes immediately after remount check"; else fail "persistence resumes immediately after remount check"; fi
+grep -q 'old persistent history' "$PERSIST_DIR/hist.coarse" && grep -q 'new RAM history' "$PERSIST_DIR/hist.coarse" && grep -q 'changed while USB absent' "$PERSIST_DIR/hist.coarse" && pass "old and new history survives remount" || fail "old and new history survives remount"
+grep -q '^192\.168\.1\.2 130 240$' "$PERSIST_DIR/dev.day" && pass "daily counters are not double-counted on repeated remount" || fail "daily counters are not double-counted on repeated remount"
+
+# A fresh RAM directory can restore the archived history.
+rm -f "$DIR/hist.coarse"
+persist_need_restore=1
+restore
+grep -q 'changed while USB absent' "$DIR/hist.coarse" && pass "history restore works from mounted USB" || fail "history restore works from mounted USB"
+
+# PERSIST_ANY may allow a custom non-root mount, but never root/overlay.
+printf '/dev/root / ext4 rw 0 0\n/dev/mapper/data %s ext4 rw 0 0\n' "$T/usb" > "$NF_MOUNTS"
+PERSIST_ANY=0
+expect_internal "$PERSIST_DIR" "unknown block source is denied by default"
+PERSIST_ANY=1
+expect_external "$PERSIST_DIR" "PERSIST_ANY permits a non-root custom mount"
+printf '/dev/root / ext4 rw 0 0\n' > "$NF_MOUNTS"
+expect_internal "$PERSIST_DIR" "PERSIST_ANY never permits the root overlay"
+
+echo
+echo "ИТОГО: ok=$ok, ошибок=$bad"
+[ "$bad" -eq 0 ]
+ "$PERSIST_DIR/apps.hist" && pass "historical application counters are merged" || fail "historical application counters are merged"
+[ "$persist_ok" = 1 ] && pass "storage status returns to available" || fail "storage status returns to available"
+
+# Disconnect again: RAM keeps collecting; USB data is not touched.
+printf '/dev/root / ext4 rw 0 0\n' > "$NF_MOUNTS"
+echo 'changed while USB absent' >> "$DIR/hist.coarse"
+if persist_check; then fail "detect USB removal during periodic check"; else pass "detect USB removal during periodic check"; fi
+[ "$persist_ok" = 0 ] && pass "periodic check marks persistence unavailable" || fail "periodic check marks persistence unavailable"
+grep -q 'old persistent history' "$PERSIST_DIR/hist.coarse" && grep -q 'new RAM history' "$PERSIST_DIR/hist.coarse" && pass "existing USB data is not overwritten while unmounted" || fail "existing USB data is not overwritten while unmounted"
+
+# Reconnect: history is merged, already synchronized daily totals are not double-counted.
+printf '/dev/root / ext4 rw 0 0\n/dev/sda1 %s exfat rw 0 0\n' "$T/usb" > "$NF_MOUNTS"
+if persist_check; then pass "persistence resumes immediately after remount check"; else fail "persistence resumes immediately after remount check"; fi
+grep -q 'old persistent history' "$PERSIST_DIR/hist.coarse" && grep -q 'new RAM history' "$PERSIST_DIR/hist.coarse" && grep -q 'changed while USB absent' "$PERSIST_DIR/hist.coarse" && pass "old and new history survives remount" || fail "old and new history survives remount"
+grep -q '^192\.168\.1\.2 130 240$' "$PERSIST_DIR/dev.day" && pass "daily counters are not double-counted on repeated remount" || fail "daily counters are not double-counted on repeated remount"
+
+# A fresh RAM directory can restore the archived history.
+rm -f "$DIR/hist.coarse"
+persist_need_restore=1
+restore
+grep -q 'changed while USB absent' "$DIR/hist.coarse" && pass "history restore works from mounted USB" || fail "history restore works from mounted USB"
+
+# PERSIST_ANY may allow a custom non-root mount, but never root/overlay.
+printf '/dev/root / ext4 rw 0 0\n/dev/mapper/data %s ext4 rw 0 0\n' "$T/usb" > "$NF_MOUNTS"
+PERSIST_ANY=0
+expect_internal "$PERSIST_DIR" "unknown block source is denied by default"
+PERSIST_ANY=1
+expect_external "$PERSIST_DIR" "PERSIST_ANY permits a non-root custom mount"
+printf '/dev/root / ext4 rw 0 0\n' > "$NF_MOUNTS"
+expect_internal "$PERSIST_DIR" "PERSIST_ANY never permits the root overlay"
+
+echo
+echo "ИТОГО: ok=$ok, ошибок=$bad"
+[ "$bad" -eq 0 ]
+ "$PERSIST_DIR/apps.day" && pass "application daily counters are added" || fail "application daily counters are added"
 grep -q '^20261117 10300 20400$' "$PERSIST_DIR/traffic.daily" && pass "WAN daily counters are added" || fail "WAN daily counters are added"
 grep -q '^20261116 192\.168\.1\.2 550 660 aa:bb:cc:dd:ee:ff$' "$PERSIST_DIR/dev.daily" && pass "historical device counters are merged" || fail "historical device counters are merged"
 grep -q '^20261116|192\.168\.1\.2|video|770|880$' "$PERSIST_DIR/apps.hist" && pass "historical application counters are merged" || fail "historical application counters are merged"
