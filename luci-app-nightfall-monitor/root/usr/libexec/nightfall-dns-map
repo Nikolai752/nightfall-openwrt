@@ -31,7 +31,7 @@ function sld(n,   p,k) {
 }
 function put(ip,app,stamp,host,key) {
   if (ip=="" || app=="" || host=="") return
-  host=tolower(host); sub(/\\.$/,"",host)
+  host=tolower(host); sub(/\.$/,"",host)
   key=ip SUBSEP host
   stamp=(stamp=="" ? now : stamp+0)
   if (!(key in seen) || stamp>seen[key]) { seen[key]=stamp; seen_app[key]=app }
@@ -44,11 +44,11 @@ BEGIN {
   while ((getline l < map)>0) {
     n=split(l,a,"|")
     if (n>=4 && a[3] ~ /^[0-9]+$/ && a[3]+0 >= now-21600 && a[1]!="" && a[4]!="") {
-      host=tolower(a[4]); sub(/\\.$/,"",host)
+      host=tolower(a[4]); sub(/\.$/,"",host)
       app=cls(host)
       if (app=="") {
         fallback=sld(host)
-        if (fallback!="" && fallback ~ /\\./) app="Прочее · " fallback
+        if (fallback!="" && fallback ~ /\./) app="Прочее · " fallback
       }
       put(tolower(a[1]),app,a[3],host)
     }
@@ -57,16 +57,16 @@ BEGIN {
 }
 {
   k=0
-  for(i=1;i<=NF;i++) if ($i ~ /^query\\[/ || $i=="reply" || $i=="cached") { k=i; break }
+  for(i=1;i<=NF;i++) if ($i ~ /^query\[/ || $i=="reply" || $i=="cached") { k=i; break }
   if(!k) next
-  if($k ~ /^query\\[/) { cur=$(k+1); chain=0; next }
+  if($k ~ /^query\[/) { cur=$(k+1); chain=0; next }
   name=$(k+1); v=$(k+3)
   if($(k+2)!="is") next
   if(v=="<CNAME>") { chain=1; next }
   if(v !~ /^[0-9a-fA-F.:]+$/) next
-  host=tolower(chain ? cur : name); sub(/\\.$/,"",host)
+  host=tolower(chain ? cur : name); sub(/\.$/,"",host)
   app=cls(host)
-  if(app=="") { fallback=sld(host); if(fallback!="" && fallback ~ /\\./) app="Прочее · " fallback }
+  if(app=="") { fallback=sld(host); if(fallback!="" && fallback ~ /\./) app="Прочее · " fallback }
   if(app!="") put(tolower(v),app,now,host)
 }
 END {
