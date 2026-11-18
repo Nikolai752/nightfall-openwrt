@@ -5049,6 +5049,38 @@ html[data-nf-ov-apps="off"] .nf-apps { display: none !important; }
 .nf-apps-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 9px; border-radius: 999px; background: color-mix(in srgb, var(--nf-text) 8%, transparent); color: var(--nf-text); }
 .nf-apps-chip b { font-weight: 600; margin-left: 2px; }
 
+/* ======== v20261118a: compact application traffic card ======== */
+.nf-apps-b { gap: 2px; }
+.nf-apps-r { grid-template-columns: minmax(145px, 1.15fr) minmax(90px, 1.8fr) minmax(118px, 9.5em) 3.2em; gap: 7px 12px; padding: 9px 0; }
+.nf-apps-routes { gap: 4px; }
+.nf-apps-route { padding: 3px 7px; font-size: 10.5px; }
+.nf-apps-track { display: flex; overflow: hidden; gap: 1px; border-radius: 99px; }
+.nf-apps-track i { display: block; min-width: 0; height: 100%; flex: 0 0 auto; }
+.nf-apps-track .nf-apps-segment-vpn { background: #a78bfa !important; }
+.nf-apps-track .nf-apps-segment-direct { background: #22c55e !important; }
+.nf-apps-track .nf-apps-segment-unknown { background: #9ca3af !important; }
+.nf-apps-f > span { flex: 1 1 100%; line-height: 1.5; }
+.nf-apps-sub { padding: 2px 0 11px; }
+@media (max-width: 640px) {
+  .nf-apps-bar { align-items: stretch; gap: 7px; }
+  .nf-apps-seg { flex: 0 0 auto; }
+  .nf-apps-seg button { padding: 5px 9px; }
+  .nf-apps-dev { flex: 1 1 100%; width: 100%; }
+  .nf-apps-r { grid-template-columns: minmax(0, 1fr) auto; gap: 5px 10px; padding: 10px 0; }
+  .nf-apps-n { grid-column: 1; grid-row: 1; display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 4px 7px; }
+  .nf-apps-title { min-width: 0; }
+  .nf-apps-routes { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; }
+  .nf-apps-v { grid-column: 2; grid-row: 1; align-self: start; font-size: 13px; }
+  .nf-apps-v span { font-size: 10.5px; }
+  .nf-apps-p { display: none; }
+  .nf-apps-r .nf-top-bar { grid-column: 1 / -1; grid-row: 2; order: initial; }
+  .nf-apps-f { gap: 8px; }
+  .nf-apps-stop { align-self: flex-end; }
+}
+@media (min-width: 641px) and (max-width: 900px) {
+  .nf-apps-r { grid-template-columns: minmax(120px, 1fr) minmax(70px, 1.4fr) 8.5em 2.8em; gap: 6px 8px; }
+}
+ 
 /* ======== v20261104a: карточка «Доступ в интернет» ======== */
 html[data-nf-ov-block="off"] .nf-block { display: none !important; }
 .nf-blk-r { display: grid; grid-template-columns: minmax(120px, 1.6fr) minmax(90px, 1fr) auto; gap: 6px 14px; align-items: center; padding: 8px 0; border-top: 1px solid var(--nf-stroke); }
