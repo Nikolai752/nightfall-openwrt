@@ -161,8 +161,8 @@ run)
 	' "$WORK/all.list" || fail "В архиве недопустимые пути."
 	# Разрешены только обычные файлы и каталоги. Symlink/hardlink и спецфайлы
 	# запрещены: tar не должен иметь возможности писать за пределами ROOT.
-	tar -tvzf "$WORK/new.tar.gz" 2>/dev/null |
-		awk 'substr($1,1,1) != "-" && substr($1,1,1) != "d" { bad=1 } END { exit bad }' ||
+	tar -tvzf "$WORK/new.tar.gz" > "$WORK/verbose.list" 2>/dev/null || fail "Не удалось проверить типы записей архива."
+	awk 'substr($1,1,1) != "-" && substr($1,1,1) != "d" { bad=1 } END { exit bad }' "$WORK/verbose.list" ||
 		fail "В архиве обнаружены ссылки или специальные файлы."
 	EXPECTED=$( { tar -xzOf "$WORK/new.tar.gz" ./www/luci-static/nightfall/version.json 2>/dev/null || tar -xzOf "$WORK/new.tar.gz" www/luci-static/nightfall/version.json 2>/dev/null; } | sed -n 's/.*"version"[^"]*"\([^"]*\)".*/\1/p' | head -n1)
 	[ -n "$EXPECTED" ] || fail "В архиве отсутствует корректный файл версии."
