@@ -12,8 +12,23 @@ jobs:
       - uses: actions/checkout@v4
       - name: Проверить CHANGELOG перед выпуском
         run: sh tools/check-release.sh "${GITHUB_REF_NAME}"
-      - name: Проверить CHANGELOG перед выпуском
-        run: sh tools/check-release.sh "${GITHUB_REF_NAME}"
+      - name: Подготовить заметки релиза из CHANGELOG
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v version="$VERSION" '
+            $0 == "## v" version " · " substr($0, length("## v" version " · ") + 1) {
+              if (!found) {
+                found=1
+                print "# Nightfall v" version
+                print ""
+                next
+              }
+            }
+            found && /^## / { exit }
+            found { print }
+            END { if (!found) exit 1 }
+          ' CHANGELOG.md > release-notes.md
+          test -s release-notes.md
       - run: VERSION="${GITHUB_REF_NAME}" sh build-release.sh
       # подпись usign (тем же инструментом, что проверяет роутер); секретный ключ хранится в Secrets
       - name: Подписать архив
@@ -36,7 +51,8 @@ jobs:
             dist/nightfall-root.tar.gz
             dist/nightfall-root.tar.gz.sha256
             dist/nightfall-root.tar.gz.sig
-          generate_release_notes: true
+          body_path: release-notes.md
+          generate_release_notes: false
       # номер последнего релиза для проверки обновлений в теме (читается из репозитория, у raw нет лимита запросов)
       - name: Записать номер стабильного релиза в latest.json
         if: ${{ !contains(github.ref_name, '-') }}
