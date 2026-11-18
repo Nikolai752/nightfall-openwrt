@@ -7022,3 +7022,12 @@ body.nf-blank .modal.login > .spinning::before {
 	.nf-apps-v { font-size:11px; }
 	.nf-apps-v span { font-size:9px; }
 }
+
+
+/* v20261119: route amounts remain visible without relying on hover tooltips. */
+.nf-apps-route { padding:2px 5px; font-size:9px; line-height:1.35; font-variant-numeric:tabular-nums; }
+.nf-apps-routes { gap:3px; }
+@media (max-width:640px) {
+  .nf-apps-r { grid-template-columns:minmax(0,1fr) minmax(92px,8.5em) 2.8em; }
+  .nf-apps-route { font-size:8.5px; padding:2px 4px; }
+}
