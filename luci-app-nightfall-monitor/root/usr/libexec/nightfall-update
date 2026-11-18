@@ -101,7 +101,7 @@ status)
 	;;
 
 start)
-	if [ -d "$LOCK" ] && [ -f "$ST" ] && ! grep -q '"state":"\(done\|error\|rolledback\)"' "$ST"; then
+	if [ -d "$LOCK" ] && [ -f "$ST" ] && ! grep -q '"state":"\(done\|error\|rolledback\|rollback_failed\)"' "$ST"; then
 		# уже идёт; если запись старше 10 минут, считаем её зависшей
 		if [ -z "$(find "$ST" -mmin +10 2>/dev/null)" ]; then
 			cat "$ST"; exit 0
