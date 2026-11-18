@@ -1772,7 +1772,7 @@ function sumApps(data, days, ip) {
 function appsCard() {
 	const body = E('div', { class: 'nf-apps-b' }, E('div', { class: 'nf-empty' }, 'Собираю данные…'));
 	const el = xcard('nf-apps', 'Трафик по приложениям', body);
-	let names = null, timer = null, data = null, period = 'day', dev = '', busy = false;
+	let names = null, timer = null, data = null, period = 'day', dev = '', busy = false, showOther = false;
 
 	const run = cmd => fs.exec(APPSBIN, [ cmd ]).then(r => { try { return JSON.parse(r.stdout); } catch (e) { return null; } });
 
@@ -1837,6 +1837,10 @@ function appsCard() {
 		const sum = rows.reduce((n, r) => n + r.t, 0);
 		const list = rows.slice(0, 9);
 		const content = [];
+		if (sum > 0) {
+			const routeCards = [ [ 'VPN', routes.VPN, 'vpn' ], [ 'Напрямую', routes.Direct, 'direct' ], [ 'Не определено', routes.Unknown, 'unknown' ] ];
+			content.push(E('div', { class: 'nf-apps-summary' }, routeCards.map(x => E('div', { class: 'nf-apps-summary-item ' + x[2] }, [ E('span', {}, x[0]), E('b', {}, fmtBytes(x[1])), E('small', {}, nf0.format(x[1] / sum * 100) + '%') ]))));
+		}
 		if (!list.length) {
 			content.push(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Пока пусто'), E('span', {}, data.dnsmap > 0 ? 'Данных за этот период ещё нет.' : 'Журнал DNS пока пуст. Подождите несколько минут, пока устройства сделают запросы. Если ничего не появляется, проверьте, что устройства используют DNS роутера (а не DoH/DoT в браузере или телефоне).') ]));
 		}
