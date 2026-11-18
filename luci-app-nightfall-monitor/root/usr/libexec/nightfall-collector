@@ -375,13 +375,13 @@ for fam in 4 6; do
 		vr=$(ip -"$fam" route show table "$rt" default 2>/dev/null | head -n 1)
 		vd=$(printf '%s\n' "$vr" | awk '{ for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1);exit} }')
 		vc=Unknown
-		vpn_tunnel_dev "$vd" && vc=VPN
+		vpn_tunnel_dev "$vd" && { vc=VPN; vpn_rule_found=1; }
 		printf '%s %s %s %s\n' "$fam" "$rv" "$rm" "$vc" >> "$DIR/vpn.routes"
 	done < "$DIR/vpn.rules"
 	mr=$(ip -"$fam" route show table main default 2>/dev/null | head -n 1)
 	md=$(printf '%s\n' "$mr" | awk '{ for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1);exit} }')
 	mt=0; vpn_tunnel_dev "$md" && mt=1
-	printf '%s %s %s %s\n' "$fam" "$md" "$mt" "$policy_unknown" >> "$DIR/vpn.meta"
+	printf '%s %s %s %s %s %s\n' "$fam" "$md" "$mt" "$policy_unknown" "$tunnel_present" "$vpn_rule_found" >> "$DIR/vpn.meta"
 done
 first=0; [ -s "$DIR/ct.state" ] || first=1
 	rm -f "$DIR/ct.state.new"
