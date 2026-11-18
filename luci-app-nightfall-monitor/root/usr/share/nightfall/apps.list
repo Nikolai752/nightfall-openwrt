@@ -1,6 +1,6 @@
 # Nightfall: правила для учёта трафика по приложениям.
 # Формат:  Название|домены через пробел|префиксы IP через пробел (необязательно)
-# Домен совпадает с самим именем и со всеми его поддоменами. Префикс IP нужен для сервисов, которые ходят без DNS-запроса (Telegram).
+# Домен совпадает с самим именем и со всеми его поддоменами; * в домене — проверяемый шаблон имени. Префикс IP нужен для сервисов без DNS-запроса (Telegram).
 # Свои правила можно добавить в /etc/nightfall-apps.list (тот же формат): они проверяются первыми.
 YouTube|youtube.com youtu.be googlevideo.com ytimg.com ggpht.com youtube-nocookie.com yt3.ggpht.com youtubei.googleapis.com|
 Telegram|telegram.org t.me telegram.me telegra.ph tdesktop.com telesco.pe cdn-telegram.org|91.108. 149.154.160. 149.154.161. 149.154.162. 149.154.163. 149.154.164. 149.154.165. 149.154.166. 149.154.167. 149.154.168. 149.154.169. 149.154.170. 149.154.171. 2001:b28:f23d: 2001:b28:f23f: 2001:67c:4e8:
@@ -34,7 +34,7 @@ Playrix|playrix.com|
 Skype|skype.com|
 RuTube|rutube.ru rutube.com rtcdn.ru|
 VK Видео|vkvideo.ru vkuservideo.net vkuserlive.net|
-MAX|max.ru oneme.ru calls.okcdn.ru videowebrtc.okcdn.ru|
+MAX|max.ru oneme.ru calls.okcdn.ru videowebrtc.okcdn.ru videostun*.okcdn.ru call*-*.vkuser.net|
 Ozon|ozon.ru ozonusercontent.com ozone.ru ozoncdn.com|
 AliExpress|aliexpress.com alicdn.com|
 Xbox|xbox.com xboxlive.com|
