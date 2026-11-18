@@ -43,6 +43,16 @@ check(api.appTrafficCategory('Прочее · aaplimg.com') === 'Системн�
 check(api.appTrafficCategory('Прочее · rtbcdn.ru') === 'Не определено', 'uncertain RTB domain is not guessed');
 check(api.appTrafficCategory('RuStore') === 'Магазины приложений', 'app store has a dedicated category');
 check(api.appTrafficCategory('Прочее · shalltry.com') === 'Не определено', 'unknown domains are not guessed');
+check(api.appTrafficCategory('Прочее · giants-software.com') === 'Игры', 'Farming Simulator publisher is grouped with games');
+check(api.appTrafficCategory('Прочее · dbankcloud.ru') === 'Облака и хранилища', 'Huawei cloud domains are grouped as cloud storage');
+check(api.appTrafficCategory('Прочее · tamtam.chat') === 'Мессенджеры и звонки', 'TamTam is grouped with messengers');
+check(api.appTrafficCategory('Прочее · sberbank.ru') === 'Банки и платежи', 'Sberbank domain is grouped with banking');
+check(api.appTrafficCategory('Прочее · 5ka.ru') === 'Продукты и магазины', 'grocery retailer domain has its own category');
+check(api.appTrafficCategory('Прочее · snapchat.com') === 'Социальные сети', 'Snapchat is grouped with social networks');
+check(api.appTrafficCategory('Прочее · palmplaystore.com') === 'Магазины приложений', 'Palm app store has a dedicated category');
+check(api.appTrafficCategory('Прочее · revenuecat.com') === 'Платежи в приложениях', 'in-app billing stays distinct');
+check(api.appTrafficCategory('Прочее · rtcdn.ru') === 'Видео и развлечения', 'RuTube CDN is grouped with video');
+check(api.appTrafficCategory('Прочее · apptracer.ru') === 'Реклама и аналитика', 'application telemetry is grouped with analytics');
 check(api.appTrafficDisplayName('Прочее · Нет DNS-имени') === 'IP без DNS-имени', 'missing DNS label is user friendly');
 check(api.appTrafficDisplayName('Прочее · Общий IP (CDN)') === 'Общий IP / CDN', 'shared CDN label is explicit');
 check(source.includes("[ 'apps', 'Трафик' ]"), 'monitor has the application traffic tab');
