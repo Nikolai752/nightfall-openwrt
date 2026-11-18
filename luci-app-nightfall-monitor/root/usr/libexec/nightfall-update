@@ -159,11 +159,34 @@ run)
 	}
 	END { exit bad }
 	' "$WORK/all.list" || fail "В архиве недопустимые пути."
-	# Разрешены только обычные файлы и каталоги. Symlink/hardlink и спецфайлы
-	# запрещены: tar не должен иметь возможности писать за пределами ROOT.
+	# Разрешаем только 7 штатных symlink Nightfall; остальные ссылки и спецфайлы запрещены.
 	tar -tvzf "$WORK/new.tar.gz" > "$WORK/verbose.list" 2>/dev/null || fail "Не удалось проверить типы записей архива."
-	awk 'substr($1,1,1) != "-" && substr($1,1,1) != "d" { bad=1 } END { exit bad }' "$WORK/verbose.list" ||
-		fail "В архиве обнаружены ссылки или специальные файлы."
+	# Разрешаем только штатные symlink Nightfall; любые другие ссылки и спецфайлы запрещены.
+	validate_archive_types() {
+	  awk '
+	  function allowed(p, t) {
+	    return (p == "./usr/share/ucode/luci/template/themes/nightfall-dark" && t == "nightfall") ||
+	           (p == "./usr/share/ucode/luci/template/themes/nightfall-light" && t == "nightfall") ||
+	           (p == "./www/luci-static/nightfall-dark" && t == "nightfall") ||
+	           (p == "./www/luci-static/nightfall-light" && t == "nightfall") ||
+	           (p == "./www/luci-static/nightfall/bg.json" && t == "/etc/nightfall-bg.json") ||
+	           (p == "./www/luci-static/nightfall/prefs.json" && t == "/etc/nightfall-prefs.json") ||
+	           (p == "./www/luci-static/nightfall/logo.json" && t == "/etc/nightfall-logo.json")
+	  }
+	  {
+	    type=substr($0,1,1)
+	    if (type == "-" || type == "d") next
+	    if (type != "l") { bad=1; next }
+	    n=split($0, pair, " -> ")
+	    if (n != 2) { bad=1; next }
+	    path=pair[1]; sub(/^.* /, "", path)
+	    target=pair[2]
+	    if (!allowed(path,target) || seen[path]++) bad=1
+	  }
+	  END { exit bad }
+	  ' "$1"
+	}
+	validate_archive_types "$WORK/verbose.list" || fail "В архиве обнаружены недопустимые ссылки или специальные файлы."
 	EXPECTED=$( { tar -xzOf "$WORK/new.tar.gz" ./www/luci-static/nightfall/version.json 2>/dev/null || tar -xzOf "$WORK/new.tar.gz" www/luci-static/nightfall/version.json 2>/dev/null; } | sed -n 's/.*"version"[^"]*"\([^"]*\)".*/\1/p' | head -n1)
 	[ -n "$EXPECTED" ] || fail "В архиве отсутствует корректный файл версии."
 
