@@ -152,8 +152,8 @@ run)
 	awk '
 	{
 		p=$0
-		if (p ~ /^\\//) bad=1
-		sub(/^\\.\\//, "", p)
+		if (substr(p,1,1) == "/") bad=1
+		if (substr(p,1,2) == "./") p=substr(p,3)
 		n=split(p, part, "/")
 		for (i=1; i<=n; i++) if (part[i] == "..") bad=1
 	}
