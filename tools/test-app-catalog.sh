@@ -43,7 +43,7 @@ BEGIN {
   check("api.oneme.ru", "MAX")
   check("static.windows.net", "Microsoft")
   check("photo.vkuserphoto.ru", "ВКонтакте")
-  check("cdn.okcdn.ru", "Одноклассники")
+  check("cdn.okcdn.ru", "")
   check("api.odnoklassniki.ru", "Одноклассники")
   check("assets.playrix.com", "Playrix")
   check("edge.skype.com", "Skype")
