@@ -156,6 +156,73 @@ function groupOf(name) {
 	return { label: name, cls: 'gx' };
 }
 
+
+// Категории трафика: только классификация уже распознанных имён, без догадок по IP.
+const APP_TRAFFIC_CATEGORIES = {
+	'YouTube': 'Видео и развлечения', 'Netflix': 'Видео и развлечения', 'Twitch': 'Видео и развлечения',
+	'Spotify': 'Видео и развлечения', 'RuTube': 'Видео и развлечения', 'VK Видео': 'Видео и развлечения',
+	'Zoom': 'Мессенджеры и звонки', 'Telegram': 'Мессенджеры и звонки', 'WhatsApp': 'Мессенджеры и звонки',
+	'Discord': 'Мессенджеры и звонки', 'MAX': 'Мессенджеры и звонки', 'Skype': 'Мессенджеры и звонки',
+	'ВКонтакте': 'Социальные сети', 'Одноклассники': 'Социальные сети', 'Дзен': 'Социальные сети',
+	'Instagram': 'Социальные сети', 'Facebook': 'Социальные сети', 'TikTok': 'Социальные сети', 'X (Twitter)': 'Социальные сети',
+	'Wildberries': 'Магазины и маркетплейсы', 'Wibes': 'Магазины и маркетплейсы', 'Ozon': 'Магазины и маркетплейсы',
+	'Avito': 'Магазины и маркетплейсы', 'AliExpress': 'Магазины и маркетплейсы',
+	'Т-Банк': 'Банки и платежи', 'Сбербанк': 'Банки и платежи', 'Госуслуги': 'Государственные сервисы',
+	'Steam': 'Игры', 'Xbox': 'Игры', 'PlayStation': 'Игры', 'Riot Games': 'Игры', 'EA': 'Игры',
+	'Roblox': 'Игры', 'Battle.net': 'Игры', 'Lesta': 'Игры', 'Playrix': 'Игры',
+	'OneDrive': 'Облака и хранилища', 'Google Drive': 'Облака и хранилища', 'Google Photos': 'Облака и хранилища',
+	'Dropbox': 'Облака и хранилища', 'Apple iCloud': 'Облака и хранилища',
+	'Google Meet': 'Мессенджеры и звонки', 'Mail.ru': 'Почта и коммуникации',
+	'Яндекс': 'Поиск и сервисы', 'Google': 'Поиск и сервисы', 'Microsoft': 'Системные службы',
+	'Apple': 'Системные службы', 'Amazon': 'Облака и хранилища', 'GitHub': 'Разработка',
+	'Kaspersky': 'Безопасность', 'Cloudflare': 'Сеть и инфраструктура'
+};
+const APP_TRAFFIC_INFRA = /^(?:okcdn\\.ru|rtbcdn\\.ru|cdn77\\.org|akamai\\.net|akamaiedge\\.net|edgesuite\\.net|akadns\\.net|fastly\\.net|fastly-edge\\.com|gcdn\\.co|b-cdn\\.net|ecdnx\\.com|mradx\\.net|cdn-vk\\.ru)$/i;
+const APP_TRAFFIC_ADS = /(?:doubleclick\\.net|googlesyndication\\.com|googletagservices\\.com|2mdn\\.net|app-measurement\\.com|crashlytics\\.com|app-analytics-services\\.com|mediation\\.goog|vk-analytics\\.ru|uxfeedback\\.ru)/i;
+const APP_TRAFFIC_DNS = /^(?:dns\\.google|resolver\\.arpa|quad9\\.net)$/i;
+const APP_TRAFFIC_CERT = /^(?:lencr\\.org|pki\\.goog|digicert\\.com)$/i;
+
+function appTrafficCategory(name) {
+	const m = /^Прочее(?: · (.+))?$/.exec(name || '');
+	if (m) {
+		const domain = m[1] || '';
+		if (!domain || domain === 'Нет DNS-имени' || domain === 'Общий IP (CDN)' || domain === 'Несколько доменов') return 'Не определено';
+		if (APP_TRAFFIC_ADS.test(domain)) return 'Реклама и аналитика';
+		if (APP_TRAFFIC_DNS.test(domain)) return 'DNS и инфраструктура';
+		if (APP_TRAFFIC_CERT.test(domain)) return 'Безопасность и сертификаты';
+		if (APP_TRAFFIC_INFRA.test(domain)) return 'CDN и инфраструктура';
+		if (domain === 'aaplimg.com' || /(?:^|\\.)apple\\.com$/i.test(domain)) return 'Системные службы';
+		if (/^(?:windows\\.com|windows\\.net|live\\.net|msn\\.com)$/i.test(domain)) return 'Системные службы';
+		return 'Не определено';
+	}
+	return APP_TRAFFIC_CATEGORIES[name] || 'Другие приложения';
+}
+
+function sumMonitorAppTraffic(data, days, ip) {
+	const apps = {}, categories = {}, routes = { VPN: 0, Direct: 0, Unknown: 0 }, devices = {};
+	const add = (addr, name, route, down, up) => {
+		route = [ 'VPN', 'Direct', 'Unknown' ].includes(route) ? route : 'Unknown';
+		const d = Math.max(0, Number(down) || 0), u = Math.max(0, Number(up) || 0), total = d + u;
+		if (ip && addr !== ip) return;
+		const a = apps[name] || (apps[name] = { name, category: appTrafficCategory(name), down: 0, up: 0, total: 0, routes: {} });
+		a.down += d; a.up += u; a.total += total; a.routes[route] = (a.routes[route] || 0) + total;
+		const c = categories[a.category] || (categories[a.category] = { name: a.category, total: 0, apps: {} });
+		c.total += total; c.apps[name] = a;
+		routes[route] += total;
+		devices[addr] = (devices[addr] || 0) + total;
+	};
+	for (const r of data.day || []) add(r[0], r[1], r.length >= 5 ? r[2] : 'Unknown', r.length >= 5 ? r[3] : r[2], r.length >= 5 ? r[4] : r[3]);
+	if (days > 1) {
+		const today = String(data.today || '');
+		const base = /^\\d{8}$/.test(today) ? new Date(+today.slice(0, 4), +today.slice(4, 6) - 1, +today.slice(6, 8)) : new Date();
+		base.setDate(base.getDate() - (days - 1));
+		const from = base.getFullYear() * 10000 + (base.getMonth() + 1) * 100 + base.getDate();
+		for (const r of data.hist || []) if (+r[0] >= from) add(r[1], r[2], r.length >= 6 ? r[3] : 'Unknown', r.length >= 6 ? r[4] : r[3], r.length >= 6 ? r[5] : r[4]);
+	}
+	return { apps: Object.values(apps).sort((a, b) => b.total - a.total), categories: Object.values(categories).sort((a, b) => b.total - a.total), routes, devices,
+		total: routes.VPN + routes.Direct + routes.Unknown };
+}
+
 /* ---------- widgets ---------- */
 
 function ring(color) {
@@ -755,7 +822,7 @@ return view.extend({
 			times: [], cpu: [], mem: [], temp: [], cores: [], net: {},
 			prev: null, last: null, full: null, wifi: undefined, prevProcs: null, procRate: {},
 			paused: false, tick: 0, iface: null, tab: 'overview', sort: 'mem', filter: '',
-				at: {}, alerts: undefined, devs: undefined, devDay: 'day', hist: undefined, range: 'h'
+				at: {}, alerts: undefined, devs: undefined, devDay: 'day', hist: undefined, range: 'h', appTraffic: undefined, appPeriod: 'day', appDevice: ''
 		};
 
 		try {
@@ -1808,6 +1875,66 @@ return view.extend({
 			E('div', { class: 'nfm-grid' }, [ card([ 'Сигнал Wi‑Fi по часам', E('span', { class: 'nfm-spacer' }), whTabs ], whBody) ]),
 			E('div', { class: 'nfm-grid' }, [ card([ 'Wi‑Fi: загруженность каналов', E('span', { class: 'nfm-spacer' }) ], airBody) ]),
 		]);
+		const appTrafficBody = E('div', { class: 'nfm-app-traffic' }, E('div', { class: 'nfm-empty' }, 'Собираю статистику приложений…'));
+		const appPeriod = E('select', { class: 'nfm-sel', 'aria-label': 'Период статистики приложений', change: ev => { S.appPeriod = ev.target.value; renderAppTraffic(); } }, [
+			E('option', { value: 'day' }, 'Сегодня'), E('option', { value: '7' }, '7 дней'), E('option', { value: '30' }, '30 дней')
+		]);
+		const appDevice = E('select', { class: 'nfm-sel', 'aria-label': 'Устройство для статистики приложений', change: ev => { S.appDevice = ev.target.value; renderAppTraffic(); } }, E('option', { value: '' }, 'Все устройства'));
+		function renderAppTraffic() {
+			const d = S.appTraffic;
+			if (d === undefined) { appTrafficBody.replaceChildren(E('div', { class: 'nfm-empty' }, 'Загружаю статистику приложений…')); return; }
+			if (!d || typeof d.enabled === 'undefined') { appTrafficBody.replaceChildren(E('div', { class: 'nfm-empty' }, 'Не удалось получить статистику. Проверьте, что сборщик Nightfall запущен.')); return; }
+			if (d.lite) { appTrafficBody.replaceChildren(E('div', { class: 'nfm-empty' }, [ E('b', {}, 'Учёт приложений недоступен в режиме Lite'), E('span', {}, 'Для экономии ресурсов режим Lite отключает DNS-журнал и разбор трафика по приложениям. Переключите монитор в режим «Мощный», если роутер справляется с нагрузкой.') ])); return; }
+			if (!d.enabled) { appTrafficBody.replaceChildren(E('div', { class: 'nfm-empty' }, [ E('b', {}, 'Учёт трафика по приложениям выключен'), E('span', {}, 'Включите его в настройках монитора: История → Настройки → «Учёт трафика по приложениям». После включения потребуется время, чтобы накопить DNS-сопоставления.') ])); return; }
+			const periodDays = S.appPeriod === '30' ? 30 : S.appPeriod === '7' ? 7 : 1;
+			const ips = Array.from(new Set([ ...(d.day || []).map(r => r[0]), ...(d.hist || []).map(r => r[1]) ])).filter(Boolean).sort();
+			if (!ips.includes(S.appDevice)) S.appDevice = '';
+			appDevice.replaceChildren(E('option', { value: '' }, 'Все устройства'), ...ips.map(ip => E('option', { value: ip }, (names[ip] || ip) + (names[ip] ? ' · ' + ip : ''))));
+			appDevice.value = S.appDevice;
+			appPeriod.value = S.appPeriod;
+			const result = sumMonitorAppTraffic(d, periodDays, S.appDevice);
+			const total = result.total, fmtShare = n => total ? nf1.format(n / total * 100) + '%' : '0%';
+			const summary = E('div', { class: 'nfm-tiles t4 nfm-app-summary' }, [
+				[ 'Всего трафика', total, 'c-cpu' ], [ 'VPN', result.routes.VPN, 'c-mem' ], [ 'Напрямую', result.routes.Direct, 'c-temp' ], [ 'Неизвестный маршрут', result.routes.Unknown, 'gx' ]
+			].map(x => E('div', { class: 'nfm-tile' }, [ x[0], E('b', {}, fmtBytes(x[1])), E('small', { class: 'nfm-note-s' }, fmtShare(x[1])) ])));
+			const catRows = result.categories.map(c => {
+				const apps = Object.values(c.apps).sort((a, b) => b.total - a.total);
+				const details = E('details', { class: 'nfm-app-category' }, [
+					E('summary', {}, [ E('span', {}, c.name), E('b', {}, fmtBytes(c.total)), E('small', {}, fmtShare(c.total)) ]),
+					E('div', { class: 'nfm-app-category-items' }, apps.map(a => E('div', { class: 'nfm-app-item' }, [
+						E('span', { class: 'nfm-app-item-name' }, a.name),
+						E('span', { class: 'nfm-app-item-route' }, [ 'VPN', 'Direct', 'Unknown' ].filter(k => a.routes[k] > 0).map(k => E('small', { class: 'nfm-chip', title: (k === 'VPN' ? 'VPN' : k === 'Direct' ? 'Напрямую' : 'Неизвестный маршрут') + ': ' + fmtBytes(a.routes[k]) }, (k === 'VPN' ? 'VPN' : k === 'Direct' ? 'Напрямую' : 'Неизв.') + ' ' + fmtBytes(a.routes[k])))),
+						E('b', {}, fmtBytes(a.total))
+					])))
+				]);
+				return details;
+			});
+			const top = result.apps.slice(0, 30);
+			const unknown = result.apps.filter(a => a.category === 'Не определено').slice(0, 12);
+			const unknownBox = E('div', { class: 'nfm-app-unknown-list' }, unknown.length ? unknown.map(a => E('div', { class: 'nfm-host' }, [
+				E('span', {}, a.name.replace(/^Прочее(?: · )?/, '') || 'IP без DNS-имени'),
+				E('b', {}, fmtBytes(a.total)),
+				E('small', {}, [ 'VPN', 'Direct', 'Unknown' ].filter(k => a.routes[k] > 0).map(k => (k === 'VPN' ? 'VPN' : k === 'Direct' ? 'Напрямую' : 'Неизв.') + ': ' + fmtBytes(a.routes[k])).join(' · '))
+			])) : [ E('div', { class: 'nfm-empty' }, 'Нераспознанных записей пока нет.') ]);
+			const appsBox = E('div', { class: 'nfm-app-top-list' }, top.length ? top.map(a => E('div', { class: 'nfm-host' }, [
+				E('span', {}, [ a.name, E('small', {}, a.category) ]),
+				E('b', {}, fmtBytes(a.total)),
+				E('div', { class: 'nfm-bar' }, E('div', { class: 'nfm-bar-fill ' + (a.category === 'Не определено' ? 'gx' : 'c-cpu'), style: 'width:' + (a.total / Math.max(1, top[0].total) * 100).toFixed(1) + '%' }))
+			])) : [ E('div', { class: 'nfm-empty' }, 'За выбранный период трафик ещё не накоплен.') ]);
+			appTrafficBody.replaceChildren(
+				E('div', { class: 'nfm-app-toolbar' }, [ appPeriod, appDevice ]),
+				summary,
+				E('div', { class: 'nfm-grid nfm-g21' }, [
+					card('Трафик по категориям', E('div', { class: 'nfm-app-categories' }, catRows.length ? catRows : [ E('div', { class: 'nfm-empty' }, 'Нет данных по категориям.') ])),
+					card('Топ приложений и доменов', appsBox)
+				]),
+				card([ 'Не распознано', E('span', { class: 'nfm-note-s' }, unknown.length ? 'Первые 12 записей · без ложной атрибуции' : 'Проверка неизвестного трафика') ], unknownBox),
+				E('div', { class: 'nfm-note-s' }, 'Категории строятся по распознанным именам сервисов. Общие CDN, IP без DNS-имени и неоднозначные домены не приписываются приложениям. VPN / Direct / неизвестный маршрут учитываются независимо от категории.')
+			);
+		}
+		const appsTab = E('div', { hidden: true }, [
+			E('div', { class: 'nfm-grid' }, [ card([ 'Трафик приложений', E('span', { class: 'nfm-spacer' }), E('span', { class: 'nfm-note-s' }, 'Обновление данных раз в 30 секунд') ], appTrafficBody) ])
+		]);
 		const devsTab = E('div', { hidden: true }, [
 			E('div', { class: 'nfm-grid nfm-g21' }, [ card([ 'Кто дома', E('span', { class: 'nfm-note-s' }, 'по подключениям к Wi‑Fi') ], homeBox), card('Необычная активность', susBox) ]),
 			E('div', { class: 'nfm-grid' }, [
@@ -1852,9 +1979,9 @@ return view.extend({
 		const pill = E('span', { class: 'nfm-pill' }, `обновляется каждые ${INTERVAL} с`);
 		const pauseBtn = E('button', { class: 'nfm-btn', click: () => setPaused(!S.paused) }, 'Пауза');
 		const onTab = (...k) => k.indexOf(S.tab) >= 0;
-		const TAB_KEYS = [ 'overview', 'net', 'wifi', 'devs', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist' ];
+		const TAB_KEYS = [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist' ];
 		const tabBtns = {};
-		const tabs = E('div', { class: 'nfm-tabs', role: 'tablist' }, [ [ 'overview', 'Обзор' ], [ 'net', 'Сеть' ], [ 'wifi', 'Wi‑Fi' ], [ 'devs', 'Устройства' ], [ 'procs', 'Программы' ], [ 'svcs', 'Службы' ], [ 'diag', 'Диагностика' ], [ 'sec', 'Безопасность' ], [ 'log', 'Журнал' ], [ 'hist', 'История' ] ]
+		const tabs = E('div', { class: 'nfm-tabs', role: 'tablist' }, [ [ 'overview', 'Обзор' ], [ 'net', 'Сеть' ], [ 'wifi', 'Wi‑Fi' ], [ 'devs', 'Устройства' ], [ 'apps', 'Трафик' ], [ 'procs', 'Программы' ], [ 'svcs', 'Службы' ], [ 'diag', 'Диагностика' ], [ 'sec', 'Безопасность' ], [ 'log', 'Журнал' ], [ 'hist', 'История' ] ]
 			.map(([ k, l ]) => tabBtns[k] = E('button', { class: 'nfm-tab nfm-ti', 'data-ic': k, role: 'tab', click: () => { S.tab = k; refresh(); } }, l)));
 
 		const svcFilter = E('input', { class: 'nfm-in', type: 'search', placeholder: 'Найти службу…', input: () => renderServices() });
@@ -1872,7 +1999,7 @@ return view.extend({
 				E('div', {}, [ E('h2', {}, 'Монитор ресурсов'),
 					E('div', { class: 'nfm-sub' }, [ (board.model || board.hostname || 'OpenWrt') + ' · работает ', t('uptime') ]) ]),
 				E('span', { class: 'nfm-spacer' }), modeBadge, pill, pauseBtn, tabs ]),
-			overview, net, wifiTab, devsTab, procs, svcs, diagTab, secTab, logTab, hist
+			overview, net, wifiTab, devsTab, appsTab, procs, svcs, diagTab, secTab, logTab, hist
 		]);
 
 		/* ---------- quick actions ---------- */
@@ -2025,6 +2152,7 @@ return view.extend({
 			if (S.tab === 'net' && due('chan', DEVICES_EVERY * INTERVAL)) jobs.push(callHistory([ 'channel' ]).then(r => { S.chan = r; }));
 			if (S.tab === 'procs' && due('pm', 120)) jobs.push(callHistory([ 'procmem', String(S.pmH || 24) ]).then(r => { S.pm = r || null; }).catch(() => { S.pm = null; }));
 			if (S.tab === 'devs' && due('dd', 600)) jobs.push(callHistory([ 'devdaily' ]).then(r => { S.dd = r || null; }).catch(() => { S.dd = null; }));
+			if (S.tab === 'apps' && due('appTraffic', 30)) jobs.push(callHistory([ 'apps' ]).then(r => { S.appTraffic = r || null; }).catch(() => { S.appTraffic = null; }));
 			if (S.tab === 'net' && due('extip', 120)) jobs.push(callHistory([ 'extip' ]).then(r => { S.extip = r || null; }).catch(() => { S.extip = null; }));
 			if (S.tab === 'net' && due('dns', 30)) jobs.push(fs.exec('/usr/libexec/nightfall-dns', [ 'top' ]).then(r => { try { S.dns = JSON.parse(r.stdout); } catch (e) { S.dns = null; } }).catch(() => { S.dns = null; }));
 			if (S.tab === 'sec' && due('sec', 60)) jobs.push(fs.exec(SECBIN, [ 'summary' ]).then(r => { try { S.sec = JSON.parse(r.stdout); S.secErr = ''; } catch (e) { S.sec = null; S.secErr = 'ответ скрипта не разобран' + (r.stderr ? ': ' + String(r.stderr).slice(0, 120) : ''); } }).catch(e => { S.sec = null; S.secErr = String((e && e.message) || e).slice(0, 120); }));
@@ -2911,7 +3039,7 @@ return view.extend({
 				tabBtns[k].setAttribute('aria-selected', S.tab === k);
 			}
 			show(overview, S.tab === 'overview'); show(net, S.tab === 'net'); show(procs, S.tab === 'procs'); show(svcs, S.tab === 'svcs'); show(hist, S.tab === 'hist');
-			show(wifiTab, S.tab === 'wifi'); show(devsTab, S.tab === 'devs'); show(diagTab, S.tab === 'diag'); show(secTab, S.tab === 'sec'); show(logTab, S.tab === 'log');
+			show(wifiTab, S.tab === 'wifi'); show(devsTab, S.tab === 'devs'); show(appsTab, S.tab === 'apps'); show(diagTab, S.tab === 'diag'); show(secTab, S.tab === 'sec'); show(logTab, S.tab === 'log');
 			if (!d) return;
 
 			T.uptime.textContent = fmtUptime(d.up);
@@ -3024,6 +3152,7 @@ return view.extend({
 			if (onTab('net', 'devs')) renderDevices();
 			if (S.tab === 'devs') renderDevExtra();
 			if (S.tab === 'procs') renderProcMem();
+			if (S.tab === 'apps') renderAppTraffic();
 			if (S.tab === 'net') { renderChannel(); renderDns(); renderExtIp(); }
 			if (S.tab === 'svcs') renderServices();
 			if (S.tab === 'hist') { renderHist(); renderDay(); renderHeat(); renderWeek(); renderCmp(); renderMon(); renderWq(); renderWHeat(); renderAir(); renderJournal(); renderSpeed(); renderFlash(); }
