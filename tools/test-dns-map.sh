@@ -1,0 +1,41 @@
+#!/bin/sh
+set -eu
+ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+HELPER="$ROOT/luci-app-nightfall-monitor/root/usr/libexec/nightfall-dns-map"
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT HUP INT TERM
+NOW=1795032000
+printf '192.0.2.1|StaleApp|%s|www.youtube.com\n192.0.2.2|WrongApp|%s|www.youtube.com\n192.0.2.3|Одноклассники|%s|cdn.okcdn.ru\n192.0.2.4|RuTube|%s|cdn.rtbcdn.ru\n192.0.2.5|LegacyApp|%s\n' "$((NOW-30000))" "$((NOW-60))" "$((NOW-60))" "$((NOW-60))" "$((NOW-60))" > "$TMP/map"
+cat > "$TMP/dns.log" <<'LOG'
+Nov 18 19:10:58 dnsmasq[1]: query[A] www.youtube.com from 127.0.0.1
+Nov 18 19:10:58 dnsmasq[1]: reply www.youtube.com is <CNAME>
+Nov 18 19:10:58 dnsmasq[1]: reply r1---sn.googlevideo.com is 203.0.113.10
+Nov 18 19:10:59 dnsmasq[1]: query[A] api.unknown.example.com from 127.0.0.1
+Nov 18 19:10:59 dnsmasq[1]: reply api.unknown.example.com is 203.0.113.11
+Nov 18 19:11:00 dnsmasq[1]: query[A] static.netflix.com from 127.0.0.1
+Nov 18 19:11:00 dnsmasq[1]: reply static.netflix.com is 203.0.113.12
+Nov 18 19:11:01 dnsmasq[1]: query[A] video.youtube.com from 127.0.0.1
+Nov 18 19:11:01 dnsmasq[1]: reply video.youtube.com is 203.0.113.12
+Nov 18 19:11:02 dnsmasq[1]: query[A] calls.okcdn.ru from 127.0.0.1
+Nov 18 19:11:02 dnsmasq[1]: reply calls.okcdn.ru is 203.0.113.14
+Nov 18 19:11:03 dnsmasq[1]: query[A] videostun17.okcdn.ru from 127.0.0.1
+Nov 18 19:11:03 dnsmasq[1]: reply videostun17.okcdn.ru is 203.0.113.15
+Nov 18 19:11:04 dnsmasq[1]: query[A] call123-abc.vkuser.net from 127.0.0.1
+Nov 18 19:11:04 dnsmasq[1]: reply call123-abc.vkuser.net is 203.0.113.16
+LOG
+sh "$HELPER" "$ROOT/luci-app-nightfall-monitor/root/usr/share/nightfall/apps.list" "$TMP/no-user-rules" "$TMP/map" "$NOW" < "$TMP/dns.log"
+has() { grep -Fqx "$1" "$TMP/map" || { echo "FAIL: missing $1" >&2; cat "$TMP/map" >&2; exit 1; }; }
+lacks() { grep -Fq "$1" "$TMP/map" && { echo "FAIL: unexpected $1" >&2; exit 1; } || :; }
+has "192.0.2.2|YouTube|$((NOW-60))|www.youtube.com"
+has "192.0.2.3|Прочее · okcdn.ru|$((NOW-60))|cdn.okcdn.ru"
+has "192.0.2.4|Прочее · rtbcdn.ru|$((NOW-60))|cdn.rtbcdn.ru"
+lacks "192.0.2.1|"
+lacks "192.0.2.5|"
+has "203.0.113.10|YouTube|$NOW|www.youtube.com"
+has "203.0.113.11|Прочее · example.com|$NOW|api.unknown.example.com"
+has "203.0.113.12|Netflix|$NOW|static.netflix.com"
+has "203.0.113.12|YouTube|$NOW|video.youtube.com"
+has "203.0.113.14|MAX|$NOW|calls.okcdn.ru"
+has "203.0.113.15|MAX|$NOW|videostun17.okcdn.ru"
+has "203.0.113.16|MAX|$NOW|call123-abc.vkuser.net"
+echo "DNS application map tests: all passed."

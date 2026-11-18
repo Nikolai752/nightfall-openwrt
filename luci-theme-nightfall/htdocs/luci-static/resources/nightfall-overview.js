@@ -1728,14 +1728,14 @@ const APP_SHAPES = {
 	globe: [ [ 'circle', { cx: 12, cy: 12, r: 9 } ], [ 'path', { d: 'M3 12h18M12 3c2.6 2.4 4 5.4 4 9s-1.4 6.6-4 9c-2.6-2.4-4-5.4-4-9s1.4-6.6 4-9z' } ] ]
 };
 const APP_GLYPH = { 'YouTube': 'play', 'Netflix': 'play', 'Twitch': 'play', 'Telegram': 'chat', 'WhatsApp': 'chat', 'Discord': 'chat', 'ВКонтакте': 'people', 'Facebook': 'people', 'X (Twitter)': 'chat',
-	'Instagram': 'camera', 'TikTok': 'music', 'Spotify': 'music', 'Zoom': 'video', 'Steam': 'game', 'Яндекс': 'search', 'Google': 'search', 'Cloudflare': 'cloud', 'Amazon': 'cloud', 'Apple': 'apps', 'Microsoft': 'apps' };
+	'Instagram': 'camera', 'TikTok': 'music', 'Spotify': 'music', 'Zoom': 'video', 'Steam': 'game', 'Яндекс': 'search', 'Google': 'search', 'Cloudflare': 'cloud', 'Amazon': 'cloud', 'Apple': 'apps', 'Microsoft': 'apps', 'RuTube': 'play', 'VK Видео': 'play', 'Одноклассники': 'people', 'MAX': 'chat', 'Дзен': 'play', 'RuStore': 'apps', 'Wildberries': 'apps', 'Wibes': 'play', 'Ozon': 'apps', 'Avito': 'search', 'Госуслуги': 'apps', 'Т-Банк': 'apps', 'Kaspersky': 'apps', 'Lesta': 'game', 'GitHub': 'apps', 'Dropbox': 'cloud', 'OneDrive': 'cloud', 'PlayStation': 'game', 'Xbox': 'game', 'Epic Games': 'game' };
 function appGlyph(name) {
 	const el = SVG('svg', { viewBox: '0 0 24 24', width: 18, height: 18, class: 'nf-ic', 'aria-hidden': 'true' }, (APP_SHAPES[APP_GLYPH[name] || 'globe']).map(sh => SVG(sh[0], sh[1])));
 	return el;
 }
 const APP_COLORS = { 'YouTube': '#ff3b30', 'Telegram': '#2aabee', 'WhatsApp': '#25d366', 'Instagram': '#e1306c', 'Facebook': '#1877f2', 'TikTok': '#25c8c8',
 	'Netflix': '#e50914', 'Twitch': '#9146ff', 'Spotify': '#1db954', 'Discord': '#5865f2', 'Zoom': '#2d8cff', 'Steam': '#66c0f4', 'ВКонтакте': '#0077ff',
-	'Яндекс': '#fc3f1d', 'Google': '#4285f4', 'Apple': '#a2aaad', 'Microsoft': '#00a4ef', 'Amazon': '#ff9900', 'X (Twitter)': '#8899a6', 'Cloudflare': '#f38020' };
+	'Яндекс': '#fc3f1d', 'Google': '#4285f4', 'Apple': '#a2aaad', 'Microsoft': '#00a4ef', 'Amazon': '#ff9900', 'X (Twitter)': '#8899a6', 'Cloudflare': '#f38020', 'VPN': '#8b5cf6', 'RuTube': '#e53935', 'VK Видео': '#0077ff', 'Одноклассники': '#ee8208', 'MAX': '#1685f8', 'Дзен': '#6b5ce7', 'RuStore': '#00a5e8', 'Wildberries': '#cb11ab', 'Wibes': '#8b5cf6', 'Ozon': '#005bff', 'Avito': '#00aaff', 'Госуслуги': '#0b65c2', 'Т-Банк': '#ffdd2d', 'Kaspersky': '#009c5a', 'Lesta': '#e65a28', 'GitHub': '#6e5494', 'Dropbox': '#0061ff', 'OneDrive': '#0078d4', 'PlayStation': '#003791', 'Xbox': '#107c10', 'Epic Games': '#2f2d2e' };
 const PERIODS = [ [ 'day', 'Сегодня', 1 ], [ 'week', '7 дней', 7 ], [ 'month', '30 дней', 30 ] ];
 
 function ymd(d) { return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); }
@@ -1743,32 +1743,36 @@ function ymd(d) { return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.
 /* суммы по приложениям за период: today — строки «ip, приложение, вниз, вверх», hist — то же с датой первой колонкой.
    «Прочее · домен» сворачивается в «Прочее», а домены уходят в подробности (other). */
 function sumApps(data, days, ip) {
-	const tot = {}, other = {};
-	const add = (a, d, u) => {
+	const tot = {}, other = {}, routes = { VPN: 0, Direct: 0, Unknown: 0 };
+	const add = (a, route, d, u) => {
+		route = [ 'VPN', 'Direct', 'Unknown' ].includes(route) ? route : 'Unknown';
 		const m = /^Прочее(?: · (.+))?$/.exec(a);
 		if (m) {
-			const t = other[m[1] || ''] || (other[m[1] || ''] = [ 0, 0 ]);
+			const k = (m[1] || '') + '\u001f' + route;
+			const t = other[k] || (other[k] = [ 0, 0 ]);
 			t[0] += d; t[1] += u;
 			a = 'Прочее';
 		}
-		const t = tot[a] || (tot[a] = [ 0, 0 ]);
+		const k = a + '\u001f' + route;
+		const t = tot[k] || (tot[k] = [ 0, 0, a, route ]);
 		t[0] += d; t[1] += u;
+		routes[route] += d + u;
 	};
-	for (const [ i, a, d, u ] of data.day || []) if (!ip || i === ip) add(a, d, u);
+	for (const r of data.day || []) if (!ip || r[0] === ip) add(r[1], r.length >= 5 ? r[2] : 'Unknown', r.length >= 5 ? r[3] : r[2], r.length >= 5 ? r[4] : r[3]);
 	if (days > 1) {
 		const t = String(data.today || '');
 		const base = /^\d{8}$/.test(t) ? new Date(+t.slice(0, 4), +t.slice(4, 6) - 1, +t.slice(6, 8)) : new Date();
 		base.setDate(base.getDate() - (days - 1));
 		const from = ymd(base);
-		for (const [ dt, i, a, d, u ] of data.hist || []) if (+dt >= from && (!ip || i === ip)) add(a, d, u);
+		for (const r of data.hist || []) if (+r[0] >= from && (!ip || r[1] === ip)) add(r[2], r.length >= 6 ? r[3] : 'Unknown', r.length >= 6 ? r[4] : r[3], r.length >= 6 ? r[5] : r[4]);
 	}
-	return { tot, other };
+	return { tot, other, routes };
 }
 
 function appsCard() {
 	const body = E('div', { class: 'nf-apps-b' }, E('div', { class: 'nf-empty' }, 'Собираю данные…'));
 	const el = xcard('nf-apps', 'Трафик по приложениям', body);
-	let names = null, timer = null, data = null, period = 'day', dev = '', busy = false;
+	let names = null, timer = null, data = null, period = 'day', dev = '', busy = false, showOther = false;
 
 	const run = cmd => fs.exec(APPSBIN, [ cmd ]).then(r => { try { return JSON.parse(r.stdout); } catch (e) { return null; } });
 
@@ -1821,33 +1825,83 @@ function appsCard() {
 		const seg = E('div', { class: 'nf-apps-seg', role: 'group', 'aria-label': 'Период' }, PERIODS.map(x =>
 			E('button', { type: 'button', 'aria-pressed': String(x[0] === period), click: () => { period = x[0]; render(); } }, x[1])));
 
-		const { tot, other } = sumApps(data, p[2], dev);
-		const rows = Object.keys(tot).map(a => ({ a, d: tot[a][0], u: tot[a][1], t: tot[a][0] + tot[a][1] })).filter(r => r.t > 0).sort((x, y) => (x.a === 'Прочее') - (y.a === 'Прочее') || y.t - x.t);
+		const { tot, other, routes } = sumApps(data, p[2], dev);
+		const byApp = {};
+		for (const k of Object.keys(tot)) {
+			const v = tot[k], a = v[2], route = v[3], d = v[0], u = v[1], t = d + u;
+			const r = byApp[a] || (byApp[a] = { a, d: 0, u: 0, t: 0, routes: {} });
+			r.d += d; r.u += u; r.t += t;
+			r.routes[route] = (r.routes[route] || 0) + t;
+		}
+		const rows = Object.values(byApp).filter(r => r.t > 0).sort((x, y) => (x.a === 'Прочее') - (y.a === 'Прочее') || y.t - x.t);
 		const sum = rows.reduce((n, r) => n + r.t, 0);
-		const list = rows.slice(0, 9);
+		const list = rows.filter(r => r.a !== 'Прочее').slice(0, 8).concat(rows.filter(r => r.a === 'Прочее').slice(0, 1));
 		const content = [];
+		if (sum > 0) {
+			const routeCards = [ [ 'VPN', routes.VPN, 'vpn' ], [ 'Напрямую', routes.Direct, 'direct' ], [ 'Не определено', routes.Unknown, 'unknown' ] ];
+			content.push(E('div', { class: 'nf-apps-summary' }, routeCards.map(x => E('div', { class: 'nf-apps-summary-item ' + x[2] }, [ E('span', {}, x[0]), E('b', {}, fmtBytes(x[1])), E('small', {}, nf1.format(x[1] / sum * 100) + '%') ]))));
+		}
 		if (!list.length) {
 			content.push(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Пока пусто'), E('span', {}, data.dnsmap > 0 ? 'Данных за этот период ещё нет.' : 'Журнал DNS пока пуст. Подождите несколько минут, пока устройства сделают запросы. Если ничего не появляется, проверьте, что устройства используют DNS роутера (а не DoH/DoT в браузере или телефоне).') ]));
 		}
 		else {
 			const mx = Math.max(1, ...list.map(r => r.t));
 			list.forEach(r => {
+				const routeBadges = [ 'VPN', 'Direct', 'Unknown' ].filter(route => r.routes[route] > 0).map(route => E('small', {
+						class: 'nf-apps-route nf-apps-route-' + route.toLowerCase(),
+						title: (route === 'VPN' ? 'VPN' : route === 'Direct' ? 'Напрямую' : 'Неизвестно') + ': ' + fmtBytes(r.routes[route])
+					}, (route === 'VPN' ? 'VPN' : route === 'Direct' ? 'Прямо' : 'Неизв.') + ' · ' + fmtBytes(r.routes[route])));
 				content.push(E('div', { class: 'nf-apps-r', style: '--c:' + (APP_COLORS[r.a] || 'var(--nf-text-dim)') }, [
-					E('div', { class: 'nf-apps-n' }, [ r.a === 'Прочее' ? E('i') : appGlyph(r.a), E('b', {}, r.a) ]),
-					E('div', { class: 'nf-top-bar' }, E('i', { style: 'width:' + Math.max(2, Math.round(r.t / mx * 100)) + '%' })),
+					E('div', { class: 'nf-apps-n' }, [
+						E('div', { class: 'nf-apps-title' }, [ r.a === 'Прочее' ? E('i') : appGlyph(r.a), E('b', {}, r.a) ]),
+						E('div', { class: 'nf-apps-routes' }, routeBadges)
+					]),
+					E('div', { class: 'nf-top-bar nf-apps-track' }, [ 'VPN', 'Direct', 'Unknown' ].filter(route => r.routes[route] > 0).map(route =>
+						E('i', { class: 'nf-apps-segment nf-apps-segment-' + route.toLowerCase(), title: route + ': ' + fmtBytes(r.routes[route]), style: 'width:' + (r.routes[route] / r.t * 100).toFixed(2) + '%' }))),
 					E('div', { class: 'nf-apps-v' }, [ E('b', {}, fmtBytes(r.t)), E('span', {}, '↓ ' + fmtBytes(r.d) + ' · ↑ ' + fmtBytes(r.u)) ]),
 					E('div', { class: 'nf-apps-p' }, sum ? nf0.format(r.t / sum * 100) + '%' : '')
 				]));
 				/* из чего состоит «Прочее»: самые тяжёлые домены (по ним можно добавить правило в /etc/nightfall-apps.list) */
 				if (r.a === 'Прочее') {
-					const top = Object.keys(other).map(k => ({ k: k || 'прямые адреса без имени', t: other[k][0] + other[k][1] })).filter(x => x.t > 0).sort((x, y) => y.t - x.t).slice(0, 6);
-					if (top.length) content.push(E('div', { class: 'nf-apps-sub' }, [ E('span', {}, 'Крупнее всего:') ].concat(top.map(x => E('span', { class: 'nf-apps-chip', title: x.k }, [ x.k + ' ', E('b', {}, fmtBytes(x.t)) ])))));
+					const top = Object.keys(other).map(k => {
+						const a = k.split(String.fromCharCode(31));
+						const route = a[1] === 'VPN' ? 'VPN' : a[1] === 'Direct' ? 'Direct' : 'Unknown';
+						const raw = a[0] || 'Нет DNS-имени';
+						const reasons = {
+							'Нет DNS-имени': 'Для IP не найдено актуального DNS-имени. Возможны прямое IP-подключение, DoH/DoT, внешний DNS, истёкшая запись или отсутствие DNS-журнала.',
+							'Общий IP (CDN)': 'Один IP встретился у нескольких известных приложений. Трафик оставлен нераспознанным, чтобы не приписывать его неверному сервису.',
+							'Несколько доменов': 'У IP обнаружено несколько разных неизвестных доменов. Нельзя безопасно выбрать один из них.'
+						};
+						const names = { 'Нет DNS-имени': 'IP без DNS-имени', 'Общий IP (CDN)': 'Общий IP / CDN', 'Несколько доменов': 'Несколько доменов' };
+						return { domain: names[raw] || raw, reason: reasons[raw] || '', route, t: other[k][0] + other[k][1] };
+					}).filter(x => x.t > 0).sort((x, y) => y.t - x.t);
+					if (top.length) {
+						const otherTotal = top.reduce((n, x) => n + x.t, 0);
+						const shown = showOther ? top : top.slice(0, 6);
+						content.push(E('section', { class: 'nf-apps-other-panel', 'aria-label': 'Состав нераспознанного трафика' }, [
+							E('div', { class: 'nf-apps-other-head' }, [
+								E('div', { class: 'nf-apps-other-heading' }, [
+									E('b', {}, 'Не распознано'),
+									E('span', {}, top.length + ' сочетаний домена и маршрута')
+								]),
+								E('strong', {}, fmtBytes(otherTotal))
+							]),
+							E('p', { class: 'nf-apps-other-note' }, 'IP без DNS-имени может означать прямое подключение, DoH/DoT, внешний DNS или истёкшую запись. Общие CDN и конфликтующие домены остаются здесь, пока приложение нельзя определить надёжно.'),
+							E('div', { class: 'nf-apps-other-list' }, shown.map(x => E('div', { class: 'nf-apps-other-row' }, [
+								E('span', { class: 'nf-apps-other-domain', title: x.reason || x.domain }, x.domain),
+								E('small', { class: 'nf-apps-other-route nf-apps-route-' + x.route.toLowerCase() }, x.route === 'VPN' ? 'VPN' : x.route === 'Direct' ? 'Напрямую' : 'Неизв.'),
+								E('b', { class: 'nf-apps-other-size' }, fmtBytes(x.t)),
+								E('span', { class: 'nf-apps-other-share' }, nf1.format(x.t / otherTotal * 100) + '%')
+							]))),
+							top.length > 6 ? E('button', { type: 'button', class: 'nf-apps-more', 'aria-expanded': String(showOther), click: () => { showOther = !showOther; render(); } }, showOther ? 'Свернуть список' : 'Показать все (' + top.length + ')') : null
+						]));
+					}
 				}
 			});
 		}
 		body.replaceChildren(E('div', { class: 'nf-apps-bar' }, [ seg, sel ]), ...content,
 			E('div', { class: 'nf-apps-f' }, [
-				E('span', {}, 'Всего ' + fmtBytes(sum) + '. Данные приблизительные: трафик через VPN и шифрованный DNS определить нельзя.'),
+				E('span', {}, 'Маршрут определяется по доступным правилам маршрутизации. «Не определено» означает, что данных недостаточно; DoH/DoT и сторонний DNS могут ограничивать распознавание приложений.'),
 				E('button', { type: 'button', class: 'nf-apps-stop', click: () => toggle('disable', 'Выключить учёт трафика по приложениям?\n\nЖурнал DNS в dnsmasq будет возвращён к прежним настройкам.') }, 'Выключить учёт')
 			]));
 	}

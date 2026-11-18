@@ -5006,11 +5006,81 @@ html[data-nf-ov-apps="off"] .nf-apps { display: none !important; }
 	.nf-apps-dev { flex: 1 1 100%; }
 }
 
+/* ======== v20261118: traffic apps layout and route breakdown ======== */
+.nf-apps-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin:0 0 8px; }
+.nf-apps-summary-item { display:grid; grid-template-columns:1fr auto; gap:2px 8px; min-width:0; padding:8px 10px; border:1px solid var(--nf-stroke); border-radius:9px; background:color-mix(in srgb,var(--nf-text) 3%,transparent); }
+.nf-apps-summary-item span { color:var(--nf-text-dim); font-size:calc(11px * var(--nf-fsz,1)); }
+.nf-apps-summary-item b { grid-column:1; font-size:calc(14px * var(--nf-fsz,1)); font-variant-numeric:tabular-nums; }
+.nf-apps-summary-item small { grid-column:2; grid-row:1 / span 2; align-self:center; color:var(--nf-text-dim); font-variant-numeric:tabular-nums; }
+.nf-apps-summary-item.vpn { border-top:2px solid #a78bfa; }
+.nf-apps-summary-item.direct { border-top:2px solid #22c55e; }
+.nf-apps-summary-item.unknown { border-top:2px solid #9ca3af; }
+.nf-apps-r { grid-template-columns:minmax(125px,1.15fr) minmax(65px,2fr) 9.5em 3em; gap:7px 12px; }
+.nf-apps-n { display:flex; flex-direction:column; align-items:flex-start; gap:4px; }
+.nf-apps-title { display:flex; align-items:center; gap:7px; min-width:0; max-width:100%; }
+.nf-apps-routes { display:flex; flex-wrap:wrap; gap:3px; min-width:0; }
+.nf-apps-route { white-space:nowrap; }
+.nf-apps-stack { display:flex; overflow:hidden; gap:2px; height:7px; border-radius:99px; background:color-mix(in srgb,var(--nf-text) 9%,transparent); }
+.nf-apps-stack i { display:block; flex:0 0 auto; height:100%; min-width:2px; border-radius:99px; }
+.nf-apps-stack .nf-apps-seg-vpn { background:#a78bfa; }
+.nf-apps-stack .nf-apps-seg-direct { background:#22c55e; }
+.nf-apps-stack .nf-apps-seg-unknown { background:#9ca3af; }
+.nf-apps-other { padding:2px 0 8px; border-bottom:1px solid var(--nf-stroke); }
+.nf-apps-sub { align-items:center; }
+.nf-apps-sub > b { color:var(--nf-text); margin-right:2px; }
+.nf-apps-more { padding:4px 9px; border:1px solid var(--nf-stroke); border-radius:7px; background:transparent; color:var(--nf-text); font:inherit; font-size:calc(11px * var(--nf-fsz,1)); cursor:pointer; }
+.nf-apps-more:hover { background:var(--nf-hover); }
+.nf-apps-f > span { flex:1 1 320px; line-height:1.5; }
+@media (max-width:640px) {
+ .nf-apps-summary { gap:5px; }
+ .nf-apps-summary-item { padding:6px; }
+ .nf-apps-summary-item span { font-size:10px; }
+ .nf-apps-summary-item b { font-size:12px; }
+ .nf-apps-r { grid-template-columns:minmax(0,1fr) 8.5em 2.8em; gap:6px 8px; }
+ .nf-apps-r .nf-apps-n { grid-column:1; }
+ .nf-apps-r .nf-top-bar { grid-column:1 / -1; order:4; }
+ .nf-apps-r .nf-apps-v { grid-column:2; }
+ .nf-apps-r .nf-apps-p { grid-column:3; }
+ .nf-apps-dev { flex:1 1 100%; }
+}
+
 /* ======== v20261103f: из чего состоит «Прочее» ======== */
 .nf-apps-sub { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 0 0 10px; color: var(--nf-text-dim); font-size: calc(12px * var(--nf-fsz, 1)); }
 .nf-apps-chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 9px; border-radius: 999px; background: color-mix(in srgb, var(--nf-text) 8%, transparent); color: var(--nf-text); }
 .nf-apps-chip b { font-weight: 600; margin-left: 2px; }
 
+/* ======== v20261118a: compact application traffic card ======== */
+.nf-apps-b { gap: 2px; }
+.nf-apps-r { grid-template-columns: minmax(145px, 1.15fr) minmax(90px, 1.8fr) minmax(118px, 9.5em) 3.2em; gap: 7px 12px; padding: 9px 0; }
+.nf-apps-routes { gap: 4px; }
+.nf-apps-route { padding: 3px 7px; font-size: 10.5px; }
+.nf-apps-track { display: flex; overflow: hidden; gap: 1px; border-radius: 99px; }
+.nf-apps-track i { display: block; min-width: 0; height: 100%; flex: 0 0 auto; }
+.nf-apps-track .nf-apps-segment-vpn { background: #a78bfa !important; }
+.nf-apps-track .nf-apps-segment-direct { background: #22c55e !important; }
+.nf-apps-track .nf-apps-segment-unknown { background: #9ca3af !important; }
+.nf-apps-f > span { flex: 1 1 100%; line-height: 1.5; }
+.nf-apps-sub { padding: 2px 0 11px; }
+@media (max-width: 640px) {
+  .nf-apps-bar { align-items: stretch; gap: 7px; }
+  .nf-apps-seg { flex: 0 0 auto; }
+  .nf-apps-seg button { padding: 5px 9px; }
+  .nf-apps-dev { flex: 1 1 100%; width: 100%; }
+  .nf-apps-r { grid-template-columns: minmax(0, 1fr) auto; gap: 5px 10px; padding: 10px 0; }
+  .nf-apps-n { grid-column: 1; grid-row: 1; display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 4px 7px; }
+  .nf-apps-title { min-width: 0; }
+  .nf-apps-routes { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; }
+  .nf-apps-v { grid-column: 2; grid-row: 1; align-self: start; font-size: 13px; }
+  .nf-apps-v span { font-size: 10.5px; }
+  .nf-apps-p { display: none; }
+  .nf-apps-r .nf-top-bar { grid-column: 1 / -1; grid-row: 2; order: initial; }
+  .nf-apps-f { gap: 8px; }
+  .nf-apps-stop { align-self: flex-end; }
+}
+@media (min-width: 641px) and (max-width: 900px) {
+  .nf-apps-r { grid-template-columns: minmax(120px, 1fr) minmax(70px, 1.4fr) 8.5em 2.8em; gap: 6px 8px; }
+}
+ 
 /* ======== v20261104a: карточка «Доступ в интернет» ======== */
 html[data-nf-ov-block="off"] .nf-block { display: none !important; }
 .nf-blk-r { display: grid; grid-template-columns: minmax(120px, 1.6fr) minmax(90px, 1fr) auto; gap: 6px 14px; align-items: center; padding: 8px 0; border-top: 1px solid var(--nf-stroke); }
@@ -6885,4 +6955,123 @@ body.nf-blank .modal.login > .spinning::before {
 #view .table:not(.assoclist):has(.td[data-title*="MAC"], .td[data-title*="IPv4"]) .td:has(.cbi-button, button, .btn) {
 	white-space: nowrap !important;
 	overflow-wrap: normal !important;
+}
+
+
+/* v20261118d: keep VPN/Direct badges inside the app label column */
+.nf-apps-r { min-width: 0; }
+.nf-apps-n { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px; min-width: 0; overflow: hidden; }
+.nf-apps-title { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; }
+.nf-apps-title .nf-ic { flex: none; }
+.nf-apps-title b { display: block; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nf-apps-routes { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; max-width: 100%; min-width: 0; }
+.nf-apps-route { display: inline-flex; align-items: center; max-width: 100%; padding: 2px 6px; border-radius: 99px; font-size: 10px; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.nf-apps-route-vpn { background: rgba(139,92,246,.16); color: #a78bfa; }
+.nf-apps-route-direct { background: rgba(34,197,94,.13); color: #22c55e; }
+.nf-apps-route-unknown { background: rgba(148,163,184,.16); color: var(--nf-text-dim); }
+
+
+/* Keep route segment colours above the generic app-bar colour rule. */
+.nf-apps-r .nf-apps-stack .nf-apps-seg-vpn { background:#a78bfa !important; }
+.nf-apps-r .nf-apps-stack .nf-apps-seg-direct { background:#22c55e !important; }
+.nf-apps-r .nf-apps-stack .nf-apps-seg-unknown { background:#9ca3af !important; }
+.nf-apps-stack i { flex:0 0 auto; min-width:2px; }
+
+
+/* v20261119: compact, readable application-traffic card across router layouts. */
+.nf-apps-bar {
+	display:flex;
+	align-items:center;
+	justify-content:space-between;
+	gap:8px;
+	flex-wrap:nowrap;
+	margin-bottom:8px;
+	min-width:0;
+}
+.nf-apps-seg { flex:0 0 auto; min-width:0; }
+.nf-apps-dev { flex:0 1 190px; width:190px; min-width:0; }
+.nf-apps-summary { gap:6px; margin:0 0 8px; }
+.nf-apps-summary-item { padding:6px 9px; border-radius:8px; gap:1px 6px; }
+.nf-apps-summary-item span { font-size:calc(10px * var(--nf-fsz,1)); }
+.nf-apps-summary-item b { font-size:calc(13px * var(--nf-fsz,1)); }
+.nf-apps-r { grid-template-columns:minmax(112px,1.15fr) minmax(65px,2fr) minmax(108px,9em) 2.6em; gap:6px 9px; padding:8px 0; }
+.nf-apps-n { gap:3px; }
+.nf-apps-routes { gap:3px; }
+.nf-apps-route { padding:2px 5px; font-size:9px; line-height:1.25; }
+.nf-apps-v span { font-size:calc(10px * var(--nf-fsz,1)); }
+.nf-apps-sub { gap:5px; padding-bottom:7px; font-size:calc(11px * var(--nf-fsz,1)); }
+.nf-apps-chip { padding:2px 7px; font-size:calc(10px * var(--nf-fsz,1)); }
+.nf-apps-f { padding-top:8px; font-size:calc(11px * var(--nf-fsz,1)); }
+
+@media (max-width:640px) {
+	.nf-apps-bar { display:grid; grid-template-columns:auto minmax(0,1fr); gap:6px; }
+	.nf-apps-seg { max-width:100%; }
+	.nf-apps-dev { width:100%; max-width:none; flex:1 1 auto; }
+	.nf-apps-r { grid-template-columns:minmax(105px,1fr) minmax(82px,8.5em) 2.4em; gap:5px 7px; }
+	.nf-apps-r .nf-apps-n { grid-column:1; }
+	.nf-apps-r .nf-apps-v { grid-column:2; }
+	.nf-apps-r .nf-apps-p { grid-column:3; }
+	.nf-apps-r .nf-top-bar { grid-column:1 / -1; order:4; }
+}
+@media (max-width:390px) {
+	.nf-apps-summary { gap:4px; }
+	.nf-apps-summary-item { padding:5px 6px; }
+	.nf-apps-summary-item span { font-size:9px; }
+	.nf-apps-summary-item b { font-size:11px; }
+	.nf-apps-r { grid-template-columns:minmax(90px,1fr) minmax(72px,7.2em) 2.1em; gap:5px; }
+	.nf-apps-v { font-size:11px; }
+	.nf-apps-v span { font-size:9px; }
+}
+
+
+/* v20261119: route amounts remain visible without relying on hover tooltips. */
+.nf-apps-route { padding:2px 5px; font-size:9px; line-height:1.35; font-variant-numeric:tabular-nums; }
+.nf-apps-routes { gap:3px; }
+@media (max-width:640px) {
+  .nf-apps-r { grid-template-columns:minmax(0,1fr) minmax(92px,8.5em) 2.8em; }
+  .nf-apps-route { font-size:8.5px; padding:2px 4px; }
+}
+
+
+/* v20261118h: structured, readable breakdown for unclassified application traffic. */
+.nf-apps-other-panel {
+	margin:4px 0 8px;
+	padding:10px 12px;
+	border:1px solid var(--nf-stroke);
+	border-radius:12px;
+	background:color-mix(in srgb,var(--nf-text) 3.5%,transparent);
+}
+.nf-apps-other-head {
+	display:flex;
+	align-items:center;
+	justify-content:space-between;
+	gap:12px;
+}
+.nf-apps-other-heading { display:flex; flex-wrap:wrap; align-items:baseline; gap:5px 9px; min-width:0; }
+.nf-apps-other-heading b { color:var(--nf-text); font-size:calc(13px * var(--nf-fsz,1)); }
+.nf-apps-other-heading span,.nf-apps-other-note { color:var(--nf-text-dim); font-size:calc(10.5px * var(--nf-fsz,1)); }
+.nf-apps-other-head > strong { flex:none; color:var(--nf-text); font-size:calc(13px * var(--nf-fsz,1)); font-variant-numeric:tabular-nums; }
+.nf-apps-other-note { margin:4px 0 8px; line-height:1.45; }
+.nf-apps-other-list { display:grid; gap:0; }
+.nf-apps-other-row {
+	display:grid;
+	grid-template-columns:minmax(0,1fr) auto minmax(72px,auto) 3.2em;
+	align-items:center;
+	gap:6px 9px;
+	min-width:0;
+	padding:6px 0;
+	border-top:1px solid color-mix(in srgb,var(--nf-stroke) 75%,transparent);
+}
+.nf-apps-other-domain { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--nf-text); font-size:calc(11px * var(--nf-fsz,1)); }
+.nf-apps-other-route { white-space:nowrap; font-size:calc(9px * var(--nf-fsz,1)); }
+.nf-apps-other-size { text-align:right; white-space:nowrap; color:var(--nf-text); font-size:calc(10.5px * var(--nf-fsz,1)); font-variant-numeric:tabular-nums; }
+.nf-apps-other-share { text-align:right; color:var(--nf-text-dim); font-size:calc(9px * var(--nf-fsz,1)); font-variant-numeric:tabular-nums; }
+.nf-apps-other-panel .nf-apps-more { margin-top:8px; }
+@media (max-width:640px) {
+	.nf-apps-other-panel { padding:9px; border-radius:10px; }
+	.nf-apps-other-row { grid-template-columns:minmax(0,1fr) auto; gap:4px 8px; padding:7px 0; }
+	.nf-apps-other-domain { grid-column:1; grid-row:1; font-size:calc(11px * var(--nf-fsz,1)); }
+	.nf-apps-other-route { grid-column:1; grid-row:2; justify-self:start; }
+	.nf-apps-other-size { grid-column:2; grid-row:1; }
+	.nf-apps-other-share { grid-column:2; grid-row:2; }
 }

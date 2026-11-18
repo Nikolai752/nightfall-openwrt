@@ -1,17 +1,35 @@
 name: Release
-# При публикации тега вида v1.2.3 собирает nightfall-root.tar.gz и прикладывает к релизу.
+# A release tag is published only after the complete reusable CI workflow succeeds.
 on:
   push:
     tags: [ 'v*' ]
 permissions:
   contents: write
 jobs:
+  tests:
+    name: Полный CI перед публикацией
+    permissions:
+      contents: read
+    uses: ./.github/workflows/check.yml
+
   build:
+    name: Build, sign and publish release
+    needs: tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Проверить CHANGELOG перед выпуском
         run: sh tools/check-release.sh "${GITHUB_REF_NAME}"
+      - name: Убедиться, что тег выпущен из main
+        run: |
+          set -eu
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "::error::Релизный тег должен указывать на коммит, уже находящийся в main."
+            exit 1
+          }
       - name: Подготовить заметки релиза из CHANGELOG
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
@@ -29,22 +47,40 @@ jobs:
             END { if (!found) exit 1 }
           ' CHANGELOG.md > release-notes.md
           test -s release-notes.md
-      - run: VERSION="${GITHUB_REF_NAME}" sh build-release.sh
-      # подпись usign (тем же инструментом, что проверяет роутер); секретный ключ хранится в Secrets
+      - name: Собрать архив релиза
+        run: VERSION="${GITHUB_REF_NAME}" sh build-release.sh
+      - name: Проверить архив и контрольную сумму
+        run: |
+          set -eu
+          test -s dist/nightfall-root.tar.gz
+          test -s dist/nightfall-root.tar.gz.sha256
+          (cd dist && sha256sum -c nightfall-root.tar.gz.sha256)
+          tar -tzf dist/nightfall-root.tar.gz | grep -q 'www/luci-static/nightfall/version.json'
+          EXPECTED_VERSION="${GITHUB_REF_NAME#v}"
+          ARCHIVE_VERSION=$(tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+          test -n "$ARCHIVE_VERSION"
+          test "$ARCHIVE_VERSION" = "$EXPECTED_VERSION" || {
+            echo "::error::Версия в архиве ($ARCHIVE_VERSION) не совпадает с тегом ($EXPECTED_VERSION)."
+            exit 1
+          }
+      # Подпись usign тем же инструментом, которым проверяет архив роутер.
       - name: Подписать архив
         env:
           SIGN_KEY: ${{ secrets.NIGHTFALL_SIGN_KEY }}
         run: |
+          set -eu
           [ -n "$SIGN_KEY" ] || { echo "::error::Нет секрета NIGHTFALL_SIGN_KEY, релиз без подписи не выпускаю"; exit 1; }
           sudo apt-get install -y cmake >/dev/null
           git clone --depth 1 https://github.com/openwrt/usign.git /tmp/usign
-          cmake -S /tmp/usign -B /tmp/usign/b >/dev/null && make -C /tmp/usign/b >/dev/null
-          umask 077; printf '%s\n' "$SIGN_KEY" > /tmp/nf.key
+          cmake -S /tmp/usign -B /tmp/usign/b >/dev/null
+          make -C /tmp/usign/b >/dev/null
+          umask 077
+          printf '%s\n' "$SIGN_KEY" > /tmp/nf.key
           /tmp/usign/b/usign -S -m dist/nightfall-root.tar.gz -s /tmp/nf.key -x dist/nightfall-root.tar.gz.sig
           rm -f /tmp/nf.key
-          # проверка открытым ключом из репозитория
           /tmp/usign/b/usign -V -m dist/nightfall-root.tar.gz -p luci-theme-nightfall/root/etc/nightfall-release.pub -x dist/nightfall-root.tar.gz.sig
-      - uses: softprops/action-gh-release@v2
+      - name: Опубликовать GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
           prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
@@ -53,14 +89,17 @@ jobs:
             dist/nightfall-root.tar.gz.sig
           body_path: release-notes.md
           generate_release_notes: false
-      # номер последнего релиза для проверки обновлений в теме (читается из репозитория, у raw нет лимита запросов)
-      - name: Записать номер стабильного релиза в latest.json
+      - name: Обновить latest.json для стабильного релиза
         if: ${{ !contains(github.ref_name, '-') }}
         run: |
+          set -eu
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin main
           git checkout -B main origin/main
           printf '{ "version": "%s" }\n' "${GITHUB_REF_NAME#v}" > latest.json
           git add latest.json
-          git diff --cached --quiet || { git commit -m "latest.json: ${GITHUB_REF_NAME}"; git push origin main; }
+          git diff --cached --quiet || {
+            git commit -m "latest.json: ${GITHUB_REF_NAME}"
+            git push origin main
+          }
