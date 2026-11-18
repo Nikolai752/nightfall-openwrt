@@ -1728,14 +1728,14 @@ const APP_SHAPES = {
 	globe: [ [ 'circle', { cx: 12, cy: 12, r: 9 } ], [ 'path', { d: 'M3 12h18M12 3c2.6 2.4 4 5.4 4 9s-1.4 6.6-4 9c-2.6-2.4-4-5.4-4-9s1.4-6.6 4-9z' } ] ]
 };
 const APP_GLYPH = { 'YouTube': 'play', 'Netflix': 'play', 'Twitch': 'play', 'Telegram': 'chat', 'WhatsApp': 'chat', 'Discord': 'chat', 'ВКонтакте': 'people', 'Facebook': 'people', 'X (Twitter)': 'chat',
-	'Instagram': 'camera', 'TikTok': 'music', 'Spotify': 'music', 'Zoom': 'video', 'Steam': 'game', 'Яндекс': 'search', 'Google': 'search', 'Cloudflare': 'cloud', 'Amazon': 'cloud', 'Apple': 'apps', 'Microsoft': 'apps' };
+	'Instagram': 'camera', 'TikTok': 'music', 'Spotify': 'music', 'Zoom': 'video', 'Steam': 'game', 'Яндекс': 'search', 'Google': 'search', 'Cloudflare': 'cloud', 'Amazon': 'cloud', 'Apple': 'apps', 'Microsoft': 'apps', 'Rutube': 'play', 'VK Видео': 'play', 'Одноклассники': 'people', 'MAX': 'chat', 'Дзен': 'play', 'RuStore': 'apps', 'Wildberries': 'apps', 'Ozon': 'apps', 'Avito': 'search', 'Госуслуги': 'apps', 'Т-Банк': 'apps', 'Kaspersky': 'apps', 'Lesta': 'game', 'GitHub': 'apps', 'Dropbox': 'cloud', 'OneDrive': 'cloud', 'PlayStation': 'game', 'Xbox': 'game', 'Epic Games': 'game' };
 function appGlyph(name) {
 	const el = SVG('svg', { viewBox: '0 0 24 24', width: 18, height: 18, class: 'nf-ic', 'aria-hidden': 'true' }, (APP_SHAPES[APP_GLYPH[name] || 'globe']).map(sh => SVG(sh[0], sh[1])));
 	return el;
 }
 const APP_COLORS = { 'YouTube': '#ff3b30', 'Telegram': '#2aabee', 'WhatsApp': '#25d366', 'Instagram': '#e1306c', 'Facebook': '#1877f2', 'TikTok': '#25c8c8',
 	'Netflix': '#e50914', 'Twitch': '#9146ff', 'Spotify': '#1db954', 'Discord': '#5865f2', 'Zoom': '#2d8cff', 'Steam': '#66c0f4', 'ВКонтакте': '#0077ff',
-	'Яндекс': '#fc3f1d', 'Google': '#4285f4', 'Apple': '#a2aaad', 'Microsoft': '#00a4ef', 'Amazon': '#ff9900', 'X (Twitter)': '#8899a6', 'Cloudflare': '#f38020', 'VPN': '#8b5cf6' };
+	'Яндекс': '#fc3f1d', 'Google': '#4285f4', 'Apple': '#a2aaad', 'Microsoft': '#00a4ef', 'Amazon': '#ff9900', 'X (Twitter)': '#8899a6', 'Cloudflare': '#f38020', 'VPN': '#8b5cf6', 'Rutube': '#e53935', 'VK Видео': '#0077ff', 'Одноклассники': '#ee8208', 'MAX': '#1685f8', 'Дзен': '#6b5ce7', 'RuStore': '#00a5e8', 'Wildberries': '#cb11ab', 'Ozon': '#005bff', 'Avito': '#00aaff', 'Госуслуги': '#0b65c2', 'Т-Банк': '#ffdd2d', 'Kaspersky': '#009c5a', 'Lesta': '#e65a28', 'GitHub': '#6e5494', 'Dropbox': '#0061ff', 'OneDrive': '#0078d4', 'PlayStation': '#003791', 'Xbox': '#107c10', 'Epic Games': '#2f2d2e' };
 const PERIODS = [ [ 'day', 'Сегодня', 1 ], [ 'week', '7 дней', 7 ], [ 'month', '30 дней', 30 ] ];
 
 function ymd(d) { return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); }
@@ -1856,7 +1856,8 @@ function appsCard() {
 						E('div', { class: 'nf-apps-title' }, [ r.a === 'Прочее' ? E('i') : appGlyph(r.a), E('b', {}, r.a) ]),
 						E('div', { class: 'nf-apps-routes' }, routeBadges)
 					]),
-					E('div', { class: 'nf-top-bar' }, E('i', { style: 'width:' + Math.max(2, Math.round(r.t / mx * 100)) + '%' })),
+					E('div', { class: 'nf-top-bar nf-apps-track' }, [ 'VPN', 'Direct', 'Unknown' ].filter(route => r.routes[route] > 0).map(route =>
+						E('i', { class: 'nf-apps-segment nf-apps-segment-' + route.toLowerCase(), title: route + ': ' + fmtBytes(r.routes[route]), style: 'width:' + (r.routes[route] / r.t * 100).toFixed(2) + '%' }))),
 					E('div', { class: 'nf-apps-v' }, [ E('b', {}, fmtBytes(r.t)), E('span', {}, '↓ ' + fmtBytes(r.d) + ' · ↑ ' + fmtBytes(r.u)) ]),
 					E('div', { class: 'nf-apps-p' }, sum ? nf0.format(r.t / sum * 100) + '%' : '')
 				]));
