@@ -195,7 +195,7 @@ cmd_apps() {
 	out=$(awk -F'|' "$BYTES"'
 		NF >= 5 { a = $2; if (a ~ /^Прочее/) a = "Прочее"; r = ($3 == "VPN" ? "VPN" : ($3 == "Direct" ? "напрямую" : "неизвестно")); k = a " · " r; d[k] += $4; u[k] += $5 }
 		NF == 4 { a = $2; if (a ~ /^Прочее/) a = "Прочее"; k = a " · неизвестно"; d[k] += $3; u[k] += $4 }
-		END { for (a in d) printf "%d|%s|%s\\n", d[a] + u[a], a, fb(d[a] + u[a]) }' "$DIR/apps.day" | sort -t'|' -k1,1nr | head -n 10 | awk -F'|' '{ printf "• %s: %s\\n", $2, $3 }')
+		END { for (a in d) printf "%d|%s|%s\n", d[a] + u[a], a, fb(d[a] + u[a]) }' "$DIR/apps.day" | sort -t'|' -k1,1nr | head -n 10 | awk -F'|' '{ printf "• %s: %s\n", $2, $3 }')
 	reply "📱 Трафик по приложениям за сегодня:
 $out"
 }
