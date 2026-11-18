@@ -414,37 +414,3 @@ header h3 a, header .brand {
 		margin: .125em;
 	}
 }
-
-/* Nightfall #83: the stock mobile LuCI stylesheet makes .table/.tr flex
-   containers and gives every .td a 50% flex basis. The DHCP empty-state row
-   must opt out of that card layout and occupy one full row. Keep this override
-   in mobile.css (loaded after the desktop cascade). */
-@media screen and (max-width: 899px) {
-	html body #view .table .tr.placeholder {
-		display: flex !important;
-		flex: 0 0 100% !important;
-		flex-direction: row !important;
-		flex-wrap: nowrap !important;
-		align-items: stretch !important;
-		width: 100% !important;
-		min-width: 100% !important;
-		max-width: 100% !important;
-		margin: 0 !important;
-		padding: 0 !important;
-		box-sizing: border-box !important;
-	}
-	html body #view .table .tr.placeholder > .td {
-		display: flex !important;
-		flex: 0 0 100% !important;
-		align-self: stretch !important;
-		width: 100% !important;
-		min-width: 100% !important;
-		max-width: 100% !important;
-		margin: 0 !important;
-		padding: 26px 16px !important;
-		box-sizing: border-box !important;
-		align-items: center !important;
-		justify-content: center !important;
-		text-align: center !important;
-	}
-}
