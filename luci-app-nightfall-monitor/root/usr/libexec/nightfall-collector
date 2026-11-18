@@ -347,6 +347,7 @@ vpn_tunnel_dev() {
 }
 : > "$DIR/vpn.routes"
 : > "$DIR/vpn.meta"
+if [ "$APPS" = 1 ]; then
 tunnel_present=0
 for ti in $(ip -o link show 2>/dev/null | awk -F': ' '{ sub(/@.*/, "", $2); print $2 }'); do
 	vpn_tunnel_dev "$ti" && { tunnel_present=1; break; }
@@ -383,6 +384,9 @@ for fam in 4 6; do
 	mt=0; vpn_tunnel_dev "$md" && mt=1
 	printf '%s %s %s %s %s %s\n' "$fam" "$md" "$mt" "$policy_unknown" "$tunnel_present" "$vpn_rule_found" >> "$DIR/vpn.meta"
 done
+else
+	: > "$DIR/vpn.routes"; : > "$DIR/vpn.meta"
+fi
 first=0; [ -s "$DIR/ct.state" ] || first=1
 	rm -f "$DIR/ct.state.new"
 	head -n 40000 "$CT" 2>/dev/null | awk -v netf="$DIR/client.nets" -v routerf="$DIR/router.ips" -v statef="$DIR/ct.state" -v newf="$DIR/ct.state.new" -v dayf="$DIR/dev.day" \
@@ -465,8 +469,8 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 		key = $1 "|" $3 "|" src ">" dst ":" sp ">" dp
 		# одинаковые «адрес:порт» бывают у нескольких записей (старая в TIME_WAIT и новая): складываем их счётчики,
 		# иначе одна запись «уменьшалась» и каждый цикл засчитывалась заново целиком (завышение в сотни раз)
-		if (key in so) { so[key] += ob; sr[key] += rb; if (sroute[key] != routeof(mark, index(src, \":\") ? 6 : 4)) sroute[key] = "Unknown"; next }
-		so[key] = ob; sr[key] = rb; sa[key] = src; sd[key] = dst; sp3[key] = $3; sdp[key] = dp; sroute[key] = routeof(mark, index(src, \":\") ? 6 : 4)
+		if (key in so) { so[key] += ob; sr[key] += rb; if (apps == 1 && sroute[key] != routeof(mark, index(src, \":\") ? 6 : 4)) sroute[key] = "Unknown"; next }
+		so[key] = ob; sr[key] = rb; sa[key] = src; sd[key] = dst; sp3[key] = $3; sdp[key] = dp; sroute[key] = (apps == 1 ? routeof(mark, index(src, \":\") ? 6 : 4) : "Unknown")
 	}
 	function account(key,   ob, rb, src, dst, do_, dr_, sk, dk, ak) {
 		ob = so[key]; rb = sr[key]; src = sa[key]; dst = sd[key]; route = sroute[key]
