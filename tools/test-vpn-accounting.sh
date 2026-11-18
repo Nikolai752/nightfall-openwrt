@@ -34,6 +34,8 @@ BEGIN {
 
   nr = 0; tunnel_present["4"] = 0; vpn_rule_found["4"] = 0
   check("router without VPN classifies WAN as Direct", routeof("0", "4"), "Direct")
+  tunnel_present["4"] = 1
+  check("unmapped active tunnel is not called Direct", routeof("0", "4"), "Unknown")
   main_dev["4"] = "wg0"; main_tunnel["4"] = 1
   check("full-tunnel WireGuard default route", routeof("0", "4"), "VPN")
   main_dev["4"] = "eth0"; main_tunnel["4"] = 0; policy_unknown["4"] = 1; tunnel_present["4"] = 1; vpn_rule_found["4"] = 0
