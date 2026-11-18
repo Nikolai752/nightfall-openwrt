@@ -45,6 +45,12 @@ BEGIN {
   policy_unknown["4"] = 0; rc[1] = "Unknown"
   check("matching non-tunnel policy route stays Unknown", routeof("123", "4"), "Unknown")
 
+  check("stable VPN flow remains VPN", route_delta("VPN", "VPN"), "VPN")
+  check("stable Direct flow remains Direct", route_delta("Direct", "Direct"), "Direct")
+  check("VPN-to-Direct transition interval is Unknown", route_delta("VPN", "Direct"), "Unknown")
+  check("Direct-to-VPN transition interval is Unknown", route_delta("Direct", "VPN"), "Unknown")
+  check("legacy state without route is Unknown for transition interval", route_delta("Unknown", "Direct"), "Unknown")
+
   am["8.8.8.8"] = "Google"
   check("application identity remains Google", appof("8.8.8.8"), "Google")
   check("VPN endpoint is not renamed to VPN application", appof("195.19.105.24"), "Прочее")
