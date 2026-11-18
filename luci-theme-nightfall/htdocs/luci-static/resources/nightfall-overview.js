@@ -1839,7 +1839,7 @@ function appsCard() {
 		const content = [];
 		if (sum > 0) {
 			const routeCards = [ [ 'VPN', routes.VPN, 'vpn' ], [ 'Напрямую', routes.Direct, 'direct' ], [ 'Не определено', routes.Unknown, 'unknown' ] ];
-			content.push(E('div', { class: 'nf-apps-summary' }, routeCards.map(x => E('div', { class: 'nf-apps-summary-item ' + x[2] }, [ E('span', {}, x[0]), E('b', {}, fmtBytes(x[1])), E('small', {}, nf0.format(x[1] / sum * 100) + '%') ]))));
+			content.push(E('div', { class: 'nf-apps-summary' }, routeCards.map(x => E('div', { class: 'nf-apps-summary-item ' + x[2] }, [ E('span', {}, x[0]), E('b', {}, fmtBytes(x[1])), E('small', {}, nf1.format(x[1] / sum * 100) + '%') ]))));
 		}
 		if (!list.length) {
 			content.push(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Пока пусто'), E('span', {}, data.dnsmap > 0 ? 'Данных за этот период ещё нет.' : 'Журнал DNS пока пуст. Подождите несколько минут, пока устройства сделают запросы. Если ничего не появляется, проверьте, что устройства используют DNS роутера (а не DoH/DoT в браузере или телефоне).') ]));
@@ -1850,7 +1850,7 @@ function appsCard() {
 				const routeBadges = [ 'VPN', 'Direct', 'Unknown' ].filter(route => r.routes[route] > 0).map(route => E('small', {
 						class: 'nf-apps-route nf-apps-route-' + route.toLowerCase(),
 						title: (route === 'VPN' ? 'VPN' : route === 'Direct' ? 'Напрямую' : 'Неизвестно') + ': ' + fmtBytes(r.routes[route])
-					}, (route === 'VPN' ? 'VPN ' : route === 'Direct' ? 'Прямо ' : 'Неизв. ') + fmtBytes(r.routes[route])));
+					}, (route === 'VPN' ? 'VPN' : route === 'Direct' ? 'Прямо' : '?')));
 				content.push(E('div', { class: 'nf-apps-r', style: '--c:' + (APP_COLORS[r.a] || 'var(--nf-text-dim)') }, [
 					E('div', { class: 'nf-apps-n' }, [
 						E('div', { class: 'nf-apps-title' }, [ r.a === 'Прочее' ? E('i') : appGlyph(r.a), E('b', {}, r.a) ]),
@@ -1865,10 +1865,10 @@ function appsCard() {
 				if (r.a === 'Прочее') {
 					const top = Object.keys(other).map(k => { const a = k.split('\\u001f'); return { k: (a[0] || 'прямые адреса без имени') + ' · ' + (a[1] === 'VPN' ? 'VPN' : a[1] === 'Direct' ? 'напрямую' : 'неизвестно'), t: other[k][0] + other[k][1] }; }).filter(x => x.t > 0).sort((x, y) => y.t - x.t);
 					if (top.length) {
-						const shown = showOther ? top : top.slice(0, 8);
+						const shown = showOther ? top : top.slice(0, 4);
 						content.push(E('div', { class: 'nf-apps-other' }, [
 							E('div', { class: 'nf-apps-sub' }, [ E('b', {}, 'Состав «Прочее»'), E('span', {}, top.length + ' записей') ].concat(shown.map(x => E('span', { class: 'nf-apps-chip', title: x.k }, [ x.k + ' ', E('b', {}, fmtBytes(x.t)) ])))),
-							top.length > 8 ? E('button', { type: 'button', class: 'nf-apps-more', click: () => { showOther = !showOther; render(); } }, showOther ? 'Свернуть список' : 'Показать все домены (' + top.length + ')') : null
+							top.length > 8 ? E('button', { type: 'button', class: 'nf-apps-more', click: () => { showOther = !showOther; render(); } }, showOther ? 'Свернуть список' : 'Ещё домены (' + top.length + ')') : null
 						]));
 					}
 				}
@@ -1876,7 +1876,7 @@ function appsCard() {
 		}
 		body.replaceChildren(E('div', { class: 'nf-apps-bar' }, [ seg, sel ]), ...content,
 			E('div', { class: 'nf-apps-f' }, [
-				E('span', {}, 'Всего ' + fmtBytes(sum) + ' · VPN ' + fmtBytes(routes.VPN) + ' · напрямую ' + fmtBytes(routes.Direct) + ' · не определено ' + fmtBytes(routes.Unknown) + '. Классификация основана на видимых правилах маршрутизации. При нестандартной схеме часть соединений может остаться неизвестной; DoH/DoT и сторонний DNS также снижают точность названий приложений.'),
+				E('span', {}, 'Маршрут определяется по доступным правилам маршрутизации. «Не определено» означает, что данных недостаточно; DoH/DoT и сторонний DNS могут ограничивать распознавание приложений.'),
 				E('button', { type: 'button', class: 'nf-apps-stop', click: () => toggle('disable', 'Выключить учёт трафика по приложениям?\n\nЖурнал DNS в dnsmasq будет возвращён к прежним настройкам.') }, 'Выключить учёт')
 			]));
 	}
