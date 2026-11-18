@@ -349,7 +349,7 @@ vpn_tunnel_dev() {
 : > "$DIR/vpn.meta"
 if [ "$APPS" = 1 ]; then
 tunnel_present=0
-for ti in $(ip -o link show 2>/dev/null | awk -F': ' '{ sub(/@.*/, "", $2); print $2 }'); do
+for ti in $(ip -o link show 2>/dev/null | awk -F': ' '$0 ~ /<[^>]*UP[,>]/ { sub(/@.*/, "", $2); print $2 }'); do
 	vpn_tunnel_dev "$ti" && { tunnel_present=1; break; }
 done
 for fam in 4 6; do
