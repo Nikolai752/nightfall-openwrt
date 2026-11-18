@@ -153,6 +153,9 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				const darkDonut = await p.evaluate(() => getComputedStyle(document.querySelector('.nfm-app-donut')).backgroundImage);
 				if (!darkDonut.includes('conic-gradient')) bad(vn + ': диаграмма исчезла в тёмной теме');
 				await p.evaluate(() => document.documentElement.removeAttribute('data-darkmode'));
+				await p.click('.nfm-app-category summary >> nth=0');
+				await p.evaluate(() => window.__runMonitorTick());
+				if (!(await p.$eval('.nfm-app-category', el => el.open))) bad(vn + ': раскрытая категория закрылась при обычном обновлении монитора');
 				await p.selectOption('select[aria-label="Устройство для статистики приложений"]', '192.168.1.20');
 				await p.selectOption('select[aria-label="Период статистики приложений"]', '7');
 				await p.waitForTimeout(250);
