@@ -199,10 +199,10 @@ const APP_TRAFFIC_CATEGORIES = {
 	'Apple': 'Системные службы', 'Amazon': 'Облака и хранилища', 'GitHub': 'Разработка',
 	'Kaspersky': 'Безопасность', 'Cloudflare': 'Сеть и инфраструктура'
 };
-const APP_TRAFFIC_INFRA = /^(?:okcdn\\.ru|rtbcdn\\.ru|cdn77\\.org|akamai\\.net|akamaiedge\\.net|edgesuite\\.net|akadns\\.net|fastly\\.net|fastly-edge\\.com|gcdn\\.co|b-cdn\\.net|ecdnx\\.com|mradx\\.net|cdn-vk\\.ru)$/i;
-const APP_TRAFFIC_ADS = /(?:doubleclick\\.net|googlesyndication\\.com|googletagservices\\.com|2mdn\\.net|app-measurement\\.com|crashlytics\\.com|app-analytics-services\\.com|mediation\\.goog|vk-analytics\\.ru|uxfeedback\\.ru)/i;
-const APP_TRAFFIC_DNS = /^(?:dns\\.google|resolver\\.arpa|quad9\\.net)$/i;
-const APP_TRAFFIC_CERT = /^(?:lencr\\.org|pki\\.goog|digicert\\.com)$/i;
+const APP_TRAFFIC_INFRA = /^(?:okcdn\.ru|rtbcdn\.ru|cdn77\.org|akamai\.net|akamaiedge\.net|edgesuite\.net|akadns\.net|fastly\.net|fastly-edge\.com|gcdn\.co|b-cdn\.net|ecdnx\.com|mradx\.net|cdn-vk\.ru)$/i;
+const APP_TRAFFIC_ADS = /(?:doubleclick\.net|googlesyndication\.com|googletagservices\.com|2mdn\.net|app-measurement\.com|crashlytics\.com|app-analytics-services\.com|mediation\.goog|vk-analytics\.ru|uxfeedback\.ru)/i;
+const APP_TRAFFIC_DNS = /^(?:dns\.google|resolver\.arpa|quad9\.net)$/i;
+const APP_TRAFFIC_CERT = /^(?:lencr\.org|pki\.goog|digicert\.com)$/i;
 
 function appTrafficCategory(name) {
 	const m = /^Прочее(?: · (.+))?$/.exec(name || '');
@@ -213,8 +213,8 @@ function appTrafficCategory(name) {
 		if (APP_TRAFFIC_DNS.test(domain)) return 'DNS и инфраструктура';
 		if (APP_TRAFFIC_CERT.test(domain)) return 'Безопасность и сертификаты';
 		if (APP_TRAFFIC_INFRA.test(domain)) return 'CDN и инфраструктура';
-		if (domain === 'aaplimg.com' || /(?:^|\\.)apple\\.com$/i.test(domain)) return 'Системные службы';
-		if (/^(?:windows\\.com|windows\\.net|live\\.net|msn\\.com)$/i.test(domain)) return 'Системные службы';
+		if (domain === 'aaplimg.com' || /(?:^|\.)apple\.com$/i.test(domain)) return 'Системные службы';
+		if (/^(?:windows\.com|windows\.net|live\.net|msn\.com)$/i.test(domain)) return 'Системные службы';
 		return 'Не определено';
 	}
 	return APP_TRAFFIC_CATEGORIES[name] || 'Другие приложения';
@@ -243,7 +243,7 @@ function sumMonitorAppTraffic(data, days, ip) {
 	for (const r of data.day || []) add(r[0], r[1], r.length >= 5 ? r[2] : 'Unknown', r.length >= 5 ? r[3] : r[2], r.length >= 5 ? r[4] : r[3]);
 	if (days > 1) {
 		const today = String(data.today || '');
-		const base = /^\\d{8}$/.test(today) ? new Date(+today.slice(0, 4), +today.slice(4, 6) - 1, +today.slice(6, 8)) : new Date();
+		const base = /^\d{8}$/.test(today) ? new Date(+today.slice(0, 4), +today.slice(4, 6) - 1, +today.slice(6, 8)) : new Date();
 		base.setDate(base.getDate() - (days - 1));
 		const from = base.getFullYear() * 10000 + (base.getMonth() + 1) * 100 + base.getDate();
 		for (const r of data.hist || []) if (+r[0] >= from) add(r[1], r[2], r.length >= 6 ? r[3] : 'Unknown', r.length >= 6 ? r[4] : r[3], r.length >= 6 ? r[5] : r[4]);
@@ -1941,7 +1941,7 @@ return view.extend({
 			const top = result.apps.slice(0, 30);
 			const unknown = result.apps.filter(a => a.category === 'Не определено').slice(0, 12);
 			const unknownBox = E('div', { class: 'nfm-app-unknown-list' }, unknown.length ? unknown.map(a => E('div', { class: 'nfm-host' }, [
-				E('span', {}, a.name.replace(/^Прочее(?: · )?/, '') || 'IP без DNS-имени'),
+				E('span', {}, appTrafficDisplayName(a.name)),
 				E('b', {}, fmtBytes(a.total)),
 				E('small', {}, [ 'VPN', 'Direct', 'Unknown' ].filter(k => a.routes[k] > 0).map(k => (k === 'VPN' ? 'VPN' : k === 'Direct' ? 'Напрямую' : 'Неизв.') + ': ' + fmtBytes(a.routes[k])).join(' · '))
 			])) : [ E('div', { class: 'nfm-empty' }, 'Нераспознанных записей пока нет.') ]);
