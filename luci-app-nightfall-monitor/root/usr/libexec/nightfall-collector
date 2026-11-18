@@ -23,7 +23,7 @@ CT=${NF_CT:-$PROC/net/nf_conntrack}
 TEMP_WARN=80; TEMP_CRIT=90; MEM_MIN_PCT=10; FLASH_MAX_PCT=90; CT_MAX_PCT=80
 CPU_MAX_PCT=90; CPU_MINUTES=3
 PING_TARGET=1.1.1.1; PING_TARGET2=77.88.8.8
-PERSIST_DIR=; PERSIST_HOURS=6; HIST_DAYS=30; PERSIST_ANY=0; JOURNAL=1; WIFI_HIST=1; SPEED_HOURS=0; APPS=0; VPN_ENDPOINTS=; NEWDEV=1; TG=0; TG_ALERTS=1; TG_REPORT=
+PERSIST_DIR=; PERSIST_HOURS=6; HIST_DAYS=30; PERSIST_ANY=0; JOURNAL=1; WIFI_HIST=1; SPEED_HOURS=0; APPS=0; NEWDEV=1; TG=0; TG_ALERTS=1; TG_REPORT=
 NOTIFY=${NF_NOTIFY:-/usr/libexec/nightfall-notify}
 KNOWN=${NF_KNOWN:-/etc/nightfall-known.list}
 LEASES=${NF_LEASES:-/tmp/dhcp.leases}
@@ -300,6 +300,8 @@ do_devices() {  # трафик по устройствам: разница сч�
 			: > "$DIR/dev.day"
 		fi
 	fi
+	# Формат приложений v2 добавляет маршрут (VPN/Direct/Unknown); старые строки нельзя смешивать с новыми.
+	if [ "$(cat "$DIR/apps.v" 2>/dev/null)" != 2 ]; then : > "$DIR/apps.day"; : > "$DIR/apps.hist"; echo 2 > "$DIR/apps.v"; fi
 	# Версия 3: пересобираем суточные итоги после перехода от эвристики private-IP к реальным LAN-подсетям.
 	# Старые итоги могли включать WAN/VPN-адреса и не могут быть достоверно исправлены задним числом.
 	if [ "$(cat "$DIR/acct.v" 2>/dev/null)" != 3 ]; then
@@ -335,11 +337,46 @@ ip -4 route show table main 2>/dev/null | awk -v wan="$wdev" -v lf="$LEASES" '
 for ra in $(ip -4 addr show 2>/dev/null | awk '/inet / { split($2, a, "/"); print a[1] }'); do
 	grep -qx "$ra" "$DIR/router.ips" 2>/dev/null || echo "$ra" >> "$DIR/router.ips"
 done
+# Собираем фактические policy-route selectors. Не предполагаем фиксированные имена интерфейсов или значения fwmark.
+vpn_tunnel_dev() {
+	[ -n "$1" ] || return 1
+	vi=$(ip -d link show dev "$1" 2>/dev/null)
+	case "$vi" in *wireguard*|*"tun"*) return 0 ;; esac
+	case "$1" in wg*|tun*|tap*|tailscale*|zt*|xfrm*|gre*|gretap*|ipip*|sit*|vti*) return 0 ;; esac
+	return 1
+}
+: > "$DIR/vpn.routes"
+ip -4 rule show 2>/dev/null | awk '
+	function hx(s,   i,c,n) { sub(/^0x/, "", s); s=tolower(s); n=0; for(i=1;i<=length(s);i++){ c=index("0123456789abcdef",substr(s,i,1))-1; if(c<0)return -1; n=n*16+c } return n }
+	{
+		fw=""; tab=""
+		for(i=1;i<=NF;i++){ if($i=="fwmark")fw=$(i+1); if($i=="lookup" || $i=="table")tab=$(i+1) }
+		if(tab=="" || tab=="local" || tab=="main" || tab=="default")next
+		if(fw!=""){ split(fw,a,"/"); v=hx(a[1]); m=(a[2]==""?4294967295:hx(a[2])); if(v>=0 && m>=0)print v,m,tab }
+		else policy=1
+	}
+	END { print "META",policy+0 }
+' > "$DIR/vpn.rules"
+policy_unknown=0
+while read -r rv rm rt; do
+	[ "$rv" = META ] && { policy_unknown=$rm; continue; }
+	[ -n "$rt" ] || continue
+	vr=$(ip -4 route show table "$rt" default 2>/dev/null | head -n 1)
+	vd=$(printf '%s\n' "$vr" | awk '{ for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1);exit} }')
+	vc=Unknown
+	vpn_tunnel_dev "$vd" && vc=VPN
+	printf '%s %s %s\n' "$rv" "$rm" "$vc" >> "$DIR/vpn.routes"
+done < "$DIR/vpn.rules"
+mr=$(ip -4 route show table main default 2>/dev/null | head -n 1)
+md=$(printf '%s\n' "$mr" | awk '{ for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1);exit} }')
+mt=0; vpn_tunnel_dev "$md" && mt=1
+printf '%s %s %s\n' "$md" "$mt" "$policy_unknown" > "$DIR/vpn.meta"
 first=0; [ -s "$DIR/ct.state" ] || first=1
 	rm -f "$DIR/ct.state.new"
 	head -n 40000 "$CT" 2>/dev/null | awk -v netf="$DIR/client.nets" -v routerf="$DIR/router.ips" -v statef="$DIR/ct.state" -v newf="$DIR/ct.state.new" -v dayf="$DIR/dev.day" \
 		-v ratef="$DIR/dev.rate.new" -v tmpf="$DIR/dev.day.tmp" -v svcf="$DIR/svc.raw" -v dstf="$DIR/dst.raw" -v dt="$dtm" -v first="$first" -v ts="$now" \
-		-v apps="$APPS" -v vpns="$VPN_ENDPOINTS" -v mapf="$DIR/dns.map" -v appf="$DIR/apps.day" -v appn="$DIR/apps.day.tmp" -v rules="$RULES" -v urules="$RULES_USER" '
+		-v apps="$APPS" -v mapf="$DIR/dns.map" -v appf="$DIR/apps.day" -v appn="$DIR/apps.day.tmp" -v rules="$RULES" -v urules="$RULES_USER" \
+		-v routef="$DIR/vpn.routes" -v metaf="$DIR/vpn.meta" '
 	function isprivate(ip) { return ip ~ /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|127\.|169\.254\.)/ || ip ~ /^(f[cdef]|FE|FC|FD|fe80:)/ || ip == "::1" || ip ~ /^0000:0000:0000:0000:0000:0000:0000:0001$/ }
 	function ipnum(ip, a) { split(ip, a, "."); return (((a[1] * 256 + a[2]) * 256 + a[3]) * 256 + a[4]) }
 	function isrouter(ip) { return ip in router }
@@ -357,15 +394,19 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 	BEGIN {
 		while ((getline l < netf) > 0) if (l != "") nets[++nn] = l; close(netf)
 		while ((getline l < routerf) > 0) if (l != "") router[l] = 1; close(routerf)
-		while ((getline l < statef) > 0) { split(l, a, " "); po[a[1]] = a[2]; pr[a[1]] = a[3] }
+		while ((getline l < statef) > 0) { split(l, a, " "); po[a[1]] = a[2]; pr[a[1]] = a[3]; pc[a[1]] = (a[4] == "" ? "Unknown" : a[4]) }
 		close(statef)
+		while ((getline l < routef) > 0) { split(l, a, " "); if (a[1] ~ /^[0-9]+$/ && a[2] ~ /^[0-9]+$/) { nr++; rv[nr] = a[1] + 0; rm[nr] = a[2] + 0; rc[nr] = a[3] } }
+		close(routef)
+		while ((getline l < metaf) > 0) { split(l, a, " "); main_dev = a[1]; main_tunnel = a[2] + 0; policy_unknown = a[3] + 0 }
+		close(metaf)
 		while ((getline l < dayf) > 0) { split(l, a, " "); dd[a[1]] = a[2] + 0; du[a[1]] = a[3] + 0 }
 		close(dayf)
 		if (apps == 1) {
 			while ((getline l < mapf) > 0) { split(l, a, "|"); if (a[2] != "") am[a[1]] = a[2] }
 			close(mapf)
 			ld(urules); ld(rules)
-			while ((getline l < appf) > 0) { split(l, a, "|"); k = a[1] "|" a[2]; adl[k] = a[3] + 0; aul[k] = a[4] + 0 }
+			while ((getline l < appf) > 0) { split(l, a, "|"); k = a[1] "|" a[2] "|" a[3]; adl[k] = a[4] + 0; aul[k] = a[5] + 0 }
 			close(appf)
 		}
 	}
@@ -377,22 +418,29 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 		}
 		close(f)
 	}
-	function appof(ip, port,   i, n, ep) {
-		# Known VPN endpoints override DNS/IP rules: payload inside the tunnel is opaque.
-		n = split(vpns, ep, ",")
-		for (i = 1; i <= n; i++) if (ep[i] != "" && ep[i] == ip ":" port) return "VPN"
+	function hexdec(s,   i, c, n) { sub(/^0x/, "", s); s = tolower(s); n = 0; for (i = 1; i <= length(s); i++) { c = index("0123456789abcdef", substr(s, i, 1)) - 1; if (c < 0) return -1; n = n * 16 + c } return n }
+	function bitand(a, b,   r, p) { r = 0; p = 1; while (a > 0 || b > 0) { if (a % 2 >= 1 && b % 2 >= 1) r += p; a = int(a / 2); b = int(b / 2); p *= 2 } return r }
+	function routeof(mark,   i, m) {
+		m = mark + 0; if (mark ~ /^0x/) m = hexdec(mark)
+		if (m < 0) return "Unknown"
+		for (i = 1; i <= nr; i++) if (bitand(m, rm[i]) == rv[i]) return rc[i]
+		if (policy_unknown || main_dev == "") return "Unknown"
+		return main_tunnel ? "VPN" : "Direct"
+	}
+	function appof(ip,   i) {
 		if (ip in am) return am[ip]
 		for (i = 1; i <= npf; i++) if (index(ip, pf[i]) == 1) return pfa[i]
 		return "Прочее"
 	}
 	{
-		src = ""; dst = ""; sp = ""; dp = ""; nb = 0; ob = 0; rb = 0
+		src = ""; dst = ""; sp = ""; dp = ""; mark = ""; nb = 0; ob = 0; rb = 0
 		for (i = 4; i <= NF; i++) {
 			f = $i
 			if (src == "" && substr(f, 1, 4) == "src=") src = substr(f, 5)
 			else if (dst == "" && substr(f, 1, 4) == "dst=") dst = substr(f, 5)
 			else if (sp == "" && substr(f, 1, 6) == "sport=") sp = substr(f, 7)
 			else if (dp == "" && substr(f, 1, 6) == "dport=") dp = substr(f, 7)
+			else if (substr(f, 1, 5) == "mark=") mark = substr(f, 6)
 			else if (substr(f, 1, 6) == "bytes=") { nb++; if (nb == 1) ob = substr(f, 7) + 0; else if (nb == 2) rb = substr(f, 7) + 0 }
 		}
 		if (nb < 2 || src == "" || dst == "") next
@@ -402,11 +450,11 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 		# одинаковые «адрес:порт» бывают у нескольких записей (старая в TIME_WAIT и новая): складываем их счётчики,
 		# иначе одна запись «уменьшалась» и каждый цикл засчитывалась заново целиком (завышение в сотни раз)
 		if (key in so) { so[key] += ob; sr[key] += rb; next }
-		so[key] = ob; sr[key] = rb; sa[key] = src; sd[key] = dst; sp3[key] = $3; sdp[key] = dp
+		so[key] = ob; sr[key] = rb; sa[key] = src; sd[key] = dst; sp3[key] = $3; sdp[key] = dp; sroute[key] = routeof(mark)
 	}
 	function account(key,   ob, rb, src, dst, do_, dr_, sk, dk, ak) {
-		ob = so[key]; rb = sr[key]; src = sa[key]; dst = sd[key]
-		printf "%s %.0f %.0f\n", key, ob, rb > newf
+		ob = so[key]; rb = sr[key]; src = sa[key]; dst = sd[key]; route = sroute[key]
+		printf "%s %.0f %.0f %s\n", key, ob, rb, route > newf
 		if (first) return
 		if (key in po) { do_ = ob - po[key]; dr_ = rb - pr[key]; if (do_ < 0) do_ = ob; if (dr_ < 0) dr_ = rb }
 		else { do_ = ob; dr_ = rb }
@@ -417,7 +465,7 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 			sk = src " " sp3[key] " " (sdp[key] == "" ? "-" : sdp[key]); sv_d[sk] += dr_; sv_u[sk] += do_
 			if (!islan(dst) && !isrouter(dst)) {
 				dk = src " " dst; ds_d[dk] += dr_; ds_u[dk] += do_
-				if (apps == 1) { ak = src "|" appof(tolower(dst), dp); adl[ak] += dr_; aul[ak] += do_ }
+				if (apps == 1) { ak = src "|" appof(tolower(dst)) "|" route; adl[ak] += dr_; aul[ak] += do_ }
 			}
 		}
 	}
@@ -445,7 +493,7 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 	[ -f "$DIR/ct.state.new" ] && mv "$DIR/ct.state.new" "$DIR/ct.state" || : > "$DIR/ct.state"
 	[ -f "$DIR/dev.rate.new" ] && mv "$DIR/dev.rate.new" "$DIR/dev.rate"
 	if [ -f "$DIR/apps.day.tmp" ]; then
-		sort -t'|' -k3,3nr "$DIR/apps.day.tmp" | head -n 600 > "$DIR/apps.day"; rm -f "$DIR/apps.day.tmp"
+		sort -t'|' -k4,4nr "$DIR/apps.day.tmp" | head -n 600 > "$DIR/apps.day"; rm -f "$DIR/apps.day.tmp"
 	fi
 	if [ -f "$DIR/dev.day.tmp" ]; then
 		sort -k4,4nr "$DIR/dev.day.tmp" | head -n 64 | cut -d' ' -f1-3 > "$DIR/dev.day"
