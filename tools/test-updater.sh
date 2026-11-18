@@ -11,6 +11,14 @@ mkdir -p "$T/bin" "$T/fixtures" "$T/stage/www/luci-static/nightfall" "$T/root/ww
 printf '{ "version": "2.0.0" }\n' > "$T/stage/www/luci-static/nightfall/version.json"
 printf 'new css\n' > "$T/stage/www/luci-static/nightfall/cascade.css"
 printf 'new only\n' > "$T/stage/www/luci-static/nightfall/new-only.txt"
+mkdir -p "$T/stage/usr/share/ucode/luci/template/themes" "$T/stage/www/luci-static"
+ln -s nightfall "$T/stage/usr/share/ucode/luci/template/themes/nightfall-dark"
+ln -s nightfall "$T/stage/usr/share/ucode/luci/template/themes/nightfall-light"
+ln -s nightfall "$T/stage/www/luci-static/nightfall-dark"
+ln -s nightfall "$T/stage/www/luci-static/nightfall-light"
+ln -s /etc/nightfall-bg.json "$T/stage/www/luci-static/nightfall/bg.json"
+ln -s /etc/nightfall-prefs.json "$T/stage/www/luci-static/nightfall/prefs.json"
+ln -s /etc/nightfall-logo.json "$T/stage/www/luci-static/nightfall/logo.json"
 tar -czf "$T/fixtures/nightfall-root.tar.gz" -C "$T/stage" .
 (cd "$T/fixtures" && sha256sum nightfall-root.tar.gz > nightfall-root.tar.gz.sha256)
 
@@ -99,7 +107,7 @@ else
 fi
 
 
-echo "== отклонение архива с символической ссылкой =="
+echo "== штатные symlink принимаются, посторонние отклоняются =="
 mkdir -p "$T/malicious/www/luci-static/nightfall"
 cp "$T/stage/www/luci-static/nightfall/version.json" "$T/malicious/www/luci-static/nightfall/version.json"
 ln -s ../../../../etc/passwd "$T/malicious/www/luci-static/nightfall/escape"
