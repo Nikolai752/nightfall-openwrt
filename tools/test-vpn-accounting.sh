@@ -27,6 +27,7 @@ BEGIN {
   main_dev["6"] = "eth0"; main_tunnel["6"] = 0; policy_unknown["6"] = 0
   check("VLESS/WARP route mark 0x40100000", routeof("1074790400", "4"), "VPN")
   check("second VPN route mark 0x40500000", routeof("1078984704", "4"), "VPN")
+  check("IPv6 selective VPN route mark", routeof("1074790400", "6"), "VPN")
   check("Zapret-only mark is not mistaken for VPN", routeof("1073741824", "4"), "Direct")
   check("unmarked flow on ordinary WAN", routeof("0", "4"), "Direct")
 
