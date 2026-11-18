@@ -343,7 +343,7 @@ vpn_tunnel_dev() {
 	vi=$(ip -d link show dev "$1" 2>/dev/null)
 	case "$vi" in *wireguard*|*"tun"*) return 0 ;; esac
 	vt=$(ip tuntap show dev "$1" 2>/dev/null)
-	case "$vt" in *": tun"*|*": tap"*) return 0 ;; esac
+	case "$vt" in "$1: tun"*|"$1: tap"*) return 0 ;; esac
 	case "$1" in wg*|tun*|tap*|tailscale*|zt*|xfrm*|gre*|gretap*|ipip*|sit*|vti*) return 0 ;; esac
 	return 1
 }
