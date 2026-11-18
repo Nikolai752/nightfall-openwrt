@@ -54,12 +54,12 @@ jobs:
       - name: Build VPN-aware router test archive
         if: github.event_name == 'pull_request' && github.head_ref == 'feature/vpn-aware-app-traffic'
         env:
-          VERSION: v1.27.12-alpha.6-vpn-aware-test
+          VERSION: v1.27.12-alpha.7-vpn-aware-test
         run: sh ./build-release.sh
       - name: Verify VPN-aware router test archive
         if: github.event_name == 'pull_request' && github.head_ref == 'feature/vpn-aware-app-traffic'
         env:
-          VERSION: v1.27.12-alpha.6-vpn-aware-test
+          VERSION: v1.27.12-alpha.7-vpn-aware-test
         run: |
           set -eu
           test -s dist/nightfall-root.tar.gz
