@@ -8,7 +8,7 @@ const source = fs.readFileSync(path.join(root, 'luci-theme-nightfall/htdocs/luci
 const start = source.indexOf('function sumApps(');
 const end = source.indexOf('\nfunction appsCard()', start);
 if (start < 0 || end < 0) throw new Error('sumApps() not found');
-const sumApps = vm.runInNewContext('(' + source.slice(start, end).replace(/^function sumApps/, 'function') + ')');
+const sumApps = vm.runInNewContext('(' + source.slice(start, end).replace(/^function sumApps/, 'function') + ')', { ymd: d => d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate() });
 const data = {
   today: '20261118',
   day: [
