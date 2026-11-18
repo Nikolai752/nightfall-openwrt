@@ -1,5 +1,5 @@
 #!/bin/sh
-# Regression checks for the built-in application domain catalog.
+# Regression checks for the built-in application domain catalog (including newly added retail and CDN mappings).
 set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 RULES="$ROOT/luci-app-nightfall-monitor/root/usr/share/nightfall/apps.list"
