@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Проверить CHANGELOG перед выпуском
+        run: sh tools/check-release.sh "${GITHUB_REF_NAME}"
       - run: VERSION="${GITHUB_REF_NAME}" sh build-release.sh
       # подпись usign (тем же инструментом, что проверяет роутер); секретный ключ хранится в Secrets
       - name: Подписать архив
