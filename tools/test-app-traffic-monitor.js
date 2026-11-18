@@ -58,4 +58,12 @@ check(api.appTrafficDisplayName('Прочее · Общий IP (CDN)') === 'Об
 check(source.includes("[ 'apps', 'Трафик' ]"), 'monitor has the application traffic tab');
 check(source.includes("if (S.tab === 'apps' && due('appTraffic', 30))"), 'application stats poll only on their tab');
 check(source.includes('show(appsTab, S.tab === \'apps\')'), 'tab panel visibility is wired');
+check(source.includes(".nfm-app-distribution { display:grid; grid-template-columns:minmax(190px,260px) minmax(0,1fr)"), 'distribution is a full-width horizontal panel on desktop');
+check(source.includes("const remainingTotal = result.categories.slice(6).reduce"), 'collapsed legend reports the real aggregate volume');
+check(source.includes("Прочие (' + remaining.length + ' категорий)'"), 'small categories can be expanded from the legend');
+check(source.includes("card('Трафик по категориям', E('div', { class: 'nfm-app-categories' }"), 'category list occupies its own full-width row');
+check(source.includes(".nfm-app-category-bar > i"), 'category rows include proportional traffic bars');
+check(source.includes(".nfm-app-distribution { grid-template-columns:minmax(0,1fr);"), 'mobile distribution stacks chart and legend');
+check(source.includes("@media (max-width: 760px)"), 'responsive breakpoint covers 430px and 440px phones');
+check(source.includes(".nfm-ti[data-ic='apps']"), 'traffic tab has its own chart icon');
 console.log('Resource monitor application traffic tests: all passed.');
