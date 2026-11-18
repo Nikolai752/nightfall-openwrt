@@ -142,23 +142,37 @@ const XCSS = `
 .nfm-app-summary { margin:0 0 12px; }
 .nfm-app-summary .nfm-tile { min-width:0; }
 .nfm-app-summary .nfm-tile small { display:block; margin-top:3px; }
-.nfm-app-categories { display:grid; gap:8px; }
-.nfm-app-donut-layout { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:16px; min-height:190px; }
-.nfm-app-donut { width:164px; height:164px; flex:none; display:grid; place-items:center; border-radius:50%; }
-.nfm-app-donut-center { width:108px; height:108px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; border:1px solid var(--nfm-border); border-radius:50%; background:var(--nfm-card); }
-.nfm-app-donut-center b { font-size:18px; font-variant-numeric:tabular-nums; }
+.nfm-app-categories { display:grid; gap:7px; }
+.nfm-app-distribution { display:grid; grid-template-columns:minmax(190px,260px) minmax(0,1fr); align-items:center; gap:clamp(18px,3vw,42px); min-height:250px; }
+.nfm-app-donut-layout { display:contents; }
+.nfm-app-donut { width:clamp(180px,19vw,236px); height:clamp(180px,19vw,236px); justify-self:center; display:grid; place-items:center; border-radius:50%; }
+.nfm-app-donut-center { width:66%; height:66%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; border:1px solid var(--nfm-border); border-radius:50%; background:var(--nfm-card); }
+.nfm-app-donut-center b { font-size:clamp(17px,1.5vw,22px); font-variant-numeric:tabular-nums; }
 .nfm-app-donut-center small { color:var(--nfm-dim); font-size:11px; }
-.nfm-app-legend { display:grid; gap:8px; flex:1; min-width:145px; }
-.nfm-app-legend-row { display:grid; grid-template-columns:9px minmax(0,1fr) auto; gap:8px; align-items:center; font-size:12px; }
-.nfm-app-legend-row b { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.nfm-app-legend { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 22px; min-width:0; }
+.nfm-app-legend-row { display:grid; grid-template-columns:9px minmax(0,1fr) auto auto; gap:8px; align-items:center; min-width:0; font-size:12.5px; }
+.nfm-app-legend-row span { min-width:0; overflow-wrap:anywhere; }
+.nfm-app-legend-row b, .nfm-app-legend-size { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.nfm-app-legend-row b { font-weight:700; }
+.nfm-app-legend-size { color:var(--nfm-dim); text-align:right; }
 .nfm-app-legend-dot { width:9px; height:9px; border-radius:3px; background:var(--nfm-app-color); }
+.nfm-app-legend-more { grid-column:1 / -1; border-top:1px solid var(--nfm-border); padding-top:7px; }
+.nfm-app-legend-more > summary { cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:12px; color:var(--nfm-text); font-size:12px; font-weight:600; list-style:none; }
+.nfm-app-legend-more > summary::-webkit-details-marker { display:none; }
+.nfm-app-legend-more > summary::after { content:'⌄'; color:var(--nfm-dim); }
+.nfm-app-legend-more[open] > summary::after { content:'⌃'; }
+.nfm-app-legend-more .nfm-app-legend { margin-top:10px; }
 .nfm-app-category { border:1px solid var(--nfm-border); border-radius:var(--nf-radius-in, 9px); background:var(--nfm-card2); overflow:hidden; }
-.nfm-app-category > summary { display:grid; grid-template-columns:12px minmax(0,1fr) auto auto; gap:8px 12px; align-items:center; padding:11px 12px; cursor:pointer; list-style:none; font-size:13px; }
+.nfm-app-category > summary { display:grid; grid-template-columns:12px minmax(145px, .8fr) minmax(100px,1.5fr) auto auto; gap:8px 12px; align-items:center; padding:9px 12px; cursor:pointer; list-style:none; font-size:13px; }
 .nfm-app-category > summary::-webkit-details-marker { display:none; }
 .nfm-app-category > summary::before { content:'›'; color:var(--nfm-dim); font-size:18px; transform:rotate(0); transition:transform .15s; }
 .nfm-app-category[open] > summary::before { transform:rotate(90deg); }
+.nfm-app-category-icon { width:9px; height:9px; border-radius:3px; background:var(--nfm-app-color); }
+.nfm-app-category-name { min-width:0; overflow-wrap:anywhere; }
+.nfm-app-category-bar { height:8px; min-width:0; border-radius:999px; overflow:hidden; background:color-mix(in srgb,var(--nfm-dim) 20%,transparent); }
+.nfm-app-category-bar > i { display:block; height:100%; max-width:100%; border-radius:inherit; background:var(--nfm-app-color); }
 .nfm-app-category > summary b { font-variant-numeric:tabular-nums; white-space:nowrap; }
-.nfm-app-category > summary small { color:var(--nfm-dim); font-variant-numeric:tabular-nums; }
+.nfm-app-category > summary small { color:var(--nfm-dim); font-variant-numeric:tabular-nums; white-space:nowrap; }
 .nfm-app-category-items { padding:0 12px 8px 30px; }
 .nfm-app-item { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:4px 10px; align-items:center; padding:7px 0; border-top:1px solid color-mix(in srgb,var(--nfm-border) 65%,transparent); font-size:12.5px; }
 .nfm-app-item-name { min-width:0; overflow-wrap:anywhere; }
@@ -169,6 +183,16 @@ const XCSS = `
 .nfm-app-top-list .nfm-host small { display:block; margin:3px 0 0; }
 .nfm-app-unknown-list .nfm-host { padding:6px 0; }
 .nfm-app-unknown-list .nfm-host small { grid-column:1 / -1; margin:0; }
+@media (max-width: 760px) {
+.nfm-app-distribution { grid-template-columns:minmax(0,1fr); gap:16px; padding:4px 0; }
+.nfm-app-donut { width:176px; height:176px; }
+.nfm-app-legend { grid-template-columns:minmax(0,1fr); gap:9px; }
+.nfm-app-legend-row { grid-template-columns:9px minmax(0,1fr) auto auto; font-size:12px; }
+.nfm-app-legend-more { grid-column:1; }
+.nfm-app-category > summary { grid-template-columns:12px minmax(0,1fr) auto auto; gap:7px 9px; padding:10px; }
+.nfm-app-category-bar { grid-column:2 / 4; grid-row:2; }
+.nfm-app-category > summary small { grid-column:4; grid-row:2; }
+}
 @media (max-width: 640px) { .nfm-mini, .nfm-btn, .nfm-act, .nfm-tab { min-height: 40px; } .nfm-app-toolbar { justify-content:stretch; } .nfm-app-toolbar .nfm-sel { flex:1 1 140px; min-width:0; max-width:100%; } .nfm-mini, .nfm-btn, .nfm-act, .nfm-tab { min-height: 40px; } .nfm-jr { grid-template-columns: 22px minmax(0, 1fr) auto; align-items: start; row-gap: 2px; } .nfm-jr .ic { grid-column: 1; grid-row: 1; } .nfm-jr time { grid-column: 2 / -1; grid-row: 1; } .nfm-jr > span:not(.ic) { grid-column: 2; grid-row: 2; min-width: 0; overflow-wrap: anywhere; } .nfm-jr b { grid-column: 3; grid-row: 2; } .nfm-svc { grid-template-columns: 12px minmax(0, 1fr); } .nfm-svc .ac { grid-column: 1 / -1; justify-content: flex-start; } }
 `;
 
@@ -572,6 +596,7 @@ const CSS = `
 .nfm-ti[data-ic='hist'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 1 0 3-6.7L3 8'/%3E%3Cpath d='M3 3v5h5M12 7v5l3 2'/%3E%3C/svg%3E"); }
 .nfm-ti[data-ic='wifi'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M2 9a14 14 0 0 1 20 0'/%3E%3Cpath d='M12 19.5h.01'/%3E%3C/svg%3E"); }
 .nfm-ti[data-ic='devs'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='11' rx='2'/%3E%3Cpath d='M8 20h8M12 16v4'/%3E%3C/svg%3E"); }
+.nfm-ti[data-ic='apps'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 3v18h18'/%3E%3Cpath d='M8 16V9M13 16V5M18 16v-4'/%3E%3C/svg%3E"); }
 .nfm-ti[data-ic='diag'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12h4l2-6 4 12 2-6h6'/%3E%3C/svg%3E"); }
 .nfm-ti[data-ic='sec'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3l8 3v6c0 4.5-3.2 7.7-8 9-4.8-1.3-8-4.5-8-9V6z'/%3E%3Cpath d='M9 12l2 2 4-4'/%3E%3C/svg%3E"); }
 .nfm-ti[data-ic='log'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01'/%3E%3C/svg%3E"); }
@@ -1951,10 +1976,18 @@ return view.extend({
 			const summary = E('div', { class: 'nfm-tiles t4 nfm-app-summary' }, [
 				[ 'Всего трафика', total, 'c-cpu' ], [ 'VPN', result.routes.VPN, 'c-mem' ], [ 'Напрямую', result.routes.Direct, 'c-temp' ], [ 'Неизвестный маршрут', result.routes.Unknown, 'gx' ]
 			].map(x => E('div', { class: 'nfm-tile' }, [ x[0], E('b', {}, fmtBytes(x[1])), E('small', { class: 'nfm-note-s' }, fmtShare(x[1])) ])));
-			const catRows = result.categories.map(c => {
+			const appPalette = [ 'var(--c-cpu)', 'var(--c-mem)', 'var(--c-temp)', 'var(--c-down)', 'var(--c-up)', 'var(--c-flash)', 'var(--gx)' ];
+			const catRows = result.categories.map((c, i) => {
 				const apps = Object.values(c.apps).sort((a, b) => b.total - a.total);
-				const details = E('details', { class: 'nfm-app-category' }, [
-					E('summary', {}, [ E('span', {}, c.name), E('b', {}, fmtBytes(c.total)), E('small', {}, fmtShare(c.total)) ]),
+				const color = appPalette[i % appPalette.length];
+				const share = total ? c.total / total * 100 : 0;
+				const details = E('details', { class: 'nfm-app-category', style: '--nfm-app-color:' + color }, [
+					E('summary', {}, [
+						E('span', { class: 'nfm-app-category-icon', 'aria-hidden': 'true' }),
+						E('span', { class: 'nfm-app-category-name' }, c.name),
+						E('span', { class: 'nfm-app-category-bar', 'aria-hidden': 'true' }, E('i', { style: 'width:' + share.toFixed(2) + '%' })),
+						E('b', {}, fmtBytes(c.total)), E('small', {}, fmtShare(c.total))
+					]),
 					E('div', { class: 'nfm-app-category-items' }, apps.map(a => E('div', { class: 'nfm-app-item' }, [
 						E('span', { class: 'nfm-app-item-name' }, appTrafficDisplayName(a.name)),
 						E('span', { class: 'nfm-app-item-route' }, [ 'VPN', 'Direct', 'Unknown' ].filter(k => a.routes[k] > 0).map(k => E('small', { class: 'nfm-chip', title: (k === 'VPN' ? 'VPN' : k === 'Direct' ? 'Напрямую' : 'Неизвестный маршрут') + ': ' + fmtBytes(a.routes[k]) }, (k === 'VPN' ? 'VPN' : k === 'Direct' ? 'Напрямую' : 'Неизв.') + ' ' + fmtBytes(a.routes[k])))),
@@ -1972,11 +2005,17 @@ return view.extend({
 			});
 			const donut = E('div', { class: 'nfm-app-donut', style: 'background:' + (total ? 'conic-gradient(' + donutStops.join(',') + ')' : 'var(--nfm-card2)') },
 				E('div', { class: 'nfm-app-donut-center' }, [ E('b', {}, fmtBytes(total)), E('small', {}, 'Всего') ]));
-			const legend = E('div', { class: 'nfm-app-legend' }, result.categories.map((c, i) => E('div', { class: 'nfm-app-legend-row' }, [
+			const legendRows = result.categories.map((c, i) => E('div', { class: 'nfm-app-legend-row' }, [
 				E('i', { class: 'nfm-app-legend-dot', style: '--nfm-app-color:' + appPalette[i % appPalette.length] }),
-				E('span', {}, c.name), E('b', {}, fmtShare(c.total))
-			])));
-			const donutBox = E('div', { class: 'nfm-app-donut-layout' }, [ donut, legend ]);
+				E('span', {}, c.name), E('b', {}, fmtShare(c.total)), E('small', { class: 'nfm-app-legend-size' }, fmtBytes(c.total))
+			]));
+			const primaryLegend = E('div', { class: 'nfm-app-legend' }, legendRows.slice(0, 6));
+			const remaining = legendRows.slice(6);
+			if (remaining.length) primaryLegend.appendChild(E('details', { class: 'nfm-app-legend-more' }, [
+				E('summary', {}, [ E('span', {}, 'Прочие (' + remaining.length + ' категорий)'), E('span', {}, fmtBytes(remaining.reduce((sum, c) => sum + (Number(c.textContent) || 0), 0))) ]),
+				E('div', { class: 'nfm-app-legend' }, remaining)
+			]));
+			const donutBox = E('div', { class: 'nfm-app-distribution' }, [ donut, primaryLegend ]);
 			const top = result.apps.slice(0, 30);
 			const unknown = result.apps.filter(a => a.category === 'Не определено').slice(0, 12);
 			const unknownBox = E('div', { class: 'nfm-app-unknown-list' }, unknown.length ? unknown.map(a => E('div', { class: 'nfm-host' }, [
@@ -1992,9 +2031,11 @@ return view.extend({
 			appTrafficBody.replaceChildren(
 				E('div', { class: 'nfm-app-toolbar' }, [ appPeriod, appDevice ]),
 				summary,
-				E('div', { class: 'nfm-grid nfm-g21' }, [
-					card('Трафик по категориям', E('div', { class: 'nfm-app-categories' }, catRows.length ? catRows : [ E('div', { class: 'nfm-empty' }, 'Нет данных по категориям.') ])),
+				E('div', { class: 'nfm-grid' }, [
 					card('Распределение по категориям', donutBox)
+				]),
+				E('div', { class: 'nfm-grid' }, [
+					card('Трафик по категориям', E('div', { class: 'nfm-app-categories' }, catRows.length ? catRows : [ E('div', { class: 'nfm-empty' }, 'Нет данных по категориям.') ]))
 				]),
 				E('div', { class: 'nfm-grid nfm-g21' }, [
 					card('Топ приложений и доменов', appsBox),
