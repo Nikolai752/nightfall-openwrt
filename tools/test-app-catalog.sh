@@ -30,9 +30,9 @@ function globmatch(s, p, si, pi, star, mark, c) {
   while (substr(p, pi, 1) == "*") pi++
   return pi > length(p)
 }
-function cls(n, p, i) {
+function cls(n, p, i, dot) {
   n = tolower(n); sub(/\.$/, "", n); p = n
-  while (1) { if (p in dom) return dom[p]; p = index(p, "."); if (!p) break; p = substr(p, p + 1) }
+  while (1) { if (p in dom) return dom[p]; dot = index(p, "."); if (!dot) break; p = substr(p, dot + 1) }
   for (i = 1; i <= nglob; i++) if (globmatch(n, gpat[i])) return gapp[i]
   return ""
 }
