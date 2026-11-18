@@ -170,11 +170,11 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 					const donut = document.querySelector('.nfm-app-donut');
 					const legend = document.querySelector('.nfm-app-legend');
 					const a = panel.getBoundingClientRect(), d = donut.getBoundingClientRect(), l = legend.getBoundingClientRect();
-					return { panelRight: a.right, viewport: innerWidth, donutTop: d.top, legendTop: l.top, panelWidth: a.width };
+					return { panelRight: a.right, viewport: innerWidth, donutTop: d.top, donutBottom: d.bottom, donutRight: d.right, legendTop: l.top, legendLeft: l.left, legendWidth: l.width, panelWidth: a.width };
 				});
 				if (geometry.panelRight > geometry.viewport + 1) bad(vn + ': панель распределения выходит за ширину экрана');
-				if (mobile && geometry.legendTop < geometry.donutTop + 100) bad(vn + ': легенда не расположена под диаграммой на телефоне');
-				if (!mobile && geometry.legendTop > geometry.donutTop + 80) bad(vn + ': легенда не расположена рядом с диаграммой на десктопе');
+				if (mobile && geometry.legendTop < geometry.donutBottom - 12) bad(vn + ': легенда не расположена под диаграммой на телефоне');
+				if (!mobile && geometry.legendLeft < geometry.donutRight - 12) bad(vn + ': легенда не расположена справа от диаграммы на десктопе');
 				await p.screenshot({ path: path.join(OUT, 'monitor-app-traffic-' + vn + '.png'), fullPage: true });
 			}
 			if (k === 'procs') {
