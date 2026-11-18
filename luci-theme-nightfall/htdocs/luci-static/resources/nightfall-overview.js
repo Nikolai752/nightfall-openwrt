@@ -1843,12 +1843,15 @@ function appsCard() {
 		else {
 			const mx = Math.max(1, ...list.map(r => r.t));
 			list.forEach(r => {
+				const routeBadges = [ 'VPN', 'Direct', 'Unknown' ].filter(route => r.routes[route] > 0).map(route => E('small', {
+						class: 'nf-apps-route nf-apps-route-' + route.toLowerCase(),
+						title: (route === 'VPN' ? 'VPN' : route === 'Direct' ? 'Напрямую' : 'Неизвестно') + ': ' + fmtBytes(r.routes[route])
+					}, (route === 'VPN' ? 'VPN ' : route === 'Direct' ? 'Прямо ' : 'Неизв. ') + fmtBytes(r.routes[route])));
 				content.push(E('div', { class: 'nf-apps-r', style: '--c:' + (APP_COLORS[r.a] || 'var(--nf-text-dim)') }, [
-					E('div', { class: 'nf-apps-n' }, [ r.a === 'Прочее' ? E('i') : appGlyph(r.a), E('b', {}, r.a) ].concat(
-						[ 'VPN', 'Direct', 'Unknown' ].filter(route => r.routes[route] > 0).map(route => E('small', {
-							style: 'font-size:10px;padding:2px 6px;border-radius:99px;white-space:nowrap;background:' + (route === 'VPN' ? 'rgba(139,92,246,.16);color:#a78bfa' : route === 'Direct' ? 'rgba(34,197,94,.13);color:#22c55e' : 'rgba(148,163,184,.16);color:var(--nf-text-dim)'),
-							title: (route === 'VPN' ? 'VPN' : route === 'Direct' ? 'Напрямую' : 'Неизвестно') + ': ' + fmtBytes(r.routes[route])
-						}, (route === 'VPN' ? 'VPN ' : route === 'Direct' ? 'Прямо ' : 'Неизв. ') + fmtBytes(r.routes[route]))))),
+					E('div', { class: 'nf-apps-n' }, [
+						E('div', { class: 'nf-apps-title' }, [ r.a === 'Прочее' ? E('i') : appGlyph(r.a), E('b', {}, r.a) ]),
+						E('div', { class: 'nf-apps-routes' }, routeBadges)
+					]),
 					E('div', { class: 'nf-top-bar' }, E('i', { style: 'width:' + Math.max(2, Math.round(r.t / mx * 100)) + '%' })),
 					E('div', { class: 'nf-apps-v' }, [ E('b', {}, fmtBytes(r.t)), E('span', {}, '↓ ' + fmtBytes(r.d) + ' · ↑ ' + fmtBytes(r.u)) ]),
 					E('div', { class: 'nf-apps-p' }, sum ? nf0.format(r.t / sum * 100) + '%' : '')
