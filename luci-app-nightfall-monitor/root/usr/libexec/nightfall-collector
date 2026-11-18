@@ -847,6 +847,8 @@ persist_ok=0; persist_error=0; persist_error_notified=0; persist_need_restore=1
 FLOW_HW=0; command -v uci >/dev/null 2>&1 && [ "$(uci -q get firewall.@defaults[0].flow_offloading_hw 2>/dev/null)" = 1 ] && FLOW_HW=1
 case "$HIST_DAYS" in ''|*[!0-9]*) HIST_DAYS=30 ;; esac; [ "$HIST_DAYS" -ge 7 ] || HIST_DAYS=7; [ "$HIST_DAYS" -le 90 ] || HIST_DAYS=90
 case "$PERSIST_HOURS" in ''|*[!0-9]*) PERSIST_HOURS=6 ;; esac; [ "$PERSIST_HOURS" -ge 1 ] || PERSIST_HOURS=1
+# Не смешиваем локальную старую схему apps.day с уже обновлённой историей на USB.
+if [ "$(cat "$DIR/apps.v" 2>/dev/null)" != 2 ]; then rm -f "$DIR/apps.day" "$DIR/apps.hist"; fi
 restore
 [ -n "$PERSIST_DIR" ] && persist
 read -r up0 _ < "$PROC/uptime" 2>/dev/null; up0=${up0%.*}; case "$up0" in ''|*[!0-9]*) up0=99999 ;; esac
