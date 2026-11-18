@@ -30,6 +30,8 @@ BEGIN {
   check("githubusercontent.com", "GitHub")
   check("drive.google.com", "Google Drive")
   check("photos.google.com", "Google Photos")
+  check("p123-icloud.com", "")
+  check("api.icloud.com", "Apple iCloud")
   check("api.oneme.ru", "MAX")
   check("static.wildberries.ru", "Wildberries")
   check("m.avito.ru", "Avito")
