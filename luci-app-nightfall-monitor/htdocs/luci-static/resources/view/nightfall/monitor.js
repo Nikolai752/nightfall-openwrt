@@ -138,6 +138,14 @@ const XCSS = `
 .nfm-wd .ax { fill: var(--nfm-dim); font-size: 8px; }
 .nfm-flash { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
 .nfm-warn { color: #e5484d; font-weight: 600; }
+.nfm-quality-score { display:flex; align-items:center; gap:12px; margin-top:10px; padding:11px 13px; border:1px solid var(--nfm-border); border-radius:10px; background:var(--nfm-card2); }
+.nfm-quality-score .score { flex:0 0 auto; min-width:48px; font-size:25px; line-height:1; font-weight:700; font-variant-numeric:tabular-nums; }
+.nfm-quality-score .label { font-weight:600; }
+.nfm-quality-score .hint { color:var(--nfm-dim); font-size:12px; margin-top:3px; }
+.nfm-quality-score.good .score { color:#13a10e; }
+.nfm-quality-score.mid .score { color:#0078d4; }
+.nfm-quality-score.warn .score { color:#c58b00; }
+.nfm-quality-score.bad .score { color:#e5484d; }
 @media (max-width: 640px) { .nfm-mini, .nfm-btn, .nfm-act, .nfm-tab { min-height: 40px; } .nfm-jr { grid-template-columns: 22px minmax(0, 1fr) auto; align-items: start; row-gap: 2px; } .nfm-jr .ic { grid-column: 1; grid-row: 1; } .nfm-jr time { grid-column: 2 / -1; grid-row: 1; } .nfm-jr > span:not(.ic) { grid-column: 2; grid-row: 2; min-width: 0; overflow-wrap: anywhere; } .nfm-jr b { grid-column: 3; grid-row: 2; } .nfm-svc { grid-template-columns: 12px minmax(0, 1fr); } .nfm-svc .ac { grid-column: 1 / -1; justify-content: flex-start; } }
 `;
 
@@ -1060,6 +1068,9 @@ return view.extend({
 		const histInfo = E('div', { class: 'nfm-s', style: 'margin-top:10px' });
 		const pingTiles = E('div', { class: 'nfm-tiles t4' }, [ [ 'pAvg', 'средняя задержка' ], [ 'pMax', 'максимум' ], [ 'pLoss', 'потери ответов' ], [ 'pCut', 'обрывов связи' ] ]
 			.map(([ k, l ]) => E('div', { class: 'nfm-tile' }, [ l, T[k] = E('b', {}, '–') ])));
+		const qualityScore = E('div', { class: 'nfm-quality-score', role: 'status', 'aria-live': 'polite' }, [
+			E('b', { class: 'score' }, '—'), E('div', {}, [ E('div', { class: 'label' }, 'Оценка стабильности'), E('div', { class: 'hint' }, 'Нужно накопить не менее 4 точек измерения.') ])
+		]);
 		const CFG_FIELDS = [
 			[ 'TEMP_WARN', 'Предупреждение о перегреве', '°C' ], [ 'TEMP_CRIT', 'Критический перегрев', '°C' ],
 			[ 'MEM_MIN_PCT', 'Свободной памяти меньше', '%' ], [ 'FLASH_MAX_PCT', 'Флеш занят больше', '%' ],
@@ -1754,7 +1765,7 @@ return view.extend({
 			E('div', { class: 'nfm-grid nfm-g21' }, [
 				card([ 'Интернет: задержка', E('span', { class: 'nfm-spacer' }),
 					E('span', { class: 'nfm-legend' }, [ legendDot('c-up', 'до шлюза'), legendDot('c-down', 'до интернета') ]) ], histPing.el),
-				card('Качество связи', E('div', {}, [ pingTiles, E('div', { class: 'nfm-note-s', style: 'margin-top:10px' }, 'Пропуски на графике — моменты, когда ответа не было.') ]))
+				card('Качество связи', E('div', {}, [ pingTiles, qualityScore, E('div', { class: 'nfm-note-s', style: 'margin-top:10px' }, 'Индекс рассчитывается по доступности (70%) и задержке (30%) за выбранный период. Это ориентир, а не оценка скорости тарифа.') ]))
 			]),
 			E('div', { class: 'nfm-grid' }, [
 				card([ 'Скорость интернета (WAN)', E('span', { class: 'nfm-spacer' }),
@@ -2417,6 +2428,29 @@ return view.extend({
 			T.pLoss.textContent = lossRows.length ? nf1.format(lossRows.reduce((a, r) => a + r[8], 0) / lossRows.length) + '%' : '–';
 			const evs = (h.events || []).filter(e => end - e[0] <= win);
 			T.pCut.textContent = String(evs.filter(e => e[1] === 'crit' && /^Нет /.test(e[2])).length);
+
+			// Оценка WAN без дополнительных запросов: используем уже собранные точки истории.
+			// r[7] — задержка до интернета (-1 при отсутствии ответа), r[8] — индикатор доступности (0/100).
+			const measured = rows.filter(r => r[8] >= 0);
+			const reachable = measured.filter(r => r[7] >= 0);
+			const avgLatency = reachable.length ? reachable.reduce((sum, r) => sum + r[7], 0) / reachable.length : null;
+			const scoreEl = qualityScore.querySelector('.score'), labelEl = qualityScore.querySelector('.label'), hintEl = qualityScore.querySelector('.hint');
+			qualityScore.classList.remove('good', 'mid', 'warn', 'bad');
+			if (measured.length < 4) {
+				scoreEl.textContent = '—';
+				labelEl.textContent = 'Оценка стабильности';
+				hintEl.textContent = 'Недостаточно данных: нужно минимум 4 измерения за выбранный период.';
+			}
+			else {
+				const availability = reachable.length * 100 / measured.length;
+				const latencyScore = avgLatency == null ? 0 : Math.max(0, Math.min(100, 100 - Math.max(0, avgLatency - 20) / 2));
+				const score = Math.round(availability * .7 + latencyScore * .3);
+				const grade = score >= 95 ? [ 'good', 'Отлично' ] : score >= 85 ? [ 'mid', 'Хорошо' ] : score >= 70 ? [ 'warn', 'Нестабильно' ] : [ 'bad', 'Проблемы со связью' ];
+				qualityScore.classList.add(grade[0]);
+				scoreEl.textContent = String(score);
+				labelEl.textContent = grade[1];
+				hintEl.textContent = 'Доступность ' + nf1.format(availability) + '% · средняя задержка ' + (avgLatency == null ? 'нет ответа' : nf0.format(avgLatency) + ' мс') + ' · ' + reachable.length + '/' + measured.length + ' точек';
+			}
 
 			const list = (h.events || []).slice().reverse().slice(0, 40);
 			evBox.replaceChildren(...(list.length ? list.map(e => E('div', { class: 'nfm-ev-i ' + e[1] }, [ E('i'), E('time', {}, fmtTs(e[0])), E('span', {}, e[2]) ]))
