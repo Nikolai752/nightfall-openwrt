@@ -1996,7 +1996,6 @@ return view.extend({
 				]);
 				return details;
 			});
-			const appPalette = [ 'var(--c-cpu)', 'var(--c-mem)', 'var(--c-temp)', 'var(--c-down)', 'var(--c-up)', 'var(--c-flash)', 'var(--gx)' ];
 			let donutOffset = 0;
 			const donutStops = result.categories.map((c, i) => {
 				const from = donutOffset;
