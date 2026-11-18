@@ -17,8 +17,3 @@ if sh tools/check-release.sh v9.9.9 >/dev/null 2>&1; then
   echo "Ошибка: проверка пропустила релиз без раздела CHANGELOG" >&2
   exit 1
 fi
-sh tools/check-release.sh v1.27.10
-if sh tools/check-release.sh v9.9.9 >/dev/null 2>&1; then
-  echo "Ошибка: проверка пропустила релиз без раздела CHANGELOG" >&2
-  exit 1
-fi
