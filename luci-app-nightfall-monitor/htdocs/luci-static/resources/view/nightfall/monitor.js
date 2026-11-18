@@ -143,6 +143,15 @@ const XCSS = `
 .nfm-app-summary .nfm-tile { min-width:0; }
 .nfm-app-summary .nfm-tile small { display:block; margin-top:3px; }
 .nfm-app-categories { display:grid; gap:8px; }
+.nfm-app-donut-layout { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:16px; min-height:190px; }
+.nfm-app-donut { width:164px; height:164px; flex:none; display:grid; place-items:center; border-radius:50%; }
+.nfm-app-donut-center { width:108px; height:108px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; border:1px solid var(--nfm-border); border-radius:50%; background:var(--nfm-card); }
+.nfm-app-donut-center b { font-size:18px; font-variant-numeric:tabular-nums; }
+.nfm-app-donut-center small { color:var(--nfm-dim); font-size:11px; }
+.nfm-app-legend { display:grid; gap:8px; flex:1; min-width:145px; }
+.nfm-app-legend-row { display:grid; grid-template-columns:9px minmax(0,1fr) auto; gap:8px; align-items:center; font-size:12px; }
+.nfm-app-legend-row b { white-space:nowrap; font-variant-numeric:tabular-nums; }
+.nfm-app-legend-dot { width:9px; height:9px; border-radius:3px; background:var(--nfm-app-color); }
 .nfm-app-category { border:1px solid var(--nfm-border); border-radius:9px; background:var(--nfm-card2); overflow:hidden; }
 .nfm-app-category > summary { display:grid; grid-template-columns:12px minmax(0,1fr) auto auto; gap:8px 12px; align-items:center; padding:11px 12px; cursor:pointer; list-style:none; font-size:13px; }
 .nfm-app-category > summary::-webkit-details-marker { display:none; }
@@ -1938,6 +1947,20 @@ return view.extend({
 				]);
 				return details;
 			});
+			const appPalette = [ 'var(--c-cpu)', 'var(--c-mem)', 'var(--c-temp)', 'var(--c-down)', 'var(--c-up)', 'var(--c-flash)', 'var(--gx)' ];
+			let donutOffset = 0;
+			const donutStops = result.categories.map((c, i) => {
+				const from = donutOffset;
+				donutOffset += total ? c.total / total * 100 : 0;
+				return appPalette[i % appPalette.length] + ' ' + from.toFixed(2) + '% ' + donutOffset.toFixed(2) + '%';
+			});
+			const donut = E('div', { class: 'nfm-app-donut', style: 'background:' + (total ? 'conic-gradient(' + donutStops.join(',') + ')' : 'var(--nfm-card2)') },
+				E('div', { class: 'nfm-app-donut-center' }, [ E('b', {}, fmtBytes(total)), E('small', {}, 'Всего') ]));
+			const legend = E('div', { class: 'nfm-app-legend' }, result.categories.map((c, i) => E('div', { class: 'nfm-app-legend-row' }, [
+				E('i', { class: 'nfm-app-legend-dot', style: '--nfm-app-color:' + appPalette[i % appPalette.length] }),
+				E('span', {}, c.name), E('b', {}, fmtShare(c.total))
+			])));
+			const donutBox = E('div', { class: 'nfm-app-donut-layout' }, [ donut, legend ]);
 			const top = result.apps.slice(0, 30);
 			const unknown = result.apps.filter(a => a.category === 'Не определено').slice(0, 12);
 			const unknownBox = E('div', { class: 'nfm-app-unknown-list' }, unknown.length ? unknown.map(a => E('div', { class: 'nfm-host' }, [
@@ -1955,9 +1978,12 @@ return view.extend({
 				summary,
 				E('div', { class: 'nfm-grid nfm-g21' }, [
 					card('Трафик по категориям', E('div', { class: 'nfm-app-categories' }, catRows.length ? catRows : [ E('div', { class: 'nfm-empty' }, 'Нет данных по категориям.') ])),
-					card('Топ приложений и доменов', appsBox)
+					card('Распределение по категориям', donutBox)
 				]),
-				card([ 'Не распознано', E('span', { class: 'nfm-note-s' }, unknown.length ? 'Первые 12 записей · без ложной атрибуции' : 'Проверка неизвестного трафика') ], unknownBox),
+				E('div', { class: 'nfm-grid nfm-g21' }, [
+					card('Топ приложений и доменов', appsBox),
+					card([ 'Не распознано', E('span', { class: 'nfm-note-s' }, unknown.length ? 'Первые 12 записей · без ложной атрибуции' : 'Проверка неизвестного трафика') ], unknownBox)
+				]),
 				E('div', { class: 'nfm-note-s' }, 'Категории строятся по распознанным именам сервисов. Общие CDN, IP без DNS-имени и неоднозначные домены не приписываются приложениям. VPN / Direct / неизвестный маршрут учитываются независимо от категории.')
 			);
 		}
