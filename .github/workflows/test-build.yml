@@ -7,7 +7,7 @@ on:
         description: "Версия тестового архива"
         required: true
         type: string
-        default: "v1.27.7-alpha.1-test"
+        default: "v1.27.12-alpha.4-vpn-aware-test"
 
 permissions:
   contents: read
