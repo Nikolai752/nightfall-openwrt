@@ -7031,3 +7031,47 @@ body.nf-blank .modal.login > .spinning::before {
   .nf-apps-r { grid-template-columns:minmax(0,1fr) minmax(92px,8.5em) 2.8em; }
   .nf-apps-route { font-size:8.5px; padding:2px 4px; }
 }
+
+
+/* v20261118h: structured, readable breakdown for unclassified application traffic. */
+.nf-apps-other-panel {
+	margin:4px 0 8px;
+	padding:10px 12px;
+	border:1px solid var(--nf-stroke);
+	border-radius:12px;
+	background:color-mix(in srgb,var(--nf-text) 3.5%,transparent);
+}
+.nf-apps-other-head {
+	display:flex;
+	align-items:center;
+	justify-content:space-between;
+	gap:12px;
+}
+.nf-apps-other-heading { display:flex; flex-wrap:wrap; align-items:baseline; gap:5px 9px; min-width:0; }
+.nf-apps-other-heading b { color:var(--nf-text); font-size:calc(13px * var(--nf-fsz,1)); }
+.nf-apps-other-heading span,.nf-apps-other-note { color:var(--nf-text-dim); font-size:calc(10.5px * var(--nf-fsz,1)); }
+.nf-apps-other-head > strong { flex:none; color:var(--nf-text); font-size:calc(13px * var(--nf-fsz,1)); font-variant-numeric:tabular-nums; }
+.nf-apps-other-note { margin:4px 0 8px; line-height:1.45; }
+.nf-apps-other-list { display:grid; gap:0; }
+.nf-apps-other-row {
+	display:grid;
+	grid-template-columns:minmax(0,1fr) auto minmax(72px,auto) 3.2em;
+	align-items:center;
+	gap:6px 9px;
+	min-width:0;
+	padding:6px 0;
+	border-top:1px solid color-mix(in srgb,var(--nf-stroke) 75%,transparent);
+}
+.nf-apps-other-domain { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--nf-text); font-size:calc(11px * var(--nf-fsz,1)); }
+.nf-apps-other-route { white-space:nowrap; font-size:calc(9px * var(--nf-fsz,1)); }
+.nf-apps-other-size { text-align:right; white-space:nowrap; color:var(--nf-text); font-size:calc(10.5px * var(--nf-fsz,1)); font-variant-numeric:tabular-nums; }
+.nf-apps-other-share { text-align:right; color:var(--nf-text-dim); font-size:calc(9px * var(--nf-fsz,1)); font-variant-numeric:tabular-nums; }
+.nf-apps-other-panel .nf-apps-more { margin-top:8px; }
+@media (max-width:640px) {
+	.nf-apps-other-panel { padding:9px; border-radius:10px; }
+	.nf-apps-other-row { grid-template-columns:minmax(0,1fr) auto; gap:4px 8px; padding:7px 0; }
+	.nf-apps-other-domain { grid-column:1; grid-row:1; font-size:calc(11px * var(--nf-fsz,1)); }
+	.nf-apps-other-route { grid-column:1; grid-row:2; justify-self:start; }
+	.nf-apps-other-size { grid-column:2; grid-row:1; }
+	.nf-apps-other-share { grid-column:2; grid-row:2; }
+}
