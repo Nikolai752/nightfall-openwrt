@@ -1,6 +1,6 @@
 #!/bin/sh
 # Build a bounded, time-aware IP -> application map from dnsmasq query/reply logs.
-# Format: ip|application|last_seen_epoch. Old two-column maps are intentionally discarded.
+# Format: ip|application|last_seen_epoch|queried_hostname. Legacy rows without a hostname are discarded.
 set -eu
 RULES=${1:-/usr/share/nightfall/apps.list}
 USER_RULES=${2:-/etc/nightfall-apps.list}
