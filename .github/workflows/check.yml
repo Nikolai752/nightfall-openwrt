@@ -30,6 +30,8 @@ jobs:
         run: sh tools/test-device-accounting.sh
       - name: Окно «Что нового» после обновления
         run: sh tools/test-whats-new.sh
+      - name: Изолированные тесты LuCI updater и отката
+        run: sh tools/test-updater.sh
       - name: Тесты установки, обновления и удаления
         run: sh tools/test-install.sh
       - name: Дымовой тест (Playwright)
