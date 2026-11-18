@@ -190,8 +190,8 @@ awk '
 END { exit bad }
 ' "$WORK/all.list" || die "в архиве недопустимые пути"
 # Не допускаем ссылки и специальные файлы: извлекаются только обычные файлы и каталоги.
-tar -tvzf "$ARCH" 2>/dev/null |
-  awk 'substr($1,1,1) != "-" && substr($1,1,1) != "d" { bad=1 } END { exit bad }' ||
+tar -tvzf "$ARCH" > "$WORK/verbose.list" 2>/dev/null || die "не удалось проверить типы записей архива"
+awk 'substr($1,1,1) != "-" && substr($1,1,1) != "d" { bad=1 } END { exit bad }' "$WORK/verbose.list" ||
   die "в архиве обнаружены ссылки или специальные файлы"
 NEW=$(archive_ver "$ARCH")
 [ -n "$NEW" ] || die "в архиве нет файла версии (слишком старый или повреждённый архив)"
