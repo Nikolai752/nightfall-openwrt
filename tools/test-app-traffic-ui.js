@@ -36,4 +36,7 @@ check(result.routes.Direct === 1265, 'device filter + history Direct');
 check(result.routes.Unknown === 320, 'device filter + Unknown');
 check(source.includes('k.split(String.fromCharCode(31))'), 'Other chip parser splits the actual unit separator');
 check(source.includes('fmtBytes(r.routes[route])'), 'route badges expose byte totals without hover');
+check(source.includes('nf-apps-other-row'), 'unclassified traffic uses readable structured rows');
+check(source.includes('Общие CDN намеренно остаются здесь.'), 'UI explains why shared CDNs stay unclassified');
+check(source.includes("'Неизв.'"), 'unknown route label is explicit, not a question mark');
 console.log('Application traffic UI tests: all passed.');
