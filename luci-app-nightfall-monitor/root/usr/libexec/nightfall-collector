@@ -206,14 +206,16 @@ do_dns() {
 	size=$(wc -c < "$DNSLOG" 2>/dev/null | tr -d ' '); [ -n "$size" ] || return 0
 	# DNS map schema 2 stores the original queried hostname. Rebuild once on upgrade:
 	# legacy IP|app|time rows cannot be safely re-attributed after catalog corrections.
+	rebuild=0
 	if [ "$(cat "$DIR/dns.map.v" 2>/dev/null)" != 2 ]; then
-		rm -f "$DIR/dns.map"; : > "$DIR/dns.off"; echo 2 > "$DIR/dns.map.v"
+		rm -f "$DIR/dns.map"; : > "$DIR/dns.off"; off=0; rebuild=1
 	fi
 	off=$(cat "$DIR/dns.off" 2>/dev/null); case "$off" in ''|*[!0-9]*) off=0 ;; esac
 	[ "$size" -ge "$off" ] || off=0
 	if [ "$size" -gt "$off" ]; then
-		tail -c +$((off + 1)) "$DNSLOG" 2>/dev/null | sh "${NF_DNSMAP:-/usr/libexec/nightfall-dns-map}" "$RULES" "$RULES_USER" "$DIR/dns.map" "$now"
+		tail -c +$((off + 1)) "$DNSLOG" 2>/dev/null | sh "${NF_DNSMAP:-/usr/libexec/nightfall-dns-map}" "$RULES" "$RULES_USER" "$DIR/dns.map" "$now" || return 0
 	fi
+	[ "$rebuild" = 0 ] || echo 2 > "$DIR/dns.map.v"
 	# журнал не должен расти бесконечно
 	if [ "$size" -gt 1048576 ]; then : > "$DNSLOG"; size=0; fi
 	echo "$size" > "$DIR/dns.off"
