@@ -13,20 +13,20 @@ for f in "$INIT" "$COLLECTOR" "$BACKUP" "$UPDATE" "$UNINSTALL"; do
 done
 
 grep -Fq 'USE_PROCD=1' "$INIT"
-grep -q 'procd_set_param command /usr/libexec/nightfall-collector' "$INIT"
-grep -q 'procd_set_param respawn' "$INIT"
-grep -q 'procd_set_param nice 10' "$INIT"
-grep -q 'procd_set_param command /usr/libexec/nightfall-bot' "$INIT"
+grep -Fq 'procd_set_param command /usr/libexec/nightfall-collector' "$INIT"
+grep -Fq 'procd_set_param respawn' "$INIT"
+grep -Fq 'procd_set_param nice 10' "$INIT"
+grep -Fq 'procd_set_param command /usr/libexec/nightfall-bot' "$INIT"
 grep -Fq 'if [ "$(cfg TG)" = 1 ]' "$INIT"
 
 # Lite mode must lower collection frequency and disable the two optional collectors.
-grep -q 'if [ "$LITE" = 1 ]' "$COLLECTOR"
-grep -q 'WIFI_HIST=0; APPS=0' "$COLLECTOR"
+grep -Fq 'if [ "$LITE" = 1 ]' "$COLLECTOR"
+grep -Fq 'WIFI_HIST=0; APPS=0' "$COLLECTOR"
 
 # Update and restore must have explicit rollback paths; uninstall must stop/disable procd.
-grep -q 'rollback()' "$UPDATE"
-grep -q 'исходные настройки возвращены' "$BACKUP"
-grep -q '/etc/init.d/nightfall-collector stop' "$UNINSTALL"
-grep -q '/etc/init.d/nightfall-collector disable' "$UNINSTALL"
+grep -Fq 'rollback()' "$UPDATE"
+grep -Fq 'исходные настройки возвращены' "$BACKUP"
+grep -Fq '/etc/init.d/nightfall-collector stop' "$UNINSTALL"
+grep -Fq '/etc/init.d/nightfall-collector disable' "$UNINSTALL"
 
 echo "Nightfall service lifecycle checks passed"
