@@ -12,7 +12,9 @@ echo "Проверка восстановления окна «Что новог
 grep -q "function showWhatsNew()" "$SRC"
 grep -q "text: 'Что нового', onclick: showWhatsNew" "$SRC"
 grep -q "Не подтверждаем просмотр: возможно, CHANGELOG ещё не опубликован" "$SRC"
-sh tools/check-release.sh v1.27.12
+VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' luci-theme-nightfall/htdocs/luci-static/nightfall/version.json)
+[ -n "$VERSION" ]
+sh tools/check-release.sh "v$VERSION"
 if sh tools/check-release.sh v9.9.9 >/dev/null 2>&1; then
   echo "Ошибка: проверка пропустила релиз без раздела CHANGELOG" >&2
   exit 1
