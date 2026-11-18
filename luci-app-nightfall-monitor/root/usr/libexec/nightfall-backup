@@ -14,7 +14,7 @@ ETC="${ROOT}/etc"
 TMP=${NF_TMP:-/tmp}
 CONF=${NF_CONF:-$ETC/nightfall-monitor.conf}
 MOUNTS=${NF_MOUNTS:-$ROOT/proc/mounts}
-TOOL_VERSION=1.27.7
+TOOL_VERSION=1.27.8
 BACKUP_KEEP=${NF_BACKUP_KEEP:-$(sed -n 's/^BACKUP_KEEP=//p' "$CONF" 2>/dev/null | head -n 1)}
 [ -n "$BACKUP_KEEP" ] || BACKUP_KEEP=5
 case "$BACKUP_KEEP" in ''|*[!0-9]*) BACKUP_KEEP=5 ;; esac
