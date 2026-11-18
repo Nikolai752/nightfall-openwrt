@@ -19,7 +19,7 @@ function check(name, got, want) {
 }
 BEGIN {
   # Typical selective-routing marks, discovered from ip rule at runtime.
-  nr = 2
+  nr = 3
   rf[1] = "4"; rv[1] = 1048576; rm[1] = 267386880; rc[1] = "VPN"
   rf[2] = "4"; rv[2] = 5242880; rm[2] = 267386880; rc[2] = "VPN"
   rf[3] = "6"; rv[3] = 1048576; rm[3] = 267386880; rc[3] = "VPN"
@@ -31,13 +31,13 @@ BEGIN {
   check("unmarked flow on ordinary WAN", routeof("0", "4"), "Direct")
 
   nr = 0
-  check("router without VPN classifies WAN as Direct", routeof("0"), "Direct")
-  main_dev = "wg0"; main_tunnel = 1
-  check("full-tunnel WireGuard default route", routeof("0"), "VPN")
-  main_dev = "eth0"; main_tunnel = 0; policy_unknown = 1
-  check("unsupported source-policy routing stays Unknown", routeof("0"), "Unknown")
-  nr = 1; rv[1] = 123; rm[1] = 255; rc[1] = "Unknown"
-  check("matching non-tunnel policy route stays Unknown", routeof("123"), "Unknown")
+  check("router without VPN classifies WAN as Direct", routeof("0", "4"), "Direct")
+  main_dev["4"] = "wg0"; main_tunnel["4"] = 1
+  check("full-tunnel WireGuard default route", routeof("0", "4"), "VPN")
+  main_dev["4"] = "eth0"; main_tunnel["4"] = 0; policy_unknown["4"] = 1
+  check("unsupported source-policy routing stays Unknown", routeof("0", "4"), "Unknown")
+  nr = 1; rf[1] = "4"; rv[1] = 123; rm[1] = 255; rc[1] = "Unknown"
+  check("matching non-tunnel policy route stays Unknown", routeof("123", "4"), "Unknown")
 
   am["8.8.8.8"] = "Google"
   check("application identity remains Google", appof("8.8.8.8"), "Google")
