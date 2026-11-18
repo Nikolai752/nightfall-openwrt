@@ -47,6 +47,9 @@ for k in $(sed -n 's/^KEYS="\(.*\)"/\1/p' luci-app-nightfall-monitor/root/usr/li
   grep -q "^$k=" "$DEFC" || err "в $DEFC нет строки $k (страница покажет пустое поле и не сохранится)"
 done
 
+echo "== VPN accounting ==\n"
+sh tools/test-vpn-accounting.sh || err "проверка VPN accounting"
+
 echo "== Версия кэша =="
 b=$(grep -o '[0-9]\{8\}[a-z]' luci-theme-nightfall/ucode/template/themes/nightfall/header.ut | sort -u)
 echo "$b"
