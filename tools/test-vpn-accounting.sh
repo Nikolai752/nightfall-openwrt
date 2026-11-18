@@ -38,7 +38,9 @@ BEGIN {
   check("full-tunnel WireGuard default route", routeof("0", "4"), "VPN")
   main_dev["4"] = "eth0"; main_tunnel["4"] = 0; policy_unknown["4"] = 1; tunnel_present["4"] = 1; vpn_rule_found["4"] = 0
   check("unsupported source-policy routing stays Unknown", routeof("0", "4"), "Unknown")
-  nr = 1; rf[1] = "4"; rv[1] = 123; rm[1] = 255; rc[1] = "Unknown"
+  nr = 1; rf[1] = "4"; rv[1] = 123; rm[1] = 255; rc[1] = "VPN"
+  check("source policy takes precedence over a matching VPN mark", routeof("123", "4"), "Unknown")
+  policy_unknown["4"] = 0; rc[1] = "Unknown"
   check("matching non-tunnel policy route stays Unknown", routeof("123", "4"), "Unknown")
 
   am["8.8.8.8"] = "Google"
