@@ -6841,3 +6841,29 @@ body.nf-blank .modal.login > .spinning::before {
 .nf-pop .nf-backup-sec { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--nf-stroke); }
 .nf-pop .nf-backup-sec .nf-pop-ionote { white-space: pre-line; overflow-wrap: anywhere; text-align: left; line-height: 1.45; }
 .nf-pop .nf-backup-sec button:disabled { opacity: .55; cursor: wait; }
+
+
+/* Issue #141: keep DHCP reservation rows inside the LuCI card.
+   Long hostnames and multiple MAC addresses must wrap instead of widening
+   the whole table. Keep Wi-Fi association tables' compact MAC formatting. */
+#view .table:not(.assoclist):has(.td[data-title*="MAC"], .td[data-title*="IPv4"]) {
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+}
+#view .table:not(.assoclist):has(.td[data-title*="MAC"], .td[data-title*="IPv4"]) .td {
+	min-width: 0;
+	max-width: 100%;
+	white-space: normal !important;
+	overflow-wrap: anywhere !important;
+	word-break: normal !important;
+}
+#view .table:not(.assoclist):has(.td[data-title*="MAC"], .td[data-title*="IPv4"]) .th {
+	min-width: 0;
+	white-space: normal !important;
+	overflow-wrap: anywhere;
+}
+#view .table:not(.assoclist):has(.td[data-title*="MAC"], .td[data-title*="IPv4"]) .td:has(.cbi-button, button, .btn) {
+	white-space: nowrap !important;
+	overflow-wrap: normal !important;
+}
