@@ -1851,7 +1851,7 @@ function appsCard() {
 		}
 		body.replaceChildren(E('div', { class: 'nf-apps-bar' }, [ seg, sel ]), ...content,
 			E('div', { class: 'nf-apps-f' }, [
-				E('span', {}, 'Всего ' + fmtBytes(sum) + ' · VPN ' + fmtBytes(routes.VPN) + ' · напрямую ' + fmtBytes(routes.Direct) + ' · не определено ' + fmtBytes(routes.Unknown) + '. Классификация основана на доступных правилах маршрутизации; при нестандартной схеме часть соединений может быть отмечена как неизвестная.'),
+				E('span', {}, 'Всего ' + fmtBytes(sum) + ' · VPN ' + fmtBytes(routes.VPN) + ' · напрямую ' + fmtBytes(routes.Direct) + ' · не определено ' + fmtBytes(routes.Unknown) + '. Классификация основана на видимых правилах маршрутизации. При нестандартной схеме часть соединений может остаться неизвестной; DoH/DoT и сторонний DNS также снижают точность названий приложений.'),
 				E('button', { type: 'button', class: 'nf-apps-stop', click: () => toggle('disable', 'Выключить учёт трафика по приложениям?\n\nЖурнал DNS в dnsmasq будет возвращён к прежним настройкам.') }, 'Выключить учёт')
 			]));
 	}
