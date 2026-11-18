@@ -80,10 +80,10 @@ expect_external "$PERSIST_DIR" "USB mount is recognized through nested data dire
 if persist; then pass "persistence resumes after USB mount returns"; else fail "persistence resumes after USB mount returns"; fi
 grep -q 'old persistent history' "$PERSIST_DIR/hist.coarse" && grep -q 'new RAM history' "$PERSIST_DIR/hist.coarse" && pass "USB history and RAM history are merged" || fail "USB history and RAM history are merged"
 grep -q '^192\.168\.1\.2 130 240$' "$PERSIST_DIR/dev.day" && pass "device daily counters are added" || fail "device daily counters are added"
-grep -q '^192\.168\.1\.2|video|Direct|1300|2400 && pass "application daily counters are added" || fail "application daily counters are added"
+grep -q '^192\.168\.1\.2|video|Direct|1300|2400$' "$PERSIST_DIR/apps.day" && pass "application daily counters are added" || fail "application daily counters are added"
 grep -q '^20261117 10300 20400$' "$PERSIST_DIR/traffic.daily" && pass "WAN daily counters are added" || fail "WAN daily counters are added"
 grep -q '^20261116 192\.168\.1\.2 550 660 aa:bb:cc:dd:ee:ff$' "$PERSIST_DIR/dev.daily" && pass "historical device counters are merged" || fail "historical device counters are merged"
-grep -q '^20261116|192\.168\.1\.2|video|Direct|770|880 && pass "historical application counters are merged" || fail "historical application counters are merged"
+grep -q '^20261116|192\.168\.1\.2|video|Direct|770|880$' "$PERSIST_DIR/apps.hist" && pass "historical application counters are merged" || fail "historical application counters are merged"
 [ "$persist_ok" = 1 ] && pass "storage status returns to available" || fail "storage status returns to available"
 
 # Disconnect again: RAM keeps collecting; USB data is not touched.
@@ -117,10 +117,10 @@ expect_internal "$PERSIST_DIR" "PERSIST_ANY never permits the root overlay"
 echo
 echo "ИТОГО: ok=$ok, ошибок=$bad"
 [ "$bad" -eq 0 ]
- "$PERSIST_DIR/apps.day" && pass "application daily counters are added" || fail "application daily counters are added"
+grep -q '^192\.168\.1\.2|video|Direct|1300|2400$' "$PERSIST_DIR/apps.day" && pass "application daily counters are added" || fail "application daily counters are added"
 grep -q '^20261117 10300 20400$' "$PERSIST_DIR/traffic.daily" && pass "WAN daily counters are added" || fail "WAN daily counters are added"
 grep -q '^20261116 192\.168\.1\.2 550 660 aa:bb:cc:dd:ee:ff$' "$PERSIST_DIR/dev.daily" && pass "historical device counters are merged" || fail "historical device counters are merged"
-grep -q '^20261116|192\.168\.1\.2|video|770|880$' "$PERSIST_DIR/apps.hist" && pass "historical application counters are merged" || fail "historical application counters are merged"
+grep -q '^20261116|192\.168\.1\.2|video|Direct|770|880$' "$PERSIST_DIR/apps.hist" && pass "historical application counters are merged" || fail "historical application counters are merged"
 [ "$persist_ok" = 1 ] && pass "storage status returns to available" || fail "storage status returns to available"
 
 # Disconnect again: RAM keeps collecting; USB data is not touched.
@@ -154,7 +154,7 @@ expect_internal "$PERSIST_DIR" "PERSIST_ANY never permits the root overlay"
 echo
 echo "ИТОГО: ok=$ok, ошибок=$bad"
 [ "$bad" -eq 0 ]
- "$PERSIST_DIR/apps.hist" && pass "historical application counters are merged" || fail "historical application counters are merged"
+grep -q '^20261116|192\.168\.1\.2|video|Direct|770|880$' "$PERSIST_DIR/apps.hist" && pass "historical application counters are merged" || fail "historical application counters are merged"
 [ "$persist_ok" = 1 ] && pass "storage status returns to available" || fail "storage status returns to available"
 
 # Disconnect again: RAM keeps collecting; USB data is not touched.
@@ -188,10 +188,10 @@ expect_internal "$PERSIST_DIR" "PERSIST_ANY never permits the root overlay"
 echo
 echo "ИТОГО: ok=$ok, ошибок=$bad"
 [ "$bad" -eq 0 ]
- "$PERSIST_DIR/apps.day" && pass "application daily counters are added" || fail "application daily counters are added"
+grep -q '^192\.168\.1\.2|video|Direct|1300|2400$' "$PERSIST_DIR/apps.day" && pass "application daily counters are added" || fail "application daily counters are added"
 grep -q '^20261117 10300 20400$' "$PERSIST_DIR/traffic.daily" && pass "WAN daily counters are added" || fail "WAN daily counters are added"
 grep -q '^20261116 192\.168\.1\.2 550 660 aa:bb:cc:dd:ee:ff$' "$PERSIST_DIR/dev.daily" && pass "historical device counters are merged" || fail "historical device counters are merged"
-grep -q '^20261116|192\.168\.1\.2|video|770|880$' "$PERSIST_DIR/apps.hist" && pass "historical application counters are merged" || fail "historical application counters are merged"
+grep -q '^20261116|192\.168\.1\.2|video|Direct|770|880$' "$PERSIST_DIR/apps.hist" && pass "historical application counters are merged" || fail "historical application counters are merged"
 [ "$persist_ok" = 1 ] && pass "storage status returns to available" || fail "storage status returns to available"
 
 # Disconnect again: RAM keeps collecting; USB data is not touched.
