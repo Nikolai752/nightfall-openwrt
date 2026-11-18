@@ -204,6 +204,11 @@ do_newdev() {
 do_dns() {
 	[ "$APPS" = 1 ] && [ -r "$DNSLOG" ] || return 0
 	size=$(wc -c < "$DNSLOG" 2>/dev/null | tr -d ' '); [ -n "$size" ] || return 0
+	# DNS map schema 2 stores the original queried hostname. Rebuild once on upgrade:
+	# legacy IP|app|time rows cannot be safely re-attributed after catalog corrections.
+	if [ "$(cat "$DIR/dns.map.v" 2>/dev/null)" != 2 ]; then
+		rm -f "$DIR/dns.map"; : > "$DIR/dns.off"; echo 2 > "$DIR/dns.map.v"
+	fi
 	off=$(cat "$DIR/dns.off" 2>/dev/null); case "$off" in ''|*[!0-9]*) off=0 ;; esac
 	[ "$size" -ge "$off" ] || off=0
 	if [ "$size" -gt "$off" ]; then
