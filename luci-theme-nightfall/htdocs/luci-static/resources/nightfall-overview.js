@@ -1844,7 +1844,7 @@ function appsCard() {
 				]));
 				/* из чего состоит «Прочее»: самые тяжёлые домены (по ним можно добавить правило в /etc/nightfall-apps.list) */
 				if (r.a === 'Прочее') {
-					const top = Object.keys(other).map(k => { const a = k.split('\u001f'); return { k: (a[0] || 'прямые адреса без имени') + ' · ' + (a[1] === 'VPN' ? 'VPN' : a[1] === 'Direct' ? 'напрямую' : 'неизвестно'), t: other[k][0] + other[k][1] }; }).filter(x => x.t > 0).sort((x, y) => y.t - x.t).slice(0, 6);
+					const top = Object.keys(other).filter(k => k.endsWith('\u001f' + r.route)).map(k => { const a = k.split('\u001f'); return { k: (a[0] || 'прямые адреса без имени') + ' · ' + (a[1] === 'VPN' ? 'VPN' : a[1] === 'Direct' ? 'напрямую' : 'неизвестно'), t: other[k][0] + other[k][1] }; }).filter(x => x.t > 0).sort((x, y) => y.t - x.t).slice(0, 6);
 					if (top.length) content.push(E('div', { class: 'nf-apps-sub' }, [ E('span', {}, 'Крупнее всего:') ].concat(top.map(x => E('span', { class: 'nf-apps-chip', title: x.k }, [ x.k + ' ', E('b', {}, fmtBytes(x.t)) ])))));
 				}
 			});
