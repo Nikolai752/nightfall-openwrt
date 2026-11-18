@@ -143,7 +143,16 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 			}
 			if (k === 'apps') {
 				const at = await p.evaluate(() => document.body.textContent);
-				for (const w of [ 'Трафик приложений', 'Трафик по категориям', 'Социальные сети', 'CDN и инфраструктура', 'Не распознано', 'VPN', 'Напрямую' ]) if (!at.includes(w)) bad(vn + ': во вкладке «Трафик» нет «' + w + '»');
+				for (const w of [ 'Трафик приложений', 'Трафик по категориям', 'Распределение по категориям', 'Социальные сети', 'CDN и инфраструктура', 'Не распознано', 'VPN', 'Напрямую' ]) if (!at.includes(w)) bad(vn + ': во вкладке «Трафик» нет «' + w + '»');
+				const donut = await p.evaluate(() => {
+					const el = document.querySelector('.nfm-app-donut');
+					return el ? getComputedStyle(el).backgroundImage : '';
+				});
+				if (!donut.includes('conic-gradient')) bad(vn + ': диаграмма категорий не отрисовалась');
+				await p.evaluate(() => document.documentElement.setAttribute('data-darkmode', 'true'));
+				const darkDonut = await p.evaluate(() => getComputedStyle(document.querySelector('.nfm-app-donut')).backgroundImage);
+				if (!darkDonut.includes('conic-gradient')) bad(vn + ': диаграмма исчезла в тёмной теме');
+				await p.evaluate(() => document.documentElement.removeAttribute('data-darkmode'));
 				await p.selectOption('select[aria-label="Устройство для статистики приложений"]', '192.168.1.20');
 				await p.selectOption('select[aria-label="Период статистики приложений"]', '7');
 				await p.waitForTimeout(250);
