@@ -29,43 +29,45 @@ function sld(n,   p,k) {
   if (length(p[k])==2 && p[k-1] ~ /^(co|com|net|org|gov|edu|ac)$/) return p[k-2] "." p[k-1] "." p[k]
   return p[k-1] "." p[k]
 }
-function put(ip,app,stamp,key) {
-  if (ip=="" || app=="") return
-  key=ip SUBSEP app
+function put(ip,app,stamp,host,key) {
+  if (ip=="" || app=="" || host=="") return
+  host=tolower(host); sub(/\\.$/,"",host)
+  key=ip SUBSEP host
   stamp=(stamp=="" ? now : stamp+0)
-  if (!(key in seen) || stamp>seen[key]) seen[key]=stamp
+  if (!(key in seen) || stamp>seen[key]) { seen[key]=stamp; seen_app[key]=app }
 }
 BEGIN {
   load(urules); load(rules)
-  # Keep only observations made in the last six hours. Old two-column maps expire on upgrade.
+  # Schema 2 stores the original queried hostname, not only the derived app label.
+  # Re-evaluate every retained mapping against the current catalog on each run.
+  # Legacy rows without a hostname are dropped because their old attribution cannot be audited.
   while ((getline l < map)>0) {
     n=split(l,a,"|")
-    if (n>=3 && a[3] ~ /^[0-9]+$/ && a[3]+0 >= now-21600 && a[1]!="" && a[2]!="") {
-      app=a[2]
-      # Re-evaluate retained fallback domain observations against the current catalog.
-      # This upgrades existing IP mappings immediately after a catalog update without
-      # waiting for another client DNS query; unresolved/shared CDN names stay fallback.
-      if (app ~ /^Прочее · /) {
-        resolved=cls(substr(app,10))
-        if (resolved!="") app=resolved
+    if (n>=4 && a[3] ~ /^[0-9]+$/ && a[3]+0 >= now-21600 && a[1]!="" && a[4]!="") {
+      host=tolower(a[4]); sub(/\\.$/,"",host)
+      app=cls(host)
+      if (app=="") {
+        fallback=sld(host)
+        if (fallback!="" && fallback ~ /\\./) app="Прочее · " fallback
       }
-      put(tolower(a[1]),app,a[3])
+      put(tolower(a[1]),app,a[3],host)
     }
   }
   close(map)
 }
 {
   k=0
-  for(i=1;i<=NF;i++) if ($i ~ /^query\[/ || $i=="reply" || $i=="cached") { k=i; break }
+  for(i=1;i<=NF;i++) if ($i ~ /^query\\[/ || $i=="reply" || $i=="cached") { k=i; break }
   if(!k) next
-  if($k ~ /^query\[/) { cur=$(k+1); chain=0; next }
+  if($k ~ /^query\\[/) { cur=$(k+1); chain=0; next }
   name=$(k+1); v=$(k+3)
   if($(k+2)!="is") next
   if(v=="<CNAME>") { chain=1; next }
   if(v !~ /^[0-9a-fA-F.:]+$/) next
-  app=""; if(chain) app=cls(cur); if(app=="") app=cls(name)
-  if(app=="") { app=sld(chain ? cur : name); if(app!="" && app ~ /\./) app="Прочее · " app; else app="" }
-  if(app!="") put(tolower(v),app,now)
+  host=tolower(chain ? cur : name); sub(/\\.$/,"",host)
+  app=cls(host)
+  if(app=="") { fallback=sld(host); if(fallback!="" && fallback ~ /\\./) app="Прочее · " fallback }
+  if(app!="") put(tolower(v),app,now,host)
 }
 END {
   for(k in seen) { split(k,a,SUBSEP); print a[1] "|" a[2] "|" seen[k] }
