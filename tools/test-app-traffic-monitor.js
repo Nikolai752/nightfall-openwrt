@@ -6,7 +6,7 @@ const source = fs.readFileSync('luci-app-nightfall-monitor/htdocs/luci-static/re
 const start = source.indexOf('const APP_TRAFFIC_CATEGORIES =');
 const end = source.indexOf('\n/* ---------- widgets ---------- */', start);
 if (start < 0 || end < 0) throw new Error('application traffic classifier not found');
-const api = vm.runInNewContext(source.slice(start, end) + '\n;({ appTrafficCategory, sumMonitorAppTraffic });');
+const api = vm.runInNewContext(source.slice(start, end) + '\n;({ appTrafficCategory, appTrafficDisplayName, sumMonitorAppTraffic });');
 const check = (ok, message) => { if (!ok) throw new Error('FAIL: ' + message); };
 const data = {
   today: '20261118',
@@ -41,6 +41,8 @@ check(one.routes.Unknown === 320, 'device filter unknown');
 check(api.appTrafficCategory('Прочее · Общий IP (CDN)') === 'Не определено', 'shared IP remains unclassified');
 check(api.appTrafficCategory('Прочее · aaplimg.com') === 'Системные службы', 'Apple infrastructure classification');
 check(api.appTrafficCategory('Прочее · shalltry.com') === 'Не определено', 'unknown domains are not guessed');
+check(api.appTrafficDisplayName('Прочее · Нет DNS-имени') === 'IP без DNS-имени', 'missing DNS label is user friendly');
+check(api.appTrafficDisplayName('Прочее · Общий IP (CDN)') === 'Общий IP / CDN', 'shared CDN label is explicit');
 check(source.includes("[ 'apps', 'Трафик' ]"), 'monitor has the application traffic tab');
 check(source.includes("if (S.tab === 'apps' && due('appTraffic', 30))"), 'application stats poll only on their tab');
 check(source.includes('show(appsTab, S.tab === \'apps\')'), 'tab panel visibility is wired');
