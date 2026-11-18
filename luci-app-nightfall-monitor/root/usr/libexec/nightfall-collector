@@ -346,31 +346,34 @@ vpn_tunnel_dev() {
 	return 1
 }
 : > "$DIR/vpn.routes"
-ip -4 rule show 2>/dev/null | awk '
-	function hx(s,   i,c,n) { sub(/^0x/, "", s); s=tolower(s); n=0; for(i=1;i<=length(s);i++){ c=index("0123456789abcdef",substr(s,i,1))-1; if(c<0)return -1; n=n*16+c } return n }
-	{
-		fw=""; tab=""
-		for(i=1;i<=NF;i++){ if($i=="fwmark")fw=$(i+1); if($i=="lookup" || $i=="table")tab=$(i+1) }
-		if(tab=="" || tab=="local" || tab=="main" || tab=="default")next
-		if(fw!=""){ split(fw,a,"/"); v=hx(a[1]); m=(a[2]==""?4294967295:hx(a[2])); if(v>=0 && m>=0)print v,m,tab }
-		else policy=1
-	}
-	END { print "META",policy+0 }
-' > "$DIR/vpn.rules"
-policy_unknown=0
-while read -r rv rm rt; do
-	[ "$rv" = META ] && { policy_unknown=$rm; continue; }
-	[ -n "$rt" ] || continue
-	vr=$(ip -4 route show table "$rt" default 2>/dev/null | head -n 1)
-	vd=$(printf '%s\n' "$vr" | awk '{ for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1);exit} }')
-	vc=Unknown
-	vpn_tunnel_dev "$vd" && vc=VPN
-	printf '%s %s %s\n' "$rv" "$rm" "$vc" >> "$DIR/vpn.routes"
-done < "$DIR/vpn.rules"
-mr=$(ip -4 route show table main default 2>/dev/null | head -n 1)
-md=$(printf '%s\n' "$mr" | awk '{ for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1);exit} }')
-mt=0; vpn_tunnel_dev "$md" && mt=1
-printf '%s %s %s\n' "$md" "$mt" "$policy_unknown" > "$DIR/vpn.meta"
+: > "$DIR/vpn.meta"
+for fam in 4 6; do
+	ip -"$fam" rule show 2>/dev/null | awk '
+		function hx(s,   i,c,n) { sub(/^0x/, "", s); s=tolower(s); n=0; for(i=1;i<=length(s);i++){ c=index("0123456789abcdef",substr(s,i,1))-1; if(c<0)return -1; n=n*16+c } return n }
+		{
+			fw=""; tab=""
+			for(i=1;i<=NF;i++){ if($i=="fwmark")fw=$(i+1); if($i=="lookup" || $i=="table")tab=$(i+1) }
+			if(tab=="" || tab=="local" || tab=="main" || tab=="default")next
+			if(fw!=""){ split(fw,a,"/"); v=hx(a[1]); m=(a[2]==""?4294967295:hx(a[2])); if(v>=0 && m>=0)print v,m,tab }
+			else policy=1
+		}
+		END { print "META",policy+0 }
+	' > "$DIR/vpn.rules"
+	policy_unknown=0
+	while read -r rv rm rt; do
+		[ "$rv" = META ] && { policy_unknown=$rm; continue; }
+		[ -n "$rt" ] || continue
+		vr=$(ip -"$fam" route show table "$rt" default 2>/dev/null | head -n 1)
+		vd=$(printf '%s\n' "$vr" | awk '{ for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1);exit} }')
+		vc=Unknown
+		vpn_tunnel_dev "$vd" && vc=VPN
+		printf '%s %s %s %s\n' "$fam" "$rv" "$rm" "$vc" >> "$DIR/vpn.routes"
+	done < "$DIR/vpn.rules"
+	mr=$(ip -"$fam" route show table main default 2>/dev/null | head -n 1)
+	md=$(printf '%s\n' "$mr" | awk '{ for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1);exit} }')
+	mt=0; vpn_tunnel_dev "$md" && mt=1
+	printf '%s %s %s %s\n' "$fam" "$md" "$mt" "$policy_unknown" >> "$DIR/vpn.meta"
+done
 first=0; [ -s "$DIR/ct.state" ] || first=1
 	rm -f "$DIR/ct.state.new"
 	head -n 40000 "$CT" 2>/dev/null | awk -v netf="$DIR/client.nets" -v routerf="$DIR/router.ips" -v statef="$DIR/ct.state" -v newf="$DIR/ct.state.new" -v dayf="$DIR/dev.day" \
@@ -396,9 +399,9 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 		while ((getline l < routerf) > 0) if (l != "") router[l] = 1; close(routerf)
 		while ((getline l < statef) > 0) { split(l, a, " "); po[a[1]] = a[2]; pr[a[1]] = a[3]; pc[a[1]] = (a[4] == "" ? "Unknown" : a[4]) }
 		close(statef)
-		while ((getline l < routef) > 0) { split(l, a, " "); if (a[1] ~ /^[0-9]+$/ && a[2] ~ /^[0-9]+$/) { nr++; rv[nr] = a[1] + 0; rm[nr] = a[2] + 0; rc[nr] = a[3] } }
+		while ((getline l < routef) > 0) { split(l, a, " "); if ((a[1] == "4" || a[1] == "6") && a[2] ~ /^[0-9]+$/ && a[3] ~ /^[0-9]+$/) { nr++; rf[nr] = a[1]; rv[nr] = a[2] + 0; rm[nr] = a[3] + 0; rc[nr] = a[4] } }
 		close(routef)
-		while ((getline l < metaf) > 0) { split(l, a, " "); main_dev = a[1]; main_tunnel = a[2] + 0; policy_unknown = a[3] + 0 }
+		while ((getline l < metaf) > 0) { split(l, a, " "); main_dev[a[1]] = a[2]; main_tunnel[a[1]] = a[3] + 0; policy_unknown[a[1]] = a[4] + 0 }
 		close(metaf)
 		while ((getline l < dayf) > 0) { split(l, a, " "); dd[a[1]] = a[2] + 0; du[a[1]] = a[3] + 0 }
 		close(dayf)
@@ -420,12 +423,13 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 	}
 	function hexdec(s,   i, c, n) { sub(/^0x/, "", s); s = tolower(s); n = 0; for (i = 1; i <= length(s); i++) { c = index("0123456789abcdef", substr(s, i, 1)) - 1; if (c < 0) return -1; n = n * 16 + c } return n }
 	function bitand(a, b,   r, p) { r = 0; p = 1; while (a > 0 || b > 0) { if (a % 2 >= 1 && b % 2 >= 1) r += p; a = int(a / 2); b = int(b / 2); p *= 2 } return r }
-	function routeof(mark,   i, m) {
+	function routeof(mark, family,   i, m, md, mt, pu) {
 		m = mark + 0; if (mark ~ /^0x/) m = hexdec(mark)
 		if (m < 0) return "Unknown"
-		for (i = 1; i <= nr; i++) if (bitand(m, rm[i]) == rv[i]) return rc[i]
-		if (policy_unknown || main_dev == "") return "Unknown"
-		return main_tunnel ? "VPN" : "Direct"
+		for (i = 1; i <= nr; i++) if (rf[i] == family && bitand(m, rm[i]) == rv[i]) return rc[i]
+		md = main_dev[family]; mt = main_tunnel[family]; pu = policy_unknown[family]
+		if (pu || md == "") return "Unknown"
+		return mt ? "VPN" : "Direct"
 	}
 	function appof(ip,   i) {
 		if (ip in am) return am[ip]
@@ -449,8 +453,8 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 		key = $1 "|" $3 "|" src ">" dst ":" sp ">" dp
 		# одинаковые «адрес:порт» бывают у нескольких записей (старая в TIME_WAIT и новая): складываем их счётчики,
 		# иначе одна запись «уменьшалась» и каждый цикл засчитывалась заново целиком (завышение в сотни раз)
-		if (key in so) { so[key] += ob; sr[key] += rb; if (sroute[key] != routeof(mark)) sroute[key] = "Unknown"; next }
-		so[key] = ob; sr[key] = rb; sa[key] = src; sd[key] = dst; sp3[key] = $3; sdp[key] = dp; sroute[key] = routeof(mark)
+		if (key in so) { so[key] += ob; sr[key] += rb; if (sroute[key] != routeof(mark, index(src, \":\") ? 6 : 4)) sroute[key] = "Unknown"; next }
+		so[key] = ob; sr[key] = rb; sa[key] = src; sd[key] = dst; sp3[key] = $3; sdp[key] = dp; sroute[key] = routeof(mark, index(src, \":\") ? 6 : 4)
 	}
 	function account(key,   ob, rb, src, dst, do_, dr_, sk, dk, ak) {
 		ob = so[key]; rb = sr[key]; src = sa[key]; dst = sd[key]; route = sroute[key]
