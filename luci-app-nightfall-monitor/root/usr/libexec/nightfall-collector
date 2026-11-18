@@ -439,10 +439,11 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 	function routeof(mark, family,   i, m, md, mt, pu, tp, vr) {
 		m = mark + 0; if (mark ~ /^0x/) m = hexdec(mark)
 		if (m < 0) return "Unknown"
+		pu = policy_unknown[family]; if (pu) return "Unknown"
 		if (mark == "" && vpn_rule_found[family]) return "Unknown"
 		for (i = 1; i <= nr; i++) if (rf[i] == family && bitand(m, rm[i]) == rv[i]) return rc[i]
-		md = main_dev[family]; mt = main_tunnel[family]; pu = policy_unknown[family]; tp = tunnel_present[family]; vr = vpn_rule_found[family]
-		if (pu || md == "") return "Unknown"
+		md = main_dev[family]; mt = main_tunnel[family]; tp = tunnel_present[family]; vr = vpn_rule_found[family]
+		if (md == "") return "Unknown"
 		if (mt) return "VPN"
 		if (tp && !vr) return "Unknown"
 		return "Direct"
