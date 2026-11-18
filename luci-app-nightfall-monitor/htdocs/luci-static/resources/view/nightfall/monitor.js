@@ -187,7 +187,7 @@ const APP_TRAFFIC_CATEGORIES = {
 	'Discord': 'Мессенджеры и звонки', 'MAX': 'Мессенджеры и звонки', 'Skype': 'Мессенджеры и звонки',
 	'ВКонтакте': 'Социальные сети', 'Одноклассники': 'Социальные сети', 'Дзен': 'Социальные сети',
 	'Instagram': 'Социальные сети', 'Facebook': 'Социальные сети', 'TikTok': 'Социальные сети', 'X (Twitter)': 'Социальные сети',
-	'Wildberries': 'Магазины и маркетплейсы', 'Wibes': 'Магазины и маркетплейсы', 'Ozon': 'Магазины и маркетплейсы',
+	'Wildberries': 'Магазины и маркетплейсы', 'Wibes': 'Магазины и маркетплейсы', 'Ozon': 'Магазины и маркетплейсы', 'RuStore': 'Магазины приложений',
 	'Avito': 'Магазины и маркетплейсы', 'AliExpress': 'Магазины и маркетплейсы',
 	'Т-Банк': 'Банки и платежи', 'Сбербанк': 'Банки и платежи', 'Госуслуги': 'Государственные сервисы',
 	'Steam': 'Игры', 'Xbox': 'Игры', 'PlayStation': 'Игры', 'Riot Games': 'Игры', 'EA': 'Игры',
@@ -199,7 +199,7 @@ const APP_TRAFFIC_CATEGORIES = {
 	'Apple': 'Системные службы', 'Amazon': 'Облака и хранилища', 'GitHub': 'Разработка',
 	'Kaspersky': 'Безопасность', 'Cloudflare': 'Сеть и инфраструктура'
 };
-const APP_TRAFFIC_INFRA = /^(?:okcdn\.ru|rtbcdn\.ru|cdn77\.org|akamai\.net|akamaiedge\.net|edgesuite\.net|akadns\.net|fastly\.net|fastly-edge\.com|gcdn\.co|b-cdn\.net|ecdnx\.com|mradx\.net|cdn-vk\.ru)$/i;
+const APP_TRAFFIC_INFRA = /^(?:okcdn\.ru|cdn77\.org|akamai\.net|akamaiedge\.net|edgesuite\.net|akadns\.net|fastly\.net|fastly-edge\.com|gcdn\.co|b-cdn\.net|ecdnx\.com|cdn-vk\.ru)$/i;
 const APP_TRAFFIC_ADS = /(?:doubleclick\.net|googlesyndication\.com|googletagservices\.com|2mdn\.net|app-measurement\.com|crashlytics\.com|app-analytics-services\.com|mediation\.goog|vk-analytics\.ru|uxfeedback\.ru)/i;
 const APP_TRAFFIC_DNS = /^(?:dns\.google|resolver\.arpa|quad9\.net)$/i;
 const APP_TRAFFIC_CERT = /^(?:lencr\.org|pki\.goog|digicert\.com)$/i;
