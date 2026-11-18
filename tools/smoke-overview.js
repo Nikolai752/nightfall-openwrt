@@ -11,6 +11,22 @@ const EXEC = (cmd, args) => {
 	const n = path.basename(cmd);
 	if (n === 'nightfall-stats') { try { return cp.execFileSync('sh', [path.join(LIB, 'nightfall-stats')].concat(args), { timeout: 20000 }).toString(); } catch (e) { return ''; } }
 	if (n === 'nightfall-history' && args[0] === 'alerts') return '{"now":' + Math.floor(Date.now() / 1000) + ',"active":[],"rows":[]}';
+	if (n === 'nightfall-apps' && args[0] === 'status') return JSON.stringify({ ok: true, lite: 0, enabled: 1, dnslog: 1024, dnsmap: 100, acct: '1' });
+	if (n === 'nightfall-history' && args[0] === 'apps') return JSON.stringify({
+		now: Math.floor(Date.now() / 1000), enabled: 1, dnsmap: 100, today: String(new Date().getFullYear()) + String(new Date().getMonth() + 1).padStart(2, '0') + String(new Date().getDate()).padStart(2, '0'),
+		day: [
+			[ '192.168.1.10', 'Яндекс', 3600000000, 10000000 ],
+			[ '192.168.1.10', 'Apple', 800000000, 4000000 ],
+			[ '192.168.1.10', 'Telegram', 67000000, 1000000 ],
+			[ '192.168.1.10', 'Microsoft', 63000000, 1000000 ],
+			[ '192.168.1.10', 'Google', 58000000, 1000000 ],
+			[ '192.168.1.10', 'ВКонтакте', 36000000, 500000 ],
+			[ '192.168.1.10', 'Cloudflare', 3800000, 100000 ],
+			[ '192.168.1.10', 'Facebook', 190000, 7000 ],
+			[ '192.168.1.10', 'Amazon', 96000, 23000 ],
+			[ '192.168.1.10', 'Прочее · youtube.com', 6000000000, 100000000 ]
+		], hist: []
+	});
 	return '{}';
 };
 const BOOT = `
@@ -50,6 +66,13 @@ window.__mod = mod; mod.__init__();
 		await p.goto('http://t.local/page');
 		await p.addScriptTag({ content: 'const SRC = ' + JSON.stringify(SRC) + ';\n' + BOOT });
 		await p.waitForTimeout(3500);
+		const appRows = p.locator('.nf-apps-r');
+		await appRows.first().waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
+		const appText = await p.locator('.nf-apps').textContent().catch(() => '');
+		if (!appText.includes('Прочее')) bad(vn + ': категория «Прочее» скрылась за лимитом строк');
+		if (!appText.includes('youtube.com')) bad(vn + ': домен YouTube не показан в деталях «Прочее»');
+		if ((await appRows.count()) !== 9) bad(vn + ': ожидалось 8 приложений + «Прочее», получено ' + await appRows.count());
+		if (!appText.includes('Всего 10,') && !appText.includes('Всего 9,')) bad(vn + ': итоговый объём не отображается в карточке приложений');
 		if (await p.locator('.ifacebox .nf-port-edit').count() !== 1) bad(vn + ': не появилась кнопка переименования порта с текстовым заголовком LuCI');
 		await p.evaluate(() => { window.prompt = () => 'Тестовый порт'; });
 		await p.click('.ifacebox .nf-port-edit');
