@@ -2095,7 +2095,7 @@
 				], [ h('button', { type: 'button', 'class': 'nf-upd-go', text: 'Закрыть', onclick: closeUpd }) ]);
 				return;
 			}
-			openCard('Что нового', 'История изменений Nightfall', list[list.length - 1].v, verInfo.version, [ renderChanges(list) ], [
+			openCard('Что нового', 'Панель обновлена', list[list.length - 1].v, verInfo.version, [ renderChanges(list) ], [
 				h('button', { type: 'button', 'class': 'nf-upd-go', text: 'Понятно', onclick: function () {
 					lsSet(ACKKEY, verInfo.version); lsSet(SEENKEY, verInfo.version); closeUpd();
 				} })
