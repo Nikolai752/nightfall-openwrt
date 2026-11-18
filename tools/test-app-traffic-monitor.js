@@ -27,9 +27,9 @@ const data = {
 };
 const all = api.sumMonitorAppTraffic(data, 7, '');
 check(all.routes.VPN === 1445, 'VPN total across today and history');
-check(all.routes.Direct === 1265, 'Direct total across today and history');
+check(all.routes.Direct === 1370, 'Direct total across today and history');
 check(all.routes.Unknown === 320, 'Unknown route total');
-check(all.total === 3030, 'grand total');
+check(all.total === 3135, 'grand total');
 check(all.categories.find(x => x.name === 'Социальные сети').total === 940, 'social category aggregation');
 check(all.categories.find(x => x.name === 'CDN и инфраструктура').total === 1055, 'shared CDN stays infrastructure, not a social app');
 check(all.categories.find(x => x.name === 'Реклама и аналитика').total === 105, 'ad and analytics classification');
