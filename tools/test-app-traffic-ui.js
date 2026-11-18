@@ -34,6 +34,6 @@ result = sumApps(data, 7, '192.0.2.10');
 check(result.routes.VPN === 730, 'device filter + history VPN');
 check(result.routes.Direct === 1265, 'device filter + history Direct');
 check(result.routes.Unknown === 320, 'device filter + Unknown');
-check(/k\.split\('\\u001f'\)/.test(source), 'Other chip parser splits the actual unit separator');
+check(source.includes('k.split(String.fromCharCode(31))'), 'Other chip parser splits the actual unit separator');
 check(source.includes('fmtBytes(r.routes[route])'), 'route badges expose byte totals without hover');
 console.log('Application traffic UI tests: all passed.');
