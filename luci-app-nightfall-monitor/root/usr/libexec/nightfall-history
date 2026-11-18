@@ -123,7 +123,7 @@ apps)
 	[ -r "$DIR/apps.day" ] && awk -F'|' -v rips="$rips" -v nets="$rnets" "$AWKR"'NF >= 5 && !mine($1) { gsub(/["\\\\]/, "", $2); gsub(/["\\\\]/, "", $3); printf "%s[\"%s\",\"%s\",\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3, $4, $5 }' "$DIR/apps.day"
 	printf '],"hist":['
 	[ -r "$DIR/apps.hist" ] && awk -F'|' -v rips="$rips" -v nets="$rnets" "$AWKR"'NF >= 6 && !mine($2) { gsub(/["\\\\]/, "", $3); gsub(/["\\\\]/, "", $4); printf "%s[\"%s\",\"%s\",\"%s\",\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3, $4, $5, $6 }' "$DIR/apps.hist"
-	printf ']}\\n' ;;
+	printf ']}\n' ;;
 journal)
 	printf '{"now":%s,"rows":' "$now"; journal_json
 	up=0; read -r up _ < /proc/uptime; up=${up%.*}
