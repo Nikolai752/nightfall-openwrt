@@ -6969,3 +6969,10 @@ body.nf-blank .modal.login > .spinning::before {
 .nf-apps-route-vpn { background: rgba(139,92,246,.16); color: #a78bfa; }
 .nf-apps-route-direct { background: rgba(34,197,94,.13); color: #22c55e; }
 .nf-apps-route-unknown { background: rgba(148,163,184,.16); color: var(--nf-text-dim); }
+
+
+/* Keep route segment colours above the generic app-bar colour rule. */
+.nf-apps-r .nf-apps-stack .nf-apps-seg-vpn { background:#a78bfa !important; }
+.nf-apps-r .nf-apps-stack .nf-apps-seg-direct { background:#22c55e !important; }
+.nf-apps-r .nf-apps-stack .nf-apps-seg-unknown { background:#9ca3af !important; }
+.nf-apps-stack i { flex:0 0 auto; min-width:2px; }
