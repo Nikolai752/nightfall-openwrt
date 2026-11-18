@@ -14,13 +14,31 @@ function load(f,   l,a,n,d,i) {
   while ((getline l < f) > 0) {
     if (l ~ /^#/ || l == "") continue
     n=split(l,a,"|"); if (n < 2 || a[1] == "") continue
-    split(a[2],d," "); for(i in d) if (!(d[i] in dom)) dom[d[i]]=a[1]
+    split(a[2],d," "); for(i in d) if (d[i] != "") {
+      if (index(d[i],"*")) { nglob++; gpat[nglob]=d[i]; gapp[nglob]=a[1] }
+      else if (!(d[i] in dom)) dom[d[i]]=a[1]
+    }
   }
   close(f)
 }
-function cls(n,   p) {
+function globmatch(s,p,   si,pi,star,mark,c) {
+  si=1; pi=1; star=0; mark=0
+  while (si<=length(s)) {
+    c=substr(p,pi,1)
+    if (pi<=length(p) && (c==substr(s,si,1))) { si++; pi++ }
+    else if (pi<=length(p) && c=="*") { star=pi; mark=si; pi++ }
+    else if (star) { pi=star+1; si=++mark }
+    else return 0
+  }
+  while (substr(p,pi,1)=="*") pi++
+  return pi>length(p)
+}
+function cls(n,   p,i) {
   n=tolower(n); sub(/\.$/,"",n)
-  while (1) { if (n in dom) return dom[n]; p=index(n,"."); if (!p) return ""; n=substr(n,p+1) }
+  p=n
+  while (1) { if (p in dom) return dom[p]; p=index(p,"."); if (!p) break; p=substr(p,p+1) }
+  for (i=1;i<=nglob;i++) if (globmatch(n,gpat[i])) return gapp[i]
+  return ""
 }
 function sld(n,   p,k) {
   n=tolower(n); gsub(/[^a-z0-9.-]/,"",n); sub(/\.$/,"",n)
