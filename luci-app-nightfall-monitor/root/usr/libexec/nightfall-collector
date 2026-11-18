@@ -23,7 +23,7 @@ CT=${NF_CT:-$PROC/net/nf_conntrack}
 TEMP_WARN=80; TEMP_CRIT=90; MEM_MIN_PCT=10; FLASH_MAX_PCT=90; CT_MAX_PCT=80
 CPU_MAX_PCT=90; CPU_MINUTES=3
 PING_TARGET=1.1.1.1; PING_TARGET2=77.88.8.8
-PERSIST_DIR=; PERSIST_HOURS=6; HIST_DAYS=30; PERSIST_ANY=0; JOURNAL=1; WIFI_HIST=1; SPEED_HOURS=0; APPS=0; NEWDEV=1; TG=0; TG_ALERTS=1; TG_REPORT=
+PERSIST_DIR=; PERSIST_HOURS=6; HIST_DAYS=30; PERSIST_ANY=0; JOURNAL=1; WIFI_HIST=1; SPEED_HOURS=0; APPS=0; VPN_ENDPOINTS=; NEWDEV=1; TG=0; TG_ALERTS=1; TG_REPORT=
 NOTIFY=${NF_NOTIFY:-/usr/libexec/nightfall-notify}
 KNOWN=${NF_KNOWN:-/etc/nightfall-known.list}
 LEASES=${NF_LEASES:-/tmp/dhcp.leases}
@@ -339,7 +339,7 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 	rm -f "$DIR/ct.state.new"
 	head -n 40000 "$CT" 2>/dev/null | awk -v netf="$DIR/client.nets" -v routerf="$DIR/router.ips" -v statef="$DIR/ct.state" -v newf="$DIR/ct.state.new" -v dayf="$DIR/dev.day" \
 		-v ratef="$DIR/dev.rate.new" -v tmpf="$DIR/dev.day.tmp" -v svcf="$DIR/svc.raw" -v dstf="$DIR/dst.raw" -v dt="$dtm" -v first="$first" -v ts="$now" \
-		-v apps="$APPS" -v mapf="$DIR/dns.map" -v appf="$DIR/apps.day" -v appn="$DIR/apps.day.tmp" -v rules="$RULES" -v urules="$RULES_USER" '
+		-v apps="$APPS" -v vpns="$VPN_ENDPOINTS" -v mapf="$DIR/dns.map" -v appf="$DIR/apps.day" -v appn="$DIR/apps.day.tmp" -v rules="$RULES" -v urules="$RULES_USER" '
 	function isprivate(ip) { return ip ~ /^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.|127\.|169\.254\.)/ || ip ~ /^(f[cdef]|FE|FC|FD|fe80:)/ || ip == "::1" || ip ~ /^0000:0000:0000:0000:0000:0000:0000:0001$/ }
 	function ipnum(ip, a) { split(ip, a, "."); return (((a[1] * 256 + a[2]) * 256 + a[3]) * 256 + a[4]) }
 	function isrouter(ip) { return ip in router }
@@ -377,7 +377,10 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 		}
 		close(f)
 	}
-	function appof(ip,   i) {
+	function appof(ip, port,   i, n, ep) {
+		# Known VPN endpoints override DNS/IP rules: payload inside the tunnel is opaque.
+		n = split(vpns, ep, ",")
+		for (i = 1; i <= n; i++) if (ep[i] != "" && ep[i] == ip ":" port) return "VPN"
 		if (ip in am) return am[ip]
 		for (i = 1; i <= npf; i++) if (index(ip, pf[i]) == 1) return pfa[i]
 		return "Прочее"
@@ -414,7 +417,7 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 			sk = src " " sp3[key] " " (sdp[key] == "" ? "-" : sdp[key]); sv_d[sk] += dr_; sv_u[sk] += do_
 			if (!islan(dst) && !isrouter(dst)) {
 				dk = src " " dst; ds_d[dk] += dr_; ds_u[dk] += do_
-				if (apps == 1) { ak = src "|" appof(tolower(dst)); adl[ak] += dr_; aul[ak] += do_ }
+				if (apps == 1) { ak = src "|" appof(tolower(dst), dp); adl[ak] += dr_; aul[ak] += do_ }
 			}
 		}
 	}
