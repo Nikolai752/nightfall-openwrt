@@ -472,7 +472,7 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 		if (key in so) { so[key] += ob; sr[key] += rb; if (apps == 1 && sroute[key] != routeof(mark, index(src, \":\") ? 6 : 4)) sroute[key] = "Unknown"; next }
 		so[key] = ob; sr[key] = rb; sa[key] = src; sd[key] = dst; sp3[key] = $3; sdp[key] = dp; sroute[key] = (apps == 1 ? routeof(mark, index(src, \":\") ? 6 : 4) : "Unknown")
 	}
-	function account(key,   ob, rb, src, dst, do_, dr_, sk, dk, ak) {
+	function account(key,   ob, rb, src, dst, do_, dr_, sk, dk, ak, route) {
 		ob = so[key]; rb = sr[key]; src = sa[key]; dst = sd[key]; route = sroute[key]
 		printf "%s %.0f %.0f %s\n", key, ob, rb, route > newf
 		if (first) return
