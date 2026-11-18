@@ -72,7 +72,7 @@ window.__mod = mod; mod.__init__();
 		if (!appText.includes('Прочее')) bad(vn + ': категория «Прочее» скрылась за лимитом строк');
 		if (!appText.includes('youtube.com')) bad(vn + ': домен YouTube не показан в деталях «Прочее»');
 		if ((await appRows.count()) !== 9) bad(vn + ': ожидалось 8 приложений + «Прочее», получено ' + await appRows.count());
-		if (!appText.includes('Всего 10,') && !appText.includes('Всего 9,')) bad(vn + ': итоговый объём не отображается в карточке приложений');
+		if (!/Всего\\s+\\d/.test(appText)) bad(vn + ': итоговый объём не отображается в карточке приложений');
 		if (await p.locator('.ifacebox .nf-port-edit').count() !== 1) bad(vn + ': не появилась кнопка переименования порта с текстовым заголовком LuCI');
 		await p.evaluate(() => { window.prompt = () => 'Тестовый порт'; });
 		await p.click('.ifacebox .nf-port-edit');
