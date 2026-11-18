@@ -21,8 +21,8 @@ sh "$HELPER" "$ROOT/luci-app-nightfall-monitor/root/usr/share/nightfall/apps.lis
 has() { grep -Fqx "$1" "$TMP/map" || { echo "FAIL: missing $1" >&2; cat "$TMP/map" >&2; exit 1; }; }
 lacks() { grep -Fq "$1" "$TMP/map" && { echo "FAIL: unexpected $1" >&2; exit 1; } || :; }
 has "192.0.2.2|FreshApp|$NOW"
-has "192.0.2.3|Одноклассники|$NOW"
-has "192.0.2.4|Прочее · rtbcdn.ru|$NOW"
+has "192.0.2.3|Одноклассники|$((NOW-60))"
+has "192.0.2.4|Прочее · rtbcdn.ru|$((NOW-60))"
 lacks "192.0.2.1|"
 has "203.0.113.10|YouTube|$NOW"
 has "203.0.113.11|Прочее · example.com|$NOW"
