@@ -30,6 +30,14 @@ BEGIN {
   check("githubusercontent.com", "GitHub")
   check("drive.google.com", "Google Drive")
   check("photos.google.com", "Google Photos")
+  check("api.oneme.ru", "MAX")
+  check("static.wildberries.ru", "Wildberries")
+  check("m.avito.ru", "Avito")
+  check("dzen.ru", "Дзен")
+  check("app.rustore.ru", "RuStore")
+  check("api.tbank.ru", "Т-Банк")
+  check("download.kaspersky.com", "Kaspersky")
+  check("githubassets.com", "GitHub")
   check("unmapped.cdn77.org", "")
   if (failed) exit 1
 }'
