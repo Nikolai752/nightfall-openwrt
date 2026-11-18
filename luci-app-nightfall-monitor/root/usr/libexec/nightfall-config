@@ -6,7 +6,7 @@
 #   nightfall-config disks                  — подключённые накопители (JSON)
 CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
 DEF=${NF_DEF:-/usr/share/nightfall/nightfall-monitor.conf.default}
-KEYS="TEMP_WARN TEMP_CRIT MEM_MIN_PCT FLASH_MAX_PCT CT_MAX_PCT CPU_MAX_PCT CPU_MINUTES PING_TARGET PING_TARGET2 PERSIST_DIR PERSIST_HOURS HIST_DAYS BACKUP_KEEP PERSIST_ANY JOURNAL WIFI_HIST SPEED_HOURS SPEED_URL SPEED_STREAMS APPS VPN_ENDPOINTS LITE NEWDEV TG TG_ALERTS TG_TOKEN TG_CHAT TG_USERS TG_PROXY TG_IFACE TG_BOT TG_CLEAN TG_UPDATES TG_SEC TG_WIDGETS TG_REPORT"
+KEYS="TEMP_WARN TEMP_CRIT MEM_MIN_PCT FLASH_MAX_PCT CT_MAX_PCT CPU_MAX_PCT CPU_MINUTES PING_TARGET PING_TARGET2 PERSIST_DIR PERSIST_HOURS HIST_DAYS BACKUP_KEEP PERSIST_ANY JOURNAL WIFI_HIST SPEED_HOURS SPEED_URL SPEED_STREAMS APPS LITE NEWDEV TG TG_ALERTS TG_TOKEN TG_CHAT TG_USERS TG_PROXY TG_IFACE TG_BOT TG_CLEAN TG_UPDATES TG_SEC TG_WIDGETS TG_REPORT"
 
 val() {     # val FILE KEY
 	[ -r "$1" ] && sed -n "s/^$2=\"\{0,1\}\([^ #\"]*\).*/\1/p" "$1" | head -n 1
@@ -90,14 +90,6 @@ set)
 		PING_TARGET|PING_TARGET2)
 			case "$v" in ''|*[!A-Za-z0-9._:-]*) [ -z "$v" ] || fail "$k: недопустимые символы" ;; esac
 			[ ${#v} -le 64 ] || fail "$k: слишком длинное значение" ;;
-		VPN_ENDPOINTS)
-			[ ${#v} -le 512 ] || fail "VPN_ENDPOINTS: максимум 512 символов"
-			case "$v" in *[!0-9.,:]*) fail "VPN_ENDPOINTS: используйте IP:порт через запятую" ;; esac
-			if [ -n "$v" ]; then
-				printf '%s' "$v" | awk -F, '
-				function validip(ip, a, n, i) { n=split(ip,a,"."); if(n!=4)return 0; for(i=1;i<=4;i++) if(a[i]!~/^[0-9]+$/ || a[i]+0>255)return 0; return 1 }
-				{ for(i=1;i<=NF;i++){ n=split($i,a,":"); if(n!=2 || !validip(a[1]) || a[2]!~/^[0-9]+$/ || a[2]+0<1 || a[2]+0>65535) exit 1 } }' || fail "VPN_ENDPOINTS: формат IP:порт, например 195.19.105.24:44444"
-			fi ;;
 		PERSIST_HOURS) range "$k" "$v" 1 24 ;;
 		HIST_DAYS) range "$k" "$v" 7 90 ;;
 		BACKUP_KEEP) range "$k" "$v" 1 20 ;;
