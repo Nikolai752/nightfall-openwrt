@@ -1835,7 +1835,7 @@ function appsCard() {
 		}
 		const rows = Object.values(byApp).filter(r => r.t > 0).sort((x, y) => (x.a === 'Прочее') - (y.a === 'Прочее') || y.t - x.t);
 		const sum = rows.reduce((n, r) => n + r.t, 0);
-		const list = rows.slice(0, 9);
+		const list = rows.filter(r => r.a !== 'Прочее').slice(0, 8).concat(rows.filter(r => r.a === 'Прочее').slice(0, 1));
 		const content = [];
 		if (sum > 0) {
 			const routeCards = [ [ 'VPN', routes.VPN, 'vpn' ], [ 'Напрямую', routes.Direct, 'direct' ], [ 'Не определено', routes.Unknown, 'unknown' ] ];
