@@ -109,10 +109,11 @@ exec /bin/tar "$@"
 EOF
 chmod +x "$T/mismatch-tar/tar"
 out=$(cat "$REPO/install-update.sh" | env PATH="$T/mismatch-tar:$PATH" NF_ROOT="$R" NF_TMP="$T/tmp" NF_API="$B/api.json" NF_RAW="$B" NF_DL="$B/dl" sh -s -- 2>&1)
-[ "$(ver "$R")" = 1.0.0 ] && grep -q "прежняя версия восстановлена" <<EOF_OUT
-$out
-EOF_OUT
-  pass "несовпадение итоговой версии возвращает предыдущую установку" || fail "пост-установочная проверка не восстановила старую версию: $out"
+if [ "$(ver "$R")" = 1.0.0 ] && printf '%s\\n' "$out" | grep -q "прежняя версия восстановлена"; then
+  pass "несовпадение итоговой версии возвращает предыдущую установку"
+else
+  fail "пост-установочная проверка не восстановила старую версию: $out"
+fi
 
 echo "== защита от битых релизов =="
 R=$T/r4; run "$R" --version v1.0.0 >/dev/null
