@@ -347,6 +347,10 @@ vpn_tunnel_dev() {
 }
 : > "$DIR/vpn.routes"
 : > "$DIR/vpn.meta"
+tunnel_present=0
+for ti in $(ip -o link show 2>/dev/null | awk -F': ' '{ sub(/@.*/, "", $2); print $2 }'); do
+	vpn_tunnel_dev "$ti" && { tunnel_present=1; break; }
+done
 for fam in 4 6; do
 	ip -"$fam" rule show 2>/dev/null | awk '
 		function hx(s,   i,c,n) { sub(/^0x/, "", s); s=tolower(s); n=0; for(i=1;i<=length(s);i++){ c=index("0123456789abcdef",substr(s,i,1))-1; if(c<0)return -1; n=n*16+c } return n }
@@ -364,7 +368,7 @@ for fam in 4 6; do
 		}
 		END { print "META",policy+0 }
 	' > "$DIR/vpn.rules"
-	policy_unknown=0
+	policy_unknown=0; vpn_rule_found=0
 	while read -r rv rm rt; do
 		[ "$rv" = META ] && { policy_unknown=$rm; continue; }
 		[ -n "$rt" ] || continue
@@ -406,7 +410,7 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 		close(statef)
 		while ((getline l < routef) > 0) { split(l, a, " "); if ((a[1] == "4" || a[1] == "6") && a[2] ~ /^[0-9]+$/ && a[3] ~ /^[0-9]+$/) { nr++; rf[nr] = a[1]; rv[nr] = a[2] + 0; rm[nr] = a[3] + 0; rc[nr] = a[4] } }
 		close(routef)
-		while ((getline l < metaf) > 0) { split(l, a, " "); main_dev[a[1]] = a[2]; main_tunnel[a[1]] = a[3] + 0; policy_unknown[a[1]] = a[4] + 0 }
+		while ((getline l < metaf) > 0) { split(l, a, " "); main_dev[a[1]] = a[2]; main_tunnel[a[1]] = a[3] + 0; policy_unknown[a[1]] = a[4] + 0; tunnel_present[a[1]] = a[5] + 0; vpn_rule_found[a[1]] = a[6] + 0 }
 		close(metaf)
 		while ((getline l < dayf) > 0) { split(l, a, " "); dd[a[1]] = a[2] + 0; du[a[1]] = a[3] + 0 }
 		close(dayf)
@@ -428,13 +432,15 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 	}
 	function hexdec(s,   i, c, n) { sub(/^0x/, "", s); s = tolower(s); n = 0; for (i = 1; i <= length(s); i++) { c = index("0123456789abcdef", substr(s, i, 1)) - 1; if (c < 0) return -1; n = n * 16 + c } return n }
 	function bitand(a, b,   r, p) { r = 0; p = 1; while (a > 0 || b > 0) { if (a % 2 >= 1 && b % 2 >= 1) r += p; a = int(a / 2); b = int(b / 2); p *= 2 } return r }
-	function routeof(mark, family,   i, m, md, mt, pu) {
+	function routeof(mark, family,   i, m, md, mt, pu, tp, vr) {
 		m = mark + 0; if (mark ~ /^0x/) m = hexdec(mark)
 		if (m < 0) return "Unknown"
 		for (i = 1; i <= nr; i++) if (rf[i] == family && bitand(m, rm[i]) == rv[i]) return rc[i]
-		md = main_dev[family]; mt = main_tunnel[family]; pu = policy_unknown[family]
+		md = main_dev[family]; mt = main_tunnel[family]; pu = policy_unknown[family]; tp = tunnel_present[family]; vr = vpn_rule_found[family]
 		if (pu || md == "") return "Unknown"
-		return mt ? "VPN" : "Direct"
+		if (mt) return "VPN"
+		if (tp && !vr) return "Unknown"
+		return "Direct"
 	}
 	function appof(ip,   i) {
 		if (ip in am) return am[ip]
