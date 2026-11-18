@@ -163,7 +163,7 @@ const XCSS = `
 .nfm-app-legend-more[open] > summary::after { content:'⌃'; }
 .nfm-app-legend-more .nfm-app-legend { margin-top:10px; }
 .nfm-app-category { border:1px solid var(--nfm-border); border-radius:var(--nf-radius-in, 9px); background:var(--nfm-card2); overflow:hidden; }
-.nfm-app-category > summary { display:grid; grid-template-columns:12px minmax(145px, .8fr) minmax(100px,1.5fr) auto auto; gap:8px 12px; align-items:center; padding:9px 12px; cursor:pointer; list-style:none; font-size:13px; }
+.nfm-app-category > summary { display:grid; grid-template-columns:12px 9px minmax(145px, .8fr) minmax(100px,1.5fr) auto auto; gap:8px 12px; align-items:center; padding:9px 12px; cursor:pointer; list-style:none; font-size:13px; }
 .nfm-app-category > summary::-webkit-details-marker { display:none; }
 .nfm-app-category > summary::before { content:'›'; color:var(--nfm-dim); font-size:18px; transform:rotate(0); transition:transform .15s; }
 .nfm-app-category[open] > summary::before { transform:rotate(90deg); }
@@ -189,9 +189,9 @@ const XCSS = `
 .nfm-app-legend { grid-template-columns:minmax(0,1fr); gap:9px; }
 .nfm-app-legend-row { grid-template-columns:9px minmax(0,1fr) auto auto; font-size:12px; }
 .nfm-app-legend-more { grid-column:1; }
-.nfm-app-category > summary { grid-template-columns:12px minmax(0,1fr) auto auto; gap:7px 9px; padding:10px; }
-.nfm-app-category-bar { grid-column:2 / 4; grid-row:2; }
-.nfm-app-category > summary small { grid-column:4; grid-row:2; }
+.nfm-app-category > summary { grid-template-columns:12px 9px minmax(0,1fr) auto auto auto; gap:7px 9px; padding:10px; }
+.nfm-app-category-bar { grid-column:3 / 6; grid-row:2; }
+.nfm-app-category > summary small { grid-column:6; grid-row:2; }
 }
 @media (max-width: 640px) { .nfm-mini, .nfm-btn, .nfm-act, .nfm-tab { min-height: 40px; } .nfm-app-toolbar { justify-content:stretch; } .nfm-app-toolbar .nfm-sel { flex:1 1 140px; min-width:0; max-width:100%; } .nfm-mini, .nfm-btn, .nfm-act, .nfm-tab { min-height: 40px; } .nfm-jr { grid-template-columns: 22px minmax(0, 1fr) auto; align-items: start; row-gap: 2px; } .nfm-jr .ic { grid-column: 1; grid-row: 1; } .nfm-jr time { grid-column: 2 / -1; grid-row: 1; } .nfm-jr > span:not(.ic) { grid-column: 2; grid-row: 2; min-width: 0; overflow-wrap: anywhere; } .nfm-jr b { grid-column: 3; grid-row: 2; } .nfm-svc { grid-template-columns: 12px minmax(0, 1fr); } .nfm-svc .ac { grid-column: 1 / -1; justify-content: flex-start; } }
 `;
