@@ -430,18 +430,8 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 		while ((getline l < dayf) > 0) { split(l, a, " "); dd[a[1]] = a[2] + 0; du[a[1]] = a[3] + 0 }
 		close(dayf)
 		if (apps == 1) {
-			while ((getline l < mapf) > 0) {
-				split(l, a, "|"); ip = a[1]; name = a[2]
-				if (ip == "" || name == "") continue
-				if (name !~ /^Прочее( ·|$)/) {
-					if (!(ip in am_known)) am_known[ip] = name
-					else if (am_known[ip] != name) am_conflict[ip] = 1
-				}
-				else if (!(ip in am_fallback)) am_fallback[ip] = name
-				else if (am_fallback[ip] != name) am_fallback_conflict[ip] = 1
-			}
-			for (ip in am_known) am[ip] = (ip in am_conflict ? "Прочее" : am_known[ip])
-			for (ip in am_fallback) if (!(ip in am)) am[ip] = (ip in am_fallback_conflict ? "Прочее" : am_fallback[ip])
+			while ((getline l < mapf) > 0) { split(l, a, "|"); mapadd(a[1], a[2]) }
+			mapfinish()
 			close(mapf)
 			ld(urules); ld(rules)
 			while ((getline l < appf) > 0) { split(l, a, "|"); k = a[1] "|" a[2] "|" a[3]; adl[k] = a[4] + 0; aul[k] = a[5] + 0 }
@@ -475,6 +465,20 @@ first=0; [ -s "$DIR/ct.state" ] || first=1
 	function route_delta(previous, current) {
 		if (previous == "" || previous == current) return current
 		return "Unknown"
+	}
+	# One public IP can serve several unrelated apps (CDN/anycast). Never let the last DNS answer win.
+	function mapadd(ip, name,   old) {
+		if (ip == "" || name == "") return
+		if (name !~ /^Прочее( ·|$)/) {
+			if (!(ip in am_known)) am_known[ip] = name
+			else if (am_known[ip] != name) am_conflict[ip] = 1
+		}
+		else if (!(ip in am_fallback)) am_fallback[ip] = name
+		else if (am_fallback[ip] != name) am_fallback_conflict[ip] = 1
+	}
+	function mapfinish(   ip) {
+		for (ip in am_known) am[ip] = (ip in am_conflict ? "Прочее" : am_known[ip])
+		for (ip in am_fallback) if (!(ip in am)) am[ip] = (ip in am_fallback_conflict ? "Прочее" : am_fallback[ip])
 	}
 	function appof(ip,   i) {
 		if (ip in am) return am[ip]
