@@ -14,26 +14,26 @@ Spotify|spotify.com scdn.co spotifycdn.com|
 Discord|discord.com discordapp.com discordapp.net discord.gg discord.media|
 Zoom|zoom.us zoom.com zoomgov.com|
 Steam|steampowered.com steamcontent.com steamstatic.com steamcdn-a.akamaihd.net valvesoftware.com|
-ВКонтакте|vk.com vk.ru vkuseraudio.net vkuserphoto.ru userapi.com vkuservideo.net mycdn.me vk-cdn.net|
+ВКонтакте|vk.com vk.ru vkontakte.ru vkuseraudio.net vkuserphoto.ru userapi.com mycdn.me vk-cdn.net cdn-vk.ru vk-portal.net|
 Одноклассники|ok.ru odnoklassniki.ru okcdn.ru|
 Яндекс|yandex.ru yandex.net yandex.com ya.ru yastatic.net yandexcloud.net kinopoisk.ru|
-Google|google.com googleapis.com gstatic.com googleusercontent.com gvt1.com gvt2.com google.ru|
+Google|google.com googleapis.com gstatic.com googleusercontent.com gvt1.com gvt2.com gvt1-cn.com google.ru withgoogle.com|
 Apple iCloud|icloud.com me.com|
-Apple|apple.com mzstatic.com cdn-apple.com apple-dns.net|
-Microsoft|microsoft.com windowsupdate.com live.com office.com office365.com msftconnecttest.com azureedge.net bing.com|
+Apple|apple.com mzstatic.com cdn-apple.com apple-dns.net aaplimg.com|
+Microsoft|microsoft.com windowsupdate.com windows.com windows.net live.com office.com office365.com msftconnecttest.com azureedge.net bing.com|
 Amazon|amazon.com amazonaws.com primevideo.com media-amazon.com|
 X (Twitter)|twitter.com twimg.com x.com t.co|
 Cloudflare|cloudflare.com cloudflare-dns.com|
-Дзен|dzen.ru zen.yandex.ru|
+Дзен|dzen.ru dzeninfra.ru zen.yandex.ru|
 RuStore|rustore.ru rustore.com|
 Госуслуги|gosuslugi.ru gosuslugi.com|
 Т-Банк|tbank.ru t-bank.ru tbank-app.ru|
-Kaspersky|kaspersky.com kaspersky.ru|
+Kaspersky|kaspersky.com kaspersky.ru kaspersky-labs.com|
 Lesta|lesta.ru lesta.games|
 Playrix|playrix.com|
 Skype|skype.com|
-RuTube|rutube.ru rutube.com rtcdn.ru rtbcdn.ru|
-VK Видео|vkvideo.ru vkuservideo.net vkuserlive.net vkuseraudio.net|
+RuTube|rutube.ru rutube.com rtcdn.ru|
+VK Видео|vkvideo.ru vkuservideo.net vkuserlive.net|
 MAX|max.ru oneme.ru|
 Ozon|ozon.ru ozonusercontent.com ozone.ru ozoncdn.com|
 AliExpress|aliexpress.com alicdn.com|
@@ -48,6 +48,7 @@ OneDrive|onedrive.com onedrive.live.com 1drv.com sharepoint.com|
 Google Drive|drive.google.com|
 Google Photos|photos.google.com|
 Google Meet|meet.google.com|
-Wildberries|wildberries.ru wb.ru wbstatic.net|
+Wildberries|wildberries.ru wb.ru wbstatic.net wbbasket.ru paywb.com|
 Avito|avito.ru avito.st|
+Mail.ru|mail.ru imgsmail.ru list.ru attachmail.ru datacloudmail.ru|
 Dropbox|dropbox.com dropboxapi.com dropboxusercontent.com|
