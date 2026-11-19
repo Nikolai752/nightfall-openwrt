@@ -1357,7 +1357,7 @@ return view.extend({
 				E('div', { class: 'nfm-cfg-col' }, [
 					cfgGroup('Процессор и соединения', [ 'CPU_MAX_PCT', 'CPU_MINUTES', 'CT_MAX_PCT' ], null, null, 'cpu'),
 					cfgGroup('Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ], null, null, 'speed'),
-					cfgGroup('Режим работы', [ 'LITE', 'APPS', 'NEWDEV' ], null, null, 'mode')
+					cfgGroup('Режим работы', [ 'LITE', 'APPS' ], null, null, 'mode')
 				])
 			]),
 			E('section', { class: 'nfm-cfg-g nfm-cfg-telegram' }, [
