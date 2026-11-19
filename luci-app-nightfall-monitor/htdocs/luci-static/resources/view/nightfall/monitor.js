@@ -222,6 +222,29 @@ const XCSS = `
 .nfm-app-category > summary small { grid-column:6; grid-row:2; }
 }
 @media (max-width: 640px) { .nfm-mini, .nfm-btn, .nfm-act, .nfm-tab { min-height: 40px; } .nfm-app-toolbar { justify-content:stretch; } .nfm-app-toolbar .nfm-sel { flex:1 1 140px; min-width:0; max-width:100%; } .nfm-mini, .nfm-btn, .nfm-act, .nfm-tab { min-height: 40px; } .nfm-jr { grid-template-columns: 22px minmax(0, 1fr) auto; align-items: start; row-gap: 2px; } .nfm-jr .ic { grid-column: 1; grid-row: 1; } .nfm-jr time { grid-column: 2 / -1; grid-row: 1; } .nfm-jr > span:not(.ic) { grid-column: 2; grid-row: 2; min-width: 0; overflow-wrap: anywhere; } .nfm-jr b { grid-column: 3; grid-row: 2; } .nfm-svc { grid-template-columns: 12px minmax(0, 1fr); } .nfm-svc .ac { grid-column: 1 / -1; justify-content: flex-start; } }
+/* History layout: keep the monitor's shared Fluent surfaces and theme tokens. */
+.nfm-history { display:grid; gap:12px; min-width:0; }
+.nfm-history > .nfm-grid { min-width:0; margin:0; gap:12px; }
+.nfm-history .nfm-card { min-width:0; }
+.nfm-history .nfm-card-title { min-width:0; }
+.nfm-history .nfm-chart { min-width:0; }
+.nfm-history .nfm-exp { align-items:stretch; }
+.nfm-history .nfm-exp .nfm-btn { flex:0 1 auto; min-width:0; }
+.nfm-history .nfm-cmp-t { min-width:0; }
+.nfm-history .nfm-note-s { overflow-wrap:anywhere; }
+@media (max-width:860px) {
+ .nfm-history .nfm-g21 { grid-template-columns:minmax(0,1fr); }
+}
+@media (max-width:640px) {
+ .nfm-history { gap:10px; }
+ .nfm-history > .nfm-grid { gap:10px; }
+ .nfm-history .nfm-card { padding:13px 12px; }
+ .nfm-history .nfm-exp { display:grid; grid-template-columns:minmax(0,1fr); }
+ .nfm-history .nfm-exp .nfm-btn { width:100%; justify-content:center; }
+ .nfm-history .nfm-cmp-t { grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr) 58px; font-size:11.5px; }
+ .nfm-history .nfm-cmp-t > div { padding:7px 4px; }
+ .nfm-history .nfm-chart { grid-template-columns:34px minmax(0,1fr) 28px; column-gap:5px; }
+}
 `;
 
 function SVG(tag, attrs, children) {
@@ -2112,7 +2135,7 @@ return view.extend({
 			saveCsv(r[0], r[1]); expNote.textContent = 'Сохранён файл ' + r[0] + ' (записей: ' + (r[1].length - 1) + ').';
 		} }, '⬇ ' + label));
 
-		const hist = E('div', { hidden: true }, [
+		const hist = E('div', { class: 'nfm-history', hidden: true }, [
 			histNote,
 			E('div', { class: 'nfm-grid' }, [ card([ 'Сводка за день', E('span', { class: 'nfm-spacer' }), E('span', { class: 'nfm-note-s' }, 'с 00:00 по данным сборщика') ], dayBody) ]),
 			E('div', { class: 'nfm-grid' }, [ card([ 'Сводка недели', E('span', { class: 'nfm-spacer' }), E('span', { class: 'nfm-note-s' }, 'последние 7 дней') ], wkBody) ]),
