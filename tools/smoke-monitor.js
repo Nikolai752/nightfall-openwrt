@@ -1,6 +1,10 @@
 // Браузерный тест «Монитора ресурсов»: подставляет вместо LuCI имитацию и запускает настоящие скрипты роутера
 // (nightfall-stats, nightfall-sec, nightfall-diag) на заглушках; открывает каждую вкладку и проверяет, что она рисуется без ошибок.
-const { chromium } = require('playwright'); const fs = require('fs'); const os = require('os'); const path = require('path'); const cp = require('child_process');
+const { chromium } = require('playwright'); const fs = require('fs'); const os = require('os'); const path = require('path'); const cp = require('child_process'); const vm = require('vm');
+const THEME_SRC = fs.readFileSync(path.join(__dirname, '../luci-theme-nightfall/htdocs/luci-static/nightfall/nightfall.js'), 'utf8');
+const PRESET_START = THEME_SRC.indexOf('var PRESETS = ['), PRESET_END = THEME_SRC.indexOf('\n\t];', PRESET_START) + 4;
+if (PRESET_START < 0 || PRESET_END <= PRESET_START) throw new Error('Nightfall theme presets not found');
+const PRESETS = vm.runInNewContext(THEME_SRC.slice(PRESET_START, PRESET_END) + '\nPRESETS');
 const ROOT = path.join(__dirname, '..');
 const LIB = path.join(ROOT, 'luci-app-nightfall-monitor/root/usr/libexec');
 const SRC = fs.readFileSync(path.join(ROOT, 'luci-app-nightfall-monitor/htdocs/luci-static/resources/view/nightfall/monitor.js'), 'utf8');
@@ -184,6 +188,37 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				}
 				await p.evaluate(() => { for (const k of [ '--nf-accent', '--nf-card', '--nf-card-alt', '--nf-stroke', '--text-color-highest', '--text-color-medium', '--nf-radius' ]) document.documentElement.style.removeProperty(k); document.documentElement.removeAttribute('data-darkmode'); });
 				await p.screenshot({ path: path.join(OUT, 'monitor-history-' + vn + '.png'), fullPage: true });
+				if (vn === 'desktop') {
+					for (const [id, label, preset] of PRESETS) {
+						const darkPreset = preset.mode === 'dark';
+						const accent = preset.accent || (darkPreset ? '#60cdff' : '#0067c0');
+						const bg = preset.cusBg || (darkPreset ? '#2b2b2b' : '#fcfcfc');
+						const card = preset.cusCard || (darkPreset ? '#333333' : '#f3f3f3');
+						const text = preset.cusText || (darkPreset ? '#f2f2f2' : '#202020');
+						const radius = preset.cusRadius != null ? preset.cusRadius : preset.radius === 'round' ? 16 : preset.radius === 'sharp' ? 4 : 8;
+						await p.evaluate(v => {
+							const root = document.documentElement, style = root.style;
+							if (v.dark) root.setAttribute('data-darkmode', 'true'); else root.removeAttribute('data-darkmode');
+							style.setProperty('--nf-accent', v.accent);
+							style.setProperty('--nf-card', v.card);
+							style.setProperty('--nf-card-alt', v.bg);
+						style.setProperty('--nf-stroke', v.dark ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.12)');
+						style.setProperty('--text-color-highest', v.text);
+						style.setProperty('--text-color-medium', v.dark ? '#aab2c0' : '#687181');
+						style.setProperty('--nf-radius', v.radius + 'px');
+						}, { dark: darkPreset, accent, card, bg, text, radius });
+						const result = await p.evaluate(() => {
+							const root = getComputedStyle(document.querySelector('.nfm'));
+							const cards = Array.from(document.querySelectorAll('.nfm-grid > *')).map(el => {
+								const r = el.getBoundingClientRect(); return { right: r.right, scroll: el.scrollWidth, client: el.clientWidth };
+							});
+							return { card: root.getPropertyValue('--nfm-card').trim(), text: root.getPropertyValue('--nfm-text').trim(), accent: root.getPropertyValue('--nfm-accent').trim(), cards };
+						});
+						if (!result.card || !result.text || !result.accent) bad('тема ' + label + ' (' + id + '): не применились переменные Nightfall');
+						if (result.cards.some(x => x.right > innerWidth + 1 || x.scroll > x.client + 3)) bad('тема ' + label + ' (' + id + '): карточки истории выходят за границы');
+					}
+					await p.evaluate(() => { for (const k of [ '--nf-accent', '--nf-card', '--nf-card-alt', '--nf-stroke', '--text-color-highest', '--text-color-medium', '--nf-radius' ]) document.documentElement.style.removeProperty(k); document.documentElement.removeAttribute('data-darkmode'); });
+				}
 			}
 			if (k === 'devs') {
 				const dt = await p.evaluate(() => document.body.textContent);
