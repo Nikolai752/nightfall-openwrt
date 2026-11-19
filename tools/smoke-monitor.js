@@ -157,7 +157,7 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 						const r = el.getBoundingClientRect();
 						return { right: r.right, width: r.width, scroll: el.scrollWidth, client: el.clientWidth };
 					});
-					const charts = Array.from(document.querySelectorAll('.nfm-chart')).map(el => {
+					const charts = Array.from(document.querySelectorAll('.nfm-history .nfm-chart')).map(el => {
 						const r = el.getBoundingClientRect();
 						return { width: r.width, height: r.height };
 					});
@@ -183,7 +183,7 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 						root.setProperty('--text-color-medium', isDark ? '#aab2c0' : '#687181');
 						root.setProperty('--nf-radius', '12px');
 					}, dark);
-					const chartCount = await p.locator('.nfm-chart').count();
+					const chartCount = await p.locator('.nfm-history .nfm-chart').count();
 					if (chartCount < 3) bad(vn + ': графики исчезли в ' + (dark ? 'тёмном' : 'светлом') + ' режиме');
 				}
 				await p.evaluate(() => { for (const k of [ '--nf-accent', '--nf-card', '--nf-card-alt', '--nf-stroke', '--text-color-highest', '--text-color-medium', '--nf-radius' ]) document.documentElement.style.removeProperty(k); document.documentElement.removeAttribute('data-darkmode'); });
