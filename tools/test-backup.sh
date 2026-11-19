@@ -4,7 +4,7 @@ ROOT=$(mktemp -d)
 TMP=$(mktemp -d)
 trap 'rm -rf "$ROOT" "$TMP"' EXIT HUP INT TERM
 mkdir -p "$ROOT/etc" "$ROOT/proc/sys/kernel" "$ROOT/www/luci-static/nightfall"
-printf '{ "version": "1.28.6-rc1", "build": "test" }\\n' > "$ROOT/www/luci-static/nightfall/version.json"
+printf '{ "version": "1.28.6-rc1", "build": "test" }\n' > "$ROOT/www/luci-static/nightfall/version.json"
 echo test-router > "$ROOT/proc/sys/kernel/hostname"
 cat > "$ROOT/etc/nightfall-monitor.conf" <<'EOF'
 TG=1
