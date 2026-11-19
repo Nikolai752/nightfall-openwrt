@@ -2774,7 +2774,7 @@ return view.extend({
 			const hwFlow = !!(D.h && D.h.info && D.h.info.flow_hw === '1');
 			const mid = new Date().setHours(0, 0, 0, 0) / 1000;
 			const rows = (D.h.rows || []).filter(r => r[0] >= mid);
-			const col = i => rows.map(r => r[i]).filter(v => v != null && v >= 0);
+			const col = i => rows.map(r => Number(r[i])).filter(v => Number.isFinite(v) && v >= 0);
 			const max = a => a.length ? Math.max(...a) : null, avg = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
 			const sum = (list, k) => (list || []).reduce((s, x) => s + trafficBytes(x[k]), 0);
 			let dd = sum(D.d && D.d.day, 1), du = sum(D.d && D.d.day, 2), yd = sum(D.d && D.d.yday, 1) + sum(D.d && D.d.yday, 2);
@@ -2912,12 +2912,12 @@ return view.extend({
 			for (const [ ip, proto, port, d, u ] of c.svc || []) {
 				if (sel && ip !== sel) continue;
 				const k = portLabel(proto, port), e = svc[k] || (svc[k] = { k, d: 0, u: 0 });
-				e.d += +d; e.u += +u;
+				e.d += trafficBytes(d); e.u += trafficBytes(u);
 			}
 			for (const [ ip, host, d, u ] of c.dst || []) {
 				if (sel && ip !== sel) continue;
 				const e = dst[host] || (dst[host] = { k: host, d: 0, u: 0 });
-				e.d += +d; e.u += +u;
+				e.d += trafficBytes(d); e.u += trafficBytes(u);
 			}
 			const list = (obj, what) => {
 				const rows = Object.values(obj).filter(r => r.d + r.u > 0).sort((a, b) => (b.d + b.u) - (a.d + a.u)).slice(0, 8);
