@@ -1814,7 +1814,7 @@ return view.extend({
 			const { y, m } = S.mon, dim = new Date(y, m + 1, 0).getDate(), first = (new Date(y, m, 1).getDay() + 6) % 7;
 			const pre = String(y) + String(m + 1).padStart(2, '0'), by = {};
 			let rx = 0, tx = 0, mx = 1, days = 0, viaDev = 0;
-			for (const r of T.rows || []) if (r[0].indexOf(pre) === 0) { const d = +r[0].slice(6, 8), down = trafficBytes(r[1]), up = trafficBytes(r[2]); by[d] = r; rx += down; tx += up; mx = Math.max(mx, down + up); days++; if (r[3] === 1) viaDev++; }
+			for (const r of T.rows || []) if (r[0].indexOf(pre) === 0) { const d = +r[0].slice(6, 8), down = trafficBytes(r[1]), up = trafficBytes(r[2]); by[d] = [ r[0], down, up, r[3] ]; rx += down; tx += up; mx = Math.max(mx, down + up); days++; if (r[3] === 1) viaDev++; }
 			const cur = y === now.getFullYear() && m === now.getMonth(), elapsed = cur ? now.getDate() : dim, total = rx + tx;
 			const avg = days ? total / Math.max(1, Math.min(days, elapsed)) : 0, fc = cur ? total + avg * (dim - elapsed) : total;
 			const step = k => { const d = new Date(y, m + k, 1); S.mon = { y: d.getFullYear(), m: d.getMonth() }; renderMon(); };
@@ -1826,7 +1826,7 @@ return view.extend({
 			[ 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс' ].forEach(d => grid.appendChild(E('span', { class: 'nfm-mon-w' }, d)));
 			for (let i = 0; i < first; i++) grid.appendChild(E('span'));
 			for (let d = 1; d <= dim; d++) {
-				const r = by[d], v = r ? r[1] + r[2] : 0;
+				const r = by[d], v = r ? trafficBytes(r[1]) + trafficBytes(r[2]) : 0;
 				grid.appendChild(E('span', Object.assign({ class: 'nfm-mon-d' + (cur && d === now.getDate() ? ' today' : '') + (r ? ' has' : ''), style: r ? `--hv:${Math.max(8, Math.round(100 * v / mx))}%` : '',
 					title: r ? `${d}: ↓ ${fmtBytes(r[1])}, ↑ ${fmtBytes(r[2])}${r[3] === 1 ? ' (по данным устройств)' : ''}. Нажмите, чтобы увидеть, кто сколько скачал` : `${d}: нет данных` },
 					r ? { role: 'button', tabindex: '0', click: () => dayReport(r[0]), keydown: ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); dayReport(r[0]); } } } : {}), [ E('b', {}, String(d)), E('i', {}, r ? fmtBytes(v) : '') ]));
@@ -1874,7 +1874,7 @@ return view.extend({
 				else if (ymd === yest && dv && dv.yday && dv.yday.length) { src = dv.yday.map(r => [ r[0], r[1], r[2], '' ]); how = 'Итоги за сутки по данным сборщика.'; }
 				else {
 					const by = {};
-					for (const r of (hr && hr.rows) || []) if (ymdOf(new Date(r[0] * 1000)) === ymd) { const e = by[r[1]] || (by[r[1]] = [ r[1], 0, 0, '' ]); e[1] += +r[2]; e[2] += +r[3]; }
+					for (const r of (hr && hr.rows) || []) if (ymdOf(new Date(r[0] * 1000)) === ymd) { const e = by[r[1]] || (by[r[1]] = [ r[1], 0, 0, '' ]); e[1] += trafficBytes(r[2]); e[2] += trafficBytes(r[3]); }
 					src = Object.values(by);
 					if (src.length) how = 'Собрано из почасовых итогов: точность до часа.';
 				}
@@ -1889,9 +1889,9 @@ return view.extend({
 				const sumRx = list.reduce((a, e) => a + e.rx, 0), sumTx = list.reduce((a, e) => a + e.tx, 0), mx = Math.max(1, ...list.map(e => e.rx + e.tx));
 				const kids = [];
 				if (wan) kids.push(E('div', { class: 'nfm-mon-sum' }, [
-					E('div', {}, [ E('span', {}, wan[3] === 1 ? 'Всего (по устройствам)' : 'Всего через WAN'), E('b', {}, fmtBytes(wan[1] + wan[2])) ]),
-					E('div', {}, [ E('span', {}, '↓ принято'), E('b', {}, fmtBytes(wan[1])) ]),
-					E('div', {}, [ E('span', {}, '↑ отправлено'), E('b', {}, fmtBytes(wan[2])) ]) ]));
+					E('div', {}, [ E('span', {}, wan[3] === 1 ? 'Всего (по устройствам)' : 'Всего через WAN'), E('b', {}, fmtBytes(trafficBytes(wan[1]) + trafficBytes(wan[2]))) ]),
+					E('div', {}, [ E('span', {}, '↓ принято'), E('b', {}, fmtBytes(trafficBytes(wan[1]))) ]),
+					E('div', {}, [ E('span', {}, '↑ отправлено'), E('b', {}, fmtBytes(trafficBytes(wan[2]))) ]) ]));
 				if (!list.length) kids.push(E('div', { class: 'nfm-hint' }, 'По устройствам за этот день данных нет. Подробные итоги по устройствам копятся с версии 1.15 (в архив уходят сутки, закончившиеся после обновления), а почасовых данных хватает примерно на две недели. Чтобы они переживали перезагрузку, подключите накопитель (История → «Накопители»).'));
 				else {
 					kids.push(E('table', { class: 'nfm-table' }, [
@@ -1906,7 +1906,7 @@ return view.extend({
 						})) ]));
 					if (list.length > 40) kids.push(E('div', { class: 'nfm-note-s' }, 'Показаны 40 самых активных из ' + list.length + '.'));
 					if (list.some(e => e.k === 'router')) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Строка «Сам роутер» (адрес вашего роутера у провайдера) — это трафик самого роутера: прокси или VPN на нём, обновления, DNS. Трафик устройств через такой прокси считается дважды: у устройства и у роутера. Поэтому в «Всего» и в календаре строка не входит.'));
-					if (wan && (wan[1] + wan[2]) > (sumRx + sumTx) * 1.15) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Сумма по устройствам (' + fmtBytes(sumRx + sumTx) + ') меньше счётчика WAN: часть трафика не приписывается устройствам (аппаратное ускорение пакетов, служебный трафик, устройства вне первой сотни записей).'));
+					if (wan && (trafficBytes(wan[1]) + trafficBytes(wan[2])) > (sumRx + sumTx) * 1.15) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Сумма по устройствам (' + fmtBytes(sumRx + sumTx) + ') меньше счётчика WAN: часть трафика не приписывается устройствам (аппаратное ускорение пакетов, служебный трафик, устройства вне первой сотни записей).'));
 				}
 				if (how) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, how));
 				body.replaceChildren(...kids);
@@ -2012,9 +2012,9 @@ return view.extend({
 				const A = S.wkA; if (!A || !(A.hist || A.day || []).length) return null;
 				const nm = {}; for (const mac in hints) for (const ip of (hints[mac].ipaddrs || [])) nm[ip] = hints[mac].name || '';
 				const t = /^\d{8}$/.test(String(A.today || '')) ? isoD(A.today) : stamp();
-				const out = [ [ 'Дата', 'Устройство (IP)', 'Имя', 'Приложение', 'Принято, байт', 'Отправлено, байт' ] ];
-				for (const [ dt, ip, app, d, u ] of A.hist || []) out.push([ isoD(dt), ip, nm[ip] || '', app, d, u ]);
-				for (const [ ip, app, d, u ] of A.day || []) out.push([ t, ip, nm[ip] || '', app, d, u ]);
+				const out = [ [ 'Дата', 'Устройство (IP)', 'Имя', 'Приложение', 'Принято, байт', 'Отправлено, байт', 'Маршрут' ] ];
+				for (const [ dt, ip, app, route, d, u ] of A.hist || []) out.push([ isoD(dt), ip, nm[ip] || '', app, trafficBytes(d), trafficBytes(u), route ]);
+				for (const [ ip, app, route, d, u ] of A.day || []) out.push([ t, ip, nm[ip] || '', app, trafficBytes(d), trafficBytes(u), route ]);
 				return [ 'nightfall-apps-' + stamp() + '.csv', out ];
 			} ],
 			[ 'Графики (выбранный период)', () => {
@@ -2595,7 +2595,7 @@ return view.extend({
 		function renderTop3() {
 			const list = (title, rows) => E('div', {}, [ E('div', { class: 'nfm-k', style: 'margin:0 0 4px' }, title) ].concat(rows.length ? rows.map(x => E('div', { class: 'nfm-host' }, [ E('span', {}, x[0]), E('b', {}, x[1]) ])) : [ E('div', { class: 'nfm-empty' }, 'Пока пусто') ]));
 			const progs = S.full ? groupedProcs().sort((a, b) => b.rss - a.rss).slice(0, 3).map(e => [ e.label, fmtMB(e.rss) ]) : [];
-			const dv = S.devs && S.devs.day ? S.devs.day.map(x => ({ ip: x[0], t: (+x[1]) + (+x[2]) })).filter(x => x.t > 0 && !routerIps.has(x.ip)).sort((a, b) => b.t - a.t).slice(0, 3) : [];
+			const dv = S.devs && S.devs.day ? S.devs.day.map(x => ({ ip: x[0], t: trafficBytes(x[1]) + trafficBytes(x[2]) })).filter(x => x.t > 0 && !routerIps.has(x.ip)).sort((a, b) => b.t - a.t).slice(0, 3) : [];
 			const nm = ip => {
 				const active = new Set((S.wifi || []).map(c => String(c.mac || '').toUpperCase()).filter(Boolean));
 				const neighbour = ((S.devs && S.devs.neigh) || []).find(x => String(x[0]).toLowerCase() === String(ip).toLowerCase());
