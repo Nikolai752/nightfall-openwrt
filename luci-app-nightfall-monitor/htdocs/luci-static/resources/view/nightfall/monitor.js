@@ -388,6 +388,31 @@ function sumMonitorAppDeviceTraffic(data, fromDate, hints, routerIps) {
 	return Object.values(totals).filter(row => row.total > 0).sort((a, b) => b.total - a.total);
 }
 
+function sumMonitorDeviceDailyTraffic(rows, hints, neighbours, wifi, routerIps) {
+	const candidates = {}, ipMac = {}, totals = {};
+	for (const mac in hints || {}) {
+		const hint = hints[mac] || {};
+		for (const ip of (hint.ipaddrs || []).concat(hint.ip6addrs || [])) {
+			const key = normalizeMonitorIp(ip);
+			(candidates[key] || (candidates[key] = new Set())).add(String(mac).toUpperCase());
+		}
+	}
+	for (const ip in candidates) if (candidates[ip].size === 1) ipMac[ip] = Array.from(candidates[ip])[0];
+	const active = new Set((wifi || []).map(row => String(row.mac || '').toUpperCase()).filter(Boolean));
+	for (const [ip, mac] of neighbours || []) {
+		const key = normalizeMonitorIp(ip), value = String(mac || '').toUpperCase();
+		if (value && (active.has(value) || !ipMac[key])) ipMac[key] = value;
+	}
+	for (const [ip, down, up] of rows || []) {
+		if (routerIps && routerIps.has && routerIps.has(ip)) continue;
+		const norm = normalizeMonitorIp(ip), mac = ipMac[norm] || '', key = mac || 'ip:' + norm;
+		const row = totals[key] || (totals[key] = { mac, ip, total: 0 });
+		row.total += trafficBytes(down) + trafficBytes(up);
+		if (row.ip.indexOf(':') >= 0 && String(ip).indexOf(':') < 0) row.ip = ip;
+	}
+	return Object.values(totals).filter(row => row.total > 0).sort((a, b) => b.total - a.total);
+}
+
 /* ---------- widgets ---------- */
 
 function ring(color) {
@@ -2641,7 +2666,7 @@ return view.extend({
 		function renderTop3() {
 			const list = (title, rows) => E('div', {}, [ E('div', { class: 'nfm-k', style: 'margin:0 0 4px' }, title) ].concat(rows.length ? rows.map(x => E('div', { class: 'nfm-host' }, [ E('span', {}, x[0]), E('b', {}, x[1]) ])) : [ E('div', { class: 'nfm-empty' }, 'Пока пусто') ]));
 			const progs = S.full ? groupedProcs().sort((a, b) => b.rss - a.rss).slice(0, 3).map(e => [ e.label, fmtMB(e.rss) ]) : [];
-			const dv = S.devs && S.devs.day ? S.devs.day.map(x => ({ ip: x[0], t: trafficBytes(x[1]) + trafficBytes(x[2]) })).filter(x => x.t > 0 && !routerIps.has(x.ip)).sort((a, b) => b.t - a.t).slice(0, 3) : [];
+			const dv = S.devs && S.devs.day ? sumMonitorDeviceDailyTraffic(S.devs.day, hints, S.devs.neigh, S.wifi, routerIps).slice(0, 3) : [];
 			const nm = ip => {
 				const active = new Set((S.wifi || []).map(c => String(c.mac || '').toUpperCase()).filter(Boolean));
 				const neighbour = ((S.devs && S.devs.neigh) || []).find(x => String(x[0]).toLowerCase() === String(ip).toLowerCase());
@@ -2653,7 +2678,7 @@ return view.extend({
 				}
 				return names[ip] || ip;
 			};
-			top3Box.replaceChildren(list('Программы по памяти', progs), E('div', { style: 'height:12px' }), list('Устройства по трафику сегодня', dv.map(x => [ nm(x.ip), fmtBytes(x.t) ])));
+			top3Box.replaceChildren(list('Программы по памяти', progs), E('div', { style: 'height:12px' }), list('Устройства по трафику сегодня', dv.map(x => [ x.mac ? ((hints[x.mac] || hints[x.mac.toLowerCase()] || {}).name || x.ip) : nm(x.ip), fmtBytes(x.total) ])));
 		}
 
 		function renderDevices() {
@@ -2835,11 +2860,9 @@ return view.extend({
 			const pk = (a, f) => a == null ? '–' : f(a);
 			const tile = (k, v, s) => E('div', { class: 'nfm-tile' }, [ k, E('b', {}, v), s ? E('span', { class: 'nfm-note-s' }, s) : '' ]);
 
-			const top = {};
-			for (const [ ip, d, u ] of (D.d && D.d.day) || []) if (!routerIps.has(ip)) top[ip] = (top[ip] || 0) + trafficBytes(d) + trafficBytes(u);
-			const topAll = Object.keys(top).map(ip => [ ip, top[ip] ]).sort((a, b) => b[1] - a[1]);
+			const topAll = sumMonitorDeviceDailyTraffic(D.d && D.d.day, hints, D.d && D.d.neigh, S.wifi, routerIps);
 			const list = topAll.slice(0, 3);
-			const mx = list.length ? list[0][1] : 1;
+			const mx = list.length ? list[0].total : 1;
 
 			dayBody.replaceChildren(
 				E('div', { class: 'nfm-tiles d4' }, [
@@ -2851,9 +2874,11 @@ return view.extend({
 					tile('Пик температуры', pk(max(col(3)), v => nf1.format(v) + ' °C'), pk(avg(col(3)), v => 'в среднем ' + nf1.format(v) + ' °C')),
 					tile('Пик памяти', pk(max(col(2)), v => nf0.format(v) + '%'), pk(avg(col(2)), v => 'в среднем ' + nf0.format(v) + '%'))
 				]),
-				list.length ? E('div', { class: 'nfm-day-top' }, [ E('div', { class: 'nfm-k' }, 'Больше всего трафика сегодня' + (topAll.length > list.length ? ' · показаны ' + list.length + ' из ' + topAll.length + ' устройств' : '')) ].concat(list.map(([ ip, b ]) =>
-					E('div', { class: 'nfm-host' }, [ E('span', {}, [ names[ip] || ip, names[ip] && names[ip] !== ip ? E('small', {}, ip) : '' ]), E('b', {}, fmtBytes(b)),
-						E('div', { class: 'nfm-bar' }, E('div', { class: 'nfm-bar-fill c-down', style: `width:${100 * b / mx}%` })) ])))) : '',
+				list.length ? E('div', { class: 'nfm-day-top' }, [ E('div', { class: 'nfm-k' }, 'Больше всего трафика сегодня' + (topAll.length > list.length ? ' · показаны ' + list.length + ' из ' + topAll.length + ' устройств' : '')) ].concat(list.map(row => {
+					const hint = row.mac ? hints[row.mac] || hints[row.mac.toLowerCase()] || {} : {}, label = hint.name || names[row.ip] || row.ip;
+					return E('div', { class: 'nfm-host' }, [ E('span', {}, [ label, label !== row.ip ? E('small', {}, row.ip) : '' ]), E('b', {}, fmtBytes(row.total)),
+						E('div', { class: 'nfm-bar' }, E('div', { class: 'nfm-bar-fill c-down', style: `width:${100 * row.total / mx}%` })) ]);
+				}))) : '',
 				E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, srcNote + (selfB > 0 ? ' Собственный трафик роутера: ' + fmtBytes(selfB) + ' (обновления, DNS, замер скорости, прокси или VPN на роутере). В список устройств он не входит.' : '')));
 		}
 
