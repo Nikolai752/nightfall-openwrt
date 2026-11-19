@@ -2772,6 +2772,10 @@ return view.extend({
 			ui.showModal(label, [ body, E('div', { class: 'button-row' }, acts.concat([ E('button', { class: 'btn', click: ui.hideModal }, 'Закрыть') ])) ]);
 			const J = a => callHistory(a).catch(() => null);
 			Promise.all([ J([ 'devdaily' ]), J([ 'apps' ]), mac ? J([ 'wifi', mac ]) : Promise.resolve(null), J([ 'known' ]) ]).then(([ dd, ap, wf, kn ]) => {
+				/* В devdaily хранится MAC на момент записи. Добавляем прежние IP,
+				 * чтобы app history без MAC тоже попадала в карточку после смены адреса. */
+				if (mac) for (const row of (dd && dd.rows) || [])
+					if (String(row[4] || '').toUpperCase() === mac && row[1]) deviceIps.add(normalizeMonitorIp(row[1]));
 				const ymdOf = d => d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
 				const mine = (rowIp, rowMac) => {
 					const rowMacValue = String(rowMac || '').toUpperCase();
