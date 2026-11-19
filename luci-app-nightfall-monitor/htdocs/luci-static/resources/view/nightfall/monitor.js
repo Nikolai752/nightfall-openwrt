@@ -766,10 +766,29 @@ const CSS = `
   .nfm-card-title > .nfm-spacer { flex: 0 0 100%; height: 0; margin: 0; }
   .nfm-card-title > .nfm-note-s, .nfm-card-title > .nfm-legend { flex: 1 0 100%; }
 }
-.nfm-cfg-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
-.nfm-cfg-g { border: 1px solid var(--nfm-border); border-radius: var(--nfm-r); background: var(--nfm-card2); padding: 12px 14px 14px; min-width: 0; }
-.nfm-cfg-g h4 { margin: 0 0 10px; padding: 0; border: 0; font-size: 13px; font-weight: 600; color: var(--nfm-text); }
-.nfm-cfg-g .nfm-cfg { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.nfm-cfg-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; align-items:start; }
+.nfm-cfg-col { display:grid; gap:14px; min-width:0; align-content:start; }
+.nfm-cfg-groups { display:grid; gap:14px; min-width:0; }
+.nfm-cfg-g { border:1px solid var(--nfm-border); border-radius:var(--nfm-r); background:var(--nfm-card2); padding:14px 16px; min-width:0; }
+.nfm-cfg-g h4 { margin:0 0 12px; padding:0 0 10px; border:0; border-bottom:1px solid var(--nfm-border); font-size:13px; font-weight:650; color:var(--nfm-text); }
+.nfm-cfg-g .nfm-cfg { grid-template-columns:minmax(0,1fr); gap:10px; }
+.nfm-cfg-telegram { margin-top:14px; }
+.nfm-tg-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; align-items:stretch; }
+.nfm-tg-grid .nfm-cfg-g { background:var(--nfm-card); }
+.nfm-cfg-i.nfm-cfg-toggle { flex-direction:row; align-items:center; justify-content:space-between; gap:12px; min-height:34px; color:var(--nfm-text); }
+.nfm-cfg-toggle .nfm-cfg-f { flex:0 0 auto; }
+.nfm-toggle { appearance:none; -webkit-appearance:none; position:relative; width:40px; min-width:40px; height:23px; margin:0; border:1px solid var(--nfm-border); border-radius:99px; background:var(--nfm-card2); cursor:pointer; transition:background .18s ease,border-color .18s ease; }
+.nfm-toggle::before { content:''; position:absolute; top:2px; left:2px; width:17px; height:17px; border-radius:50%; background:var(--nfm-dim); transition:transform .18s ease,background .18s ease; }
+.nfm-toggle:checked { background:var(--blue,#1688f8); border-color:var(--blue,#1688f8); }
+.nfm-toggle:checked::before { transform:translateX(17px); background:#fff; }
+.nfm-toggle:focus-visible { outline:2px solid var(--blue,#1688f8); outline-offset:2px; }
+.nfm-cfg-actions { position:sticky; bottom:8px; z-index:4; display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:14px -2px 0; padding:10px; border:1px solid var(--nfm-border); border-radius:var(--nfm-r); background:var(--nfm-card); box-shadow:0 8px 24px rgba(30,70,120,.12); backdrop-filter:blur(16px); }
+.nfm-cfg-actions .nfm-act:first-child { background:var(--blue,#1688f8); color:#fff; border-color:transparent; }
+.nfm-cfg-help { margin-top:10px; color:var(--nfm-dim); font-size:12px; }
+.nfm-cfg-help summary { cursor:pointer; color:var(--nfm-text); font-weight:600; padding:6px 0; }
+.nfm-cfg-help > div { padding:8px 0 2px; line-height:1.55; }
+@media (max-width:900px) { .nfm-tg-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:680px) { .nfm-cfg-layout,.nfm-tg-grid { grid-template-columns:minmax(0,1fr); } .nfm-cfg-actions { position:static; } }
 .nfm-table .r { text-align: right; font-variant-numeric: tabular-nums; }
 .nfm-chip { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 99px; background: var(--nfm-card2); border: 1px solid var(--nfm-border); color: var(--nfm-dim); margin-left: 6px; }
 .nfm-rate { display: flex; align-items: baseline; gap: 6px; }
@@ -1283,33 +1302,64 @@ return view.extend({
 			}));
 		}
 
+		const cfgBoolKeys = new Set([ 'PERSIST_ANY', 'JOURNAL', 'WIFI_HIST', 'NEWDEV', 'LITE', 'APPS', 'TG', 'TG_ALERTS', 'TG_BOT', 'TG_CLEAN', 'TG_UPDATES', 'TG_SEC', 'TG_WIDGETS' ]);
+		function cfgField(k) {
+			const field = CFG_FIELDS.find(f => f[0] === k);
+			if (!field) return null;
+			const [ key, label, unit, type, placeholder ] = field;
+			if (cfgBoolKeys.has(key)) {
+				cfgInputs[key] = E('input', { class: 'nfm-toggle', type: 'checkbox', role: 'switch', 'aria-label': label });
+				return E('label', { class: 'nfm-cfg-i nfm-cfg-toggle' }, [ label.replace(/\\s*\\(0\\/1\\)$/, ''), E('span', { class: 'nfm-cfg-f' }, cfgInputs[key]) ]);
+			}
+			cfgInputs[key] = E('input', { class: 'nfm-in', type: type || 'number', placeholder: placeholder || '' });
+			return E('label', { class: 'nfm-cfg-i' }, [ label,
+				E('span', { class: 'nfm-cfg-f' }, [ cfgInputs[key], unit ? E('em', {}, unit) : '' ]) ]);
+		}
+		function cfgGroup(title, keys, extra, cls) {
+			return E('section', { class: 'nfm-cfg-g' + (cls ? ' ' + cls : '') }, [
+				E('h4', {}, title),
+				E('div', { class: 'nfm-cfg' }, keys.map(cfgField).filter(Boolean)),
+				extra || ''
+			]);
+		}
 		const cfgCard = card('Настройки предупреждений', E('div', {}, [
-			E('div', { class: 'nfm-cfg-groups' }, [
-				[ 'Температура и память', [ 'TEMP_WARN', 'TEMP_CRIT', 'MEM_MIN_PCT', 'FLASH_MAX_PCT' ] ],
-				[ 'Процессор и соединения', [ 'CPU_MAX_PCT', 'CPU_MINUTES', 'CT_MAX_PCT' ] ],
-				[ 'Проверка интернета', [ 'PING_TARGET', 'PING_TARGET2' ] ],
-				[ 'Хранение истории и резервные копии', [ 'PERSIST_DIR', 'PERSIST_HOURS', 'HIST_DAYS', 'BACKUP_KEEP', 'PERSIST_ANY', 'JOURNAL', 'WIFI_HIST' ] ],
-				[ 'Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ] ],
-				[ 'Режим работы', [ 'LITE' ] ],
-				[ 'Трафик приложений и маршрутизация', [ 'APPS' ] ],
-				[ 'Новые устройства', [ 'NEWDEV' ] ],
-				[ 'Уведомления в Telegram', [ 'TG', 'TG_ALERTS', 'TG_BOT', 'TG_CLEAN', 'TG_UPDATES', 'TG_SEC', 'TG_WIDGETS', 'TG_REPORT', 'TG_TOKEN', 'TG_CHAT', 'TG_USERS', 'TG_PROXY', 'TG_IFACE' ], tgTools ]
-			].map(([ title, keys, extra ]) => E('section', { class: 'nfm-cfg-g' }, [ E('h4', {}, title),
-				E('div', { class: 'nfm-cfg' }, keys.map(k => CFG_FIELDS.find(f => f[0] === k)).filter(Boolean).map(([ k, l, u, type, ph ]) => E('label', { class: 'nfm-cfg-i' }, [ l,
-					E('span', { class: 'nfm-cfg-f' }, [ cfgInputs[k] = E('input', { class: 'nfm-in', type: type || 'number', placeholder: ph || '' }), u ? E('em', {}, u) : '' ]) ]))),
-				extra || '' ]))),
-			E('div', { class: 'nfm-actions', style: 'margin:14px 0 0;align-items:center' }, [
-				E('button', { class: 'nfm-act', click: () => saveCfg() }, 'Сохранить и применить'),
+			E('div', { class: 'nfm-cfg-layout' }, [
+				E('div', { class: 'nfm-cfg-col' }, [
+					cfgGroup('Температура и память', [ 'TEMP_WARN', 'TEMP_CRIT', 'MEM_MIN_PCT', 'FLASH_MAX_PCT' ]),
+					cfgGroup('Проверка интернета', [ 'PING_TARGET', 'PING_TARGET2' ]),
+					cfgGroup('Хранение истории и резервные копии', [ 'PERSIST_DIR', 'PERSIST_HOURS', 'HIST_DAYS', 'BACKUP_KEEP', 'PERSIST_ANY', 'JOURNAL', 'WIFI_HIST' ])
+				]),
+				E('div', { class: 'nfm-cfg-col' }, [
+					cfgGroup('Процессор и соединения', [ 'CPU_MAX_PCT', 'CPU_MINUTES', 'CT_MAX_PCT' ]),
+					cfgGroup('Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ]),
+					cfgGroup('Режим и функции мониторинга', [ 'LITE', 'APPS', 'NEWDEV' ])
+				])
+			]),
+			E('section', { class: 'nfm-cfg-g nfm-cfg-telegram' }, [
+				E('h4', {}, 'Telegram — уведомления и управление'),
+				E('div', { class: 'nfm-tg-grid' }, [
+					cfgGroup('Уведомления', [ 'TG', 'TG_ALERTS', 'TG_UPDATES', 'TG_SEC', 'TG_REPORT' ]),
+					cfgGroup('Управление ботом', [ 'TG_BOT', 'TG_CLEAN', 'TG_WIDGETS', 'TG_USERS' ]),
+					cfgGroup('Подключение и инструменты', [ 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY', 'TG_IFACE' ], tgTools)
+				])
+			]),
+			E('div', { class: 'nfm-cfg-actions' }, [
+				E('button', { class: 'nfm-act', click: () => saveCfg() }, '✓ Сохранить и применить'),
 				E('button', { class: 'nfm-act', click: () => (S.cfg ? Promise.resolve(S.cfg) : callCfg([ 'get' ]).then(c => (S.cfg = c))).then(c => fillCfg(c && c.defaults)) }, 'Значения по умолчанию'),
-				E('button', { class: 'nfm-act', click: () => copyDiag() }, 'Скопировать диагностику'), cfgMsg ]),
-			E('div', { class: 'nfm-actions', style: 'margin:8px 0 0;align-items:center' }, [
+				E('button', { class: 'nfm-act', click: () => copyDiag() }, 'Скопировать диагностику'),
 				E('button', { class: 'nfm-act', click: () => {
 					backupMsg.textContent = 'Создаю и проверяю резервную копию…';
 					fs.exec('/usr/libexec/nightfall-backup', [ 'create' ]).then(r => {
 						backupMsg.textContent = ((r.stdout || '') + (r.stderr || '')).trim() || 'Нет ответа от архиватора.';
 					}).catch(e => { backupMsg.textContent = 'Не удалось создать копию: ' + String((e && e.message) || e); });
-				} }, 'Создать резервную копию сейчас'), backupMsg ]),
-			E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Для честного разделения трафика укажите известные VPN-серверы в формате IP:порт (через запятую): их внешний трафик будет показан как «VPN». Содержимое внутри зашифрованного туннеля определить нельзя. Пустой адрес 1 отключает проверку интернета. История и резервные копии хранятся на подключённом USB/SD; копии лежат в отдельной папке nightfall-backups, количество задаётся выше. Если USB отключён, резервная копия временно создаётся в /tmp. После сохранения сборщик перезапускается, накопленная история не теряется.')
+				} }, 'Создать резервную копию сейчас')
+			]),
+			cfgMsg,
+			backupMsg,
+			E('details', { class: 'nfm-cfg-help' }, [
+				E('summary', {}, 'Справка по настройкам'),
+				E('div', {}, 'Для честного разделения трафика укажите известные VPN-серверы в формате IP:порт (через запятую): их внешний трафик будет показан как «VPN». Содержимое внутри зашифрованного туннеля определить нельзя. Пустой адрес 1 отключает проверку интернета. История и резервные копии хранятся на подключённом USB/SD; копии лежат в отдельной папке nightfall-backups, количество задаётся выше. Если USB отключён, резервная копия временно создаётся в /tmp. После сохранения сборщик перезапускается, накопленная история не теряется.')
+			])
 		]));
 		const jrnTiles = E('div', { class: 'nfm-tiles t4', style: 'margin-bottom:10px' }, [ [ 'jCnt', 'обрывов за 7 дней' ], [ 'jSum', 'без связи суммарно' ], [ 'jAv', 'доступность' ], [ 'jBoot', 'последняя загрузка' ] ]
 			.map(([ k, l ]) => E('div', { class: 'nfm-tile' }, [ l, T[k] = E('b', {}, '–') ])));
@@ -2291,11 +2341,14 @@ return view.extend({
 		function fillCfg(v) {
 			if (!v) { cfgMsg.textContent = 'Настройки недоступны: нужна служба сборщика и обновлённый пакет.'; return; }
 			cfgMsg.textContent = '';
-			for (const k in cfgInputs) cfgInputs[k].value = v[k] != null ? v[k] : '';
+			for (const k in cfgInputs) {
+				if (cfgBoolKeys.has(k)) cfgInputs[k].checked = String(v[k] == null ? '0' : v[k]) === '1';
+				else cfgInputs[k].value = v[k] != null ? v[k] : '';
+			}
 		}
 
 		function saveCfg() {
-			const args = [ 'set' ].concat(Object.keys(cfgInputs).map(k => k + '=' + cfgInputs[k].value.trim()));
+			const args = [ 'set' ].concat(Object.keys(cfgInputs).map(k => k + '=' + (cfgBoolKeys.has(k) ? (cfgInputs[k].checked ? '1' : '0') : cfgInputs[k].value.trim())));
 			callCfg(args).then(r => {
 				if (r && r.ok) {
 					cfgMsg.textContent = 'Сохранено, сборщик перезапущен.';
