@@ -94,7 +94,7 @@ allowed() {
   *) return 1 ;;
  esac
 }
-cleanup() { [ -n "${WORK:-}" ] && rm -rf "$WORK"; [ -n "${RESTORE_STAGE:-}" ] && rm -rf "$RESTORE_STAGE"; [ -n "${DEST_TMP:-}" ] && rm -f "$DEST_TMP"; return 0; }
+cleanup() { [ -n "${WORK:-}" ] && rm -rf "$WORK"; [ -n "${RESTORE_STAGE:-}" ] && rm -rf "$RESTORE_STAGE"; [ -n "${DEST_TMP:-}" ] && rm -f "$DEST_TMP"; [ -n "${DOWNLOAD_TMP:-}" ] && rm -rf "$DOWNLOAD_TMP"; return 0; }
 trap cleanup EXIT HUP INT TERM
 
 create_backup() {
@@ -301,11 +301,29 @@ download_chunk() {
  archive=$(backup_name "${2:-}")
  offset=${3:-}; length=${4:-24576}
  case "$offset:$length" in *[!0-9:]*|:*) fail "неверные параметры загрузки" ;; esac
- [ -f "$archive" ] && [ ! -L "$archive" ] || fail "архив не найден"
- size=$(wc -c < "$archive" | tr -d ' ')
+ [ -f "$archive" ] && [ ! -L "$archive" ] && [ -r "$archive" ] || fail "архив не найден или недоступен для чтения"
+ size=$(wc -c < "$archive" | tr -d ' ') || fail "не удалось определить размер архива"
+ case "$size" in ''|*[!0-9]*) fail "не удалось определить размер архива" ;; esac
  [ "$offset" -le "$size" ] || fail "смещение за пределами архива"
  [ "$length" -gt 0 ] && [ "$length" -le 24576 ] || fail "неверный размер блока"
- tail -c "+$((offset + 1))" "$archive" | head -c "$length" | base64_encode | tr -d '\n'
+ wanted=$((size - offset)); [ "$wanted" -gt "$length" ] && wanted=$length
+ [ "$wanted" -gt 0 ] || fail "запрошен пустой блок за концом архива"
+
+ # Не использовать конвейер tail | head | base64: в POSIX shell код возврата
+ # конвейера скрывает ошибки ранних команд. Проверяем каждый этап отдельно.
+ DOWNLOAD_TMP=$(mktemp -d "$TMP/nightfall-download.XXXXXX") || fail "не удалось подготовить временный блок"
+ tail -c "+$((offset + 1))" "$archive" > "$DOWNLOAD_TMP/tail" 2>/dev/null || fail "не удалось прочитать архив"
+ tail_size=$(wc -c < "$DOWNLOAD_TMP/tail" | tr -d ' ') || fail "не удалось проверить прочитанный блок"
+ [ "$tail_size" -ge "$wanted" ] || fail "архив изменился или прочитан не полностью"
+ head -c "$wanted" "$DOWNLOAD_TMP/tail" > "$DOWNLOAD_TMP/chunk" 2>/dev/null || fail "не удалось выделить блок архива"
+ actual=$(wc -c < "$DOWNLOAD_TMP/chunk" | tr -d ' ') || fail "не удалось проверить размер блока"
+ [ "$actual" -eq "$wanted" ] || fail "неполный блок архива: $actual из $wanted байт"
+ base64_encode < "$DOWNLOAD_TMP/chunk" > "$DOWNLOAD_TMP/encoded" 2>/dev/null || fail "не удалось закодировать блок архива"
+ encoded_size=$(tr -d '\n' < "$DOWNLOAD_TMP/encoded" | wc -c | tr -d ' ') || fail "не удалось проверить кодированный блок"
+ expected_size=$(( (wanted + 2) / 3 * 4 ))
+ [ "$encoded_size" -eq "$expected_size" ] || fail "неполный base64-блок: $encoded_size вместо $expected_size символов"
+ tr -d '\n' < "$DOWNLOAD_TMP/encoded" || fail "не удалось передать кодированный блок"
+ rm -rf "$DOWNLOAD_TMP"; DOWNLOAD_TMP=
 }
 upload_start() {
  id=${2:-}
