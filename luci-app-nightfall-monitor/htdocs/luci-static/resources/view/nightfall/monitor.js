@@ -2105,10 +2105,13 @@ return view.extend({
 			const deviceGroups = {};
 			for (const addr of ips) {
 				const macValue = ipMac[String(addr).toLowerCase()] || '';
-				const key = macValue ? 'mac:' + macValue : 'ip:' + addr;
-				const group = deviceGroups[key] || (deviceGroups[key] = { key: macValue && (hints[macValue] || hints[macValue.toLowerCase()] || {}).ipaddrs?.length + (hints[macValue] || hints[macValue.toLowerCase()] || {}).ip6addrs?.length > 1 ? 'mac:' + macValue : addr, mac: macValue, ips: new Set(), label: '' });
-				group.ips.add(String(addr).toLowerCase());
 				const hint = macValue ? hints[macValue] || hints[macValue.toLowerCase()] || {} : {};
+				const knownIps = new Set((hint.ipaddrs || []).concat(hint.ip6addrs || []).map(x => String(x).toLowerCase()));
+				/* Для одиночного IP сохраняем старый value select: это совместимо
+				 * с сохранённым выбором и существующими сценариями LuCI. */
+				const key = macValue && knownIps.size > 1 ? 'mac:' + macValue : 'ip:' + addr;
+				const group = deviceGroups[key] || (deviceGroups[key] = { key, mac: macValue, ips: new Set(), label: '' });
+				group.ips.add(String(addr).toLowerCase());
 				group.label = hint.name || names[addr] || group.label || addr;
 			}
 			const options = Object.values(deviceGroups).sort((a, b) => a.label.localeCompare(b.label, 'ru'));
