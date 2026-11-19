@@ -363,6 +363,31 @@ function sumMonitorDeviceApps(data, deviceIps) {
 	return Object.entries(apps).sort((a, b) => b[1] - a[1]);
 }
 
+function sumMonitorAppDeviceTraffic(data, fromDate, hints, routerIps) {
+	const candidates = {}, ipMac = {}, totals = {};
+	for (const mac in hints || {}) {
+		const hint = hints[mac] || {};
+		for (const ip of (hint.ipaddrs || []).concat(hint.ip6addrs || [])) {
+			const key = normalizeMonitorIp(ip);
+			(candidates[key] || (candidates[key] = [])).push(String(mac).toUpperCase());
+		}
+	}
+	for (const ip in candidates) if (candidates[ip].length === 1) ipMac[ip] = candidates[ip][0];
+	const add = (ip, down, up) => {
+		const norm = normalizeMonitorIp(ip);
+		const mac = ipMac[norm] || '';
+		const key = routerIps && routerIps.has && routerIps.has(ip) ? 'router' : mac || 'ip:' + norm;
+		const row = totals[key] || (totals[key] = { key, mac, ip, total: 0 });
+		row.total += trafficBytes(down) + trafficBytes(up);
+	};
+	for (const row of data && data.day || []) add(row[0], row.length >= 5 ? row[3] : row[2], row.length >= 5 ? row[4] : row[3]);
+	for (const row of data && data.hist || []) {
+		if (Number(row[0]) < Number(fromDate)) continue;
+		add(row[1], row.length >= 6 ? row[4] : row[3], row.length >= 6 ? row[5] : row[4]);
+	}
+	return Object.values(totals).filter(row => row.total > 0).sort((a, b) => b.total - a.total);
+}
+
 /* ---------- widgets ---------- */
 
 function ring(color) {
@@ -1803,17 +1828,14 @@ return view.extend({
 			/* тяжёлое устройство */
 			let heavy = [ '—', 'учёт по приложениям не включён или данных ещё нет' ];
 			const A = S.wkA;
-			if (A && (A.hist || A.day)) {
+			if (A && ((A.hist || []).length || (A.day || []).length)) {
 				const t = String(A.today || ''), base = /^\d{8}$/.test(t) ? new Date(+t.slice(0, 4), +t.slice(4, 6) - 1, +t.slice(6, 8)) : new Date();
 				base.setDate(base.getDate() - 6);
-				const from = base.getFullYear() * 10000 + (base.getMonth() + 1) * 100 + base.getDate(), tot = {};
-				for (const [ ip, , d, u ] of A.day || []) tot[ip] = (tot[ip] || 0) + d + u;
-				for (const [ dt, ip, , d, u ] of A.hist || []) if (+dt >= from) tot[ip] = (tot[ip] || 0) + d + u;
-				const ips = Object.keys(tot).filter(ip => !routerIps.has(ip)).sort((x, y) => tot[y] - tot[x]);
-				if (ips.length) {
-					let nmv = ips[0];
-					for (const mac in hints) if ((hints[mac].ipaddrs || []).indexOf(ips[0]) >= 0) nmv = hints[mac].name || ips[0];
-					heavy = [ nmv, fmtBytes(tot[ips[0]]) + ' за неделю' + (ips[1] ? ' · дальше ' + fmtBytes(tot[ips[1]]) : '') ];
+				const from = base.getFullYear() * 10000 + (base.getMonth() + 1) * 100 + base.getDate();
+				const top = sumMonitorAppDeviceTraffic(A, from, hints, routerIps).filter(row => row.key !== 'router');
+				if (top.length) {
+					const name = row => row.mac ? ((hints[row.mac] || hints[row.mac.toLowerCase()] || {}).name || row.ip) : names[row.ip] || row.ip;
+					heavy = [ name(top[0]), fmtBytes(top[0].total) + ' за неделю' + (top[1] ? ' · дальше ' + fmtBytes(top[1].total) : '') ];
 				}
 			}
 			/* пинг */
