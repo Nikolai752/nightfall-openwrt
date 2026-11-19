@@ -611,6 +611,14 @@ on_flash() {    # 0 = встроенное/неподтверждённое хр
 	return 0
 }
 
+persist_overlay_space_ok() {
+	local mp dfbin free
+	mp=$1; dfbin=${NF_DF:-df}
+	free=$("$dfbin" -Pk "$mp" 2>/dev/null | awk 'NR == 2 { print $4 }')
+	case "$free" in ''|*[!0-9]*) return 1 ;; esac
+	[ "$free" -ge "${NF_PERSIST_MIN_FREE_KB:-2048}" ]
+}
+
 PFILES="extip.log hist.coarse temps.coarse hist.long wifi.hr dev.hr dev.snap dev.daily router.ips events.log dev.day dev.yday day.date speed.log apps.day apps.hist apps.v traffic.daily acct.v"
 procmem_point() {   # раз в 15 минут: память (RSS, КБ) десяти самых «толстых» программ; по ней монитор ищет утечки
 	[ "$LITE" = 1 ] && return 0
@@ -641,6 +649,13 @@ persist() {
 		return 1
 	fi
 	mp=${mi#*|}; rel=${PERSIST_DIR#"$mp"}; rel=${rel#/}
+	case "$mp" in
+		/overlay|/overlay/*)
+			if ! persist_overlay_space_ok "$mp"; then
+				persist_warn "Недостаточно свободного места во внутренней флеш-памяти (нужно не менее ${NF_PERSIST_MIN_FREE_KB:-2048} КБ). История продолжает собираться в RAM" 0
+				return 1
+			fi ;;
+	esac
 	case "/$rel/" in */../*) persist_warn "Некорректный путь постоянной истории: $PERSIST_DIR" 1; return 1 ;; esac
 
 	# При первом подключении или после возврата USB объединяем временную RAM-историю с архивной.
