@@ -243,7 +243,7 @@ const XCSS = `
  .nfm-history .nfm-exp .nfm-btn { width:100%; justify-content:center; }
  .nfm-history .nfm-cmp-t { grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr) 58px; font-size:11.5px; }
  .nfm-history .nfm-cmp-t > div { padding:7px 4px; }
- .nfm-history .nfm-chart { grid-template-columns:34px minmax(0,1fr) 28px; column-gap:5px; }
+
 }
 `;
 
