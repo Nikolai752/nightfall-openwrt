@@ -769,11 +769,19 @@ const CSS = `
 .nfm-cfg-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; align-items:start; }
 .nfm-cfg-col { display:grid; gap:14px; min-width:0; align-content:start; }
 .nfm-cfg-groups { display:grid; gap:14px; min-width:0; }
-.nfm-cfg-g { border:1px solid var(--nfm-border); border-radius:var(--nfm-r); background:var(--nfm-card2); padding:14px 16px; min-width:0; }
-.nfm-cfg-g h4 { margin:0 0 12px; padding:0 0 10px; border:0; border-bottom:1px solid var(--nfm-border); font-size:13px; font-weight:650; color:var(--nfm-text); }
+.nfm-cfg-g { border:1px solid var(--nfm-border); border-radius:var(--nfm-r); background:var(--nfm-card2); padding:0; min-width:0; overflow:hidden; align-self:start; }
+.nfm-cfg-head { display:flex; align-items:center; gap:10px; min-height:52px; margin:0; padding:9px 14px; list-style:none; cursor:pointer; color:var(--nfm-text); font-size:13px; font-weight:700; background:linear-gradient(100deg,var(--nfm-card2),var(--nfm-card)); border-bottom:1px solid transparent; }
+.nfm-cfg-head::-webkit-details-marker { display:none; }
+.nfm-cfg-g[open] > .nfm-cfg-head { border-bottom-color:var(--nfm-border); }
+.nfm-cfg-icon { display:grid; place-items:center; flex:0 0 32px; width:32px; height:32px; border-radius:10px; color:var(--blue,#1688f8); background:color-mix(in srgb,var(--blue,#1688f8) 14%,var(--nfm-card)); }
+.nfm-cfg-icon svg { display:block; width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.nfm-cfg-heading { min-width:0; flex:1; }
+.nfm-cfg-chevron { color:var(--nfm-dim); font-size:17px; transition:transform .18s ease; }
+.nfm-cfg-g:not([open]) .nfm-cfg-chevron { transform:rotate(-90deg); }
+.nfm-cfg-body { padding:13px 14px 15px; }
 .nfm-cfg-g .nfm-cfg { grid-template-columns:minmax(0,1fr); gap:10px; }
 .nfm-cfg-telegram { margin-top:14px; }
-.nfm-tg-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; align-items:stretch; }
+.nfm-tg-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; align-items:start; }
 .nfm-tg-grid .nfm-cfg-g { background:var(--nfm-card); }
 .nfm-cfg-i.nfm-cfg-toggle { flex-direction:row; align-items:center; justify-content:space-between; gap:12px; min-height:34px; color:var(--nfm-text); }
 .nfm-cfg-toggle .nfm-cfg-f { flex:0 0 auto; }
@@ -782,6 +790,15 @@ const CSS = `
 .nfm-toggle:checked { background:var(--blue,#1688f8); border-color:var(--blue,#1688f8); }
 .nfm-toggle:checked::before { transform:translateX(17px); background:#fff; }
 .nfm-toggle:focus-visible { outline:2px solid var(--blue,#1688f8); outline-offset:2px; }
+@media (max-width:900px) {
+  .nfm-cfg-layout { grid-template-columns:minmax(0,1fr); }
+  .nfm-tg-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (max-width:600px) {
+  .nfm-tg-grid { grid-template-columns:minmax(0,1fr); }
+  .nfm-cfg-head { min-height:48px; padding:8px 11px; }
+  .nfm-cfg-body { padding:11px; }
+}
 .nfm-cfg-actions { position:sticky; bottom:8px; z-index:4; display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:14px -2px 0; padding:10px; border:1px solid var(--nfm-border); border-radius:var(--nfm-r); background:var(--nfm-card); box-shadow:0 8px 24px rgba(30,70,120,.12); backdrop-filter:blur(16px); }
 .nfm-cfg-actions .nfm-act:first-child { background:var(--blue,#1688f8); color:#fff; border-color:transparent; }
 .nfm-cfg-help { margin-top:10px; color:var(--nfm-dim); font-size:12px; }
@@ -1316,10 +1333,59 @@ return view.extend({
 				E('span', { class: 'nfm-cfg-f' }, [ cfgInputs[key], unit ? E('em', {}, unit) : '' ]) ]);
 		}
 		function cfgGroup(title, keys, extra, cls) {
-			return E('section', { class: 'nfm-cfg-g' + (cls ? ' ' + cls : '') }, [
-				E('h4', {}, title),
-				E('div', { class: 'nfm-cfg' }, keys.map(cfgField).filter(Boolean)),
-				extra || ''
+			const icons = {
+				'Температура и память': [ 'path', { d: 'M9 18h6M10 22h4M8 14a6 6 0 1 1 8 0c-.8.7-1 1.3-1 2H9c0-.7-.2-1.3-1-2Z' } ],
+				'Процессор и соединения': [ 'fragment', [
+					[ 'rect', { x: 6, y: 6, width: 12, height: 12, rx: 2 } ],
+					[ 'path', { d: 'M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4' } ]
+				] ],
+				'Проверка интернета': [ 'fragment', [
+					[ 'circle', { cx: 12, cy: 12, r: 9 } ],
+					[ 'path', { d: 'M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18' } ]
+				] ],
+				'Замер скорости': [ 'fragment', [
+					[ 'path', { d: 'M4 19a9 9 0 1 1 16 0' } ],
+					[ 'path', { d: 'm12 13 4-5M7 19h10' } ],
+					[ 'circle', { cx: 12, cy: 13, r: 1 } ]
+				] ],
+				'Хранение истории и резервные копии': [ 'fragment', [
+					[ 'ellipse', { cx: 12, cy: 5, rx: 8, ry: 3 } ],
+					[ 'path', { d: 'M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3' } ]
+				] ],
+				'Режим и функции мониторинга': [ 'fragment', [
+					[ 'path', { d: 'M12 2v3m0 14v3M4.9 4.9 7 7m10 10 2.1 2.1M2 12h3m14 0h3M4.9 19.1 7 17m10-10 2.1-2.1' } ],
+					[ 'circle', { cx: 12, cy: 12, r: 5 } ]
+				] ],
+				'Уведомления': [ 'fragment', [
+					[ 'path', { d: 'M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4' } ]
+				] ],
+				'Управление ботом': [ 'fragment', [
+					[ 'rect', { x: 3, y: 7, width: 18, height: 13, rx: 3 } ],
+					[ 'path', { d: 'M12 3v4M8 13h.01M16 13h.01M9 17h6' } ]
+				] ],
+				'Подключение и инструменты': [ 'fragment', [
+					[ 'path', { d: 'M8 3v5m8-5v5M6 8h12v3a6 6 0 0 1-12 0V8ZM12 17v4' } ]
+				] ]
+			};
+			function cfgIcon() {
+				const spec = icons[title] || [ 'circle', { cx: 12, cy: 12, r: 8 } ];
+				const svg = SVG('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' });
+				if (spec[0] === 'fragment')
+					spec[1].forEach(([ tag, attrs ]) => svg.appendChild(SVG(tag, attrs)));
+				else
+					svg.appendChild(SVG(spec[0], spec[1]));
+				return svg;
+			}
+			return E('details', { class: 'nfm-cfg-g' + (cls ? ' ' + cls : ''), open: true }, [
+				E('summary', { class: 'nfm-cfg-head' }, [
+					E('span', { class: 'nfm-cfg-icon', 'aria-hidden': 'true' }, cfgIcon()),
+					E('span', { class: 'nfm-cfg-heading' }, title),
+					E('span', { class: 'nfm-cfg-chevron', 'aria-hidden': 'true' }, '⌄')
+				]),
+				E('div', { class: 'nfm-cfg-body' }, [
+					E('div', { class: 'nfm-cfg' }, keys.map(cfgField).filter(Boolean)),
+					extra || ''
+				])
 			]);
 		}
 		const cfgCard = card('Настройки предупреждений', E('div', {}, [
