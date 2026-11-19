@@ -14,7 +14,9 @@ ETC="${ROOT}/etc"
 TMP=${NF_TMP:-/tmp}
 CONF=${NF_CONF:-$ETC/nightfall-monitor.conf}
 MOUNTS=${NF_MOUNTS:-$ROOT/proc/mounts}
-TOOL_VERSION=1.27.8
+VERSION_FILE=${NF_VERSION_FILE:-$ROOT/www/luci-static/nightfall/version.json}
+TOOL_VERSION=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$VERSION_FILE" 2>/dev/null | head -n 1)
+[ -n "$TOOL_VERSION" ] || TOOL_VERSION=unknown
 BACKUP_KEEP=${NF_BACKUP_KEEP:-$(sed -n 's/^BACKUP_KEEP=//p' "$CONF" 2>/dev/null | head -n 1)}
 [ -n "$BACKUP_KEEP" ] || BACKUP_KEEP=5
 case "$BACKUP_KEEP" in ''|*[!0-9]*) BACKUP_KEEP=5 ;; esac
