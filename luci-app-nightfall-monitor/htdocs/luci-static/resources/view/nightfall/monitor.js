@@ -307,7 +307,11 @@ function sumMonitorAppTraffic(data, days, ip) {
 }
 
 function sumMonitorDeviceApps(data, deviceIps) {
-	const ips = deviceIps instanceof Set ? deviceIps : new Set((deviceIps || []).map(x => String(x).toLowerCase()));
+	const ips = new Set();
+	if (deviceIps && typeof deviceIps.forEach === 'function')
+		deviceIps.forEach(ip => ips.add(String(ip).toLowerCase()));
+	else if (Array.isArray(deviceIps))
+		deviceIps.forEach(ip => ips.add(String(ip).toLowerCase()));
 	const apps = {};
 	const bytes = value => {
 		const n = Number(value);
