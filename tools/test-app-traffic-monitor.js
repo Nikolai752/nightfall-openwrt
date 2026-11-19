@@ -6,7 +6,7 @@ const source = fs.readFileSync('luci-app-nightfall-monitor/htdocs/luci-static/re
 const start = source.indexOf('const APP_TRAFFIC_CATEGORIES =');
 const end = source.indexOf('\n/* ---------- widgets ---------- */', start);
 if (start < 0 || end < 0) throw new Error('application traffic classifier not found');
-const api = vm.runInNewContext(source.slice(start, end) + '\n;({ appTrafficCategory, appTrafficDisplayName, sumMonitorAppTraffic });');
+const api = vm.runInNewContext(source.slice(start, end) + '\n;({ appTrafficCategory, appTrafficDisplayName, sumMonitorAppTraffic, sumMonitorDeviceApps });');
 const check = (ok, message) => { if (!ok) throw new Error('FAIL: ' + message); };
 const data = {
   today: '20261118',
@@ -34,6 +34,22 @@ check(all.categories.find(x => x.name === 'Социальные сети').total
 check(all.categories.find(x => x.name === 'CDN и инфраструктура').total === 950, 'shared CDN stays infrastructure, not a social app');
 check(all.categories.find(x => x.name === 'Реклама и аналитика').total === 105, 'ad and analytics classification');
 check(all.categories.find(x => x.name === 'Не определено').total === 425, 'missing DNS and uncertain domains remain unclassified');
+const deviceApps = api.sumMonitorDeviceApps({
+  day: [
+    ['192.0.2.10', 'YouTube', 'Direct', 1000, 100],
+    ['2001:db8::10', 'YouTube', 'VPN', 2000, 200],
+    ['192.0.2.10', 'Broken route', 'Direct', 'Direct', 50],
+    ['192.0.2.99', 'Other device', 'VPN', 9000, 900]
+  ],
+  hist: [
+    ['20261117', '2001:db8::10', 'YouTube', 'VPN', 3000, 300],
+    ['20261117', '192.0.2.10', 'Legacy row', 400, 40]
+  ]
+}, new Set(['192.0.2.10', '2001:db8::10']));
+check(deviceApps.find(x => x[0] === 'YouTube')[1] === 6600, 'device app totals include all IPv4/IPv6 addresses and history');
+check(deviceApps.find(x => x[0] === 'Broken route')[1] === 50, 'route labels are not parsed as byte counts');
+check(deviceApps.find(x => x[0] === 'Legacy row')[1] === 440, 'legacy app row format remains readable');
+check(!deviceApps.some(x => x[0] === 'Other device'), 'device app filter excludes unrelated IPs');
 const one = api.sumMonitorAppTraffic(data, 7, '192.0.2.10');
 check(one.routes.VPN === 730, 'device filter VPN');
 check(one.routes.Direct === 1265, 'device filter Direct');
