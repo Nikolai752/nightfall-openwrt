@@ -212,10 +212,10 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 							const cards = Array.from(document.querySelectorAll('.nfm-grid > *')).map(el => {
 								const r = el.getBoundingClientRect(); return { right: r.right, scroll: el.scrollWidth, client: el.clientWidth };
 							});
-							return { card: root.getPropertyValue('--nfm-card').trim(), text: root.getPropertyValue('--nfm-text').trim(), accent: root.getPropertyValue('--nfm-accent').trim(), cards };
+							return { viewportWidth: window.innerWidth, card: root.getPropertyValue('--nfm-card').trim(), text: root.getPropertyValue('--nfm-text').trim(), accent: root.getPropertyValue('--nfm-accent').trim(), cards };
 						});
 						if (!result.card || !result.text || !result.accent) bad('тема ' + label + ' (' + id + '): не применились переменные Nightfall');
-						if (result.cards.some(x => x.right > innerWidth + 1 || x.scroll > x.client + 3)) bad('тема ' + label + ' (' + id + '): карточки истории выходят за границы');
+						if (result.cards.some(x => x.right > result.viewportWidth + 1 || x.scroll > x.client + 3)) bad('тема ' + label + ' (' + id + '): карточки истории выходят за границы');
 					}
 					await p.evaluate(() => { for (const k of [ '--nf-accent', '--nf-card', '--nf-card-alt', '--nf-stroke', '--text-color-highest', '--text-color-medium', '--nf-radius' ]) document.documentElement.style.removeProperty(k); document.documentElement.removeAttribute('data-darkmode'); });
 				}
