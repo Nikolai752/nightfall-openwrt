@@ -2033,7 +2033,7 @@ return view.extend({
 				return [ 'nightfall-traffic-' + stamp() + '.csv', [ [ 'Дата', 'Принято, байт', 'Отправлено, байт', 'Всего, байт' ] ].concat(r.map(x => { const d = trafficBytes(x[1]), u = trafficBytes(x[2]); return [ isoD(x[0]), d, u, d + u ]; })) ];
 			} ],
 			[ 'Приложения', () => {
-				const A = S.wkA; if (!A || !(A.hist || A.day || []).length) return null;
+				const A = S.wkA; if (!A || !((A.hist || []).length || (A.day || []).length)) return null;
 				const nm = {}; for (const mac in hints) for (const ip of (hints[mac].ipaddrs || [])) nm[ip] = hints[mac].name || '';
 				const t = /^\d{8}$/.test(String(A.today || '')) ? isoD(A.today) : stamp();
 				const out = [ [ 'Дата', 'Устройство (IP)', 'Имя', 'Приложение', 'Принято, байт', 'Отправлено, байт', 'Маршрут' ] ];
