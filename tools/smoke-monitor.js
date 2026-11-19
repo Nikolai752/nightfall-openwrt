@@ -1,6 +1,10 @@
 // Браузерный тест «Монитора ресурсов»: подставляет вместо LuCI имитацию и запускает настоящие скрипты роутера
 // (nightfall-stats, nightfall-sec, nightfall-diag) на заглушках; открывает каждую вкладку и проверяет, что она рисуется без ошибок.
-const { chromium } = require('playwright'); const fs = require('fs'); const os = require('os'); const path = require('path'); const cp = require('child_process');
+const { chromium } = require('playwright'); const fs = require('fs'); const os = require('os'); const path = require('path'); const cp = require('child_process'); const vm = require('vm');
+const THEME_SRC = fs.readFileSync(path.join(__dirname, '../luci-theme-nightfall/htdocs/luci-static/nightfall/nightfall.js'), 'utf8');
+const PRESET_START = THEME_SRC.indexOf('var PRESETS = ['), PRESET_END = THEME_SRC.indexOf('\n\t];', PRESET_START) + 4;
+if (PRESET_START < 0 || PRESET_END <= PRESET_START) throw new Error('Nightfall theme presets not found');
+const PRESETS = vm.runInNewContext(THEME_SRC.slice(PRESET_START, PRESET_END) + '\nPRESETS');
 const ROOT = path.join(__dirname, '..');
 const LIB = path.join(ROOT, 'luci-app-nightfall-monitor/root/usr/libexec');
 const SRC = fs.readFileSync(path.join(ROOT, 'luci-app-nightfall-monitor/htdocs/luci-static/resources/view/nightfall/monitor.js'), 'utf8');
@@ -143,6 +147,79 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				const o = await p.evaluate(() => document.querySelector('.nfm-diag-out').textContent);
 				if (!/Шлюз|Маршрут по умолчанию/.test(o)) bad(vn + ': проверка диагностики ничего не вывела: ' + o);
 			}
+			if (k === 'hist') {
+				const ht = await p.evaluate(() => document.body.textContent);
+				for (const w of [ 'Сводка за день', 'Сводка недели', 'Трафик по месяцам', 'Сравнение периодов', 'Тепловая карта по часам', 'Процессор, память, температура', 'Интернет: задержка', 'Качество связи', 'Скорость интернета (WAN)', 'Хранение истории и износ флеш-памяти', 'Экспорт данных в CSV', 'Накопители', 'Настройки предупреждений' ])
+					if (!ht.includes(w)) bad(vn + ': во вкладке «История» нет «' + w + '»');
+				if (/NaN|undefined|не число Б/.test(ht)) bad(vn + ': во вкладке «История» отображается некорректное числовое значение');
+				const geometry = await p.evaluate(() => {
+					const cards = Array.from(document.querySelectorAll('.nfm-grid > *')).map(el => {
+						const r = el.getBoundingClientRect();
+						return { right: r.right, width: r.width, scroll: el.scrollWidth, client: el.clientWidth };
+					});
+					const charts = Array.from(document.querySelectorAll('.nfm-history .nfm-chart')).map(el => {
+						const r = el.getBoundingClientRect();
+						return { width: r.width, height: r.height };
+					});
+					const switches = Array.from(document.querySelectorAll('.nfm-cfg-toggle input.nfm-toggle')).map(el => {
+						const r = el.getBoundingClientRect();
+						return { width: r.width, height: r.height };
+					});
+					return { viewportWidth: window.innerWidth, cards, charts, switches, cfgGroups: document.querySelectorAll('.nfm-cfg-layout > .nfm-cfg-g').length };
+				});
+				if (geometry.charts.length < 3 || geometry.charts.some(x => x.width < 80 || x.height < 60)) bad(vn + ': графики истории не получили корректный размер; найдено=' + geometry.charts.length + ', размеры=' + JSON.stringify(geometry.charts.map(x => ({ width: Math.round(x.width), height: Math.round(x.height) }))));
+				if (geometry.cards.some(x => x.right > geometry.viewportWidth + 1 || x.scroll > x.client + 3)) bad(vn + ': карточка истории выходит за границы или обрезает содержимое');
+				if (geometry.cfgGroups !== 6) bad(vn + ': сетка настроек истории должна содержать шесть основных групп');
+				if (geometry.switches.some(x => Math.abs(x.width - 40) > 1 || Math.abs(x.height - 23) > 1)) bad(vn + ': переключатели настроек имеют неправильный размер');
+				for (const dark of [ false, true ]) {
+					await p.evaluate(d => d ? document.documentElement.setAttribute('data-darkmode', 'true') : document.documentElement.removeAttribute('data-darkmode'), dark);
+					await p.evaluate(isDark => {
+						const root = document.documentElement.style;
+						root.setProperty('--nf-accent', '#1688f8');
+						root.setProperty('--nf-card', isDark ? '#202631' : '#ffffff');
+						root.setProperty('--nf-card-alt', isDark ? '#293342' : '#f1f4f8');
+						root.setProperty('--nf-stroke', isDark ? '#424a58' : '#d6dce5');
+						root.setProperty('--text-color-highest', isDark ? '#f5f7fb' : '#20242b');
+						root.setProperty('--text-color-medium', isDark ? '#aab2c0' : '#687181');
+						root.setProperty('--nf-radius', '12px');
+					}, dark);
+					const chartCount = await p.locator('.nfm-history .nfm-chart').count();
+					if (chartCount < 3) bad(vn + ': графики исчезли в ' + (dark ? 'тёмном' : 'светлом') + ' режиме');
+				}
+				await p.evaluate(() => { for (const k of [ '--nf-accent', '--nf-card', '--nf-card-alt', '--nf-stroke', '--text-color-highest', '--text-color-medium', '--nf-radius' ]) document.documentElement.style.removeProperty(k); document.documentElement.removeAttribute('data-darkmode'); });
+				await p.screenshot({ path: path.join(OUT, 'monitor-history-' + vn + '.png'), fullPage: true });
+				if (vn === 'desktop') {
+					for (const [id, label, preset] of PRESETS) {
+						const darkPreset = preset.mode === 'dark';
+						const accent = preset.accent || (darkPreset ? '#60cdff' : '#0067c0');
+						const bg = preset.cusBg || (darkPreset ? '#2b2b2b' : '#fcfcfc');
+						const card = preset.cusCard || (darkPreset ? '#333333' : '#f3f3f3');
+						const text = preset.cusText || (darkPreset ? '#f2f2f2' : '#202020');
+						const radius = preset.cusRadius != null ? preset.cusRadius : preset.radius === 'round' ? 16 : preset.radius === 'sharp' ? 4 : 8;
+						await p.evaluate(v => {
+							const root = document.documentElement, style = root.style;
+							if (v.dark) root.setAttribute('data-darkmode', 'true'); else root.removeAttribute('data-darkmode');
+							style.setProperty('--nf-accent', v.accent);
+							style.setProperty('--nf-card', v.card);
+							style.setProperty('--nf-card-alt', v.bg);
+						style.setProperty('--nf-stroke', v.dark ? 'rgba(255,255,255,.14)' : 'rgba(0,0,0,.12)');
+						style.setProperty('--text-color-highest', v.text);
+						style.setProperty('--text-color-medium', v.dark ? '#aab2c0' : '#687181');
+						style.setProperty('--nf-radius', v.radius + 'px');
+						}, { dark: darkPreset, accent, card, bg, text, radius });
+						const result = await p.evaluate(() => {
+							const root = getComputedStyle(document.querySelector('.nfm'));
+							const cards = Array.from(document.querySelectorAll('.nfm-grid > *')).map(el => {
+								const r = el.getBoundingClientRect(); return { right: r.right, scroll: el.scrollWidth, client: el.clientWidth };
+							});
+							return { viewportWidth: window.innerWidth, card: root.getPropertyValue('--nfm-card').trim(), text: root.getPropertyValue('--nfm-text').trim(), accent: root.getPropertyValue('--nfm-accent').trim(), cards };
+						});
+						if (!result.card || !result.text || !result.accent) bad('тема ' + label + ' (' + id + '): не применились переменные Nightfall');
+						if (result.cards.some(x => x.right > result.viewportWidth + 1 || x.scroll > x.client + 3)) bad('тема ' + label + ' (' + id + '): карточки истории выходят за границы');
+					}
+					await p.evaluate(() => { for (const k of [ '--nf-accent', '--nf-card', '--nf-card-alt', '--nf-stroke', '--text-color-highest', '--text-color-medium', '--nf-radius' ]) document.documentElement.style.removeProperty(k); document.documentElement.removeAttribute('data-darkmode'); });
+				}
+			}
 			if (k === 'devs') {
 				const dt = await p.evaluate(() => document.body.textContent);
 				for (const w of [ 'Кто дома', 'Необычная активность' ]) if (!dt.includes(w)) bad(vn + ': в «Устройствах» нет «' + w + '»');
@@ -204,6 +281,8 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				await p.click('tr.nfm-rowlink >> nth=0'); await p.waitForTimeout(1200);
 				const mt = await p.evaluate(() => (document.getElementById('mock-modal') || { textContent: '' }).textContent);
 				if (!mt.includes('Трафик за 14 дней') || !mt.includes('192.168.1.20') || !mt.includes('Впервые замечено')) bad(vn + ': карточка устройства не открылась: ' + mt.slice(0, 120));
+				if (/NaN|undefined|не число Б/.test(mt)) bad(vn + ': карточка устройства содержит нечисловой трафик');
+				if (!/МБ|ГБ|КБ|Б/.test(mt)) bad(vn + ': карточка устройства не отформатировала объём трафика');
 				await p.screenshot({ path: path.join(OUT, 'monitor-devcard-' + vn + '.png') });
 				await p.evaluate(() => { const d = document.getElementById('mock-modal'); if (d) d.remove(); });
 			}

@@ -68,13 +68,34 @@ const GROUPS = [
 	[ /^(procd|ubusd|netifd|logd|odhcp|crond|ntpd|busybox|sh$|ash$|init|syslog|dnsmasq-|fw4|nft|rngd|urngd|ubox|swconfig|hotplug|sleep|awk|cat)/, 'OpenWrt', 'g7' ]
 ];
 
+function normalizeMonitorIp(ip) {
+	const value = String(ip || '').toLowerCase().split('%')[0];
+	if (value.indexOf(':') < 0) return value;
+	const halves = value.split('::');
+	if (halves.length > 2) return value;
+	const a = halves[0] ? halves[0].split(':') : [];
+	const b = halves.length > 1 && halves[1] ? halves[1].split(':') : [];
+	if (halves.length === 1 && a.length !== 8) return value;
+	const mid = halves.length > 1 ? new Array(Math.max(0, 8 - a.length - b.length)).fill('0') : [];
+	return a.concat(mid, b).map(g => g.padStart(4, '0')).join(':');
+}
+
+function trafficBytes(value) {
+	const n = Number(value);
+	return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
 function fmtMB(kb) {
+	kb = Number(kb);
+	if (!Number.isFinite(kb) || kb < 0) return '—';
 	const mb = kb / 1024;
 	if (mb >= 1024) return nf2.format(mb / 1024) + ' ГБ';
 	return (mb >= 100 ? nf0 : nf1).format(mb) + ' МБ';
 }
 
 function fmtBytes(b) {
+	b = Number(b);
+	if (!Number.isFinite(b) || b < 0) return '—';
 	const u = [ 'Б', 'КБ', 'МБ', 'ГБ', 'ТБ' ];
 	let i = 0;
 	while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
@@ -82,6 +103,8 @@ function fmtBytes(b) {
 }
 
 function fmtRate(bps) {
+	bps = Number(bps);
+	if (!Number.isFinite(bps) || bps < 0) return [ '—', '' ];
 	const bits = bps * 8;
 	if (bits >= 1e9) return [ nf2.format(bits / 1e9), 'Гбит/с' ];
 	if (bits >= 1e6) return [ (bits >= 1e8 ? nf0 : nf1).format(bits / 1e6), 'Мбит/с' ];
@@ -91,15 +114,20 @@ function fmtRate(bps) {
 
 function rateText(bps) {
 	const r = fmtRate(bps);
-	return r[0] + ' ' + r[1];
+	return r[1] ? r[0] + ' ' + r[1] : r[0];
 }
 
 function fmtUptime(s) {
+	s = Number(s);
+	if (!Number.isFinite(s) || s < 0) return '—';
 	const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
 	return (d ? d + ' д ' : '') + h + ' ч ' + m + ' мин';
 }
 
-function fmtTemp(v) { return nf1.format(v) + ' °C'; }
+function fmtTemp(v) {
+	v = Number(v);
+	return Number.isFinite(v) ? nf1.format(v) + ' °C' : '—';
+}
 
 function niceCeil(v) {
 	if (v <= 0) return 1;
@@ -194,6 +222,29 @@ const XCSS = `
 .nfm-app-category > summary small { grid-column:6; grid-row:2; }
 }
 @media (max-width: 640px) { .nfm-mini, .nfm-btn, .nfm-act, .nfm-tab { min-height: 40px; } .nfm-app-toolbar { justify-content:stretch; } .nfm-app-toolbar .nfm-sel { flex:1 1 140px; min-width:0; max-width:100%; } .nfm-mini, .nfm-btn, .nfm-act, .nfm-tab { min-height: 40px; } .nfm-jr { grid-template-columns: 22px minmax(0, 1fr) auto; align-items: start; row-gap: 2px; } .nfm-jr .ic { grid-column: 1; grid-row: 1; } .nfm-jr time { grid-column: 2 / -1; grid-row: 1; } .nfm-jr > span:not(.ic) { grid-column: 2; grid-row: 2; min-width: 0; overflow-wrap: anywhere; } .nfm-jr b { grid-column: 3; grid-row: 2; } .nfm-svc { grid-template-columns: 12px minmax(0, 1fr); } .nfm-svc .ac { grid-column: 1 / -1; justify-content: flex-start; } }
+/* History layout: keep the monitor's shared Fluent surfaces and theme tokens. */
+.nfm-history { display:grid; gap:12px; min-width:0; }
+.nfm-history > .nfm-grid { min-width:0; margin:0; gap:12px; }
+.nfm-history .nfm-card { min-width:0; }
+.nfm-history .nfm-card-title { min-width:0; }
+.nfm-history .nfm-chart { min-width:0; }
+.nfm-history .nfm-exp { align-items:stretch; }
+.nfm-history .nfm-exp .nfm-btn { flex:0 1 auto; min-width:0; }
+.nfm-history .nfm-cmp-t { min-width:0; }
+.nfm-history .nfm-note-s { overflow-wrap:anywhere; }
+@media (max-width:860px) {
+ .nfm-history .nfm-g21 { grid-template-columns:minmax(0,1fr); }
+}
+@media (max-width:640px) {
+ .nfm-history { gap:10px; }
+ .nfm-history > .nfm-grid { gap:10px; }
+ .nfm-history .nfm-card { padding:13px 12px; }
+ .nfm-history .nfm-exp { display:grid; grid-template-columns:minmax(0,1fr); }
+ .nfm-history .nfm-exp .nfm-btn { width:100%; justify-content:center; }
+ .nfm-history .nfm-cmp-t { grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr) 58px; font-size:11.5px; }
+ .nfm-history .nfm-cmp-t > div { padding:7px 4px; }
+
+}
 `;
 
 function SVG(tag, attrs, children) {
@@ -275,10 +326,17 @@ function appTrafficDisplayName(name) {
 
 function sumMonitorAppTraffic(data, days, ip) {
 	const apps = {}, categories = {}, routes = { VPN: 0, Direct: 0, Unknown: 0 }, devices = {};
+	const selectedIps = new Set();
+	if (ip && typeof ip.forEach === 'function') ip.forEach(x => selectedIps.add(normalizeMonitorIp(x)));
+	else if (ip) selectedIps.add(normalizeMonitorIp(ip));
+	const bytes = value => {
+		const n = Number(value);
+		return Number.isFinite(n) && n > 0 ? n : 0;
+	};
 	const add = (addr, name, route, down, up) => {
 		route = [ 'VPN', 'Direct', 'Unknown' ].includes(route) ? route : 'Unknown';
-		const d = Math.max(0, Number(down) || 0), u = Math.max(0, Number(up) || 0), total = d + u;
-		if (ip && addr !== ip) return;
+		const d = bytes(down), u = bytes(up), total = d + u;
+		if (selectedIps.size && !selectedIps.has(normalizeMonitorIp(addr))) return;
 		const a = apps[name] || (apps[name] = { name, category: appTrafficCategory(name), down: 0, up: 0, total: 0, routes: {} });
 		a.down += d; a.up += u; a.total += total; a.routes[route] = (a.routes[route] || 0) + total;
 		const c = categories[a.category] || (categories[a.category] = { name: a.category, total: 0, apps: {} });
@@ -296,6 +354,94 @@ function sumMonitorAppTraffic(data, days, ip) {
 	}
 	return { apps: Object.values(apps).sort((a, b) => b.total - a.total), categories: Object.values(categories).sort((a, b) => b.total - a.total), routes, devices,
 		total: routes.VPN + routes.Direct + routes.Unknown };
+}
+
+function sumMonitorDeviceApps(data, deviceIps) {
+	const ips = new Set();
+	if (deviceIps && typeof deviceIps.forEach === 'function')
+		deviceIps.forEach(ip => ips.add(normalizeMonitorIp(ip)));
+	else if (Array.isArray(deviceIps))
+		deviceIps.forEach(ip => ips.add(normalizeMonitorIp(ip)));
+	const apps = {};
+	const bytes = value => {
+		const n = Number(value);
+		return Number.isFinite(n) && n > 0 ? n : 0;
+	};
+	const add = (name, down, up) => {
+		const total = bytes(down) + bytes(up);
+		if (name && total > 0) apps[name] = (apps[name] || 0) + total;
+	};
+	/* apps.day: [ip, app, route, down, up] */
+	for (const row of data && data.day || []) {
+		if (!ips.has(normalizeMonitorIp(row[0]))) continue;
+		if (row.length >= 5) add(row[1], row[3], row[4]);
+		else add(row[1], row[2], row[3]);
+	}
+	/* apps.hist: [date, ip, app, route, down, up] */
+	for (const row of data && data.hist || []) {
+		if (!ips.has(normalizeMonitorIp(row[1]))) continue;
+		if (row.length >= 6) add(row[2], row[4], row[5]);
+		else add(row[2], row[3], row[4]);
+	}
+	return Object.entries(apps).sort((a, b) => b[1] - a[1]);
+}
+
+function sumMonitorAppDeviceTraffic(data, fromDate, hints, routerIps) {
+	const candidates = {}, ipMac = {}, totals = {};
+	for (const mac in hints || {}) {
+		const hint = hints[mac] || {};
+		for (const ip of (hint.ipaddrs || []).concat(hint.ip6addrs || [])) {
+			const key = normalizeMonitorIp(ip);
+			(candidates[key] || (candidates[key] = [])).push(String(mac).toUpperCase());
+		}
+	}
+	for (const ip in candidates) if (candidates[ip].length === 1) ipMac[ip] = candidates[ip][0];
+	const add = (ip, down, up) => {
+		const norm = normalizeMonitorIp(ip);
+		const mac = ipMac[norm] || '';
+		const key = routerIps && routerIps.has && routerIps.has(ip) ? 'router' : mac || 'ip:' + norm;
+		const row = totals[key] || (totals[key] = { key, mac, ip, total: 0 });
+		row.total += trafficBytes(down) + trafficBytes(up);
+	};
+	for (const row of data && data.day || []) add(row[0], row.length >= 5 ? row[3] : row[2], row.length >= 5 ? row[4] : row[3]);
+	for (const row of data && data.hist || []) {
+		if (Number(row[0]) < Number(fromDate)) continue;
+		add(row[1], row.length >= 6 ? row[4] : row[3], row.length >= 6 ? row[5] : row[4]);
+	}
+	return Object.values(totals).filter(row => row.total > 0).sort((a, b) => b.total - a.total);
+}
+
+function sumMonitorDeviceDailyTraffic(rows, hints, neighbours, wifi, routerIps) {
+	const candidates = {}, ipMac = {}, totals = {};
+	for (const mac in hints || {}) {
+		const hint = hints[mac] || {};
+		for (const ip of (hint.ipaddrs || []).concat(hint.ip6addrs || [])) {
+			const key = normalizeMonitorIp(ip);
+			(candidates[key] || (candidates[key] = new Set())).add(String(mac).toUpperCase());
+		}
+	}
+	for (const ip in candidates) if (candidates[ip].size === 1) ipMac[ip] = Array.from(candidates[ip])[0];
+	const active = new Set((wifi || []).map(row => String(row.mac || '').toUpperCase()).filter(Boolean));
+	for (const [ip, mac] of neighbours || []) {
+		const key = normalizeMonitorIp(ip), value = String(mac || '').toUpperCase();
+		if (value && (active.has(value) || !ipMac[key])) ipMac[key] = value;
+	}
+	for (const [ip, down, up] of rows || []) {
+		if (routerIps && routerIps.has && routerIps.has(ip)) continue;
+		const norm = normalizeMonitorIp(ip), mac = ipMac[norm] || '', key = mac || 'ip:' + norm;
+		const row = totals[key] || (totals[key] = { mac, ip, total: 0 });
+		row.total += trafficBytes(down) + trafficBytes(up);
+		if (row.ip.indexOf(':') >= 0 && String(ip).indexOf(':') < 0) row.ip = ip;
+	}
+	return Object.values(totals).filter(row => row.total > 0).sort((a, b) => b.total - a.total);
+}
+
+function monitorDeviceOwnsHistoricalRow(deviceMac, deviceIps, rowIp, rowMac) {
+	const mac = String(deviceMac || '').toUpperCase();
+	const historicalMac = String(rowMac || '').toUpperCase();
+	/* Наличие MAC в архиве запрещает fallback по IP: адрес мог перейти другому клиенту. */
+	if (historicalMac && historicalMac !== '-') return !!mac && historicalMac === mac;
+	return !!rowIp && !!deviceIps && deviceIps.has(normalizeMonitorIp(rowIp));
 }
 
 /* ---------- widgets ---------- */
@@ -766,46 +912,37 @@ const CSS = `
   .nfm-card-title > .nfm-spacer { flex: 0 0 100%; height: 0; margin: 0; }
   .nfm-card-title > .nfm-note-s, .nfm-card-title > .nfm-legend { flex: 1 0 100%; }
 }
-.nfm-cfg-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; align-items:start; }
-.nfm-cfg-col { display:grid; gap:14px; min-width:0; align-content:start; }
-.nfm-cfg-groups { display:grid; gap:14px; min-width:0; }
-.nfm-cfg-g { border:1px solid var(--nfm-border); border-radius:var(--nfm-r); background:var(--nfm-card2); padding:0; min-width:0; overflow:hidden; align-self:start; }
+.nfm-cfg-layout { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; align-items:stretch; }
+.nfm-cfg-g { border:1px solid var(--nfm-border); border-radius:var(--nfm-r); background:var(--nfm-card2); padding:0; min-width:0; overflow:hidden; align-self:stretch; }
 .nfm-cfg-head { display:flex; align-items:center; gap:10px; min-height:52px; margin:0; padding:9px 14px; list-style:none; cursor:pointer; color:var(--nfm-text); font-size:13px; font-weight:700; background:linear-gradient(100deg,var(--nfm-card2),var(--nfm-card)); border-bottom:1px solid transparent; }
 .nfm-cfg-head::-webkit-details-marker { display:none; }
 .nfm-cfg-g[open] > .nfm-cfg-head { border-bottom-color:var(--nfm-border); }
 .nfm-cfg-icon { display:grid; place-items:center; flex:0 0 32px; width:32px; height:32px; border-radius:10px; color:var(--blue,#1688f8); background:color-mix(in srgb,var(--blue,#1688f8) 14%,var(--nfm-card)); }
 .nfm-cfg-icon svg { display:block; width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
 .nfm-cfg-heading { min-width:0; flex:1; }
-.nfm-cfg-chevron { color:var(--nfm-dim); font-size:17px; transition:transform .18s ease; }
+.nfm-cfg-chevron { color:var(--nfm-dim); font-size:17px; transition:transform .18s ease; flex:none; }
 .nfm-cfg-g:not([open]) .nfm-cfg-chevron { transform:rotate(-90deg); }
-.nfm-cfg-body { padding:13px 14px 15px; }
-.nfm-cfg-g .nfm-cfg { grid-template-columns:minmax(0,1fr); gap:10px; }
+.nfm-cfg-body { padding:13px 14px 15px; min-width:0; }
+.nfm-cfg-g .nfm-cfg { grid-template-columns:minmax(0,1fr); gap:10px; align-content:start; }
 .nfm-cfg-telegram { margin-top:14px; }
-.nfm-tg-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; align-items:start; }
+.nfm-tg-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; align-items:stretch; }
 .nfm-tg-grid .nfm-cfg-g { background:var(--nfm-card); }
-.nfm-cfg-i.nfm-cfg-toggle { flex-direction:row; align-items:center; justify-content:space-between; gap:12px; min-height:34px; color:var(--nfm-text); }
-.nfm-cfg-toggle .nfm-cfg-f { flex:0 0 auto; }
-.nfm-toggle { appearance:none; -webkit-appearance:none; position:relative; width:40px; min-width:40px; height:23px; margin:0; border:1px solid var(--nfm-border); border-radius:99px; background:var(--nfm-card2); cursor:pointer; transition:background .18s ease,border-color .18s ease; }
-.nfm-toggle::before { content:''; position:absolute; top:2px; left:2px; width:17px; height:17px; border-radius:50%; background:var(--nfm-dim); transition:transform .18s ease,background .18s ease; }
-.nfm-toggle:checked { background:var(--blue,#1688f8); border-color:var(--blue,#1688f8); }
-.nfm-toggle:checked::before { transform:translateX(17px); background:#fff; }
-.nfm-toggle:focus-visible { outline:2px solid var(--blue,#1688f8); outline-offset:2px; }
-@media (max-width:900px) {
-  .nfm-cfg-layout { grid-template-columns:minmax(0,1fr); }
-  .nfm-tg-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-}
-@media (max-width:600px) {
-  .nfm-tg-grid { grid-template-columns:minmax(0,1fr); }
-  .nfm-cfg-head { min-height:48px; padding:8px 11px; }
-  .nfm-cfg-body { padding:11px; }
-}
+.nfm-tg-grid .nfm-cfg-body { height:100%; box-sizing:border-box; }
+.nfm-cfg-i.nfm-cfg-toggle { display:flex; flex-direction:row; align-items:center; justify-content:space-between; gap:12px; min-height:38px; width:100%; min-width:0; box-sizing:border-box; color:var(--nfm-text); line-height:1.35; }
+.nfm-cfg-toggle .nfm-cfg-f { display:flex; flex:0 0 44px; width:44px; min-width:44px; justify-content:flex-end; align-items:center; margin-left:auto; }
+.nfm-cfg-i.nfm-cfg-toggle > .nfm-cfg-f > input.nfm-toggle[type="checkbox"] { appearance:none !important; -webkit-appearance:none !important; display:block !important; position:relative; flex:0 0 40px; width:40px !important; min-width:40px !important; max-width:40px; height:23px !important; min-height:23px; padding:0 !important; margin:0 !important; border:1px solid var(--nfm-border) !important; border-radius:99px !important; background:var(--nfm-card2) !important; box-shadow:none !important; cursor:pointer; }
+.nfm-cfg-i.nfm-cfg-toggle > .nfm-cfg-f > input.nfm-toggle[type="checkbox"]::before { content:''; position:absolute; top:2px; left:2px; width:17px; height:17px; border:0; border-radius:50%; background:var(--nfm-dim); transform:none; transition:transform .18s ease,background .18s ease; }
+.nfm-cfg-i.nfm-cfg-toggle > .nfm-cfg-f > input.nfm-toggle[type="checkbox"]:checked { background:var(--blue,#1688f8) !important; border-color:var(--blue,#1688f8) !important; }
+.nfm-cfg-i.nfm-cfg-toggle > .nfm-cfg-f > input.nfm-toggle[type="checkbox"]:checked::before { transform:translateX(17px); background:#fff; }
+.nfm-cfg-i.nfm-cfg-toggle > .nfm-cfg-f > input.nfm-toggle[type="checkbox"]:focus-visible { outline:2px solid var(--blue,#1688f8); outline-offset:2px; }
 .nfm-cfg-actions { position:sticky; bottom:8px; z-index:4; display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:14px -2px 0; padding:10px; border:1px solid var(--nfm-border); border-radius:var(--nfm-r); background:var(--nfm-card); box-shadow:0 8px 24px rgba(30,70,120,.12); backdrop-filter:blur(16px); }
+.nfm-cfg-actions .nfm-act { min-height:36px; white-space:normal; }
 .nfm-cfg-actions .nfm-act:first-child { background:var(--blue,#1688f8); color:#fff; border-color:transparent; }
 .nfm-cfg-help { margin-top:10px; color:var(--nfm-dim); font-size:12px; }
 .nfm-cfg-help summary { cursor:pointer; color:var(--nfm-text); font-weight:600; padding:6px 0; }
 .nfm-cfg-help > div { padding:8px 0 2px; line-height:1.55; }
-@media (max-width:900px) { .nfm-tg-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media (max-width:680px) { .nfm-cfg-layout,.nfm-tg-grid { grid-template-columns:minmax(0,1fr); } .nfm-cfg-actions { position:static; } }
+@media (max-width:900px) { .nfm-cfg-layout { grid-template-columns:repeat(2,minmax(0,1fr)); } .nfm-tg-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:680px) { .nfm-cfg-layout,.nfm-tg-grid { grid-template-columns:minmax(0,1fr); } .nfm-cfg-head { min-height:48px; padding:8px 11px; } .nfm-cfg-body { padding:11px; } .nfm-cfg-actions { position:static; } .nfm-cfg-actions .nfm-act { flex:1 1 100%; } }
 .nfm-table .r { text-align: right; font-variant-numeric: tabular-nums; }
 .nfm-chip { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 99px; background: var(--nfm-card2); border: 1px solid var(--nfm-border); color: var(--nfm-dim); margin-left: 6px; }
 .nfm-rate { display: flex; align-items: baseline; gap: 6px; }
@@ -1245,8 +1382,8 @@ return view.extend({
 			[ 'CT_MAX_PCT', 'Таблица соединений заполнена', '%' ], [ 'CPU_MAX_PCT', 'Загрузка процессора', '%' ],
 			[ 'CPU_MINUTES', '…и держится дольше', 'мин' ],
 			[ 'PING_TARGET', 'Проверка интернета: адрес 1', '', 'text' ], [ 'PING_TARGET2', 'Проверка интернета: адрес 2', '', 'text' ],
-			[ 'PERSIST_DIR', 'Папка для сохранения истории', '', 'text', '— только в памяти —' ],
-			[ 'PERSIST_HOURS', 'Сохранять историю на накопитель', 'ч' ], [ 'HIST_DAYS', 'Длинная история (шаг 30 мин), суток 7–90', 'сут' ], [ 'BACKUP_KEEP', 'Хранить резервных копий на USB/SD (1–20)', 'шт' ], [ 'PERSIST_ANY', 'Разрешить сохранение на встроенный накопитель (0/1)', '' ], [ 'JOURNAL', 'Журнал обрывов и перезагрузок (0/1)', '' ], [ 'WIFI_HIST', 'История сигнала Wi-Fi (0/1)', '' ],
+			[ 'PERSIST_DIR', 'Папка для сохранения истории', '', 'text', 'например /mnt/sda1/nightfall; /overlay — только с разрешением' ],
+			[ 'PERSIST_HOURS', 'Сохранять историю на накопитель', 'ч' ], [ 'HIST_DAYS', 'Длинная история (шаг 30 мин), суток 7–90', 'сут' ], [ 'BACKUP_KEEP', 'Хранить резервных копий на USB/SD (1–20)', 'шт' ], [ 'PERSIST_ANY', 'Разрешить запись во внутреннюю флеш-память (износ и свободное место)', '' ], [ 'JOURNAL', 'Журнал обрывов и перезагрузок (0/1)', '' ], [ 'WIFI_HIST', 'История сигнала Wi-Fi (0/1)', '' ],
 			[ 'SPEED_URL', 'Файл для замера скорости', '', 'text' ], [ 'SPEED_STREAMS', 'Потоков при замере скорости (1–8)', '' ],
 			[ 'NEWDEV', 'Сообщать о новых устройствах (0/1)', '' ],
 			[ 'LITE', 'Режим Lite для слабого роутера: опрос раз в 60 с, без учёта по приложениям и истории Wi‑Fi (0/1)', '' ],
@@ -1390,16 +1527,12 @@ return view.extend({
 		}
 		const cfgCard = card('Настройки предупреждений', E('div', {}, [
 			E('div', { class: 'nfm-cfg-layout' }, [
-				E('div', { class: 'nfm-cfg-col' }, [
-					cfgGroup('Температура и память', [ 'TEMP_WARN', 'TEMP_CRIT', 'MEM_MIN_PCT', 'FLASH_MAX_PCT' ]),
-					cfgGroup('Проверка интернета', [ 'PING_TARGET', 'PING_TARGET2' ]),
-					cfgGroup('Хранение истории и резервные копии', [ 'PERSIST_DIR', 'PERSIST_HOURS', 'HIST_DAYS', 'BACKUP_KEEP', 'PERSIST_ANY', 'JOURNAL', 'WIFI_HIST' ])
-				]),
-				E('div', { class: 'nfm-cfg-col' }, [
-					cfgGroup('Процессор и соединения', [ 'CPU_MAX_PCT', 'CPU_MINUTES', 'CT_MAX_PCT' ]),
-					cfgGroup('Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ]),
-					cfgGroup('Режим и функции мониторинга', [ 'LITE', 'APPS', 'NEWDEV' ])
-				])
+				cfgGroup('Температура и память', [ 'TEMP_WARN', 'TEMP_CRIT', 'MEM_MIN_PCT', 'FLASH_MAX_PCT' ]),
+				cfgGroup('Процессор и соединения', [ 'CPU_MAX_PCT', 'CPU_MINUTES', 'CT_MAX_PCT' ]),
+				cfgGroup('Проверка интернета', [ 'PING_TARGET', 'PING_TARGET2' ]),
+				cfgGroup('Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ]),
+				cfgGroup('Хранение истории и резервные копии', [ 'PERSIST_DIR', 'PERSIST_HOURS', 'HIST_DAYS', 'BACKUP_KEEP', 'PERSIST_ANY', 'JOURNAL', 'WIFI_HIST' ]),
+				cfgGroup('Режим и функции мониторинга', [ 'LITE', 'APPS', 'NEWDEV' ])
 			]),
 			E('section', { class: 'nfm-cfg-g nfm-cfg-telegram' }, [
 				E('h4', {}, 'Telegram — уведомления и управление'),
@@ -1424,7 +1557,7 @@ return view.extend({
 			backupMsg,
 			E('details', { class: 'nfm-cfg-help' }, [
 				E('summary', {}, 'Справка по настройкам'),
-				E('div', {}, 'Для честного разделения трафика укажите известные VPN-серверы в формате IP:порт (через запятую): их внешний трафик будет показан как «VPN». Содержимое внутри зашифрованного туннеля определить нельзя. Пустой адрес 1 отключает проверку интернета. История и резервные копии хранятся на подключённом USB/SD; копии лежат в отдельной папке nightfall-backups, количество задаётся выше. Если USB отключён, резервная копия временно создаётся в /tmp. После сохранения сборщик перезапускается, накопленная история не теряется.')
+				E('div', {}, 'Для честного разделения трафика укажите известные VPN-серверы в формате IP:порт (через запятую): их внешний трафик будет показан как «VPN». Содержимое внутри зашифрованного туннеля определить нельзя. Пустой адрес 1 отключает проверку интернета. Историю безопаснее хранить на USB/SD. Путь внутри /overlay разрешается только при включённом переключателе внутренней флеш-памяти: это ускоряет износ и может заполнить системный раздел, поэтому оставляйте запас свободного места. Корневой / и /rom всегда запрещены. Резервные копии лежат отдельно в nightfall-backups; если USB отключён, копия временно создаётся в /tmp. После сохранения сборщик перезапускается, накопленная история не теряется.')
 			])
 		]));
 		const jrnTiles = E('div', { class: 'nfm-tiles t4', style: 'margin-bottom:10px' }, [ [ 'jCnt', 'обрывов за 7 дней' ], [ 'jSum', 'без связи суммарно' ], [ 'jAv', 'доступность' ], [ 'jBoot', 'последняя загрузка' ] ]
@@ -1740,8 +1873,8 @@ return view.extend({
 			let ps = 0, pc = 0;
 			for (const r of D.h.rows || []) {
 				const d = new Date(r[0] * 1000), h = d.getHours();
-				if (r[4] >= 0 && r[5] >= 0) { hs[h] += r[4] + r[5]; hc[h]++; }
-				if (r[7] >= 0) { ps += r[7]; pc++; const k = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(), t = byDay[k] || (byDay[k] = [ 0, 0 ]); t[0] += r[7]; t[1]++; }
+				if (r[4] >= 0 && r[5] >= 0) { hs[h] += trafficBytes(r[4]) + trafficBytes(r[5]); hc[h]++; }
+				if (r[7] >= 0) { const ping = trafficBytes(r[7]); ps += ping; pc++; const k = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(), t = byDay[k] || (byDay[k] = [ 0, 0 ]); t[0] += ping; t[1]++; }
 			}
 			const av = hs.map((x, i) => hc[i] ? x / hc[i] : 0);
 			let bi = -1, bv = 0;
@@ -1751,17 +1884,14 @@ return view.extend({
 			/* тяжёлое устройство */
 			let heavy = [ '—', 'учёт по приложениям не включён или данных ещё нет' ];
 			const A = S.wkA;
-			if (A && (A.hist || A.day)) {
+			if (A && ((A.hist || []).length || (A.day || []).length)) {
 				const t = String(A.today || ''), base = /^\d{8}$/.test(t) ? new Date(+t.slice(0, 4), +t.slice(4, 6) - 1, +t.slice(6, 8)) : new Date();
 				base.setDate(base.getDate() - 6);
-				const from = base.getFullYear() * 10000 + (base.getMonth() + 1) * 100 + base.getDate(), tot = {};
-				for (const [ ip, , d, u ] of A.day || []) tot[ip] = (tot[ip] || 0) + d + u;
-				for (const [ dt, ip, , d, u ] of A.hist || []) if (+dt >= from) tot[ip] = (tot[ip] || 0) + d + u;
-				const ips = Object.keys(tot).filter(ip => !routerIps.has(ip)).sort((x, y) => tot[y] - tot[x]);
-				if (ips.length) {
-					let nmv = ips[0];
-					for (const mac in hints) if ((hints[mac].ipaddrs || []).indexOf(ips[0]) >= 0) nmv = hints[mac].name || ips[0];
-					heavy = [ nmv, fmtBytes(tot[ips[0]]) + ' за неделю' + (ips[1] ? ' · дальше ' + fmtBytes(tot[ips[1]]) : '') ];
+				const from = base.getFullYear() * 10000 + (base.getMonth() + 1) * 100 + base.getDate();
+				const top = sumMonitorAppDeviceTraffic(A, from, hints, routerIps).filter(row => row.key !== 'router');
+				if (top.length) {
+					const name = row => row.mac ? ((hints[row.mac] || hints[row.mac.toLowerCase()] || {}).name || row.ip) : names[row.ip] || row.ip;
+					heavy = [ name(top[0]), fmtBytes(top[0].total) + ' за неделю' + (top[1] ? ' · дальше ' + fmtBytes(top[1].total) : '') ];
 				}
 			}
 			/* пинг */
@@ -1782,7 +1912,7 @@ return view.extend({
 			const { y, m } = S.mon, dim = new Date(y, m + 1, 0).getDate(), first = (new Date(y, m, 1).getDay() + 6) % 7;
 			const pre = String(y) + String(m + 1).padStart(2, '0'), by = {};
 			let rx = 0, tx = 0, mx = 1, days = 0, viaDev = 0;
-			for (const r of T.rows || []) if (r[0].indexOf(pre) === 0) { const d = +r[0].slice(6, 8); by[d] = r; rx += r[1]; tx += r[2]; mx = Math.max(mx, r[1] + r[2]); days++; if (r[3] === 1) viaDev++; }
+			for (const r of T.rows || []) if (r[0].indexOf(pre) === 0) { const d = +r[0].slice(6, 8), down = trafficBytes(r[1]), up = trafficBytes(r[2]); by[d] = [ r[0], down, up, r[3] ]; rx += down; tx += up; mx = Math.max(mx, down + up); days++; if (r[3] === 1) viaDev++; }
 			const cur = y === now.getFullYear() && m === now.getMonth(), elapsed = cur ? now.getDate() : dim, total = rx + tx;
 			const avg = days ? total / Math.max(1, Math.min(days, elapsed)) : 0, fc = cur ? total + avg * (dim - elapsed) : total;
 			const step = k => { const d = new Date(y, m + k, 1); S.mon = { y: d.getFullYear(), m: d.getMonth() }; renderMon(); };
@@ -1794,7 +1924,7 @@ return view.extend({
 			[ 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс' ].forEach(d => grid.appendChild(E('span', { class: 'nfm-mon-w' }, d)));
 			for (let i = 0; i < first; i++) grid.appendChild(E('span'));
 			for (let d = 1; d <= dim; d++) {
-				const r = by[d], v = r ? r[1] + r[2] : 0;
+				const r = by[d], v = r ? trafficBytes(r[1]) + trafficBytes(r[2]) : 0;
 				grid.appendChild(E('span', Object.assign({ class: 'nfm-mon-d' + (cur && d === now.getDate() ? ' today' : '') + (r ? ' has' : ''), style: r ? `--hv:${Math.max(8, Math.round(100 * v / mx))}%` : '',
 					title: r ? `${d}: ↓ ${fmtBytes(r[1])}, ↑ ${fmtBytes(r[2])}${r[3] === 1 ? ' (по данным устройств)' : ''}. Нажмите, чтобы увидеть, кто сколько скачал` : `${d}: нет данных` },
 					r ? { role: 'button', tabindex: '0', click: () => dayReport(r[0]), keydown: ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); dayReport(r[0]); } } } : {}), [ E('b', {}, String(d)), E('i', {}, r ? fmtBytes(v) : '') ]));
@@ -1829,8 +1959,12 @@ return view.extend({
 			ui.showModal(title, [ body, E('div', { class: 'button-row' }, [ E('button', { class: 'btn', click: ui.hideModal }, 'Закрыть') ]) ]);
 			const J = a => callHistory(a).catch(() => null);
 			Promise.all([ J([ 'devdaily' ]), J([ 'devices' ]), J([ 'devhr' ]) ]).then(([ dd, dv, hr ]) => {
-				const norm = ip => String(ip).toLowerCase(), ipMac = {};
-				for (const mac in hints) for (const ip of (hints[mac].ipaddrs || []).concat(hints[mac].ip6addrs || [])) ipMac[norm(ip)] = mac;
+				const norm = normalizeMonitorIp, ipMac = {}, ipMacCandidates = {};
+				for (const mac in hints) for (const ip of (hints[mac].ipaddrs || []).concat(hints[mac].ip6addrs || [])) {
+					const key = norm(ip);
+					(ipMacCandidates[key] || (ipMacCandidates[key] = [])).push(String(mac).toUpperCase());
+				}
+				for (const key in ipMacCandidates) { const unique = Array.from(new Set(ipMacCandidates[key])); if (unique.length === 1) ipMac[key] = unique[0]; }
 				for (const [ ip, mac ] of (dv && dv.neigh) || []) if (!ipMac[norm(ip)]) ipMac[norm(ip)] = String(mac).toUpperCase();
 				routerIps.learn(dv && dv.info);
 				const ymdOf = d => d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
@@ -1842,24 +1976,24 @@ return view.extend({
 				else if (ymd === yest && dv && dv.yday && dv.yday.length) { src = dv.yday.map(r => [ r[0], r[1], r[2], '' ]); how = 'Итоги за сутки по данным сборщика.'; }
 				else {
 					const by = {};
-					for (const r of (hr && hr.rows) || []) if (ymdOf(new Date(r[0] * 1000)) === ymd) { const e = by[r[1]] || (by[r[1]] = [ r[1], 0, 0, '' ]); e[1] += +r[2]; e[2] += +r[3]; }
+					for (const r of (hr && hr.rows) || []) if (ymdOf(new Date(r[0] * 1000)) === ymd) { const e = by[r[1]] || (by[r[1]] = [ r[1], 0, 0, '' ]); e[1] += trafficBytes(r[2]); e[2] += trafficBytes(r[3]); }
 					src = Object.values(by);
 					if (src.length) how = 'Собрано из почасовых итогов: точность до часа.';
 				}
 				const acc = {};
 				for (const [ ip, rx, tx, mac0 ] of src) {
-					const mac = mac0 || ipMac[norm(ip)] || '', k = routerIps.has(ip) ? 'router' : mac || (String(ip).indexOf(':') >= 0 ? 'v6' : ip);
+					const rowMac = String(mac0 || '').toUpperCase(), mac = rowMac && rowMac !== '-' ? rowMac : ipMac[norm(ip)] || '', k = routerIps.has(ip) ? 'router' : mac || (String(ip).indexOf(':') >= 0 ? 'v6' : ip);
 					const e = acc[k] || (acc[k] = { k, mac, ip, rx: 0, tx: 0 });
-					e.rx += +rx; e.tx += +tx;
+					e.rx += trafficBytes(rx); e.tx += trafficBytes(tx);
 				}
 				const list = Object.values(acc).sort((a, b) => (b.rx + b.tx) - (a.rx + a.tx));
 				const wan = ((S.tr && S.tr.rows) || []).find(r => r[0] === ymd);
 				const sumRx = list.reduce((a, e) => a + e.rx, 0), sumTx = list.reduce((a, e) => a + e.tx, 0), mx = Math.max(1, ...list.map(e => e.rx + e.tx));
 				const kids = [];
 				if (wan) kids.push(E('div', { class: 'nfm-mon-sum' }, [
-					E('div', {}, [ E('span', {}, wan[3] === 1 ? 'Всего (по устройствам)' : 'Всего через WAN'), E('b', {}, fmtBytes(wan[1] + wan[2])) ]),
-					E('div', {}, [ E('span', {}, '↓ принято'), E('b', {}, fmtBytes(wan[1])) ]),
-					E('div', {}, [ E('span', {}, '↑ отправлено'), E('b', {}, fmtBytes(wan[2])) ]) ]));
+					E('div', {}, [ E('span', {}, wan[3] === 1 ? 'Всего (по устройствам)' : 'Всего через WAN'), E('b', {}, fmtBytes(trafficBytes(wan[1]) + trafficBytes(wan[2]))) ]),
+					E('div', {}, [ E('span', {}, '↓ принято'), E('b', {}, fmtBytes(trafficBytes(wan[1]))) ]),
+					E('div', {}, [ E('span', {}, '↑ отправлено'), E('b', {}, fmtBytes(trafficBytes(wan[2]))) ]) ]));
 				if (!list.length) kids.push(E('div', { class: 'nfm-hint' }, 'По устройствам за этот день данных нет. Подробные итоги по устройствам копятся с версии 1.15 (в архив уходят сутки, закончившиеся после обновления), а почасовых данных хватает примерно на две недели. Чтобы они переживали перезагрузку, подключите накопитель (История → «Накопители»).'));
 				else {
 					kids.push(E('table', { class: 'nfm-table' }, [
@@ -1874,7 +2008,7 @@ return view.extend({
 						})) ]));
 					if (list.length > 40) kids.push(E('div', { class: 'nfm-note-s' }, 'Показаны 40 самых активных из ' + list.length + '.'));
 					if (list.some(e => e.k === 'router')) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Строка «Сам роутер» (адрес вашего роутера у провайдера) — это трафик самого роутера: прокси или VPN на нём, обновления, DNS. Трафик устройств через такой прокси считается дважды: у устройства и у роутера. Поэтому в «Всего» и в календаре строка не входит.'));
-					if (wan && (wan[1] + wan[2]) > (sumRx + sumTx) * 1.15) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Сумма по устройствам (' + fmtBytes(sumRx + sumTx) + ') меньше счётчика WAN: часть трафика не приписывается устройствам (аппаратное ускорение пакетов, служебный трафик, устройства вне первой сотни записей).'));
+					if (wan && (trafficBytes(wan[1]) + trafficBytes(wan[2])) > (sumRx + sumTx) * 1.15) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, 'Сумма по устройствам (' + fmtBytes(sumRx + sumTx) + ') меньше счётчика WAN: часть трафика не приписывается устройствам (аппаратное ускорение пакетов, служебный трафик, устройства вне первой сотни записей).'));
 				}
 				if (how) kids.push(E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, how));
 				body.replaceChildren(...kids);
@@ -1969,20 +2103,20 @@ return view.extend({
 		}
 		const isoD = s => /^\d{8}$/.test(String(s)) ? String(s).slice(0, 4) + '-' + String(s).slice(4, 6) + '-' + String(s).slice(6, 8) : String(s);
 		const isoT = ts => { const d = new Date(ts * 1000), z = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()) + ':' + z(d.getSeconds()); };
-		const nonneg = v => (v == null || v < 0) ? '' : v;
+		const nonneg = v => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : ''; };
 		const stamp = () => isoD(new Date().getFullYear() * 10000 + (new Date().getMonth() + 1) * 100 + new Date().getDate());
 		const EXPORTS = [
 			[ 'Трафик по дням', () => {
 				const r = S.tr && S.tr.rows; if (!r || !r.length) return null;
-				return [ 'nightfall-traffic-' + stamp() + '.csv', [ [ 'Дата', 'Принято, байт', 'Отправлено, байт', 'Всего, байт' ] ].concat(r.map(x => [ isoD(x[0]), x[1], x[2], x[1] + x[2] ])) ];
+				return [ 'nightfall-traffic-' + stamp() + '.csv', [ [ 'Дата', 'Принято, байт', 'Отправлено, байт', 'Всего, байт' ] ].concat(r.map(x => { const d = trafficBytes(x[1]), u = trafficBytes(x[2]); return [ isoD(x[0]), d, u, d + u ]; })) ];
 			} ],
 			[ 'Приложения', () => {
-				const A = S.wkA; if (!A || !(A.hist || A.day || []).length) return null;
+				const A = S.wkA; if (!A || !((A.hist || []).length || (A.day || []).length)) return null;
 				const nm = {}; for (const mac in hints) for (const ip of (hints[mac].ipaddrs || [])) nm[ip] = hints[mac].name || '';
 				const t = /^\d{8}$/.test(String(A.today || '')) ? isoD(A.today) : stamp();
-				const out = [ [ 'Дата', 'Устройство (IP)', 'Имя', 'Приложение', 'Принято, байт', 'Отправлено, байт' ] ];
-				for (const [ dt, ip, app, d, u ] of A.hist || []) out.push([ isoD(dt), ip, nm[ip] || '', app, d, u ]);
-				for (const [ ip, app, d, u ] of A.day || []) out.push([ t, ip, nm[ip] || '', app, d, u ]);
+				const out = [ [ 'Дата', 'Устройство (IP)', 'Имя', 'Приложение', 'Принято, байт', 'Отправлено, байт', 'Маршрут' ] ];
+				for (const [ dt, ip, app, route, d, u ] of A.hist || []) out.push([ isoD(dt), ip, nm[ip] || '', app, trafficBytes(d), trafficBytes(u), route ]);
+				for (const [ ip, app, route, d, u ] of A.day || []) out.push([ t, ip, nm[ip] || '', app, trafficBytes(d), trafficBytes(u), route ]);
 				return [ 'nightfall-apps-' + stamp() + '.csv', out ];
 			} ],
 			[ 'Графики (выбранный период)', () => {
@@ -2001,7 +2135,7 @@ return view.extend({
 			saveCsv(r[0], r[1]); expNote.textContent = 'Сохранён файл ' + r[0] + ' (записей: ' + (r[1].length - 1) + ').';
 		} }, '⬇ ' + label));
 
-		const hist = E('div', { hidden: true }, [
+		const hist = E('div', { class: 'nfm-history', hidden: true }, [
 			histNote,
 			E('div', { class: 'nfm-grid' }, [ card([ 'Сводка за день', E('span', { class: 'nfm-spacer' }), E('span', { class: 'nfm-note-s' }, 'с 00:00 по данным сборщика') ], dayBody) ]),
 			E('div', { class: 'nfm-grid' }, [ card([ 'Сводка недели', E('span', { class: 'nfm-spacer' }), E('span', { class: 'nfm-note-s' }, 'последние 7 дней') ], wkBody) ]),
@@ -2082,12 +2216,43 @@ return view.extend({
 			if (d === appRenderedData && S.appPeriod === appRenderedPeriod && S.appDevice === appRenderedDevice) return;
 			const periodDays = S.appPeriod === '30' ? 30 : S.appPeriod === '7' ? 7 : 1;
 			const ips = Array.from(new Set([ ...(d.day || []).map(r => r[0]), ...(d.hist || []).map(r => r[1]) ])).filter(Boolean).sort();
-			if (!ips.includes(S.appDevice)) S.appDevice = '';
-			appDevice.replaceChildren(E('option', { value: '' }, 'Все устройства'), ...ips.map(ip => E('option', { value: ip }, (names[ip] || ip) + (names[ip] ? ' · ' + ip : ''))));
+			/* Группируем адреса одного MAC в одно устройство: иначе выбор IPv4
+			 * скрывал его IPv6-трафик и наоборот. Неоднозначный IP не привязываем. */
+			const ipMac = {}, ipCandidates = {};
+			for (const m of Object.keys(hints)) {
+				const macValue = String(m).toUpperCase(), hint = hints[m] || {};
+				for (const addr of (hint.ipaddrs || []).concat(hint.ip6addrs || [])) {
+					const key = normalizeMonitorIp(addr);
+					(ipCandidates[key] || (ipCandidates[key] = [])).push(macValue);
+				}
+			}
+			for (const addr of Object.keys(ipCandidates))
+				if (new Set(ipCandidates[addr]).size === 1) ipMac[addr] = ipCandidates[addr][0];
+			const deviceGroups = {};
+			for (const addr of ips) {
+				const macValue = ipMac[normalizeMonitorIp(addr)] || '';
+				const hint = macValue ? hints[macValue] || hints[macValue.toLowerCase()] || {} : {};
+				const knownIps = new Set((hint.ipaddrs || []).concat(hint.ip6addrs || []).map(normalizeMonitorIp));
+				/* Для одиночного IP сохраняем старый value select: это совместимо
+				 * с сохранённым выбором и существующими сценариями LuCI. */
+				const key = macValue && knownIps.size > 1 ? 'mac:' + macValue : addr;
+				const group = deviceGroups[key] || (deviceGroups[key] = { key, mac: macValue, ips: new Set(), label: '' });
+				group.ips.add(normalizeMonitorIp(addr));
+				group.label = hint.name || names[addr] || group.label || addr;
+			}
+			const options = Object.values(deviceGroups).sort((a, b) => a.label.localeCompare(b.label, 'ru'));
+			if (!options.some(group => group.key === S.appDevice)) {
+				const legacy = options.find(group => group.ips.has(normalizeMonitorIp(S.appDevice || '')));
+				S.appDevice = legacy ? legacy.key : '';
+			}
+			appDevice.replaceChildren(E('option', { value: '' }, 'Все устройства'), ...options.map(group =>
+				E('option', { value: group.key }, group.label + (group.ips.size > 1 ? ' · ' + group.ips.size + ' адреса' : ' · ' + Array.from(group.ips)[0]))
+			));
 			appDevice.value = S.appDevice;
 			appPeriod.value = S.appPeriod;
 			appRenderedData = d; appRenderedPeriod = S.appPeriod; appRenderedDevice = S.appDevice;
-			const result = sumMonitorAppTraffic(d, periodDays, S.appDevice);
+			const selectedGroup = options.find(group => group.key === S.appDevice);
+			const result = sumMonitorAppTraffic(d, periodDays, selectedGroup ? selectedGroup.ips : '');
 			const total = result.total, fmtShare = n => total ? nf1.format(n / total * 100) + '%' : '0%';
 			const summary = E('div', { class: 'nfm-tiles t4 nfm-app-summary' }, [
 				[ 'Всего трафика', total, 'c-cpu' ], [ 'VPN', result.routes.VPN, 'c-mem' ], [ 'Напрямую', result.routes.Direct, 'c-temp' ], [ 'Неизвестный маршрут', result.routes.Unknown, 'gx' ]
@@ -2532,7 +2697,7 @@ return view.extend({
 		function renderTop3() {
 			const list = (title, rows) => E('div', {}, [ E('div', { class: 'nfm-k', style: 'margin:0 0 4px' }, title) ].concat(rows.length ? rows.map(x => E('div', { class: 'nfm-host' }, [ E('span', {}, x[0]), E('b', {}, x[1]) ])) : [ E('div', { class: 'nfm-empty' }, 'Пока пусто') ]));
 			const progs = S.full ? groupedProcs().sort((a, b) => b.rss - a.rss).slice(0, 3).map(e => [ e.label, fmtMB(e.rss) ]) : [];
-			const dv = S.devs && S.devs.day ? S.devs.day.map(x => ({ ip: x[0], t: (+x[1]) + (+x[2]) })).filter(x => x.t > 0 && !routerIps.has(x.ip)).sort((a, b) => b.t - a.t).slice(0, 3) : [];
+			const dv = S.devs && S.devs.day ? sumMonitorDeviceDailyTraffic(S.devs.day, hints, S.devs.neigh, S.wifi, routerIps).slice(0, 3) : [];
 			const nm = ip => {
 				const active = new Set((S.wifi || []).map(c => String(c.mac || '').toUpperCase()).filter(Boolean));
 				const neighbour = ((S.devs && S.devs.neigh) || []).find(x => String(x[0]).toLowerCase() === String(ip).toLowerCase());
@@ -2544,7 +2709,7 @@ return view.extend({
 				}
 				return names[ip] || ip;
 			};
-			top3Box.replaceChildren(list('Программы по памяти', progs), E('div', { style: 'height:12px' }), list('Устройства по трафику сегодня', dv.map(x => [ nm(x.ip), fmtBytes(x.t) ])));
+			top3Box.replaceChildren(list('Программы по памяти', progs), E('div', { style: 'height:12px' }), list('Устройства по трафику сегодня', dv.map(x => [ x.mac ? ((hints[x.mac] || hints[x.mac.toLowerCase()] || {}).name || x.ip) : nm(x.ip), fmtBytes(x.total) ])));
 		}
 
 		function renderDevices() {
@@ -2562,13 +2727,7 @@ return view.extend({
 			if (notes.length) { devNote.textContent = notes.join(' '); devNote.removeAttribute('hidden'); }
 
 			/* conntrack prints IPv6 in full form, DHCP/NDP hints in short form: compare in one form */
-			const norm = ip => {
-				if (ip.indexOf(':') < 0) return ip;
-				const halves = ip.toLowerCase().split('::');
-				const a = halves[0] ? halves[0].split(':') : [], b = halves.length > 1 && halves[1] ? halves[1].split(':') : [];
-				const mid = halves.length > 1 ? new Array(Math.max(0, 8 - a.length - b.length)).fill('0') : [];
-				return a.concat(mid, b).map(g => g.padStart(4, '0')).join(':');
-			};
+			const norm = normalizeMonitorIp;
 			const ipMac = {}, ipMacCandidates = {};
 			for (const mac in hints)
 				for (const ip of (hints[mac].ipaddrs || []).concat(hints[mac].ip6addrs || [])) {
@@ -2578,7 +2737,7 @@ return view.extend({
 				}
 			/* DHCP-кандидат используем только при однозначном IP -> MAC соответствии. */
 			for (const ip in ipMacCandidates)
-				if (ipMacCandidates[ip].length === 1) ipMac[ip] = ipMacCandidates[ip][0];
+				if (new Set(ipMacCandidates[ip]).size === 1) ipMac[ip] = ipMacCandidates[ip][0];
 			/* Активная Wi-Fi-станция имеет приоритет над устаревшей DHCP-арендой:
 			 * это важно при приватном/рандомизированном MAC. Не подменяем MAC клиента
 			 * MAC-адресом ретранслятора, если он не является активной Wi-Fi-станцией. */
@@ -2595,8 +2754,8 @@ return view.extend({
 				return rows[k] || (rows[k] = { k, mac, ip, rd: 0, ru: 0, dd: 0, du: 0 });
 			};
 			const fresh = dv.now - dv.ts <= 60;
-			if (fresh) for (const [ ip, d, u ] of dv.rate) { const r = row(ip); r.rd += d; r.ru += u; }
-			for (const [ ip, d, u ] of dv[S.devDay] || []) { const r = row(ip); r.dd += d; r.du += u; if (!r.ip || r.ip.indexOf(':') >= 0) r.ip = ip; }
+			if (fresh) for (const [ ip, d, u ] of dv.rate) { const r = row(ip); r.rd += trafficBytes(d); r.ru += trafficBytes(u); }
+			for (const [ ip, d, u ] of dv[S.devDay] || []) { const r = row(ip); r.dd += trafficBytes(d); r.du += trafficBytes(u); if (!r.ip || r.ip.indexOf(':') >= 0) r.ip = ip; }
 
 			const all = Object.values(rows).filter(r => r.rd + r.ru + r.dd + r.du > 0)
 				.sort((a, b) => (b.dd + b.du) - (a.dd + a.du) || (b.rd + b.ru) - (a.rd + a.ru));
@@ -2628,8 +2787,11 @@ return view.extend({
 
 		/* ---- карточка устройства (по нажатию в «Устройствах»): трафик, приложения, сигнал, время появления, действия ---- */
 		function openDevCard(r) {
-			const mac = r.mac || '', ip = r.ip || '';
-			const h = mac ? hints[mac] || {} : {};
+			const mac = String(r.mac || '').toUpperCase(), ip = r.ip || '';
+			const h = mac ? hints[mac] || hints[mac.toLowerCase()] || {} : {};
+			/* В истории приложений ключом служит IP, поэтому собираем все известные
+			 * IPv4/IPv6-адреса устройства, а не только адрес текущей conntrack-строки. */
+			const deviceIps = new Set([ ip ].concat(h.ipaddrs || [], h.ip6addrs || []).filter(Boolean).map(normalizeMonitorIp));
 			const id = mac ? devId(mac, h.name) : null;
 			const label = (mac && devName(mac)) || names[ip] || ip || 'Устройство';
 			const body = E('div', { class: 'nfm nfm-dc' }, E('div', { class: 'nfm-empty' }, 'Собираю данные…'));
@@ -2641,20 +2803,22 @@ return view.extend({
 			ui.showModal(label, [ body, E('div', { class: 'button-row' }, acts.concat([ E('button', { class: 'btn', click: ui.hideModal }, 'Закрыть') ])) ]);
 			const J = a => callHistory(a).catch(() => null);
 			Promise.all([ J([ 'devdaily' ]), J([ 'apps' ]), mac ? J([ 'wifi', mac ]) : Promise.resolve(null), J([ 'known' ]) ]).then(([ dd, ap, wf, kn ]) => {
+				/* В devdaily хранится MAC на момент записи. Добавляем прежние IP,
+				 * чтобы app history без MAC тоже попадала в карточку после смены адреса. */
+				if (mac) for (const row of (dd && dd.rows) || [])
+					if (String(row[4] || '').toUpperCase() === mac && row[1]) deviceIps.add(normalizeMonitorIp(row[1]));
 				const ymdOf = d => d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
-				const mine = (rowIp, rowMac) => (mac && rowMac && String(rowMac).toUpperCase() === mac) || (rowIp && rowIp === ip);
+				const mine = (rowIp, rowMac) => monitorDeviceOwnsHistoricalRow(mac, deviceIps, rowIp, rowMac);
+				const asBytes = value => { const n = Number(value); return Number.isFinite(n) && n > 0 ? n : 0; };
 				const days = {};
-				for (const x of (dd && dd.rows) || []) if (mine(x[1], x[4] !== '-' ? x[4] : '')) days[x[0]] = (days[x[0]] || 0) + (+x[2]) + (+x[3]);
+				for (const x of (dd && dd.rows) || []) if (mine(x[1], x[4])) days[x[0]] = (days[x[0]] || 0) + asBytes(x[2]) + asBytes(x[3]);
 				const nowD = new Date(), today = ymdOf(nowD);
 				days[today] = (r.dd || 0) + (r.du || 0);
 				const keys = []; for (let i = 13; i >= 0; i--) keys.push(ymdOf(new Date(nowD.getTime() - i * 86400000)));
 				const vals = keys.map(k => days[k] || 0), mx = Math.max(1, ...vals);
 				const total30 = Object.keys(days).filter(k => k >= ymdOf(new Date(nowD.getTime() - 29 * 86400000))).reduce((a, k) => a + days[k], 0);
 				const yest = days[ymdOf(new Date(nowD.getTime() - 86400000))];
-				const apps = {};
-				for (const x of (ap && ap.day) || []) if (x[0] === ip) apps[x[1]] = (apps[x[1]] || 0) + (+x[2]) + (+x[3]);
-				for (const x of (ap && ap.hist) || []) if (x[1] === ip) apps[x[2]] = (apps[x[2]] || 0) + (+x[3]) + (+x[4]);
-				const topApps = Object.entries(apps).sort((a, b) => b[1] - a[1]).slice(0, 6);
+				const topApps = sumMonitorDeviceApps(ap, deviceIps).slice(0, 6);
 				const sig = ((wf && wf.rows) || []).filter(x => !mac || String(x[1]).toUpperCase() === mac).map(x => +x[2]).filter(v => v < 0);
 				const evs = ((wf && wf.events) || []).filter(x => String(x[1]).toUpperCase() === mac).slice(-6).reverse();
 				const first = ((kn && kn.rows) || []).find(x => x[0] === mac);
@@ -2686,9 +2850,9 @@ return view.extend({
 			const hwFlow = !!(D.h && D.h.info && D.h.info.flow_hw === '1');
 			const mid = new Date().setHours(0, 0, 0, 0) / 1000;
 			const rows = (D.h.rows || []).filter(r => r[0] >= mid);
-			const col = i => rows.map(r => r[i]).filter(v => v != null && v >= 0);
+			const col = i => rows.map(r => Number(r[i])).filter(v => Number.isFinite(v) && v >= 0);
 			const max = a => a.length ? Math.max(...a) : null, avg = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
-			const sum = (list, k) => (list || []).reduce((s, x) => s + (x[k] || 0), 0);
+			const sum = (list, k) => (list || []).reduce((s, x) => s + trafficBytes(x[k]), 0);
 			let dd = sum(D.d && D.d.day, 1), du = sum(D.d && D.d.day, 2), yd = sum(D.d && D.d.yday, 1) + sum(D.d && D.d.yday, 2);
 			/* итоги дня берём из «Трафика по месяцам»: там уже выбран лучший источник (порт WAN или сумма по устройствам) */
 			let ryDev = false;
@@ -2701,7 +2865,7 @@ return view.extend({
 			/* свой трафик роутера (прокси, VPN, обновления) считаем отдельно, чтобы он не выдавал себя за устройство */
 			routerIps.learn(D.d && D.d.info);
 			let selfB = 0, cliD = 0, cliU = 0;
-			for (const [ ip, d, u ] of (D.d && D.d.day) || []) { if (routerIps.has(ip)) selfB += d + u; else { cliD += d; cliU += u; } }
+			for (const [ ip, d, u ] of (D.d && D.d.day) || []) { if (routerIps.has(ip)) selfB += trafficBytes(d) + trafficBytes(u); else { cliD += trafficBytes(d); cliU += trafficBytes(u); } }
 			let srcNote = 'Скачано и отдано: по счётчикам порта WAN.', swDev = false;
 			const rtd = ((S.tr && S.tr.rows) || []).find(r => r[0] === (new Date().getFullYear() * 10000 + (new Date().getMonth() + 1) * 100 + new Date().getDate()) + '');
 			if (rtd && rtd[3] === 1) {
@@ -2725,11 +2889,9 @@ return view.extend({
 			const pk = (a, f) => a == null ? '–' : f(a);
 			const tile = (k, v, s) => E('div', { class: 'nfm-tile' }, [ k, E('b', {}, v), s ? E('span', { class: 'nfm-note-s' }, s) : '' ]);
 
-			const top = {};
-			for (const [ ip, d, u ] of (D.d && D.d.day) || []) if (!routerIps.has(ip)) top[ip] = (top[ip] || 0) + d + u;
-			const topAll = Object.keys(top).map(ip => [ ip, top[ip] ]).sort((a, b) => b[1] - a[1]);
+			const topAll = sumMonitorDeviceDailyTraffic(D.d && D.d.day, hints, D.d && D.d.neigh, S.wifi, routerIps);
 			const list = topAll.slice(0, 3);
-			const mx = list.length ? list[0][1] : 1;
+			const mx = list.length ? list[0].total : 1;
 
 			dayBody.replaceChildren(
 				E('div', { class: 'nfm-tiles d4' }, [
@@ -2741,9 +2903,11 @@ return view.extend({
 					tile('Пик температуры', pk(max(col(3)), v => nf1.format(v) + ' °C'), pk(avg(col(3)), v => 'в среднем ' + nf1.format(v) + ' °C')),
 					tile('Пик памяти', pk(max(col(2)), v => nf0.format(v) + '%'), pk(avg(col(2)), v => 'в среднем ' + nf0.format(v) + '%'))
 				]),
-				list.length ? E('div', { class: 'nfm-day-top' }, [ E('div', { class: 'nfm-k' }, 'Больше всего трафика сегодня' + (topAll.length > list.length ? ' · показаны ' + list.length + ' из ' + topAll.length + ' устройств' : '')) ].concat(list.map(([ ip, b ]) =>
-					E('div', { class: 'nfm-host' }, [ E('span', {}, [ names[ip] || ip, names[ip] && names[ip] !== ip ? E('small', {}, ip) : '' ]), E('b', {}, fmtBytes(b)),
-						E('div', { class: 'nfm-bar' }, E('div', { class: 'nfm-bar-fill c-down', style: `width:${100 * b / mx}%` })) ])))) : '',
+				list.length ? E('div', { class: 'nfm-day-top' }, [ E('div', { class: 'nfm-k' }, 'Больше всего трафика сегодня' + (topAll.length > list.length ? ' · показаны ' + list.length + ' из ' + topAll.length + ' устройств' : '')) ].concat(list.map(row => {
+					const hint = row.mac ? hints[row.mac] || hints[row.mac.toLowerCase()] || {} : {}, label = hint.name || names[row.ip] || row.ip;
+					return E('div', { class: 'nfm-host' }, [ E('span', {}, [ label, label !== row.ip ? E('small', {}, row.ip) : '' ]), E('b', {}, fmtBytes(row.total)),
+						E('div', { class: 'nfm-bar' }, E('div', { class: 'nfm-bar-fill c-down', style: `width:${100 * row.total / mx}%` })) ]);
+				}))) : '',
 				E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, srcNote + (selfB > 0 ? ' Собственный трафик роутера: ' + fmtBytes(selfB) + ' (обновления, DNS, замер скорости, прокси или VPN на роутере). В список устройств он не входит.' : '')));
 		}
 
@@ -2757,7 +2921,7 @@ return view.extend({
 
 			const end = h.now;
 			const rows = (h.rows || []).filter(r => end - r[0] <= win);
-			const col = i => rows.map(r => r[i] < 0 ? null : r[i]);
+			const col = i => rows.map(r => { const v = Number(r[i]); return Number.isFinite(v) && v >= 0 ? v : null; });
 			const times = rows.map(r => r[0]);
 			const view = { win, end, labels: xLabels(end, win) };
 			const vmax = a => a.reduce((m, v) => v != null && v > m ? v : m, 0);
@@ -2824,12 +2988,12 @@ return view.extend({
 			for (const [ ip, proto, port, d, u ] of c.svc || []) {
 				if (sel && ip !== sel) continue;
 				const k = portLabel(proto, port), e = svc[k] || (svc[k] = { k, d: 0, u: 0 });
-				e.d += +d; e.u += +u;
+				e.d += trafficBytes(d); e.u += trafficBytes(u);
 			}
 			for (const [ ip, host, d, u ] of c.dst || []) {
 				if (sel && ip !== sel) continue;
 				const e = dst[host] || (dst[host] = { k: host, d: 0, u: 0 });
-				e.d += +d; e.u += +u;
+				e.d += trafficBytes(d); e.u += trafficBytes(u);
 			}
 			const list = (obj, what) => {
 				const rows = Object.values(obj).filter(r => r.d + r.u > 0).sort((a, b) => (b.d + b.u) - (a.d + a.u)).slice(0, 8);

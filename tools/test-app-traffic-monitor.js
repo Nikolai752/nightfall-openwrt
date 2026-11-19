@@ -3,10 +3,14 @@
 const fs = require('fs');
 const vm = require('vm');
 const source = fs.readFileSync('luci-app-nightfall-monitor/htdocs/luci-static/resources/view/nightfall/monitor.js', 'utf8');
+const normStart = source.indexOf('function normalizeMonitorIp');
+const normEnd = source.indexOf('\n}', normStart) + 2;
+const bytesStart = source.indexOf('function trafficBytes');
+const bytesEnd = source.indexOf('\n}', bytesStart) + 2;
 const start = source.indexOf('const APP_TRAFFIC_CATEGORIES =');
 const end = source.indexOf('\n/* ---------- widgets ---------- */', start);
-if (start < 0 || end < 0) throw new Error('application traffic classifier not found');
-const api = vm.runInNewContext(source.slice(start, end) + '\n;({ appTrafficCategory, appTrafficDisplayName, sumMonitorAppTraffic });');
+if (normStart < 0 || normEnd <= normStart || bytesStart < 0 || bytesEnd <= bytesStart || start < 0 || end < 0) throw new Error('application traffic classifier not found');
+const api = vm.runInNewContext(source.slice(normStart, normEnd) + '\n' + source.slice(bytesStart, bytesEnd) + '\n' + source.slice(start, end) + '\n;({ normalizeMonitorIp, trafficBytes, monitorDeviceOwnsHistoricalRow, appTrafficCategory, appTrafficDisplayName, sumMonitorAppTraffic, sumMonitorDeviceApps, sumMonitorAppDeviceTraffic, sumMonitorDeviceDailyTraffic });');
 const check = (ok, message) => { if (!ok) throw new Error('FAIL: ' + message); };
 const data = {
   today: '20261118',
@@ -34,6 +38,63 @@ check(all.categories.find(x => x.name === 'Социальные сети').total
 check(all.categories.find(x => x.name === 'CDN и инфраструктура').total === 950, 'shared CDN stays infrastructure, not a social app');
 check(all.categories.find(x => x.name === 'Реклама и аналитика').total === 105, 'ad and analytics classification');
 check(all.categories.find(x => x.name === 'Не определено').total === 425, 'missing DNS and uncertain domains remain unclassified');
+const deviceApps = api.sumMonitorDeviceApps({
+  day: [
+    ['192.0.2.10', 'YouTube', 'Direct', 1000, 100],
+    ['2001:db8::10', 'YouTube', 'VPN', 2000, 200],
+    ['192.0.2.10', 'Broken route', 'Direct', 'Direct', 50],
+    ['192.0.2.99', 'Other device', 'VPN', 9000, 900]
+  ],
+  hist: [
+    ['20261117', '2001:db8::10', 'YouTube', 'VPN', 3000, 300],
+    ['20261117', '192.0.2.10', 'Legacy row', 400, 40]
+  ]
+}, new Set(['192.0.2.10', '2001:db8::10']));
+check(deviceApps.find(x => x[0] === 'YouTube')[1] === 6600, 'device app totals include all IPv4/IPv6 addresses and history');
+check(deviceApps.find(x => x[0] === 'Broken route')[1] === 50, 'route labels are not parsed as byte counts');
+check(deviceApps.find(x => x[0] === 'Legacy row')[1] === 440, 'legacy app row format remains readable');
+check(!deviceApps.some(x => x[0] === 'Other device'), 'device app filter excludes unrelated IPs');
+check(api.normalizeMonitorIp('2001:db8::10') === api.normalizeMonitorIp('2001:0db8:0000:0000:0000:0000:0000:0010'), 'compressed and expanded IPv6 addresses normalize to the same device identity');
+const v6Apps = api.sumMonitorAppTraffic({
+  today: '20261118',
+  day: [['2001:0db8:0000:0000:0000:0000:0000:0010', 'YouTube', 'VPN', 100, 20]],
+  hist: [['20261117', '2001:db8::10', 'YouTube', 'Direct', 300, 40]]
+}, 7, new Set(['2001:db8::10']));
+check(v6Apps.total === 460 && v6Apps.routes.VPN === 120 && v6Apps.routes.Direct === 340, 'IPv6-normalized app filters include daily and historical traffic');
+const weeklyDevices = api.sumMonitorAppDeviceTraffic({
+  today: '20261118',
+  day: [
+    ['192.0.2.10', 'YouTube', 'Direct', 1000, 100],
+    ['2001:db8::10', 'YouTube', 'VPN', 2000, 200]
+  ],
+  hist: [
+    ['20261117', '192.0.2.10', 'YouTube', 'Direct', 3000, 300],
+    ['20261117', '2001:0db8:0000:0000:0000:0000:0000:0010', 'YouTube', 'VPN', 4000, 400]
+  ]
+}, 20261112, {
+  'AA:BB:CC:DD:EE:FF': { ipaddrs: ['192.0.2.10'], ip6addrs: ['2001:0db8:0000:0000:0000:0000:0000:0010'], name: 'Tablet' }
+}, { has: () => false });
+check(weeklyDevices.length === 1 && weeklyDevices[0].mac === 'AA:BB:CC:DD:EE:FF', 'weekly app traffic groups all addresses by a unique MAC');
+check(weeklyDevices[0].total === 11000, 'weekly totals sum the actual byte columns, not the route label');
+const dailyDevices = api.sumMonitorDeviceDailyTraffic([
+  ['192.0.2.10', 1000, 100],
+  ['2001:db8::10', 2000, 300],
+  ['192.0.2.11', 50, 10]
+], {
+  'AA:BB:CC:DD:EE:FF': { ipaddrs: ['192.0.2.10'], ip6addrs: ['2001:0db8:0000:0000:0000:0000:0000:0010'], name: 'Tablet' }
+}, [], [], { has: () => false });
+check(dailyDevices.length === 2 && dailyDevices[0].mac === 'AA:BB:CC:DD:EE:FF', 'daily top devices group IPv4 and IPv6 by MAC');
+check(dailyDevices[0].total === 3400, 'daily device total includes download and upload on every address');
+const ambiguousDaily = api.sumMonitorDeviceDailyTraffic([['192.0.2.10', 50, 10]], {
+  'AA:BB:CC:DD:EE:FF': { ipaddrs: ['192.0.2.10'] },
+  '11:22:33:44:55:66': { ipaddrs: ['192.0.2.10'] }
+}, [], [], { has: () => false });
+check(ambiguousDaily.length === 1 && !ambiguousDaily[0].mac, 'ambiguous IP is not attributed to an arbitrary MAC');
+const oldIpSet = new Set(['192.0.2.20']);
+check(api.monitorDeviceOwnsHistoricalRow('AA:BB:CC:DD:EE:FF', oldIpSet, '192.0.2.99', 'aa:bb:cc:dd:ee:ff'), 'historical row follows exact MAC after the device changes IP');
+check(!api.monitorDeviceOwnsHistoricalRow('AA:BB:CC:DD:EE:FF', oldIpSet, '192.0.2.20', '11:22:33:44:55:66'), 'different historical MAC never matches merely because IP is reused');
+check(api.monitorDeviceOwnsHistoricalRow('AA:BB:CC:DD:EE:FF', oldIpSet, '192.0.2.20', '-'), 'legacy history without MAC may use the known IP fallback');
+check(!api.monitorDeviceOwnsHistoricalRow('', oldIpSet, '192.0.2.20', '11:22:33:44:55:66'), 'MAC-tagged history is not assigned to a MAC-less row by IP fallback');
 const one = api.sumMonitorAppTraffic(data, 7, '192.0.2.10');
 check(one.routes.VPN === 730, 'device filter VPN');
 check(one.routes.Direct === 1265, 'device filter Direct');
@@ -62,6 +123,11 @@ check(source.includes(".nfm-app-distribution { display:grid; grid-template-colum
 check(source.includes("const remainingTotal = result.categories.slice(6).reduce"), 'collapsed legend reports the real aggregate volume');
 check(source.includes("Прочие (' + remaining.length + ' категорий)'"), 'small categories can be expanded from the legend');
 check(source.includes("card('Трафик по категориям', E('div', { class: 'nfm-app-categories' }"), 'category list occupies its own full-width row');
+check(source.includes('function trafficBytes(value)') && source.includes('Number.isFinite(n) && n > 0'), 'device and history traffic totals reject non-numeric bytes');
+check(source.includes("if (!Number.isFinite(b) || b < 0) return '—';"), 'byte formatter never prints NaN');
+check(source.includes("if (!Number.isFinite(bps) || bps < 0) return [ '—', '' ];"), 'rate formatter never prints NaN');
+check(source.includes('for (const [ dt, ip, app, route, d, u ] of A.hist || [])'), 'application CSV reads the route-aware historical schema');
+check(source.includes('for (const [ ip, app, route, d, u ] of A.day || [])'), 'application CSV reads the route-aware daily schema');
 check(source.includes(".nfm-app-category-bar > i"), 'category rows include proportional traffic bars');
 check(source.includes(".nfm-app-distribution { grid-template-columns:minmax(0,1fr);"), 'mobile distribution stacks chart and legend');
 check(source.includes("@media (max-width: 760px)"), 'responsive breakpoint covers 430px and 440px phones');

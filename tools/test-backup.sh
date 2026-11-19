@@ -3,7 +3,8 @@ set -eu
 ROOT=$(mktemp -d)
 TMP=$(mktemp -d)
 trap 'rm -rf "$ROOT" "$TMP"' EXIT HUP INT TERM
-mkdir -p "$ROOT/etc" "$ROOT/proc/sys/kernel"
+mkdir -p "$ROOT/etc" "$ROOT/proc/sys/kernel" "$ROOT/www/luci-static/nightfall"
+printf '{ "version": "1.28.6-rc1", "build": "test" }\n' > "$ROOT/www/luci-static/nightfall/version.json"
 echo test-router > "$ROOT/proc/sys/kernel/hostname"
 cat > "$ROOT/etc/nightfall-monitor.conf" <<'EOF'
 TG=1
@@ -25,7 +26,7 @@ ARCHIVE=$(find "$TMP/backups" -name '*.tar.gz' -type f | head -n 1)
 gzip -t "$ARCHIVE"
 "$TOOL" list "$ARCHIVE" > "$TMP/list"
 grep -q 'files=4' "$TMP/list"
-grep -q 'tool_version=1.27.8' "$TMP/list"
+grep -q 'tool_version=1.28.6-rc1' "$TMP/list"
 NAME=$(basename "$ARCHIVE")
 "$TOOL" download-info "$NAME" > "$TMP/info"
 SIZE=$(sed -n 's/.*size=\([0-9][0-9]*\).*/\1/p' "$TMP/info")
@@ -65,6 +66,24 @@ while [ "$offset" -lt "$SIZE" ]; do
   offset=$((offset + got))
 done
 cmp "$ARCHIVE" "$TMP/downloaded.tar.gz"
+echo "== chunk failures are reported instead of returning an empty/successful block =="
+printf '#!/bin/sh\nexit 7\n' > "$TMP/fail-base64"
+chmod +x "$TMP/fail-base64"
+if NF_BASE64="$TMP/fail-base64" "$TOOL" download "$NAME" 0 100 > "$TMP/fail-encode.out" 2>&1; then
+  echo "download unexpectedly succeeded after base64 failure" >&2; exit 1
+fi
+grep -q 'не удалось закодировать блок архива' "$TMP/fail-encode.out"
+printf '#!/bin/sh\nprintf x\n' > "$TMP/short-base64"
+chmod +x "$TMP/short-base64"
+if NF_BASE64="$TMP/short-base64" "$TOOL" download "$NAME" 0 100 > "$TMP/short-encode.out" 2>&1; then
+  echo "download unexpectedly accepted a truncated base64 block" >&2; exit 1
+fi
+grep -q 'неполный base64-блок' "$TMP/short-encode.out"
+if "$TOOL" download "$NAME" "$SIZE" 100 > "$TMP/empty-chunk.out" 2>&1; then
+  echo "download unexpectedly returned an empty block at EOF" >&2; exit 1
+fi
+grep -q 'запрошен пустой блок' "$TMP/empty-chunk.out"
+
 
 echo "== don't overwrite an existing archive =="
 "$TOOL" create "$TMP/backups/repeat.tar.gz" >/dev/null

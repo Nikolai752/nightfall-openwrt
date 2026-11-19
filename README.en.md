@@ -3,7 +3,7 @@
 [Русский](README.md) | **English** | [FAQ (in Russian)](FAQ.md)
 
 [![Latest Release](https://img.shields.io/github/v/release/Nikolai752/nightfall-openwrt?style=flat-square&color=0078d4&label=release)](https://github.com/Nikolai752/nightfall-openwrt/releases)
-[![OpenWrt 25.12](https://img.shields.io/badge/OpenWrt-25.12-00a3b5?style=flat-square&logo=openwrt)](https://openwrt.org)
+[![OpenWrt 25.12.6](https://img.shields.io/badge/OpenWrt-25.12.6-00a3b5?style=flat-square&logo=openwrt)](https://openwrt.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](https://opensource.org/licenses/MIT)
 
 A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Monitor** page with history, charts, traffic accounting by device and by application, Telegram notifications and one-click updates. For **OpenWrt 25.12**. The installer checks for `base64` and installs `coreutils-base64` if the BusyBox applet is missing; `curl` is needed only for updates and Telegram.
@@ -213,7 +213,7 @@ If LuCI will not open at all: `uci set luci.main.mediaurlbase=/luci-static/boots
 
 ## Requirements and compatibility
 
-- **OpenWrt 25.12 with LuCI.** The theme is written for this version. On 23.05 and 24.10 LuCI templates and menus may differ and some elements may render incorrectly. On 21.02 and older the theme will not work.
+- **Target platform: OpenWrt 25.12 with LuCI.** The current release line has been hardware-tested on a Cudy WR3000U-256MB running OpenWrt 25.12.6. LuCI templates and menus may differ on 23.05 and 24.10; compatibility there is not confirmed. OpenWrt 21.02 and older are unsupported.
 - **CPU architecture does not matter:** there are no compiled programs, only CSS, JS, templates and shell scripts.
 - **Storage:** the installed theme takes about 1.4 MB. That can be a lot on routers with 4–8 MB of flash; 16 MB and more is fine. If space is tight, you can delete the iPhone splash images (`/www/luci-static/nightfall/splash`).
 - **RAM:** history is kept in `/tmp`. On routers with 64 MB or less it takes a noticeable share of memory.
@@ -222,7 +222,7 @@ If LuCI will not open at all: `uci set luci.main.mediaurlbase=/luci-static/boots
 
 ## Status
 
-Tested only on a Cudy WR3000U running OpenWrt 25.12. Not tested on other models or versions. The Software, Backup and add-on package pages (adblock, sqm, etc.) were not checked.
+**Confirmed hardware baseline:** Cudy WR3000U-256MB running OpenWrt 25.12.6. On this device, the collector and Telegram bot, notifications, device and application statistics, USB history persistence, and backup creation and restore were tested. This does not mean every third-party LuCI page or add-on package (such as adblock or sqm) was validated. Other router models and OpenWrt versions do not yet have confirmed hardware results; treat their compatibility as unverified until test reports are available.
 
 If you installed the theme on another router, please tell us in [Issues](https://github.com/Nikolai752/nightfall-openwrt/issues) how it went: model, OpenWrt version, what works and what does not. That helps build a list of tested devices. Found a bug or want an improvement? Same place.
 
