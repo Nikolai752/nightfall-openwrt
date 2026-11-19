@@ -766,46 +766,37 @@ const CSS = `
   .nfm-card-title > .nfm-spacer { flex: 0 0 100%; height: 0; margin: 0; }
   .nfm-card-title > .nfm-note-s, .nfm-card-title > .nfm-legend { flex: 1 0 100%; }
 }
-.nfm-cfg-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; align-items:start; }
-.nfm-cfg-col { display:grid; gap:14px; min-width:0; align-content:start; }
-.nfm-cfg-groups { display:grid; gap:14px; min-width:0; }
-.nfm-cfg-g { border:1px solid var(--nfm-border); border-radius:var(--nfm-r); background:var(--nfm-card2); padding:0; min-width:0; overflow:hidden; align-self:start; }
+.nfm-cfg-layout { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; align-items:stretch; }
+.nfm-cfg-g { border:1px solid var(--nfm-border); border-radius:var(--nfm-r); background:var(--nfm-card2); padding:0; min-width:0; overflow:hidden; align-self:stretch; }
 .nfm-cfg-head { display:flex; align-items:center; gap:10px; min-height:52px; margin:0; padding:9px 14px; list-style:none; cursor:pointer; color:var(--nfm-text); font-size:13px; font-weight:700; background:linear-gradient(100deg,var(--nfm-card2),var(--nfm-card)); border-bottom:1px solid transparent; }
 .nfm-cfg-head::-webkit-details-marker { display:none; }
 .nfm-cfg-g[open] > .nfm-cfg-head { border-bottom-color:var(--nfm-border); }
 .nfm-cfg-icon { display:grid; place-items:center; flex:0 0 32px; width:32px; height:32px; border-radius:10px; color:var(--blue,#1688f8); background:color-mix(in srgb,var(--blue,#1688f8) 14%,var(--nfm-card)); }
 .nfm-cfg-icon svg { display:block; width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
 .nfm-cfg-heading { min-width:0; flex:1; }
-.nfm-cfg-chevron { color:var(--nfm-dim); font-size:17px; transition:transform .18s ease; }
+.nfm-cfg-chevron { color:var(--nfm-dim); font-size:17px; transition:transform .18s ease; flex:none; }
 .nfm-cfg-g:not([open]) .nfm-cfg-chevron { transform:rotate(-90deg); }
-.nfm-cfg-body { padding:13px 14px 15px; }
-.nfm-cfg-g .nfm-cfg { grid-template-columns:minmax(0,1fr); gap:10px; }
+.nfm-cfg-body { padding:13px 14px 15px; min-width:0; }
+.nfm-cfg-g .nfm-cfg { grid-template-columns:minmax(0,1fr); gap:10px; align-content:start; }
 .nfm-cfg-telegram { margin-top:14px; }
-.nfm-tg-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; align-items:start; }
+.nfm-tg-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; align-items:stretch; }
 .nfm-tg-grid .nfm-cfg-g { background:var(--nfm-card); }
-.nfm-cfg-i.nfm-cfg-toggle { flex-direction:row; align-items:center; justify-content:space-between; gap:12px; min-height:34px; color:var(--nfm-text); }
-.nfm-cfg-toggle .nfm-cfg-f { flex:0 0 auto; }
-.nfm-toggle { appearance:none; -webkit-appearance:none; position:relative; width:40px; min-width:40px; height:23px; margin:0; border:1px solid var(--nfm-border); border-radius:99px; background:var(--nfm-card2); cursor:pointer; transition:background .18s ease,border-color .18s ease; }
-.nfm-toggle::before { content:''; position:absolute; top:2px; left:2px; width:17px; height:17px; border-radius:50%; background:var(--nfm-dim); transition:transform .18s ease,background .18s ease; }
-.nfm-toggle:checked { background:var(--blue,#1688f8); border-color:var(--blue,#1688f8); }
-.nfm-toggle:checked::before { transform:translateX(17px); background:#fff; }
-.nfm-toggle:focus-visible { outline:2px solid var(--blue,#1688f8); outline-offset:2px; }
-@media (max-width:900px) {
-  .nfm-cfg-layout { grid-template-columns:minmax(0,1fr); }
-  .nfm-tg-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-}
-@media (max-width:600px) {
-  .nfm-tg-grid { grid-template-columns:minmax(0,1fr); }
-  .nfm-cfg-head { min-height:48px; padding:8px 11px; }
-  .nfm-cfg-body { padding:11px; }
-}
+.nfm-tg-grid .nfm-cfg-body { height:100%; box-sizing:border-box; }
+.nfm-cfg-i.nfm-cfg-toggle { display:flex; flex-direction:row; align-items:center; justify-content:space-between; gap:12px; min-height:38px; width:100%; min-width:0; box-sizing:border-box; color:var(--nfm-text); line-height:1.35; }
+.nfm-cfg-toggle .nfm-cfg-f { display:flex; flex:0 0 44px; width:44px; min-width:44px; justify-content:flex-end; align-items:center; margin-left:auto; }
+.nfm-cfg-i.nfm-cfg-toggle > .nfm-cfg-f > input.nfm-toggle[type="checkbox"] { appearance:none !important; -webkit-appearance:none !important; display:block !important; position:relative; flex:0 0 40px; width:40px !important; min-width:40px !important; max-width:40px; height:23px !important; min-height:23px; padding:0 !important; margin:0 !important; border:1px solid var(--nfm-border) !important; border-radius:99px !important; background:var(--nfm-card2) !important; box-shadow:none !important; cursor:pointer; }
+.nfm-cfg-i.nfm-cfg-toggle > .nfm-cfg-f > input.nfm-toggle[type="checkbox"]::before { content:''; position:absolute; top:2px; left:2px; width:17px; height:17px; border:0; border-radius:50%; background:var(--nfm-dim); transform:none; transition:transform .18s ease,background .18s ease; }
+.nfm-cfg-i.nfm-cfg-toggle > .nfm-cfg-f > input.nfm-toggle[type="checkbox"]:checked { background:var(--blue,#1688f8) !important; border-color:var(--blue,#1688f8) !important; }
+.nfm-cfg-i.nfm-cfg-toggle > .nfm-cfg-f > input.nfm-toggle[type="checkbox"]:checked::before { transform:translateX(17px); background:#fff; }
+.nfm-cfg-i.nfm-cfg-toggle > .nfm-cfg-f > input.nfm-toggle[type="checkbox"]:focus-visible { outline:2px solid var(--blue,#1688f8); outline-offset:2px; }
 .nfm-cfg-actions { position:sticky; bottom:8px; z-index:4; display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:14px -2px 0; padding:10px; border:1px solid var(--nfm-border); border-radius:var(--nfm-r); background:var(--nfm-card); box-shadow:0 8px 24px rgba(30,70,120,.12); backdrop-filter:blur(16px); }
+.nfm-cfg-actions .nfm-act { min-height:36px; white-space:normal; }
 .nfm-cfg-actions .nfm-act:first-child { background:var(--blue,#1688f8); color:#fff; border-color:transparent; }
 .nfm-cfg-help { margin-top:10px; color:var(--nfm-dim); font-size:12px; }
 .nfm-cfg-help summary { cursor:pointer; color:var(--nfm-text); font-weight:600; padding:6px 0; }
 .nfm-cfg-help > div { padding:8px 0 2px; line-height:1.55; }
-@media (max-width:900px) { .nfm-tg-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media (max-width:680px) { .nfm-cfg-layout,.nfm-tg-grid { grid-template-columns:minmax(0,1fr); } .nfm-cfg-actions { position:static; } }
+@media (max-width:900px) { .nfm-cfg-layout { grid-template-columns:repeat(2,minmax(0,1fr)); } .nfm-tg-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:680px) { .nfm-cfg-layout,.nfm-tg-grid { grid-template-columns:minmax(0,1fr); } .nfm-cfg-head { min-height:48px; padding:8px 11px; } .nfm-cfg-body { padding:11px; } .nfm-cfg-actions { position:static; } .nfm-cfg-actions .nfm-act { flex:1 1 100%; } }
 .nfm-table .r { text-align: right; font-variant-numeric: tabular-nums; }
 .nfm-chip { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 99px; background: var(--nfm-card2); border: 1px solid var(--nfm-border); color: var(--nfm-dim); margin-left: 6px; }
 .nfm-rate { display: flex; align-items: baseline; gap: 6px; }
@@ -1390,16 +1381,12 @@ return view.extend({
 		}
 		const cfgCard = card('Настройки предупреждений', E('div', {}, [
 			E('div', { class: 'nfm-cfg-layout' }, [
-				E('div', { class: 'nfm-cfg-col' }, [
-					cfgGroup('Температура и память', [ 'TEMP_WARN', 'TEMP_CRIT', 'MEM_MIN_PCT', 'FLASH_MAX_PCT' ]),
-					cfgGroup('Проверка интернета', [ 'PING_TARGET', 'PING_TARGET2' ]),
-					cfgGroup('Хранение истории и резервные копии', [ 'PERSIST_DIR', 'PERSIST_HOURS', 'HIST_DAYS', 'BACKUP_KEEP', 'PERSIST_ANY', 'JOURNAL', 'WIFI_HIST' ])
-				]),
-				E('div', { class: 'nfm-cfg-col' }, [
-					cfgGroup('Процессор и соединения', [ 'CPU_MAX_PCT', 'CPU_MINUTES', 'CT_MAX_PCT' ]),
-					cfgGroup('Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ]),
-					cfgGroup('Режим и функции мониторинга', [ 'LITE', 'APPS', 'NEWDEV' ])
-				])
+				cfgGroup('Температура и память', [ 'TEMP_WARN', 'TEMP_CRIT', 'MEM_MIN_PCT', 'FLASH_MAX_PCT' ]),
+				cfgGroup('Процессор и соединения', [ 'CPU_MAX_PCT', 'CPU_MINUTES', 'CT_MAX_PCT' ]),
+				cfgGroup('Проверка интернета', [ 'PING_TARGET', 'PING_TARGET2' ]),
+				cfgGroup('Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ]),
+				cfgGroup('Хранение истории и резервные копии', [ 'PERSIST_DIR', 'PERSIST_HOURS', 'HIST_DAYS', 'BACKUP_KEEP', 'PERSIST_ANY', 'JOURNAL', 'WIFI_HIST' ]),
+				cfgGroup('Режим и функции мониторинга', [ 'LITE', 'APPS', 'NEWDEV' ])
 			]),
 			E('section', { class: 'nfm-cfg-g nfm-cfg-telegram' }, [
 				E('h4', {}, 'Telegram — уведомления и управление'),
