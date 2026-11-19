@@ -1904,7 +1904,7 @@ return view.extend({
 				}
 				const acc = {};
 				for (const [ ip, rx, tx, mac0 ] of src) {
-					const mac = mac0 || ipMac[norm(ip)] || '', k = routerIps.has(ip) ? 'router' : mac || (String(ip).indexOf(':') >= 0 ? 'v6' : ip);
+					const rowMac = String(mac0 || '').toUpperCase(), mac = rowMac && rowMac !== '-' ? rowMac : ipMac[norm(ip)] || '', k = routerIps.has(ip) ? 'router' : mac || (String(ip).indexOf(':') >= 0 ? 'v6' : ip);
 					const e = acc[k] || (acc[k] = { k, mac, ip, rx: 0, tx: 0 });
 					e.rx += trafficBytes(rx); e.tx += trafficBytes(tx);
 				}
