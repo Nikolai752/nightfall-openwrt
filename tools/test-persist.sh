@@ -22,7 +22,7 @@ echo '20261116|192.168.1.2|video|Direct|700|800' > "$T/usb/nightfall/apps.hist"
 # Extract the production persistence functions; tests exercise the real collector logic.
 awk '
   /^PFILES=/ { print; next }
-  /^(persist_mount_info|on_flash|persist_warn|persist|persist_check|restore)\(\) \{/ { inside=1 }
+  /^(persist_mount_info|on_flash|persist_overlay_space_ok|persist_warn|persist|persist_check|restore)\(\) \{/ { inside=1 }
   inside { print }
   inside && /^}/ { inside=0 }
 ' "$COLLECTOR" > "$T/functions.sh"
@@ -110,6 +110,21 @@ PERSIST_ANY=0
 expect_internal "$PERSIST_DIR" "internal overlay denied without opt-in"
 PERSIST_ANY=1
 expect_external "$PERSIST_DIR" "explicit opt-in permits internal overlay"
+
+# Internal flash must retain at least 2 MiB for the router.
+cat > "$T/df-low" <<'DF'
+#!/bin/sh
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/ubi0_1 20000 19000 1000 95%% /overlay\n'
+DF
+cat > "$T/df-high" <<'DF'
+#!/bin/sh
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/ubi0_1 20000 15000 5000 75%% /overlay\n'
+DF
+chmod +x "$T/df-low" "$T/df-high"
+NF_DF="$T/df-low" NF_PERSIST_MIN_FREE_KB=2048
+if persist_overlay_space_ok /overlay; then fail "deny internal flash with less than 2 MiB free"; else pass "deny internal flash with less than 2 MiB free"; fi
+NF_DF="$T/df-high"
+if persist_overlay_space_ok /overlay; then pass "allow internal flash when reserve is available"; else fail "allow internal flash when reserve is available"; fi
 PERSIST_DIR="$T/rootdata"
 printf '/dev/root / ext4 rw 0 0\n' > "$NF_MOUNTS"
 expect_internal "$PERSIST_DIR" "PERSIST_ANY never permits root filesystem"
