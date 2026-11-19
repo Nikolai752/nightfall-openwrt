@@ -78,6 +78,11 @@ check(source.includes(".nfm-app-distribution { display:grid; grid-template-colum
 check(source.includes("const remainingTotal = result.categories.slice(6).reduce"), 'collapsed legend reports the real aggregate volume');
 check(source.includes("Прочие (' + remaining.length + ' категорий)'"), 'small categories can be expanded from the legend');
 check(source.includes("card('Трафик по категориям', E('div', { class: 'nfm-app-categories' }"), 'category list occupies its own full-width row');
+check(source.includes('function trafficBytes(value)') && source.includes('Number.isFinite(n) && n > 0'), 'device and history traffic totals reject non-numeric bytes');
+check(source.includes("if (!Number.isFinite(b) || b < 0) return '—';"), 'byte formatter never prints NaN');
+check(source.includes("if (!Number.isFinite(bps) || bps < 0) return [ '—', '' ];"), 'rate formatter never prints NaN');
+check(source.includes('for (const [ dt, ip, app, route, d, u ] of A.hist || [])'), 'application CSV reads the route-aware historical schema');
+check(source.includes('for (const [ ip, app, route, d, u ] of A.day || [])'), 'application CSV reads the route-aware daily schema');
 check(source.includes(".nfm-app-category-bar > i"), 'category rows include proportional traffic bars');
 check(source.includes(".nfm-app-distribution { grid-template-columns:minmax(0,1fr);"), 'mobile distribution stacks chart and legend');
 check(source.includes("@media (max-width: 760px)"), 'responsive breakpoint covers 430px and 440px phones');
