@@ -286,7 +286,7 @@ function sumMonitorAppTraffic(data, days, ip) {
 	const add = (addr, name, route, down, up) => {
 		route = [ 'VPN', 'Direct', 'Unknown' ].includes(route) ? route : 'Unknown';
 		const d = bytes(down), u = bytes(up), total = d + u;
-		if (ip && addr !== ip) return;
+		if (ip && (ip instanceof Set ? !ip.has(String(addr || '').toLowerCase()) : addr !== ip)) return;
 		const a = apps[name] || (apps[name] = { name, category: appTrafficCategory(name), down: 0, up: 0, total: 0, routes: {} });
 		a.down += d; a.up += u; a.total += total; a.routes[route] = (a.routes[route] || 0) + total;
 		const c = categories[a.category] || (categories[a.category] = { name: a.category, total: 0, apps: {} });
@@ -2090,12 +2090,40 @@ return view.extend({
 			if (d === appRenderedData && S.appPeriod === appRenderedPeriod && S.appDevice === appRenderedDevice) return;
 			const periodDays = S.appPeriod === '30' ? 30 : S.appPeriod === '7' ? 7 : 1;
 			const ips = Array.from(new Set([ ...(d.day || []).map(r => r[0]), ...(d.hist || []).map(r => r[1]) ])).filter(Boolean).sort();
-			if (!ips.includes(S.appDevice)) S.appDevice = '';
-			appDevice.replaceChildren(E('option', { value: '' }, 'Все устройства'), ...ips.map(ip => E('option', { value: ip }, (names[ip] || ip) + (names[ip] ? ' · ' + ip : ''))));
+			/* Группируем адреса одного MAC в одно устройство: иначе выбор IPv4
+			 * скрывал его IPv6-трафик и наоборот. Неоднозначный IP не привязываем. */
+			const ipMac = {}, ipCandidates = {};
+			for (const m of Object.keys(hints)) {
+				const macValue = String(m).toUpperCase(), hint = hints[m] || {};
+				for (const addr of (hint.ipaddrs || []).concat(hint.ip6addrs || [])) {
+					const key = String(addr).toLowerCase();
+					(ipCandidates[key] || (ipCandidates[key] = [])).push(macValue);
+				}
+			}
+			for (const addr of Object.keys(ipCandidates))
+				if (ipCandidates[addr].length === 1) ipMac[addr] = ipCandidates[addr][0];
+			const deviceGroups = {};
+			for (const addr of ips) {
+				const macValue = ipMac[String(addr).toLowerCase()] || '';
+				const key = macValue ? 'mac:' + macValue : 'ip:' + addr;
+				const group = deviceGroups[key] || (deviceGroups[key] = { key, mac: macValue, ips: new Set(), label: '' });
+				group.ips.add(String(addr).toLowerCase());
+				const hint = macValue ? hints[macValue] || hints[macValue.toLowerCase()] || {} : {};
+				group.label = hint.name || names[addr] || group.label || addr;
+			}
+			const options = Object.values(deviceGroups).sort((a, b) => a.label.localeCompare(b.label, 'ru'));
+			if (!options.some(group => group.key === S.appDevice)) {
+				const legacy = options.find(group => group.ips.has(String(S.appDevice || '').toLowerCase()));
+				S.appDevice = legacy ? legacy.key : '';
+			}
+			appDevice.replaceChildren(E('option', { value: '' }, 'Все устройства'), ...options.map(group =>
+				E('option', { value: group.key }, group.label + (group.ips.size > 1 ? ' · ' + group.ips.size + ' адреса' : ' · ' + Array.from(group.ips)[0]))
+			));
 			appDevice.value = S.appDevice;
 			appPeriod.value = S.appPeriod;
 			appRenderedData = d; appRenderedPeriod = S.appPeriod; appRenderedDevice = S.appDevice;
-			const result = sumMonitorAppTraffic(d, periodDays, S.appDevice);
+			const selectedGroup = options.find(group => group.key === S.appDevice);
+			const result = sumMonitorAppTraffic(d, periodDays, selectedGroup ? selectedGroup.ips : '');
 			const total = result.total, fmtShare = n => total ? nf1.format(n / total * 100) + '%' : '0%';
 			const summary = E('div', { class: 'nfm-tiles t4 nfm-app-summary' }, [
 				[ 'Всего трафика', total, 'c-cpu' ], [ 'VPN', result.routes.VPN, 'c-mem' ], [ 'Напрямую', result.routes.Direct, 'c-temp' ], [ 'Неизвестный маршрут', result.routes.Unknown, 'gx' ]
