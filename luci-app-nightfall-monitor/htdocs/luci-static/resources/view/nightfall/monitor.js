@@ -306,6 +306,32 @@ function sumMonitorAppTraffic(data, days, ip) {
 		total: routes.VPN + routes.Direct + routes.Unknown };
 }
 
+function sumMonitorDeviceApps(data, deviceIps) {
+	const ips = deviceIps instanceof Set ? deviceIps : new Set((deviceIps || []).map(x => String(x).toLowerCase()));
+	const apps = {};
+	const bytes = value => {
+		const n = Number(value);
+		return Number.isFinite(n) && n > 0 ? n : 0;
+	};
+	const add = (name, down, up) => {
+		const total = bytes(down) + bytes(up);
+		if (name && total > 0) apps[name] = (apps[name] || 0) + total;
+	};
+	/* apps.day: [ip, app, route, down, up] */
+	for (const row of data && data.day || []) {
+		if (!ips.has(String(row[0] || '').toLowerCase())) continue;
+		if (row.length >= 5) add(row[1], row[3], row[4]);
+		else add(row[1], row[2], row[3]);
+	}
+	/* apps.hist: [date, ip, app, route, down, up] */
+	for (const row of data && data.hist || []) {
+		if (!ips.has(String(row[1] || '').toLowerCase())) continue;
+		if (row.length >= 6) add(row[2], row[4], row[5]);
+		else add(row[2], row[3], row[4]);
+	}
+	return Object.entries(apps).sort((a, b) => b[1] - a[1]);
+}
+
 /* ---------- widgets ---------- */
 
 function ring(color) {
@@ -2700,22 +2726,7 @@ return view.extend({
 				const vals = keys.map(k => days[k] || 0), mx = Math.max(1, ...vals);
 				const total30 = Object.keys(days).filter(k => k >= ymdOf(new Date(nowD.getTime() - 29 * 86400000))).reduce((a, k) => a + days[k], 0);
 				const yest = days[ymdOf(new Date(nowD.getTime() - 86400000))];
-				const apps = {};
-				const addApp = (name, down, up) => {
-					const total = asBytes(down) + asBytes(up);
-					if (name && total > 0) apps[name] = (apps[name] || 0) + total;
-				};
-				/* apps.day: [ip, app, route, down, up] */
-				for (const x of (ap && ap.day) || []) if (deviceIps.has(String(x[0] || '').toLowerCase())) {
-					if (x.length >= 5) addApp(x[1], x[3], x[4]);
-					else addApp(x[1], x[2], x[3]); /* совместимость со старым форматом */
-				}
-				/* apps.hist: [date, ip, app, route, down, up] */
-				for (const x of (ap && ap.hist) || []) if (deviceIps.has(String(x[1] || '').toLowerCase())) {
-					if (x.length >= 6) addApp(x[2], x[4], x[5]);
-					else addApp(x[2], x[3], x[4]); /* совместимость со старым форматом */
-				}
-				const topApps = Object.entries(apps).sort((a, b) => b[1] - a[1]).slice(0, 6);
+				const topApps = sumMonitorDeviceApps(ap, deviceIps).slice(0, 6);
 				const sig = ((wf && wf.rows) || []).filter(x => !mac || String(x[1]).toUpperCase() === mac).map(x => +x[2]).filter(v => v < 0);
 				const evs = ((wf && wf.events) || []).filter(x => String(x[1]).toUpperCase() === mac).slice(-6).reverse();
 				const first = ((kn && kn.rows) || []).find(x => x[0] === mac);
