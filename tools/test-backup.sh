@@ -3,7 +3,8 @@ set -eu
 ROOT=$(mktemp -d)
 TMP=$(mktemp -d)
 trap 'rm -rf "$ROOT" "$TMP"' EXIT HUP INT TERM
-mkdir -p "$ROOT/etc" "$ROOT/proc/sys/kernel"
+mkdir -p "$ROOT/etc" "$ROOT/proc/sys/kernel" "$ROOT/www/luci-static/nightfall"
+printf '{ "version": "1.28.6-rc1", "build": "test" }\\n' > "$ROOT/www/luci-static/nightfall/version.json"
 echo test-router > "$ROOT/proc/sys/kernel/hostname"
 cat > "$ROOT/etc/nightfall-monitor.conf" <<'EOF'
 TG=1
@@ -25,7 +26,7 @@ ARCHIVE=$(find "$TMP/backups" -name '*.tar.gz' -type f | head -n 1)
 gzip -t "$ARCHIVE"
 "$TOOL" list "$ARCHIVE" > "$TMP/list"
 grep -q 'files=4' "$TMP/list"
-grep -q 'tool_version=1.27.8' "$TMP/list"
+grep -q 'tool_version=1.28.6-rc1' "$TMP/list"
 NAME=$(basename "$ARCHIVE")
 "$TOOL" download-info "$NAME" > "$TMP/info"
 SIZE=$(sed -n 's/.*size=\([0-9][0-9]*\).*/\1/p' "$TMP/info")
