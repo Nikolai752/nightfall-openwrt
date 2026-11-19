@@ -68,6 +68,18 @@ const GROUPS = [
 	[ /^(procd|ubusd|netifd|logd|odhcp|crond|ntpd|busybox|sh$|ash$|init|syslog|dnsmasq-|fw4|nft|rngd|urngd|ubox|swconfig|hotplug|sleep|awk|cat)/, 'OpenWrt', 'g7' ]
 ];
 
+function normalizeMonitorIp(ip) {
+	const value = String(ip || '').toLowerCase().split('%')[0];
+	if (value.indexOf(':') < 0) return value;
+	const halves = value.split('::');
+	if (halves.length > 2) return value;
+	const a = halves[0] ? halves[0].split(':') : [];
+	const b = halves.length > 1 && halves[1] ? halves[1].split(':') : [];
+	if (halves.length === 1 && a.length !== 8) return value;
+	const mid = halves.length > 1 ? new Array(Math.max(0, 8 - a.length - b.length)).fill('0') : [];
+	return a.concat(mid, b).map(g => g.padStart(4, '0')).join(':');
+}
+
 function trafficBytes(value) {
 	const n = Number(value);
 	return Number.isFinite(n) && n > 0 ? n : 0;
@@ -1866,8 +1878,12 @@ return view.extend({
 			ui.showModal(title, [ body, E('div', { class: 'button-row' }, [ E('button', { class: 'btn', click: ui.hideModal }, 'Закрыть') ]) ]);
 			const J = a => callHistory(a).catch(() => null);
 			Promise.all([ J([ 'devdaily' ]), J([ 'devices' ]), J([ 'devhr' ]) ]).then(([ dd, dv, hr ]) => {
-				const norm = ip => String(ip).toLowerCase(), ipMac = {};
-				for (const mac in hints) for (const ip of (hints[mac].ipaddrs || []).concat(hints[mac].ip6addrs || [])) ipMac[norm(ip)] = mac;
+				const norm = normalizeMonitorIp, ipMac = {}, ipMacCandidates = {};
+				for (const mac in hints) for (const ip of (hints[mac].ipaddrs || []).concat(hints[mac].ip6addrs || [])) {
+					const key = norm(ip);
+					(ipMacCandidates[key] || (ipMacCandidates[key] = [])).push(String(mac).toUpperCase());
+				}
+				for (const key in ipMacCandidates) if (ipMacCandidates[key].length === 1) ipMac[key] = ipMacCandidates[key][0];
 				for (const [ ip, mac ] of (dv && dv.neigh) || []) if (!ipMac[norm(ip)]) ipMac[norm(ip)] = String(mac).toUpperCase();
 				routerIps.learn(dv && dv.info);
 				const ymdOf = d => d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
@@ -2630,13 +2646,7 @@ return view.extend({
 			if (notes.length) { devNote.textContent = notes.join(' '); devNote.removeAttribute('hidden'); }
 
 			/* conntrack prints IPv6 in full form, DHCP/NDP hints in short form: compare in one form */
-			const norm = ip => {
-				if (ip.indexOf(':') < 0) return ip;
-				const halves = ip.toLowerCase().split('::');
-				const a = halves[0] ? halves[0].split(':') : [], b = halves.length > 1 && halves[1] ? halves[1].split(':') : [];
-				const mid = halves.length > 1 ? new Array(Math.max(0, 8 - a.length - b.length)).fill('0') : [];
-				return a.concat(mid, b).map(g => g.padStart(4, '0')).join(':');
-			};
+			const norm = normalizeMonitorIp;
 			const ipMac = {}, ipMacCandidates = {};
 			for (const mac in hints)
 				for (const ip of (hints[mac].ipaddrs || []).concat(hints[mac].ip6addrs || [])) {
@@ -2700,7 +2710,7 @@ return view.extend({
 			const h = mac ? hints[mac] || hints[mac.toLowerCase()] || {} : {};
 			/* В истории приложений ключом служит IP, поэтому собираем все известные
 			 * IPv4/IPv6-адреса устройства, а не только адрес текущей conntrack-строки. */
-			const deviceIps = new Set([ ip ].concat(h.ipaddrs || [], h.ip6addrs || []).filter(Boolean).map(x => String(x).toLowerCase()));
+			const deviceIps = new Set([ ip ].concat(h.ipaddrs || [], h.ip6addrs || []).filter(Boolean).map(normalizeMonitorIp));
 			const id = mac ? devId(mac, h.name) : null;
 			const label = (mac && devName(mac)) || names[ip] || ip || 'Устройство';
 			const body = E('div', { class: 'nfm nfm-dc' }, E('div', { class: 'nfm-empty' }, 'Собираю данные…'));
@@ -2717,8 +2727,8 @@ return view.extend({
 					const rowMacValue = String(rowMac || '').toUpperCase();
 					/* MAC важнее IP: старый адрес мог уже перейти другому устройству.
 					 * По IP сопоставляем только архивные строки без MAC. */
-					if (mac && rowMacValue && rowMacValue !== '-') return rowMacValue === mac;
-					return !!rowIp && deviceIps.has(String(rowIp).toLowerCase());
+					if (rowMacValue && rowMacValue !== '-') return !!mac && rowMacValue === mac;
+					return !!rowIp && deviceIps.has(normalizeMonitorIp(rowIp));
 				};
 				const asBytes = value => { const n = Number(value); return Number.isFinite(n) && n > 0 ? n : 0; };
 				const days = {};
