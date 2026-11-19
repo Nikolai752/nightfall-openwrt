@@ -50,7 +50,16 @@ $('u').textContent=d.u.toFixed(1)+' Мбит/с';
 var n=new Date();
 $('f').textContent='Работает '+up(d.w)+' · '+z(n.getHours())+':'+z(n.getMinutes());
 $('a').className=''}
-function go(){T.request('s').then(function(a){draw(JSON.parse(a.result))},function(e){if(e.code!=='BUSY'&&e.code!=='RATE_LIMITED')$('a').className='q'})}
+var busy=false;
+function go(){
+if(!T||!T.isActive||busy)return;
+busy=true;
+T.request('s').then(function(a){
+if(a&&typeof a.result==='string')draw(JSON.parse(a.result));
+},function(e){
+if(e.code!=='BUSY'&&e.code!=='RATE_LIMITED')$('a').className='q';
+}).then(function(){busy=false},function(){busy=false});
+}
 if(T){
 try{draw(JSON.parse(T.chatData))}catch(e){}
 go();
