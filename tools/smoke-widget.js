@@ -27,14 +27,14 @@ const themes = {
 				window.TelegramWidget = {
 					profile: 1, isActive: true, colorScheme: th.scheme, chatData: JSON.stringify(d1), ready() {},
 					onEvent() {}, isProfileAtLeast() { return true; },
-					request(q) { window.__calls.push(q); return Promise.resolve({ result: JSON.stringify(window.__n ? d2 : d1) }); },
+					request(q) { window.__calls.push(q); return new Promise(resolve => setTimeout(() => resolve({ result: JSON.stringify(window.__n ? d2 : d1) }), 80)); },
 				};
 				const st = document.createElement('style');   // тема Telegram: переменные на корневом элементе
 				st.textContent = ':root{--tg-theme-text-color:' + th.text + ';--tg-theme-hint-color:' + th.hint + ';background:' + th.bg + '}';
 				document.addEventListener('DOMContentLoaded', () => document.head.appendChild(st));
 			}, [D1, D2, th]);
 			await p.route('http://w.local/', r => r.fulfill({ contentType: 'text/html', body: '<!doctype html><html><head><meta charset=utf-8></head><body>' + html + '</body></html>' }));
-			await p.goto('http://w.local/'); await p.waitForTimeout(400);
+			await p.goto('http://w.local/'); await p.mouse.click(180, 100); await p.waitForTimeout(400);
 			const s1 = await p.evaluate(() => ({
 				c: document.getElementById('cv').textContent, t: document.getElementById('t').textContent, p: document.getElementById('p').textContent,
 				dn: document.getElementById('dn').textContent, host: document.getElementById('hn').textContent, f: document.getElementById('f').textContent,
@@ -47,7 +47,7 @@ const themes = {
 			if (s1.host !== 'Cudy-WR3000U') bad(file + ' ' + tn + ': имя ' + s1.host);
 			if (s1.col !== '#34c759') bad(file + ' ' + tn + ': цвет при нормальной нагрузке ' + s1.col);
 			if (!/^Работает 3 д 3 ч/.test(s1.f)) bad(file + ' ' + tn + ': время работы «' + s1.f + '»');
-			if (s1.calls < 1) bad(file + ' ' + tn + ': виджет не запросил данные при появлении');
+			if (s1.calls !== 1) bad(file + ' ' + tn + ': параллельный запрос при появлении/тапе (' + s1.calls + ' вместо 1)');
 			if (s1.w > 360) bad(file + ' ' + tn + ': горизонтальная прокрутка (' + s1.w + ' px)');
 			if (s1.h > 600) bad(file + ' ' + tn + ': высота ' + s1.h + ' px больше 600');
 			await p.screenshot({ path: path.join(OUT, 'widget-' + file.replace('.html', '') + '-' + tn + '.png') });
