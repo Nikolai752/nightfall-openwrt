@@ -601,8 +601,10 @@ on_flash() {    # 0 = встроенное/неподтверждённое хр
 	mi=$(persist_mount_info "$1")
 	[ -n "$mi" ] || return 0
 	fd=${mi%%|*}; mp=${mi#*|}
-	# PERSIST_ANY разрешает нестандартные устройства, но никогда не разрешает писать в корневую overlay/ROM.
-	case "$mp" in /|/overlay|/rom) return 0 ;; esac
+	# Корневую файловую систему и ROM не используем. Запись в overlay разрешена
+	# только при явном PERSIST_ANY=1: пользователь принимает износ флеш-памяти.
+	case "$mp" in /|/rom|/rom/*) return 0 ;; esac
+	case "$mp" in /overlay|/overlay/*) [ "$PERSIST_ANY" = 1 ] && return 1; return 0 ;; esac
 	[ "$PERSIST_ANY" = 1 ] && return 1
 	# Только явно распознанные внешние блочные устройства. Неизвестные источники запрещаем по умолчанию.
 	case "$fd" in /dev/mmcblk*|/dev/sd[a-z]*|/dev/nvme*|/dev/vd[a-z]*|/dev/loop*) return 1 ;; esac
@@ -632,7 +634,10 @@ persist() {
 	[ -n "$PERSIST_DIR" ] || return 0
 	mi=$(persist_mount_info "$PERSIST_DIR")
 	if [ -z "$mi" ] || on_flash "$PERSIST_DIR"; then
-		persist_warn "Постоянная история недоступна: $PERSIST_DIR не находится на подключённом внешнем накопителе. Сбор данных продолжается в RAM" 0
+		case "$PERSIST_DIR" in
+			/overlay|/overlay/*) persist_warn "Сохранение во внутреннюю флеш-память запрещено. Включите «Разрешить запись во внутреннюю флеш-память» и учитывайте износ и свободное место" 0 ;;
+			*) persist_warn "Постоянная история недоступна: $PERSIST_DIR не находится на подключённом накопителе с разрешённым типом хранения. Сбор данных продолжается в RAM" 0 ;;
+		esac
 		return 1
 	fi
 	mp=${mi#*|}; rel=${PERSIST_DIR#"$mp"}; rel=${rel#/}
