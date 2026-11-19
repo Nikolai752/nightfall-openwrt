@@ -1941,7 +1941,7 @@ return view.extend({
 					const key = norm(ip);
 					(ipMacCandidates[key] || (ipMacCandidates[key] = [])).push(String(mac).toUpperCase());
 				}
-				for (const key in ipMacCandidates) if (ipMacCandidates[key].length === 1) ipMac[key] = ipMacCandidates[key][0];
+				for (const key in ipMacCandidates) { const unique = Array.from(new Set(ipMacCandidates[key])); if (unique.length === 1) ipMac[key] = unique[0]; }
 				for (const [ ip, mac ] of (dv && dv.neigh) || []) if (!ipMac[norm(ip)]) ipMac[norm(ip)] = String(mac).toUpperCase();
 				routerIps.learn(dv && dv.info);
 				const ymdOf = d => d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
@@ -2204,7 +2204,7 @@ return view.extend({
 				}
 			}
 			for (const addr of Object.keys(ipCandidates))
-				if (ipCandidates[addr].length === 1) ipMac[addr] = ipCandidates[addr][0];
+				if (new Set(ipCandidates[addr]).size === 1) ipMac[addr] = ipCandidates[addr][0];
 			const deviceGroups = {};
 			for (const addr of ips) {
 				const macValue = ipMac[normalizeMonitorIp(addr)] || '';
@@ -2714,7 +2714,7 @@ return view.extend({
 				}
 			/* DHCP-кандидат используем только при однозначном IP -> MAC соответствии. */
 			for (const ip in ipMacCandidates)
-				if (ipMacCandidates[ip].length === 1) ipMac[ip] = ipMacCandidates[ip][0];
+				if (new Set(ipMacCandidates[ip]).size === 1) ipMac[ip] = ipMacCandidates[ip][0];
 			/* Активная Wi-Fi-станция имеет приоритет над устаревшей DHCP-арендой:
 			 * это важно при приватном/рандомизированном MAC. Не подменяем MAC клиента
 			 * MAC-адресом ретранслятора, если он не является активной Wi-Fi-станцией. */
