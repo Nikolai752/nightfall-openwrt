@@ -3,10 +3,12 @@
 const fs = require('fs');
 const vm = require('vm');
 const source = fs.readFileSync('luci-app-nightfall-monitor/htdocs/luci-static/resources/view/nightfall/monitor.js', 'utf8');
+const normStart = source.indexOf('function normalizeMonitorIp');
+const normEnd = source.indexOf('\n}', normStart) + 2;
 const start = source.indexOf('const APP_TRAFFIC_CATEGORIES =');
 const end = source.indexOf('\n/* ---------- widgets ---------- */', start);
-if (start < 0 || end < 0) throw new Error('application traffic classifier not found');
-const api = vm.runInNewContext(source.slice(start, end) + '\n;({ appTrafficCategory, appTrafficDisplayName, sumMonitorAppTraffic, sumMonitorDeviceApps });');
+if (normStart < 0 || normEnd <= normStart || start < 0 || end < 0) throw new Error('application traffic classifier not found');
+const api = vm.runInNewContext(source.slice(normStart, normEnd) + '\n' + source.slice(start, end) + '\n;({ normalizeMonitorIp, appTrafficCategory, appTrafficDisplayName, sumMonitorAppTraffic, sumMonitorDeviceApps });');
 const check = (ok, message) => { if (!ok) throw new Error('FAIL: ' + message); };
 const data = {
   today: '20261118',
@@ -50,6 +52,13 @@ check(deviceApps.find(x => x[0] === 'YouTube')[1] === 6600, 'device app totals i
 check(deviceApps.find(x => x[0] === 'Broken route')[1] === 50, 'route labels are not parsed as byte counts');
 check(deviceApps.find(x => x[0] === 'Legacy row')[1] === 440, 'legacy app row format remains readable');
 check(!deviceApps.some(x => x[0] === 'Other device'), 'device app filter excludes unrelated IPs');
+check(api.normalizeMonitorIp('2001:db8::10') === api.normalizeMonitorIp('2001:0db8:0000:0000:0000:0000:0000:0010'), 'compressed and expanded IPv6 addresses normalize to the same device identity');
+const v6Apps = api.sumMonitorAppTraffic({
+  today: '20261118',
+  day: [['2001:0db8:0000:0000:0000:0000:0000:0010', 'YouTube', 'VPN', 100, 20]],
+  hist: [['20261117', '2001:db8::10', 'YouTube', 'Direct', 300, 40]]
+}, 7, new Set(['2001:db8::10']));
+check(v6Apps.total === 460 && v6Apps.routes.VPN === 120 && v6Apps.routes.Direct === 340, 'IPv6-normalized app filters include daily and historical traffic');
 const one = api.sumMonitorAppTraffic(data, 7, '192.0.2.10');
 check(one.routes.VPN === 730, 'device filter VPN');
 check(one.routes.Direct === 1265, 'device filter Direct');
