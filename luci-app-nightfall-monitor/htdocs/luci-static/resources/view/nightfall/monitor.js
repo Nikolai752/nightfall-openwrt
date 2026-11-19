@@ -1309,7 +1309,7 @@ return view.extend({
 			const [ key, label, unit, type, placeholder ] = field;
 			if (cfgBoolKeys.has(key)) {
 				cfgInputs[key] = E('input', { class: 'nfm-toggle', type: 'checkbox', role: 'switch', 'aria-label': label });
-				return E('label', { class: 'nfm-cfg-i nfm-cfg-toggle' }, [ label.replace(/\\s*\\(0\\/1\\)$/, ''), E('span', { class: 'nfm-cfg-f' }, cfgInputs[key]) ]);
+				return E('label', { class: 'nfm-cfg-i nfm-cfg-toggle' }, [ label.replace(/\s*\(0\/1\)$/, ''), E('span', { class: 'nfm-cfg-f' }, cfgInputs[key]) ]);
 			}
 			cfgInputs[key] = E('input', { class: 'nfm-in', type: type || 'number', placeholder: placeholder || '' });
 			return E('label', { class: 'nfm-cfg-i' }, [ label,
