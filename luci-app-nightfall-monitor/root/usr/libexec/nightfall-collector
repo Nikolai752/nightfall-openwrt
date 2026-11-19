@@ -704,13 +704,24 @@ persist() {
 # вернулся после отключения, сохраняем RAM-историю сразу, не ожидая PERSIST_HOURS.
 # При штатной работе периодичность записи остаётся прежней.
 persist_check() {
-	local mi
+	local mi mp
 	[ -n "$PERSIST_DIR" ] || return 0
 	mi=$(persist_mount_info "$PERSIST_DIR")
 	if [ -z "$mi" ] || on_flash "$PERSIST_DIR"; then
-		persist_warn "Постоянная история недоступна: $PERSIST_DIR не находится на подключённом внешнем накопителе. Сбор данных продолжается в RAM" 0
+		case "$PERSIST_DIR" in
+			/overlay|/overlay/*) persist_warn "Сохранение во внутреннюю флеш-память запрещено или недоступно. Включите явное разрешение и проверьте свободное место" 0 ;;
+			*) persist_warn "Постоянная история недоступна: $PERSIST_DIR не находится на подключённом накопителе с разрешённым типом хранения. Сбор данных продолжается в RAM" 0 ;;
+		esac
 		return 1
 	fi
+	mp=${mi#*|}
+	case "$mp" in
+		/overlay|/overlay/*)
+			if ! persist_overlay_space_ok "$mp"; then
+				persist_warn "Недостаточно свободного места во внутренней флеш-памяти (нужно не менее ${NF_PERSIST_MIN_FREE_KB:-2048} КБ). История продолжает собираться в RAM" 0
+				return 1
+			fi ;;
+	esac
 	if [ "${persist_ok:-0}" != 1 ] || [ $((tick % (AGG * 12 * PERSIST_HOURS))) = 0 ]; then
 		persist
 	fi
