@@ -2144,7 +2144,7 @@ return view.extend({
 			for (const m of Object.keys(hints)) {
 				const macValue = String(m).toUpperCase(), hint = hints[m] || {};
 				for (const addr of (hint.ipaddrs || []).concat(hint.ip6addrs || [])) {
-					const key = String(addr).toLowerCase();
+					const key = normalizeMonitorIp(addr);
 					(ipCandidates[key] || (ipCandidates[key] = [])).push(macValue);
 				}
 			}
@@ -2152,19 +2152,19 @@ return view.extend({
 				if (ipCandidates[addr].length === 1) ipMac[addr] = ipCandidates[addr][0];
 			const deviceGroups = {};
 			for (const addr of ips) {
-				const macValue = ipMac[String(addr).toLowerCase()] || '';
+				const macValue = ipMac[normalizeMonitorIp(addr)] || '';
 				const hint = macValue ? hints[macValue] || hints[macValue.toLowerCase()] || {} : {};
-				const knownIps = new Set((hint.ipaddrs || []).concat(hint.ip6addrs || []).map(x => String(x).toLowerCase()));
+				const knownIps = new Set((hint.ipaddrs || []).concat(hint.ip6addrs || []).map(normalizeMonitorIp));
 				/* Для одиночного IP сохраняем старый value select: это совместимо
 				 * с сохранённым выбором и существующими сценариями LuCI. */
-				const key = macValue && knownIps.size > 1 ? 'mac:' + macValue : 'ip:' + addr;
+				const key = macValue && knownIps.size > 1 ? 'mac:' + macValue : addr;
 				const group = deviceGroups[key] || (deviceGroups[key] = { key, mac: macValue, ips: new Set(), label: '' });
-				group.ips.add(String(addr).toLowerCase());
+				group.ips.add(normalizeMonitorIp(addr));
 				group.label = hint.name || names[addr] || group.label || addr;
 			}
 			const options = Object.values(deviceGroups).sort((a, b) => a.label.localeCompare(b.label, 'ru'));
 			if (!options.some(group => group.key === S.appDevice)) {
-				const legacy = options.find(group => group.ips.has(String(S.appDevice || '').toLowerCase()));
+				const legacy = options.find(group => group.ips.has(normalizeMonitorIp(S.appDevice || '')));
 				S.appDevice = legacy ? legacy.key : '';
 			}
 			appDevice.replaceChildren(E('option', { value: '' }, 'Все устройства'), ...options.map(group =>
