@@ -303,6 +303,9 @@ function appTrafficDisplayName(name) {
 
 function sumMonitorAppTraffic(data, days, ip) {
 	const apps = {}, categories = {}, routes = { VPN: 0, Direct: 0, Unknown: 0 }, devices = {};
+	const selectedIps = new Set();
+	if (ip && typeof ip.forEach === 'function') ip.forEach(x => selectedIps.add(normalizeMonitorIp(x)));
+	else if (ip) selectedIps.add(normalizeMonitorIp(ip));
 	const bytes = value => {
 		const n = Number(value);
 		return Number.isFinite(n) && n > 0 ? n : 0;
@@ -310,7 +313,7 @@ function sumMonitorAppTraffic(data, days, ip) {
 	const add = (addr, name, route, down, up) => {
 		route = [ 'VPN', 'Direct', 'Unknown' ].includes(route) ? route : 'Unknown';
 		const d = bytes(down), u = bytes(up), total = d + u;
-		if (ip && (ip instanceof Set ? !ip.has(String(addr || '').toLowerCase()) : addr !== ip)) return;
+		if (selectedIps.size && !selectedIps.has(normalizeMonitorIp(addr))) return;
 		const a = apps[name] || (apps[name] = { name, category: appTrafficCategory(name), down: 0, up: 0, total: 0, routes: {} });
 		a.down += d; a.up += u; a.total += total; a.routes[route] = (a.routes[route] || 0) + total;
 		const c = categories[a.category] || (categories[a.category] = { name: a.category, total: 0, apps: {} });
@@ -333,9 +336,9 @@ function sumMonitorAppTraffic(data, days, ip) {
 function sumMonitorDeviceApps(data, deviceIps) {
 	const ips = new Set();
 	if (deviceIps && typeof deviceIps.forEach === 'function')
-		deviceIps.forEach(ip => ips.add(String(ip).toLowerCase()));
+		deviceIps.forEach(ip => ips.add(normalizeMonitorIp(ip)));
 	else if (Array.isArray(deviceIps))
-		deviceIps.forEach(ip => ips.add(String(ip).toLowerCase()));
+		deviceIps.forEach(ip => ips.add(normalizeMonitorIp(ip)));
 	const apps = {};
 	const bytes = value => {
 		const n = Number(value);
@@ -347,13 +350,13 @@ function sumMonitorDeviceApps(data, deviceIps) {
 	};
 	/* apps.day: [ip, app, route, down, up] */
 	for (const row of data && data.day || []) {
-		if (!ips.has(String(row[0] || '').toLowerCase())) continue;
+		if (!ips.has(normalizeMonitorIp(row[0]))) continue;
 		if (row.length >= 5) add(row[1], row[3], row[4]);
 		else add(row[1], row[2], row[3]);
 	}
 	/* apps.hist: [date, ip, app, route, down, up] */
 	for (const row of data && data.hist || []) {
-		if (!ips.has(String(row[1] || '').toLowerCase())) continue;
+		if (!ips.has(normalizeMonitorIp(row[1]))) continue;
 		if (row.length >= 6) add(row[2], row[4], row[5]);
 		else add(row[2], row[3], row[4]);
 	}
