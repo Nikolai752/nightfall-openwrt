@@ -165,10 +165,10 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 						const r = el.getBoundingClientRect();
 						return { width: r.width, height: r.height };
 					});
-					return { cards, charts, switches, cfgGroups: document.querySelectorAll('.nfm-cfg-layout > .nfm-cfg-g').length };
+					return { viewportWidth: window.innerWidth, cards, charts, switches, cfgGroups: document.querySelectorAll('.nfm-cfg-layout > .nfm-cfg-g').length };
 				});
 				if (geometry.charts.length < 3 || geometry.charts.some(x => x.width < 80 || x.height < 60)) bad(vn + ': графики истории не получили корректный размер');
-				if (geometry.cards.some(x => x.right > innerWidth + 1 || x.scroll > x.client + 3)) bad(vn + ': карточка истории выходит за границы или обрезает содержимое');
+				if (geometry.cards.some(x => x.right > geometry.viewportWidth + 1 || x.scroll > x.client + 3)) bad(vn + ': карточка истории выходит за границы или обрезает содержимое');
 				if (geometry.cfgGroups !== 6) bad(vn + ': сетка настроек истории должна содержать шесть основных групп');
 				if (geometry.switches.some(x => Math.abs(x.width - 40) > 1 || Math.abs(x.height - 23) > 1)) bad(vn + ': переключатели настроек имеют неправильный размер');
 				for (const dark of [ false, true ]) {
