@@ -68,7 +68,14 @@ const GROUPS = [
 	[ /^(procd|ubusd|netifd|logd|odhcp|crond|ntpd|busybox|sh$|ash$|init|syslog|dnsmasq-|fw4|nft|rngd|urngd|ubox|swconfig|hotplug|sleep|awk|cat)/, 'OpenWrt', 'g7' ]
 ];
 
+function trafficBytes(value) {
+	const n = Number(value);
+	return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
 function fmtMB(kb) {
+	kb = Number(kb);
+	if (!Number.isFinite(kb) || kb < 0) return '—';
 	const mb = kb / 1024;
 	if (mb >= 1024) return nf2.format(mb / 1024) + ' ГБ';
 	return (mb >= 100 ? nf0 : nf1).format(mb) + ' МБ';
@@ -1765,8 +1772,8 @@ return view.extend({
 			let ps = 0, pc = 0;
 			for (const r of D.h.rows || []) {
 				const d = new Date(r[0] * 1000), h = d.getHours();
-				if (r[4] >= 0 && r[5] >= 0) { hs[h] += r[4] + r[5]; hc[h]++; }
-				if (r[7] >= 0) { ps += r[7]; pc++; const k = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(), t = byDay[k] || (byDay[k] = [ 0, 0 ]); t[0] += r[7]; t[1]++; }
+				if (r[4] >= 0 && r[5] >= 0) { hs[h] += trafficBytes(r[4]) + trafficBytes(r[5]); hc[h]++; }
+				if (r[7] >= 0) { const ping = trafficBytes(r[7]); ps += ping; pc++; const k = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(), t = byDay[k] || (byDay[k] = [ 0, 0 ]); t[0] += ping; t[1]++; }
 			}
 			const av = hs.map((x, i) => hc[i] ? x / hc[i] : 0);
 			let bi = -1, bv = 0;
@@ -1807,7 +1814,7 @@ return view.extend({
 			const { y, m } = S.mon, dim = new Date(y, m + 1, 0).getDate(), first = (new Date(y, m, 1).getDay() + 6) % 7;
 			const pre = String(y) + String(m + 1).padStart(2, '0'), by = {};
 			let rx = 0, tx = 0, mx = 1, days = 0, viaDev = 0;
-			for (const r of T.rows || []) if (r[0].indexOf(pre) === 0) { const d = +r[0].slice(6, 8); by[d] = r; rx += r[1]; tx += r[2]; mx = Math.max(mx, r[1] + r[2]); days++; if (r[3] === 1) viaDev++; }
+			for (const r of T.rows || []) if (r[0].indexOf(pre) === 0) { const d = +r[0].slice(6, 8), down = trafficBytes(r[1]), up = trafficBytes(r[2]); by[d] = r; rx += down; tx += up; mx = Math.max(mx, down + up); days++; if (r[3] === 1) viaDev++; }
 			const cur = y === now.getFullYear() && m === now.getMonth(), elapsed = cur ? now.getDate() : dim, total = rx + tx;
 			const avg = days ? total / Math.max(1, Math.min(days, elapsed)) : 0, fc = cur ? total + avg * (dim - elapsed) : total;
 			const step = k => { const d = new Date(y, m + k, 1); S.mon = { y: d.getFullYear(), m: d.getMonth() }; renderMon(); };
@@ -1875,7 +1882,7 @@ return view.extend({
 				for (const [ ip, rx, tx, mac0 ] of src) {
 					const mac = mac0 || ipMac[norm(ip)] || '', k = routerIps.has(ip) ? 'router' : mac || (String(ip).indexOf(':') >= 0 ? 'v6' : ip);
 					const e = acc[k] || (acc[k] = { k, mac, ip, rx: 0, tx: 0 });
-					e.rx += +rx; e.tx += +tx;
+					e.rx += trafficBytes(rx); e.tx += trafficBytes(tx);
 				}
 				const list = Object.values(acc).sort((a, b) => (b.rx + b.tx) - (a.rx + a.tx));
 				const wan = ((S.tr && S.tr.rows) || []).find(r => r[0] === ymd);
@@ -1999,7 +2006,7 @@ return view.extend({
 		const EXPORTS = [
 			[ 'Трафик по дням', () => {
 				const r = S.tr && S.tr.rows; if (!r || !r.length) return null;
-				return [ 'nightfall-traffic-' + stamp() + '.csv', [ [ 'Дата', 'Принято, байт', 'Отправлено, байт', 'Всего, байт' ] ].concat(r.map(x => [ isoD(x[0]), x[1], x[2], x[1] + x[2] ])) ];
+				return [ 'nightfall-traffic-' + stamp() + '.csv', [ [ 'Дата', 'Принято, байт', 'Отправлено, байт', 'Всего, байт' ] ].concat(r.map(x => { const d = trafficBytes(x[1]), u = trafficBytes(x[2]); return [ isoD(x[0]), d, u, d + u ]; })) ];
 			} ],
 			[ 'Приложения', () => {
 				const A = S.wkA; if (!A || !(A.hist || A.day || []).length) return null;
@@ -2651,8 +2658,8 @@ return view.extend({
 				return rows[k] || (rows[k] = { k, mac, ip, rd: 0, ru: 0, dd: 0, du: 0 });
 			};
 			const fresh = dv.now - dv.ts <= 60;
-			if (fresh) for (const [ ip, d, u ] of dv.rate) { const r = row(ip); r.rd += d; r.ru += u; }
-			for (const [ ip, d, u ] of dv[S.devDay] || []) { const r = row(ip); r.dd += d; r.du += u; if (!r.ip || r.ip.indexOf(':') >= 0) r.ip = ip; }
+			if (fresh) for (const [ ip, d, u ] of dv.rate) { const r = row(ip); r.rd += trafficBytes(d); r.ru += trafficBytes(u); }
+			for (const [ ip, d, u ] of dv[S.devDay] || []) { const r = row(ip); r.dd += trafficBytes(d); r.du += trafficBytes(u); if (!r.ip || r.ip.indexOf(':') >= 0) r.ip = ip; }
 
 			const all = Object.values(rows).filter(r => r.rd + r.ru + r.dd + r.du > 0)
 				.sort((a, b) => (b.dd + b.du) - (a.dd + a.du) || (b.rd + b.ru) - (a.rd + a.ru));
@@ -2751,7 +2758,7 @@ return view.extend({
 			const rows = (D.h.rows || []).filter(r => r[0] >= mid);
 			const col = i => rows.map(r => r[i]).filter(v => v != null && v >= 0);
 			const max = a => a.length ? Math.max(...a) : null, avg = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
-			const sum = (list, k) => (list || []).reduce((s, x) => s + (x[k] || 0), 0);
+			const sum = (list, k) => (list || []).reduce((s, x) => s + trafficBytes(x[k]), 0);
 			let dd = sum(D.d && D.d.day, 1), du = sum(D.d && D.d.day, 2), yd = sum(D.d && D.d.yday, 1) + sum(D.d && D.d.yday, 2);
 			/* итоги дня берём из «Трафика по месяцам»: там уже выбран лучший источник (порт WAN или сумма по устройствам) */
 			let ryDev = false;
@@ -2764,7 +2771,7 @@ return view.extend({
 			/* свой трафик роутера (прокси, VPN, обновления) считаем отдельно, чтобы он не выдавал себя за устройство */
 			routerIps.learn(D.d && D.d.info);
 			let selfB = 0, cliD = 0, cliU = 0;
-			for (const [ ip, d, u ] of (D.d && D.d.day) || []) { if (routerIps.has(ip)) selfB += d + u; else { cliD += d; cliU += u; } }
+			for (const [ ip, d, u ] of (D.d && D.d.day) || []) { if (routerIps.has(ip)) selfB += trafficBytes(d) + trafficBytes(u); else { cliD += trafficBytes(d); cliU += trafficBytes(u); } }
 			let srcNote = 'Скачано и отдано: по счётчикам порта WAN.', swDev = false;
 			const rtd = ((S.tr && S.tr.rows) || []).find(r => r[0] === (new Date().getFullYear() * 10000 + (new Date().getMonth() + 1) * 100 + new Date().getDate()) + '');
 			if (rtd && rtd[3] === 1) {
@@ -2789,7 +2796,7 @@ return view.extend({
 			const tile = (k, v, s) => E('div', { class: 'nfm-tile' }, [ k, E('b', {}, v), s ? E('span', { class: 'nfm-note-s' }, s) : '' ]);
 
 			const top = {};
-			for (const [ ip, d, u ] of (D.d && D.d.day) || []) if (!routerIps.has(ip)) top[ip] = (top[ip] || 0) + d + u;
+			for (const [ ip, d, u ] of (D.d && D.d.day) || []) if (!routerIps.has(ip)) top[ip] = (top[ip] || 0) + trafficBytes(d) + trafficBytes(u);
 			const topAll = Object.keys(top).map(ip => [ ip, top[ip] ]).sort((a, b) => b[1] - a[1]);
 			const list = topAll.slice(0, 3);
 			const mx = list.length ? list[0][1] : 1;
@@ -2820,7 +2827,7 @@ return view.extend({
 
 			const end = h.now;
 			const rows = (h.rows || []).filter(r => end - r[0] <= win);
-			const col = i => rows.map(r => r[i] < 0 ? null : r[i]);
+			const col = i => rows.map(r => { const v = Number(r[i]); return Number.isFinite(v) && v >= 0 ? v : null; });
 			const times = rows.map(r => r[0]);
 			const view = { win, end, labels: xLabels(end, win) };
 			const vmax = a => a.reduce((m, v) => v != null && v > m ? v : m, 0);
