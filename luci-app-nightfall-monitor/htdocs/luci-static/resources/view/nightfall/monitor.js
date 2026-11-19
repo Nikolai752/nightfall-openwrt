@@ -2059,7 +2059,7 @@ return view.extend({
 		]);
 		const logTab = E('div', { hidden: true }, [
 			E('div', { class: 'nfm-grid' }, [ card([ 'Журнал событий', E('span', { class: 'nfm-spacer' }), logPer, logCsv, logQ ], E('div', {}, [ logChips, logBox ])) ]),
-			E('div', { class: 'nfm-grid' }, [ card('Журнал перезагрузок и обрывов связи', E('div', {}, [ jrnTiles, jrnBox ])) ]),,
+			E('div', { class: 'nfm-grid' }, [ card('Журнал перезагрузок и обрывов связи', E('div', {}, [ jrnTiles, jrnBox ])) ]),
 			E('div', { class: 'nfm-grid' }, [ card([ 'Журнал роутера', E('span', { class: 'nfm-spacer' }), rlSvc, rlQ ], E('div', {}, [ rlChips, rlBox ])) ])
 		]);
 		const diagTab = E('div', { hidden: true }, [
