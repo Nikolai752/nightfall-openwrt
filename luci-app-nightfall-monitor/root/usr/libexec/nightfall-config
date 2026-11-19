@@ -78,6 +78,8 @@ set)
 		esac
 		set -- "$@" "$kv"
 	done
+	allow_internal=$(val "$CONF" PERSIST_ANY); [ -n "$allow_internal" ] || allow_internal=$(val "$DEF" PERSIST_ANY); [ -n "$allow_internal" ] || allow_internal=0
+	for kv in "$@"; do case "$kv" in PERSIST_ANY=*) allow_internal=${kv#*=} ;; esac; done
 	for kv in "$@"; do
 		k=${kv%%=*}; v=${kv#*=}
 		case " $KEYS " in *" $k "*) ;; *) fail "неизвестный параметр: $k" ;; esac
@@ -112,7 +114,8 @@ set)
 			if [ -n "$v" ]; then
 				case "$v" in /*) ;; *) fail "PERSIST_DIR: нужен абсолютный путь" ;; esac
 				case "$v" in *[!A-Za-z0-9._/-]*|*..*) fail "PERSIST_DIR: недопустимые символы" ;; esac
-				case "$v" in /etc|/etc/*|/root|/root/*|/overlay|/overlay/*|/rom|/rom/*) fail "PERSIST_DIR: не используйте встроенную флеш-память" ;; esac
+				case "$v" in /|/etc|/etc/*|/root|/root/*|/rom|/rom/*) fail "PERSIST_DIR: этот системный путь запрещён" ;; esac
+				case "$v" in /overlay|/overlay/*) [ "$allow_internal" = 1 ] || fail "PERSIST_DIR: для внутренней флеш-памяти включите «Разрешить сохранение на встроенный накопитель»" ;; esac
 				[ ${#v} -le 100 ] || fail "PERSIST_DIR: слишком длинный путь"
 			fi ;;
 		esac
