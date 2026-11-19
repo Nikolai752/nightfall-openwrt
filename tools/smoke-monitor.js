@@ -143,6 +143,49 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				const o = await p.evaluate(() => document.querySelector('.nfm-diag-out').textContent);
 				if (!/Шлюз|Маршрут по умолчанию/.test(o)) bad(vn + ': проверка диагностики ничего не вывела: ' + o);
 			}
+			if (k === 'hist') {
+				const ht = await p.evaluate(() => document.body.textContent);
+				for (const w of [ 'Сводка за день', 'Сводка недели', 'Трафик по месяцам', 'Сравнение периодов', 'Тепловая карта по часам', 'Процессор, память, температура', 'Интернет: задержка', 'Качество связи', 'Скорость интернета (WAN)', 'Хранение истории и износ флеш-памяти', 'Экспорт данных в CSV', 'Накопители', 'Настройки предупреждений' ])
+					if (!ht.includes(w)) bad(vn + ': во вкладке «История» нет «' + w + '»');
+				if (/NaN|undefined|не число Б/.test(ht)) bad(vn + ': во вкладке «История» отображается некорректное числовое значение');
+				const geometry = await p.evaluate(() => {
+					const cards = Array.from(document.querySelectorAll('.nfm-grid > *')).map(el => {
+						const r = el.getBoundingClientRect();
+						return { right: r.right, width: r.width, scroll: el.scrollWidth, client: el.clientWidth };
+					});
+					const charts = Array.from(document.querySelectorAll('.nfm-chart')).map(el => {
+						const r = el.getBoundingClientRect();
+						return { width: r.width, height: r.height };
+					});
+					const switches = Array.from(document.querySelectorAll('.nfm-cfg-toggle input.nfm-toggle')).map(el => {
+						const r = el.getBoundingClientRect();
+						return { width: r.width, height: r.height };
+					});
+					return { cards, charts, switches, cfgGroups: document.querySelectorAll('.nfm-cfg-layout > .nfm-cfg-g').length };
+				});
+				if (geometry.charts.length < 3 || geometry.charts.some(x => x.width < 80 || x.height < 60)) bad(vn + ': графики истории не получили корректный размер');
+				if (geometry.cards.some(x => x.right > innerWidth + 1 || x.scroll > x.client + 3)) bad(vn + ': карточка истории выходит за границы или обрезает содержимое');
+				if (geometry.cfgGroups !== 6) bad(vn + ': сетка настроек истории должна содержать шесть основных групп');
+				if (geometry.switches.some(x => Math.abs(x.width - 40) > 1 || Math.abs(x.height - 23) > 1)) bad(vn + ': переключатели настроек имеют неправильный размер');
+				for (const dark of [ false, true ]) {
+					await p.evaluate(d => d ? document.documentElement.setAttribute('data-darkmode', 'true') : document.documentElement.removeAttribute('data-darkmode'), dark);
+					await p.evaluate(() => {
+						const root = document.documentElement.style;
+						root.setProperty('--nfm-accent', '#1688f8');
+						root.setProperty('--nfm-card', darkModeColor());
+					root.setProperty('--nfm-card2', darkModeColor2());
+					root.setProperty('--nfm-text', dark ? '#f5f7fb' : '#20242b');
+					root.setProperty('--nfm-dim', dark ? '#aab2c0' : '#687181');
+					root.setProperty('--nfm-border', dark ? '#424a58' : '#d6dce5');
+					function darkModeColor() { return document.documentElement.hasAttribute('data-darkmode') ? '#202631' : '#ffffff'; }
+					function darkModeColor2() { return document.documentElement.hasAttribute('data-darkmode') ? '#293342' : '#f1f4f8'; }
+				});
+					const chartCount = await p.locator('.nfm-chart').count();
+					if (chartCount < 3) bad(vn + ': графики исчезли в ' + (dark ? 'тёмном' : 'светлом') + ' режиме');
+				}
+				await p.evaluate(() => { for (const k of [ '--nfm-accent', '--nfm-card', '--nfm-card2', '--nfm-text', '--nfm-dim', '--nfm-border' ]) document.documentElement.style.removeProperty(k); document.documentElement.removeAttribute('data-darkmode'); });
+				await p.screenshot({ path: path.join(OUT, 'monitor-history-' + vn + '.png'), fullPage: true });
+			}
 			if (k === 'devs') {
 				const dt = await p.evaluate(() => document.body.textContent);
 				for (const w of [ 'Кто дома', 'Необычная активность' ]) if (!dt.includes(w)) bad(vn + ': в «Устройствах» нет «' + w + '»');
@@ -204,6 +247,8 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				await p.click('tr.nfm-rowlink >> nth=0'); await p.waitForTimeout(1200);
 				const mt = await p.evaluate(() => (document.getElementById('mock-modal') || { textContent: '' }).textContent);
 				if (!mt.includes('Трафик за 14 дней') || !mt.includes('192.168.1.20') || !mt.includes('Впервые замечено')) bad(vn + ': карточка устройства не открылась: ' + mt.slice(0, 120));
+				if (/NaN|undefined|не число Б/.test(mt)) bad(vn + ': карточка устройства содержит нечисловой трафик');
+				if (!/МБ|ГБ|КБ|Б/.test(mt)) bad(vn + ': карточка устройства не отформатировала объём трафика');
 				await p.screenshot({ path: path.join(OUT, 'monitor-devcard-' + vn + '.png') });
 				await p.evaluate(() => { const d = document.getElementById('mock-modal'); if (d) d.remove(); });
 			}
