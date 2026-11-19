@@ -151,11 +151,11 @@ grep -q '^20261117|192\.168\.1\.2|video|Direct|200|201$' "$DIR/apps.hist" && pas
 
 # Configuration validation must require opt-in for /overlay and always reject /.
 printf 'PERSIST_ANY=0\n' > "$T/config.default"
-if NF_CONF="$T/config" NF_DEF="$T/config.default" NF_NORESTART=1 "$CONFIG" set PERSIST_DIR=/overlay/nightfall PERSIST_ANY=0 > "$T/config-denied"; then :; fi
+if NF_CONF="$T/config" NF_DEF="$T/config.default" NF_NORESTART=1 sh "$CONFIG" set PERSIST_DIR=/overlay/nightfall PERSIST_ANY=0 > "$T/config-denied"; then :; fi
 grep -q '"ok":false' "$T/config-denied" || { echo "FAIL: /overlay accepted without opt-in" >&2; exit 1; }
-NF_CONF="$T/config" NF_DEF="$T/config.default" NF_NORESTART=1 "$CONFIG" set PERSIST_DIR=/overlay/nightfall PERSIST_ANY=1 > "$T/config-allowed"
+NF_CONF="$T/config" NF_DEF="$T/config.default" NF_NORESTART=1 sh "$CONFIG" set PERSIST_DIR=/overlay/nightfall PERSIST_ANY=1 > "$T/config-allowed"
 grep -q '"ok":true' "$T/config-allowed" || { cat "$T/config-allowed"; echo "FAIL: /overlay rejected with opt-in" >&2; exit 1; }
-if NF_CONF="$T/config" NF_DEF="$T/config.default" NF_NORESTART=1 "$CONFIG" set PERSIST_DIR=/ PERSIST_ANY=1 > "$T/config-root"; then :; fi
+if NF_CONF="$T/config" NF_DEF="$T/config.default" NF_NORESTART=1 sh "$CONFIG" set PERSIST_DIR=/ PERSIST_ANY=1 > "$T/config-root"; then :; fi
 grep -q '"ok":false' "$T/config-root" || { echo "FAIL: root path accepted" >&2; exit 1; }
 
 echo
