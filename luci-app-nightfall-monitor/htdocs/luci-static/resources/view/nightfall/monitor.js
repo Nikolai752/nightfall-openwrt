@@ -773,7 +773,8 @@ const CSS = `
 .nfm-cfg-head { display:flex; align-items:center; gap:10px; min-height:52px; margin:0; padding:9px 14px; list-style:none; cursor:pointer; color:var(--nfm-text); font-size:13px; font-weight:700; background:linear-gradient(100deg,var(--nfm-card2),var(--nfm-card)); border-bottom:1px solid transparent; }
 .nfm-cfg-head::-webkit-details-marker { display:none; }
 .nfm-cfg-g[open] > .nfm-cfg-head { border-bottom-color:var(--nfm-border); }
-.nfm-cfg-icon { display:grid; place-items:center; flex:0 0 32px; width:32px; height:32px; border-radius:10px; color:var(--blue,#1688f8); background:color-mix(in srgb,var(--blue,#1688f8) 14%,var(--nfm-card)); font-size:17px; }
+.nfm-cfg-icon { display:grid; place-items:center; flex:0 0 32px; width:32px; height:32px; border-radius:10px; color:var(--blue,#1688f8); background:color-mix(in srgb,var(--blue,#1688f8) 14%,var(--nfm-card)); }
+.nfm-cfg-icon svg { display:block; width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
 .nfm-cfg-heading { min-width:0; flex:1; }
 .nfm-cfg-chevron { color:var(--nfm-dim); font-size:17px; transition:transform .18s ease; }
 .nfm-cfg-g:not([open]) .nfm-cfg-chevron { transform:rotate(-90deg); }
@@ -1333,19 +1334,51 @@ return view.extend({
 		}
 		function cfgGroup(title, keys, extra, cls) {
 			const icons = {
-				'Температура и память': '◉',
-				'Процессор и соединения': '⌁',
-				'Проверка интернета': '◎',
-				'Замер скорости': '↯',
-				'Хранение истории и резервные копии': '◷',
-				'Режим и функции мониторинга': '⚙',
-				'Уведомления': '♧',
-				'Управление ботом': '⌘',
-				'Подключение и инструменты': '↔'
+				'Температура и память': [ 'path', { d: 'M9 18h6M10 22h4M8 14a6 6 0 1 1 8 0c-.8.7-1 1.3-1 2H9c0-.7-.2-1.3-1-2Z' } ],
+				'Процессор и соединения': [ 'fragment', [
+					[ 'rect', { x: 6, y: 6, width: 12, height: 12, rx: 2 } ],
+					[ 'path', { d: 'M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4' } ]
+				] ],
+				'Проверка интернета': [ 'fragment', [
+					[ 'circle', { cx: 12, cy: 12, r: 9 } ],
+					[ 'path', { d: 'M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18' } ]
+				] ],
+				'Замер скорости': [ 'fragment', [
+					[ 'path', { d: 'M4 19a9 9 0 1 1 16 0' } ],
+					[ 'path', { d: 'm12 13 4-5M7 19h10' } ],
+					[ 'circle', { cx: 12, cy: 13, r: 1 } ]
+				] ],
+				'Хранение истории и резервные копии': [ 'fragment', [
+					[ 'ellipse', { cx: 12, cy: 5, rx: 8, ry: 3 } ],
+					[ 'path', { d: 'M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3' } ]
+				] ],
+				'Режим и функции мониторинга': [ 'fragment', [
+					[ 'path', { d: 'M12 2v3m0 14v3M4.9 4.9 7 7m10 10 2.1 2.1M2 12h3m14 0h3M4.9 19.1 7 17m10-10 2.1-2.1' } ],
+					[ 'circle', { cx: 12, cy: 12, r: 5 } ]
+				] ],
+				'Уведомления': [ 'fragment', [
+					[ 'path', { d: 'M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4' } ]
+				] ],
+				'Управление ботом': [ 'fragment', [
+					[ 'rect', { x: 3, y: 7, width: 18, height: 13, rx: 3 } ],
+					[ 'path', { d: 'M12 3v4M8 13h.01M16 13h.01M9 17h6' } ]
+				] ],
+				'Подключение и инструменты': [ 'fragment', [
+					[ 'path', { d: 'M8 3v5m8-5v5M6 8h12v3a6 6 0 0 1-12 0V8ZM12 17v4' } ]
+				] ]
 			};
+			function cfgIcon() {
+				const spec = icons[title] || [ 'circle', { cx: 12, cy: 12, r: 8 } ];
+				const svg = SVG('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' });
+				if (spec[0] === 'fragment')
+					spec[1].forEach(([ tag, attrs ]) => svg.appendChild(SVG(tag, attrs)));
+				else
+					svg.appendChild(SVG(spec[0], spec[1]));
+				return svg;
+			}
 			return E('details', { class: 'nfm-cfg-g' + (cls ? ' ' + cls : ''), open: true }, [
 				E('summary', { class: 'nfm-cfg-head' }, [
-					E('span', { class: 'nfm-cfg-icon', 'aria-hidden': 'true' }, icons[title] || '•'),
+					E('span', { class: 'nfm-cfg-icon', 'aria-hidden': 'true' }, cfgIcon()),
 					E('span', { class: 'nfm-cfg-heading' }, title),
 					E('span', { class: 'nfm-cfg-chevron', 'aria-hidden': 'true' }, '⌄')
 				]),
