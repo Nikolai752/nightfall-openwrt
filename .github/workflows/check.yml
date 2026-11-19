@@ -32,7 +32,7 @@ jobs:
           ARCHIVE_VERSION=$(tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | awk -F'"' '/"version"/ { print $4; exit }')
           test "$ARCHIVE_VERSION" = "$EXPECTED_VERSION"
           tar -xOf dist/nightfall-root.tar.gz ./usr/share/ucode/luci/template/themes/nightfall/header.ut | grep -Fq "?v=$EXPECTED_VERSION"
-      - name: Загрузка кандидата для проверки на AX3000T
+      - name: Загрузка сборки для проверки релиза
         if: success() && github.event_name == 'pull_request' && github.head_ref == 'release/stability-1.28.0'
         uses: actions/upload-artifact@v4
         with:
