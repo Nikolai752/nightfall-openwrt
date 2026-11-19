@@ -413,6 +413,14 @@ function sumMonitorDeviceDailyTraffic(rows, hints, neighbours, wifi, routerIps) 
 	return Object.values(totals).filter(row => row.total > 0).sort((a, b) => b.total - a.total);
 }
 
+function monitorDeviceOwnsHistoricalRow(deviceMac, deviceIps, rowIp, rowMac) {
+	const mac = String(deviceMac || '').toUpperCase();
+	const historicalMac = String(rowMac || '').toUpperCase();
+	/* Наличие MAC в архиве запрещает fallback по IP: адрес мог перейти другому клиенту. */
+	if (historicalMac && historicalMac !== '-') return !!mac && historicalMac === mac;
+	return !!rowIp && !!deviceIps && deviceIps.has(normalizeMonitorIp(rowIp));
+}
+
 /* ---------- widgets ---------- */
 
 function ring(color) {
@@ -2777,13 +2785,7 @@ return view.extend({
 				if (mac) for (const row of (dd && dd.rows) || [])
 					if (String(row[4] || '').toUpperCase() === mac && row[1]) deviceIps.add(normalizeMonitorIp(row[1]));
 				const ymdOf = d => d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
-				const mine = (rowIp, rowMac) => {
-					const rowMacValue = String(rowMac || '').toUpperCase();
-					/* MAC важнее IP: старый адрес мог уже перейти другому устройству.
-					 * По IP сопоставляем только архивные строки без MAC. */
-					if (rowMacValue && rowMacValue !== '-') return !!mac && rowMacValue === mac;
-					return !!rowIp && deviceIps.has(normalizeMonitorIp(rowIp));
-				};
+				const mine = (rowIp, rowMac) => monitorDeviceOwnsHistoricalRow(mac, deviceIps, rowIp, rowMac);
 				const asBytes = value => { const n = Number(value); return Number.isFinite(n) && n > 0 ? n : 0; };
 				const days = {};
 				for (const x of (dd && dd.rows) || []) if (mine(x[1], x[4])) days[x[0]] = (days[x[0]] || 0) + asBytes(x[2]) + asBytes(x[3]);
