@@ -8,7 +8,7 @@ const normEnd = source.indexOf('\n}', normStart) + 2;
 const start = source.indexOf('const APP_TRAFFIC_CATEGORIES =');
 const end = source.indexOf('\n/* ---------- widgets ---------- */', start);
 if (normStart < 0 || normEnd <= normStart || start < 0 || end < 0) throw new Error('application traffic classifier not found');
-const api = vm.runInNewContext(source.slice(normStart, normEnd) + '\n' + source.slice(start, end) + '\n;({ normalizeMonitorIp, appTrafficCategory, appTrafficDisplayName, sumMonitorAppTraffic, sumMonitorDeviceApps, sumMonitorAppDeviceTraffic, sumMonitorDeviceDailyTraffic });');
+const api = vm.runInNewContext(source.slice(normStart, normEnd) + '\n' + source.slice(start, end) + '\n;({ normalizeMonitorIp, monitorDeviceOwnsHistoricalRow, appTrafficCategory, appTrafficDisplayName, sumMonitorAppTraffic, sumMonitorDeviceApps, sumMonitorAppDeviceTraffic, sumMonitorDeviceDailyTraffic });');
 const check = (ok, message) => { if (!ok) throw new Error('FAIL: ' + message); };
 const data = {
   today: '20261118',
@@ -88,6 +88,11 @@ const ambiguousDaily = api.sumMonitorDeviceDailyTraffic([['192.0.2.10', 50, 10]]
   '11:22:33:44:55:66': { ipaddrs: ['192.0.2.10'] }
 }, [], [], { has: () => false });
 check(ambiguousDaily.length === 1 && !ambiguousDaily[0].mac, 'ambiguous IP is not attributed to an arbitrary MAC');
+const oldIpSet = new Set(['192.0.2.20']);
+check(api.monitorDeviceOwnsHistoricalRow('AA:BB:CC:DD:EE:FF', oldIpSet, '192.0.2.99', 'aa:bb:cc:dd:ee:ff'), 'historical row follows exact MAC after the device changes IP');
+check(!api.monitorDeviceOwnsHistoricalRow('AA:BB:CC:DD:EE:FF', oldIpSet, '192.0.2.20', '11:22:33:44:55:66'), 'different historical MAC never matches merely because IP is reused');
+check(api.monitorDeviceOwnsHistoricalRow('AA:BB:CC:DD:EE:FF', oldIpSet, '192.0.2.20', '-'), 'legacy history without MAC may use the known IP fallback');
+check(!api.monitorDeviceOwnsHistoricalRow('', oldIpSet, '192.0.2.20', '11:22:33:44:55:66'), 'MAC-tagged history is not assigned to a MAC-less row by IP fallback');
 const one = api.sumMonitorAppTraffic(data, 7, '192.0.2.10');
 check(one.routes.VPN === 730, 'device filter VPN');
 check(one.routes.Direct === 1265, 'device filter Direct');
