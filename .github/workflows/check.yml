@@ -17,19 +17,19 @@ jobs:
         if: github.event_name == 'pull_request' && github.head_ref == 'release/stability-1.28.0'
         run: |
           set -eu
-          VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p' luci-theme-nightfall/htdocs/luci-static/nightfall/version.json)
+          VERSION=$(awk -F'"' '/"version"/ { print $4; exit }' luci-theme-nightfall/htdocs/luci-static/nightfall/version.json)
           test -n "$VERSION"
           VERSION="v$VERSION" sh ./build-release.sh
       - name: Проверка установочного архива
         if: github.event_name == 'pull_request' && github.head_ref == 'release/stability-1.28.0'
         run: |
           set -eu
-          EXPECTED_VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p' luci-theme-nightfall/htdocs/luci-static/nightfall/version.json)
+          EXPECTED_VERSION=$(awk -F'"' '/"version"/ { print $4; exit }' luci-theme-nightfall/htdocs/luci-static/nightfall/version.json)
           test -n "$EXPECTED_VERSION"
           test -s dist/nightfall-root.tar.gz
           test -s dist/nightfall-root.tar.gz.sha256
           (cd dist && sha256sum -c nightfall-root.tar.gz.sha256)
-          ARCHIVE_VERSION=$(tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p')
+          ARCHIVE_VERSION=$(tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | awk -F'"' '/"version"/ { print $4; exit }')
           test "$ARCHIVE_VERSION" = "$EXPECTED_VERSION"
           tar -xOf dist/nightfall-root.tar.gz ./usr/share/ucode/luci/template/themes/nightfall/header.ut | grep -Fq "?v=$EXPECTED_VERSION"
       - name: Загрузка кандидата для проверки на AX3000T
