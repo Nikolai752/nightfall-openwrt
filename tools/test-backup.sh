@@ -65,6 +65,24 @@ while [ "$offset" -lt "$SIZE" ]; do
   offset=$((offset + got))
 done
 cmp "$ARCHIVE" "$TMP/downloaded.tar.gz"
+echo "== chunk failures are reported instead of returning an empty/successful block =="
+printf '#!/bin/sh\\nexit 7\\n' > "$TMP/fail-base64"
+chmod +x "$TMP/fail-base64"
+if NF_BASE64="$TMP/fail-base64" "$TOOL" download "$NAME" 0 100 > "$TMP/fail-encode.out" 2>&1; then
+  echo "download unexpectedly succeeded after base64 failure" >&2; exit 1
+fi
+grep -q 'не удалось закодировать блок архива' "$TMP/fail-encode.out"
+printf '#!/bin/sh\\nprintf x\\n' > "$TMP/short-base64"
+chmod +x "$TMP/short-base64"
+if NF_BASE64="$TMP/short-base64" "$TOOL" download "$NAME" 0 100 > "$TMP/short-encode.out" 2>&1; then
+  echo "download unexpectedly accepted a truncated base64 block" >&2; exit 1
+fi
+grep -q 'неполный base64-блок' "$TMP/short-encode.out"
+if "$TOOL" download "$NAME" "$SIZE" 100 > "$TMP/empty-chunk.out" 2>&1; then
+  echo "download unexpectedly returned an empty block at EOF" >&2; exit 1
+fi
+grep -q 'запрошен пустой блок' "$TMP/empty-chunk.out"
+
 
 echo "== don't overwrite an existing archive =="
 "$TOOL" create "$TMP/backups/repeat.tar.gz" >/dev/null
