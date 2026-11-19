@@ -171,17 +171,18 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 					await p.evaluate(d => d ? document.documentElement.setAttribute('data-darkmode', 'true') : document.documentElement.removeAttribute('data-darkmode'), dark);
 					await p.evaluate(isDark => {
 						const root = document.documentElement.style;
-						root.setProperty('--nfm-accent', '#1688f8');
-						root.setProperty('--nfm-card', isDark ? '#202631' : '#ffffff');
-						root.setProperty('--nfm-card2', isDark ? '#293342' : '#f1f4f8');
-						root.setProperty('--nfm-text', isDark ? '#f5f7fb' : '#20242b');
-						root.setProperty('--nfm-dim', isDark ? '#aab2c0' : '#687181');
-						root.setProperty('--nfm-border', isDark ? '#424a58' : '#d6dce5');
+						root.setProperty('--nf-accent', '#1688f8');
+						root.setProperty('--nf-card', isDark ? '#202631' : '#ffffff');
+						root.setProperty('--nf-card-alt', isDark ? '#293342' : '#f1f4f8');
+						root.setProperty('--nf-stroke', isDark ? '#424a58' : '#d6dce5');
+						root.setProperty('--text-color-highest', isDark ? '#f5f7fb' : '#20242b');
+						root.setProperty('--text-color-medium', isDark ? '#aab2c0' : '#687181');
+						root.setProperty('--nf-radius', '12px');
 					}, dark);
 					const chartCount = await p.locator('.nfm-chart').count();
 					if (chartCount < 3) bad(vn + ': графики исчезли в ' + (dark ? 'тёмном' : 'светлом') + ' режиме');
 				}
-				await p.evaluate(() => { for (const k of [ '--nfm-accent', '--nfm-card', '--nfm-card2', '--nfm-text', '--nfm-dim', '--nfm-border' ]) document.documentElement.style.removeProperty(k); document.documentElement.removeAttribute('data-darkmode'); });
+				await p.evaluate(() => { for (const k of [ '--nf-accent', '--nf-card', '--nf-card-alt', '--nf-stroke', '--text-color-highest', '--text-color-medium', '--nf-radius' ]) document.documentElement.style.removeProperty(k); document.documentElement.removeAttribute('data-darkmode'); });
 				await p.screenshot({ path: path.join(OUT, 'monitor-history-' + vn + '.png'), fullPage: true });
 			}
 			if (k === 'devs') {
