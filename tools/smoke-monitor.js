@@ -169,17 +169,15 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				if (geometry.switches.some(x => Math.abs(x.width - 40) > 1 || Math.abs(x.height - 23) > 1)) bad(vn + ': переключатели настроек имеют неправильный размер');
 				for (const dark of [ false, true ]) {
 					await p.evaluate(d => d ? document.documentElement.setAttribute('data-darkmode', 'true') : document.documentElement.removeAttribute('data-darkmode'), dark);
-					await p.evaluate(() => {
+					await p.evaluate(isDark => {
 						const root = document.documentElement.style;
 						root.setProperty('--nfm-accent', '#1688f8');
-						root.setProperty('--nfm-card', darkModeColor());
-					root.setProperty('--nfm-card2', darkModeColor2());
-					root.setProperty('--nfm-text', dark ? '#f5f7fb' : '#20242b');
-					root.setProperty('--nfm-dim', dark ? '#aab2c0' : '#687181');
-					root.setProperty('--nfm-border', dark ? '#424a58' : '#d6dce5');
-					function darkModeColor() { return document.documentElement.hasAttribute('data-darkmode') ? '#202631' : '#ffffff'; }
-					function darkModeColor2() { return document.documentElement.hasAttribute('data-darkmode') ? '#293342' : '#f1f4f8'; }
-				});
+						root.setProperty('--nfm-card', isDark ? '#202631' : '#ffffff');
+						root.setProperty('--nfm-card2', isDark ? '#293342' : '#f1f4f8');
+						root.setProperty('--nfm-text', isDark ? '#f5f7fb' : '#20242b');
+						root.setProperty('--nfm-dim', isDark ? '#aab2c0' : '#687181');
+						root.setProperty('--nfm-border', isDark ? '#424a58' : '#d6dce5');
+					}, dark);
 					const chartCount = await p.locator('.nfm-chart').count();
 					if (chartCount < 3) bad(vn + ': графики исчезли в ' + (dark ? 'тёмном' : 'светлом') + ' режиме');
 				}
