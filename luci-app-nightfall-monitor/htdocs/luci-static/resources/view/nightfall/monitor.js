@@ -766,29 +766,42 @@ const CSS = `
   .nfm-card-title > .nfm-spacer { flex: 0 0 100%; height: 0; margin: 0; }
   .nfm-card-title > .nfm-note-s, .nfm-card-title > .nfm-legend { flex: 1 0 100%; }
 }
-.nfm-cfg-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; align-items:start; }
-.nfm-cfg-col { display:grid; gap:14px; min-width:0; align-content:start; }
-.nfm-cfg-groups { display:grid; gap:14px; min-width:0; }
-.nfm-cfg-g { border:1px solid var(--nfm-border); border-radius:var(--nfm-r); background:var(--nfm-card2); padding:14px 16px; min-width:0; }
-.nfm-cfg-g h4 { margin:0 0 12px; padding:0 0 10px; border:0; border-bottom:1px solid var(--nfm-border); font-size:13px; font-weight:650; color:var(--nfm-text); }
-.nfm-cfg-g .nfm-cfg { grid-template-columns:minmax(0,1fr); gap:10px; }
-.nfm-cfg-telegram { margin-top:14px; }
-.nfm-tg-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; align-items:stretch; }
-.nfm-tg-grid .nfm-cfg-g { background:var(--nfm-card); }
-.nfm-cfg-i.nfm-cfg-toggle { flex-direction:row; align-items:center; justify-content:space-between; gap:12px; min-height:34px; color:var(--nfm-text); }
+.nfm-cfg-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px 14px; align-items:start; }
+.nfm-cfg-col { display:grid; gap:10px; min-width:0; align-content:start; }
+.nfm-cfg-groups { display:grid; gap:12px; min-width:0; }
+.nfm-cfg-g { border:1px solid color-mix(in srgb,var(--nfm-border) 82%,transparent); border-radius:18px; background:linear-gradient(145deg,color-mix(in srgb,var(--nfm-card) 92%,var(--nfm-card2)),var(--nfm-card2)); box-shadow:0 5px 16px rgba(20,35,60,.07),inset 0 1px 0 color-mix(in srgb,var(--nfm-border) 55%,transparent); padding:0 12px 12px; min-width:0; overflow:hidden; }
+.nfm-cfg-g > summary { display:flex; align-items:center; gap:10px; min-height:44px; margin:0 -12px 10px; padding:8px 14px; list-style:none; cursor:pointer; color:var(--nfm-text); font-size:13px; font-weight:750; background:linear-gradient(90deg,color-mix(in srgb,var(--blue,#1688f8) 10%,transparent),color-mix(in srgb,var(--nfm-card2) 65%,transparent)); border-bottom:1px solid color-mix(in srgb,var(--nfm-border) 76%,transparent); }
+.nfm-cfg-g > summary::-webkit-details-marker { display:none; }
+.nfm-cfg-g > summary::after { content:'⌃'; margin-left:auto; color:var(--nfm-dim); font-size:16px; transition:transform .18s ease; }
+.nfm-cfg-g:not([open]) > summary { margin-bottom:0; border-bottom:0; }
+.nfm-cfg-g:not([open]) > summary::after { transform:rotate(180deg); }
+.nfm-cfg-icon { display:inline-flex; align-items:center; justify-content:center; flex:0 0 28px; width:28px; height:28px; border-radius:9px; color:var(--blue,#1688f8); background:color-mix(in srgb,var(--blue,#1688f8) 12%,transparent); }
+.nfm-cfg-icon svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+.nfm-cfg-g .nfm-cfg { grid-template-columns:minmax(0,1fr); gap:9px; padding:0 2px; }
+.nfm-cfg-telegram { margin-top:12px; padding:12px; border-radius:20px; border:1px solid color-mix(in srgb,var(--nfm-border) 82%,transparent); background:linear-gradient(135deg,color-mix(in srgb,var(--nfm-card) 92%,var(--nfm-card2)),color-mix(in srgb,var(--nfm-card2) 90%,var(--blue,#1688f8) 10%)); box-shadow:0 8px 24px rgba(20,35,60,.08); }
+.nfm-cfg-telegram > h4 { display:flex; align-items:center; gap:10px; margin:0 0 12px; padding:0 2px 10px; border-bottom:1px solid var(--nfm-border); font-size:15px; font-weight:800; color:var(--nfm-text); }
+.nfm-cfg-telegram > h4::before { content:'➤'; display:inline-flex; align-items:center; justify-content:center; width:28px; height:28px; border-radius:50%; color:#fff; background:var(--blue,#1688f8); font-size:13px; }
+.nfm-tg-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; align-items:start; }
+.nfm-tg-grid .nfm-cfg-g { background:color-mix(in srgb,var(--nfm-card) 94%,var(--nfm-card2)); height:auto; align-self:start; }
+.nfm-cfg-g .nfm-cfg-i { color:var(--nfm-text); font-size:12.5px; line-height:1.4; }
+.nfm-cfg-g .nfm-in { border-radius:999px; min-height:34px; }
+.nfm-cfg-g .nfm-cfg-f em { color:var(--nfm-dim); }
+.nfm-cfg-i.nfm-cfg-toggle { flex-direction:row; align-items:center; justify-content:space-between; gap:12px; min-height:36px; color:var(--nfm-text); }
 .nfm-cfg-toggle .nfm-cfg-f { flex:0 0 auto; }
 .nfm-toggle { appearance:none; -webkit-appearance:none; position:relative; width:40px; min-width:40px; height:23px; margin:0; border:1px solid var(--nfm-border); border-radius:99px; background:var(--nfm-card2); cursor:pointer; transition:background .18s ease,border-color .18s ease; }
 .nfm-toggle::before { content:''; position:absolute; top:2px; left:2px; width:17px; height:17px; border-radius:50%; background:var(--nfm-dim); transition:transform .18s ease,background .18s ease; }
 .nfm-toggle:checked { background:var(--blue,#1688f8); border-color:var(--blue,#1688f8); }
 .nfm-toggle:checked::before { transform:translateX(17px); background:#fff; }
 .nfm-toggle:focus-visible { outline:2px solid var(--blue,#1688f8); outline-offset:2px; }
-.nfm-cfg-actions { position:sticky; bottom:8px; z-index:4; display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:14px -2px 0; padding:10px; border:1px solid var(--nfm-border); border-radius:var(--nfm-r); background:var(--nfm-card); box-shadow:0 8px 24px rgba(30,70,120,.12); backdrop-filter:blur(16px); }
+.nfm-cfg-actions { position:sticky; bottom:8px; z-index:4; display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:14px -2px 0; padding:10px; border:1px solid var(--nfm-border); border-radius:var(--nfm-r); background:color-mix(in srgb,var(--nfm-card) 94%,transparent); box-shadow:0 8px 24px rgba(20,35,60,.12); backdrop-filter:blur(16px); }
 .nfm-cfg-actions .nfm-act:first-child { background:var(--blue,#1688f8); color:#fff; border-color:transparent; }
 .nfm-cfg-help { margin-top:10px; color:var(--nfm-dim); font-size:12px; }
 .nfm-cfg-help summary { cursor:pointer; color:var(--nfm-text); font-weight:600; padding:6px 0; }
 .nfm-cfg-help > div { padding:8px 0 2px; line-height:1.55; }
 @media (max-width:900px) { .nfm-tg-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media (max-width:680px) { .nfm-cfg-layout,.nfm-tg-grid { grid-template-columns:minmax(0,1fr); } .nfm-cfg-actions { position:static; } }
+@media (max-width:680px) { .nfm-cfg-layout,.nfm-tg-grid { grid-template-columns:minmax(0,1fr); } .nfm-cfg-actions { position:static; margin-top:10px; } .nfm-cfg-g { border-radius:15px; } .nfm-cfg-telegram { padding:9px; } }
+@media (max-width:420px) { .nfm-cfg-g { padding:0 9px 10px; } .nfm-cfg-g > summary { margin-left:-9px; margin-right:-9px; padding-inline:10px; } .nfm-cfg-g .nfm-cfg-i { font-size:12px; } .nfm-cfg-actions .nfm-act { flex:1 1 100%; justify-content:center; } }
+@media (prefers-reduced-motion:reduce) { .nfm-cfg-g > summary::after,.nfm-toggle,.nfm-toggle::before { transition:none; } }
 .nfm-table .r { text-align: right; font-variant-numeric: tabular-nums; }
 .nfm-chip { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 99px; background: var(--nfm-card2); border: 1px solid var(--nfm-border); color: var(--nfm-dim); margin-left: 6px; }
 .nfm-rate { display: flex; align-items: baseline; gap: 6px; }
@@ -1315,9 +1328,23 @@ return view.extend({
 			return E('label', { class: 'nfm-cfg-i' }, [ label,
 				E('span', { class: 'nfm-cfg-f' }, [ cfgInputs[key], unit ? E('em', {}, unit) : '' ]) ]);
 		}
-		function cfgGroup(title, keys, extra, cls) {
-			return E('section', { class: 'nfm-cfg-g' + (cls ? ' ' + cls : '') }, [
-				E('h4', {}, title),
+		function cfgIcon(kind) {
+			const paths = {
+				temp: [ 'M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0Z', 'M12 11v6' ],
+				cpu: [ 'M9 9h6v6H9z', 'M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3' ],
+				net: [ 'M3 8a14 14 0 0 1 18 0', 'M6 11a9 9 0 0 1 12 0', 'M9 14a4 4 0 0 1 6 0', 'M12 18h.01' ],
+				speed: [ 'M20 13a8 8 0 1 0-16 0', 'M12 13l4-5', 'M7 18h10' ],
+				storage: [ 'M4 6c0-2 16-2 16 0s-16 2-16 0Z', 'M4 6v12c0 2 16 2 16 0V6', 'M4 12c0 2 16 2 16 0' ],
+				mode: [ 'M12 3 3 8l9 5 9-5-9-5Z', 'M3 12l9 5 9-5', 'M3 16l9 5 9-5' ],
+				bell: [ 'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9', 'M10 21h4' ],
+				bot: [ 'M12 3v3', 'M8 6h8a4 4 0 0 1 4 4v7H4v-7a4 4 0 0 1 4-4Z', 'M8 12h.01M16 12h.01M9 17v2M15 17v2' ],
+				link: [ 'M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1', 'M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20l1.1-1.1' ]
+			};
+			return E('span', { class: 'nfm-cfg-icon', 'aria-hidden': 'true' }, E('svg', { viewBox: '0 0 24 24', xmlns: 'http://www.w3.org/2000/svg' }, (paths[kind] || paths.mode).map(d => E('path', { d }))));
+		}
+		function cfgGroup(title, keys, extra, cls, icon) {
+			return E('details', { class: 'nfm-cfg-g' + (cls ? ' ' + cls : ''), open: true }, [
+				E('summary', {}, [ cfgIcon(icon), E('span', {}, title) ]),
 				E('div', { class: 'nfm-cfg' }, keys.map(cfgField).filter(Boolean)),
 				extra || ''
 			]);
@@ -1325,22 +1352,22 @@ return view.extend({
 		const cfgCard = card('Настройки предупреждений', E('div', {}, [
 			E('div', { class: 'nfm-cfg-layout' }, [
 				E('div', { class: 'nfm-cfg-col' }, [
-					cfgGroup('Температура и память', [ 'TEMP_WARN', 'TEMP_CRIT', 'MEM_MIN_PCT', 'FLASH_MAX_PCT' ]),
-					cfgGroup('Проверка интернета', [ 'PING_TARGET', 'PING_TARGET2' ]),
-					cfgGroup('Хранение истории и резервные копии', [ 'PERSIST_DIR', 'PERSIST_HOURS', 'HIST_DAYS', 'BACKUP_KEEP', 'PERSIST_ANY', 'JOURNAL', 'WIFI_HIST' ])
+					cfgGroup('Температура и память', [ 'TEMP_WARN', 'TEMP_CRIT', 'MEM_MIN_PCT', 'FLASH_MAX_PCT' ], null, null, 'temp'),
+					cfgGroup('Проверка интернета', [ 'PING_TARGET', 'PING_TARGET2' ], null, null, 'net'),
+					cfgGroup('Хранение истории и резервные копии', [ 'PERSIST_DIR', 'PERSIST_HOURS', 'HIST_DAYS', 'BACKUP_KEEP', 'PERSIST_ANY', 'JOURNAL', 'WIFI_HIST' ], null, null, 'storage')
 				]),
 				E('div', { class: 'nfm-cfg-col' }, [
-					cfgGroup('Процессор и соединения', [ 'CPU_MAX_PCT', 'CPU_MINUTES', 'CT_MAX_PCT' ]),
-					cfgGroup('Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ]),
-					cfgGroup('Режим и функции мониторинга', [ 'LITE', 'APPS', 'NEWDEV' ])
+					cfgGroup('Процессор и соединения', [ 'CPU_MAX_PCT', 'CPU_MINUTES', 'CT_MAX_PCT' ], null, null, 'cpu'),
+					cfgGroup('Замер скорости', [ 'SPEED_URL', 'SPEED_STREAMS' ], null, null, 'speed'),
+					cfgGroup('Режим работы', [ 'LITE', 'APPS' ], null, null, 'mode')
 				])
 			]),
 			E('section', { class: 'nfm-cfg-g nfm-cfg-telegram' }, [
 				E('h4', {}, 'Telegram — уведомления и управление'),
 				E('div', { class: 'nfm-tg-grid' }, [
-					cfgGroup('Уведомления', [ 'TG', 'TG_ALERTS', 'TG_UPDATES', 'TG_SEC', 'TG_REPORT' ]),
-					cfgGroup('Управление ботом', [ 'TG_BOT', 'TG_CLEAN', 'TG_WIDGETS', 'TG_USERS' ]),
-					cfgGroup('Подключение и инструменты', [ 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY', 'TG_IFACE' ], tgTools)
+					cfgGroup('Уведомления', [ 'TG', 'TG_ALERTS', 'NEWDEV', 'TG_UPDATES', 'TG_SEC', 'TG_REPORT' ], null, null, 'bell'),
+					cfgGroup('Управление ботом', [ 'TG_BOT', 'TG_CLEAN', 'TG_WIDGETS', 'TG_USERS' ], null, null, 'bot'),
+					cfgGroup('Подключение', [ 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY', 'TG_IFACE' ], tgTools, null, 'link')
 				])
 			]),
 			E('div', { class: 'nfm-cfg-actions' }, [
