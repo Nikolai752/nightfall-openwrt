@@ -13,22 +13,35 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: ./tools/check.sh
-      - name: Сборка кандидата стабильного релиза 1.28.0
-        if: github.event_name == 'pull_request' && github.head_ref == 'feature/resource-monitor-app-traffic'
-        env:
-          VERSION: v1.28.0
-        run: sh ./build-release.sh
-      - name: Проверка установочного архива 1.28.0
-        if: github.event_name == 'pull_request' && github.head_ref == 'feature/resource-monitor-app-traffic'
-        env:
-          VERSION: v1.28.0
+      - name: Сборка кандидата стабильного релиза
+        if: github.event_name == 'pull_request' && github.head_ref == 'release/stability-1.28.0'
         run: |
           set -eu
+          VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p' luci-theme-nightfall/htdocs/luci-static/nightfall/version.json)
+          test -n "$VERSION"
+          VERSION="v$VERSION" sh ./build-release.sh
+      - name: Проверка установочного архива
+        if: github.event_name == 'pull_request' && github.head_ref == 'release/stability-1.28.0'
+        run: |
+          set -eu
+          EXPECTED_VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p' luci-theme-nightfall/htdocs/luci-static/nightfall/version.json)
+          test -n "$EXPECTED_VERSION"
           test -s dist/nightfall-root.tar.gz
           test -s dist/nightfall-root.tar.gz.sha256
           (cd dist && sha256sum -c nightfall-root.tar.gz.sha256)
-          tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | grep -q '"version": "1.28.0"'
-          tar -xOf dist/nightfall-root.tar.gz ./usr/share/ucode/luci/template/themes/nightfall/header.ut | grep -q '?v=1.28.0'
+          ARCHIVE_VERSION=$(tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p')
+          test "$ARCHIVE_VERSION" = "$EXPECTED_VERSION"
+          tar -xOf dist/nightfall-root.tar.gz ./usr/share/ucode/luci/template/themes/nightfall/header.ut | grep -Fq "?v=$EXPECTED_VERSION"
+      - name: Загрузка кандидата для проверки на AX3000T
+        if: success() && github.event_name == 'pull_request' && github.head_ref == 'release/stability-1.28.0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightfall-stability-candidate
+          path: |
+            dist/nightfall-root.tar.gz
+            dist/nightfall-root.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 14
       - name: Проверка службы и скриптов мониторинга
         run: sh tools/test-service.sh
       - name: "USB-хранилище: отключение и восстановление"
