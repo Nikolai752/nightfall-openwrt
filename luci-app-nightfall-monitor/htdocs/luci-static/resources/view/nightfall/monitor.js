@@ -106,11 +106,16 @@ function rateText(bps) {
 }
 
 function fmtUptime(s) {
+	s = Number(s);
+	if (!Number.isFinite(s) || s < 0) return '—';
 	const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
 	return (d ? d + ' д ' : '') + h + ' ч ' + m + ' мин';
 }
 
-function fmtTemp(v) { return nf1.format(v) + ' °C'; }
+function fmtTemp(v) {
+	v = Number(v);
+	return Number.isFinite(v) ? nf1.format(v) + ' °C' : '—';
+}
 
 function niceCeil(v) {
 	if (v <= 0) return 1;
@@ -2001,7 +2006,7 @@ return view.extend({
 		}
 		const isoD = s => /^\d{8}$/.test(String(s)) ? String(s).slice(0, 4) + '-' + String(s).slice(4, 6) + '-' + String(s).slice(6, 8) : String(s);
 		const isoT = ts => { const d = new Date(ts * 1000), z = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()) + ':' + z(d.getSeconds()); };
-		const nonneg = v => (v == null || v < 0) ? '' : v;
+		const nonneg = v => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : ''; };
 		const stamp = () => isoD(new Date().getFullYear() * 10000 + (new Date().getMonth() + 1) * 100 + new Date().getDate());
 		const EXPORTS = [
 			[ 'Трафик по дням', () => {
