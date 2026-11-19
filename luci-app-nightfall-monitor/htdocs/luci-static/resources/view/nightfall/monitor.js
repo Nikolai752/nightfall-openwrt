@@ -75,6 +75,8 @@ function fmtMB(kb) {
 }
 
 function fmtBytes(b) {
+	b = Number(b);
+	if (!Number.isFinite(b) || b < 0) return '—';
 	const u = [ 'Б', 'КБ', 'МБ', 'ГБ', 'ТБ' ];
 	let i = 0;
 	while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
@@ -82,6 +84,8 @@ function fmtBytes(b) {
 }
 
 function fmtRate(bps) {
+	bps = Number(bps);
+	if (!Number.isFinite(bps) || bps < 0) return [ '—', '' ];
 	const bits = bps * 8;
 	if (bits >= 1e9) return [ nf2.format(bits / 1e9), 'Гбит/с' ];
 	if (bits >= 1e6) return [ (bits >= 1e8 ? nf0 : nf1).format(bits / 1e6), 'Мбит/с' ];
@@ -91,7 +95,7 @@ function fmtRate(bps) {
 
 function rateText(bps) {
 	const r = fmtRate(bps);
-	return r[0] + ' ' + r[1];
+	return r[1] ? r[0] + ' ' + r[1] : r[0];
 }
 
 function fmtUptime(s) {
@@ -275,9 +279,13 @@ function appTrafficDisplayName(name) {
 
 function sumMonitorAppTraffic(data, days, ip) {
 	const apps = {}, categories = {}, routes = { VPN: 0, Direct: 0, Unknown: 0 }, devices = {};
+	const bytes = value => {
+		const n = Number(value);
+		return Number.isFinite(n) && n > 0 ? n : 0;
+	};
 	const add = (addr, name, route, down, up) => {
 		route = [ 'VPN', 'Direct', 'Unknown' ].includes(route) ? route : 'Unknown';
-		const d = Math.max(0, Number(down) || 0), u = Math.max(0, Number(up) || 0), total = d + u;
+		const d = bytes(down), u = bytes(up), total = d + u;
 		if (ip && addr !== ip) return;
 		const a = apps[name] || (apps[name] = { name, category: appTrafficCategory(name), down: 0, up: 0, total: 0, routes: {} });
 		a.down += d; a.up += u; a.total += total; a.routes[route] = (a.routes[route] || 0) + total;
@@ -2628,8 +2636,11 @@ return view.extend({
 
 		/* ---- карточка устройства (по нажатию в «Устройствах»): трафик, приложения, сигнал, время появления, действия ---- */
 		function openDevCard(r) {
-			const mac = r.mac || '', ip = r.ip || '';
-			const h = mac ? hints[mac] || {} : {};
+			const mac = String(r.mac || '').toUpperCase(), ip = r.ip || '';
+			const h = mac ? hints[mac] || hints[mac.toLowerCase()] || {} : {};
+			/* В истории приложений ключом служит IP, поэтому собираем все известные
+			 * IPv4/IPv6-адреса устройства, а не только адрес текущей conntrack-строки. */
+			const deviceIps = new Set([ ip ].concat(h.ipaddrs || [], h.ip6addrs || []).filter(Boolean).map(x => String(x).toLowerCase()));
 			const id = mac ? devId(mac, h.name) : null;
 			const label = (mac && devName(mac)) || names[ip] || ip || 'Устройство';
 			const body = E('div', { class: 'nfm nfm-dc' }, E('div', { class: 'nfm-empty' }, 'Собираю данные…'));
@@ -2642,9 +2653,16 @@ return view.extend({
 			const J = a => callHistory(a).catch(() => null);
 			Promise.all([ J([ 'devdaily' ]), J([ 'apps' ]), mac ? J([ 'wifi', mac ]) : Promise.resolve(null), J([ 'known' ]) ]).then(([ dd, ap, wf, kn ]) => {
 				const ymdOf = d => d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
-				const mine = (rowIp, rowMac) => (mac && rowMac && String(rowMac).toUpperCase() === mac) || (rowIp && rowIp === ip);
+				const mine = (rowIp, rowMac) => {
+					const rowMacValue = String(rowMac || '').toUpperCase();
+					/* MAC важнее IP: старый адрес мог уже перейти другому устройству.
+					 * По IP сопоставляем только архивные строки без MAC. */
+					if (mac && rowMacValue && rowMacValue !== '-') return rowMacValue === mac;
+					return !!rowIp && deviceIps.has(String(rowIp).toLowerCase());
+				};
+				const asBytes = value => { const n = Number(value); return Number.isFinite(n) && n > 0 ? n : 0; };
 				const days = {};
-				for (const x of (dd && dd.rows) || []) if (mine(x[1], x[4] !== '-' ? x[4] : '')) days[x[0]] = (days[x[0]] || 0) + (+x[2]) + (+x[3]);
+				for (const x of (dd && dd.rows) || []) if (mine(x[1], x[4])) days[x[0]] = (days[x[0]] || 0) + asBytes(x[2]) + asBytes(x[3]);
 				const nowD = new Date(), today = ymdOf(nowD);
 				days[today] = (r.dd || 0) + (r.du || 0);
 				const keys = []; for (let i = 13; i >= 0; i--) keys.push(ymdOf(new Date(nowD.getTime() - i * 86400000)));
@@ -2652,8 +2670,20 @@ return view.extend({
 				const total30 = Object.keys(days).filter(k => k >= ymdOf(new Date(nowD.getTime() - 29 * 86400000))).reduce((a, k) => a + days[k], 0);
 				const yest = days[ymdOf(new Date(nowD.getTime() - 86400000))];
 				const apps = {};
-				for (const x of (ap && ap.day) || []) if (x[0] === ip) apps[x[1]] = (apps[x[1]] || 0) + (+x[2]) + (+x[3]);
-				for (const x of (ap && ap.hist) || []) if (x[1] === ip) apps[x[2]] = (apps[x[2]] || 0) + (+x[3]) + (+x[4]);
+				const addApp = (name, down, up) => {
+					const total = asBytes(down) + asBytes(up);
+					if (name && total > 0) apps[name] = (apps[name] || 0) + total;
+				};
+				/* apps.day: [ip, app, route, down, up] */
+				for (const x of (ap && ap.day) || []) if (deviceIps.has(String(x[0] || '').toLowerCase())) {
+					if (x.length >= 5) addApp(x[1], x[3], x[4]);
+					else addApp(x[1], x[2], x[3]); /* совместимость со старым форматом */
+				}
+				/* apps.hist: [date, ip, app, route, down, up] */
+				for (const x of (ap && ap.hist) || []) if (deviceIps.has(String(x[1] || '').toLowerCase())) {
+					if (x.length >= 6) addApp(x[2], x[4], x[5]);
+					else addApp(x[2], x[3], x[4]); /* совместимость со старым форматом */
+				}
 				const topApps = Object.entries(apps).sort((a, b) => b[1] - a[1]).slice(0, 6);
 				const sig = ((wf && wf.rows) || []).filter(x => !mac || String(x[1]).toUpperCase() === mac).map(x => +x[2]).filter(v => v < 0);
 				const evs = ((wf && wf.events) || []).filter(x => String(x[1]).toUpperCase() === mac).slice(-6).reverse();
