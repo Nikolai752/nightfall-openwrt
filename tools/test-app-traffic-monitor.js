@@ -8,7 +8,7 @@ const normEnd = source.indexOf('\n}', normStart) + 2;
 const start = source.indexOf('const APP_TRAFFIC_CATEGORIES =');
 const end = source.indexOf('\n/* ---------- widgets ---------- */', start);
 if (normStart < 0 || normEnd <= normStart || start < 0 || end < 0) throw new Error('application traffic classifier not found');
-const api = vm.runInNewContext(source.slice(normStart, normEnd) + '\n' + source.slice(start, end) + '\n;({ normalizeMonitorIp, appTrafficCategory, appTrafficDisplayName, sumMonitorAppTraffic, sumMonitorDeviceApps, sumMonitorAppDeviceTraffic });');
+const api = vm.runInNewContext(source.slice(normStart, normEnd) + '\n' + source.slice(start, end) + '\n;({ normalizeMonitorIp, appTrafficCategory, appTrafficDisplayName, sumMonitorAppTraffic, sumMonitorDeviceApps, sumMonitorAppDeviceTraffic, sumMonitorDeviceDailyTraffic });');
 const check = (ok, message) => { if (!ok) throw new Error('FAIL: ' + message); };
 const data = {
   today: '20261118',
@@ -74,6 +74,20 @@ const weeklyDevices = api.sumMonitorAppDeviceTraffic({
 }, { has: () => false });
 check(weeklyDevices.length === 1 && weeklyDevices[0].mac === 'AA:BB:CC:DD:EE:FF', 'weekly app traffic groups all addresses by a unique MAC');
 check(weeklyDevices[0].total === 11000, 'weekly totals sum the actual byte columns, not the route label');
+const dailyDevices = api.sumMonitorDeviceDailyTraffic([
+  ['192.0.2.10', 1000, 100],
+  ['2001:db8::10', 2000, 300],
+  ['192.0.2.11', 50, 10]
+], {
+  'AA:BB:CC:DD:EE:FF': { ipaddrs: ['192.0.2.10'], ip6addrs: ['2001:0db8:0000:0000:0000:0000:0000:0010'], name: 'Tablet' }
+}, [], [], { has: () => false });
+check(dailyDevices.length === 2 && dailyDevices[0].mac === 'AA:BB:CC:DD:EE:FF', 'daily top devices group IPv4 and IPv6 by MAC');
+check(dailyDevices[0].total === 3400, 'daily device total includes download and upload on every address');
+const ambiguousDaily = api.sumMonitorDeviceDailyTraffic([['192.0.2.10', 50, 10]], {
+  'AA:BB:CC:DD:EE:FF': { ipaddrs: ['192.0.2.10'] },
+  '11:22:33:44:55:66': { ipaddrs: ['192.0.2.10'] }
+}, [], [], { has: () => false });
+check(ambiguousDaily.length === 1 && !ambiguousDaily[0].mac, 'ambiguous IP is not attributed to an arbitrary MAC');
 const one = api.sumMonitorAppTraffic(data, 7, '192.0.2.10');
 check(one.routes.VPN === 730, 'device filter VPN');
 check(one.routes.Direct === 1265, 'device filter Direct');
