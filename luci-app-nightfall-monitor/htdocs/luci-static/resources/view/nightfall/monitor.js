@@ -501,6 +501,10 @@ function monitorBuildWifiDisplayRows(wifi, hints, neighbours, leases) {
 }
 
 function sumMonitorAppDeviceTraffic(data, fromDate, hints, neighbours, wifi, routerIps, leases) {
+	/* Backward compatibility: older callers passed routerIps as argument four. */
+	if (neighbours && typeof neighbours.has === 'function' && !Array.isArray(neighbours)) {
+		routerIps = neighbours; neighbours = []; wifi = []; leases = [];
+	}
 	const ipMac = monitorBuildIpMacMap(hints, neighbours, wifi, leases), totals = {};
 	const add = (ip, down, up) => {
 		const norm = normalizeMonitorIp(ip);
