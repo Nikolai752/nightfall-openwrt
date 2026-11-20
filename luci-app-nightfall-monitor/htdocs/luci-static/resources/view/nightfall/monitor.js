@@ -422,9 +422,19 @@ function sumMonitorDeviceDailyTraffic(rows, hints, neighbours, wifi, routerIps) 
 	}
 	for (const ip in candidates) if (candidates[ip].size === 1) ipMac[ip] = Array.from(candidates[ip])[0];
 	const active = new Set((wifi || []).map(row => String(row.mac || '').toUpperCase()).filter(Boolean));
+	/* A neighbour MAC shared by multiple IPs is commonly a proxy-ARP/bridge
+	 * address (for example, a wireless repeater), not the end device MAC.
+	 * Never collapse those IPs into one device or let that MAC override DHCP. */
+	const neighbourIpsByMac = {};
+	for (const [ip, mac] of neighbours || []) {
+		const value = String(mac || '').toUpperCase();
+		if (!value) continue;
+		(neighbourIpsByMac[value] || (neighbourIpsByMac[value] = new Set())).add(normalizeMonitorIp(ip));
+	}
+	const proxyMacs = new Set(Object.keys(neighbourIpsByMac).filter(mac => neighbourIpsByMac[mac].size > 1));
 	for (const [ip, mac] of neighbours || []) {
 		const key = normalizeMonitorIp(ip), value = String(mac || '').toUpperCase();
-		if (value && (active.has(value) || !ipMac[key])) ipMac[key] = value;
+		if (value && !proxyMacs.has(value) && (active.has(value) || !ipMac[key])) ipMac[key] = value;
 	}
 	for (const [ip, down, up] of rows || []) {
 		if (routerIps && routerIps.has && routerIps.has(ip)) continue;
@@ -2742,9 +2752,19 @@ return view.extend({
 			 * это важно при приватном/рандомизированном MAC. Не подменяем MAC клиента
 			 * MAC-адресом ретранслятора, если он не является активной Wi-Fi-станцией. */
 			const activeNeighbourMacs = new Set((S.wifi || []).map(c => String(c.mac || '').toUpperCase()).filter(Boolean));
+			/* A neighbour MAC shared by multiple IPs is a proxy/bridge address,
+			 * not a reliable identity for any of those end devices. Preserve the
+			 * unique DHCP IP -> MAC mapping in that case. */
+			const neighbourIpsByMac = {};
 			for (const [ ip, mac ] of dv.neigh || []) {
-				const u = String(mac).toUpperCase();
-				if (activeNeighbourMacs.has(u) || !ipMac[norm(ip)]) ipMac[norm(ip)] = u;
+				const u = String(mac || '').toUpperCase();
+				if (!u) continue;
+				(neighbourIpsByMac[u] || (neighbourIpsByMac[u] = new Set())).add(norm(ip));
+			}
+			const proxyNeighbourMacs = new Set(Object.keys(neighbourIpsByMac).filter(mac => neighbourIpsByMac[mac].size > 1));
+			for (const [ ip, mac ] of dv.neigh || []) {
+				const u = String(mac || '').toUpperCase();
+				if (u && !proxyNeighbourMacs.has(u) && (activeNeighbourMacs.has(u) || !ipMac[norm(ip)])) ipMac[norm(ip)] = u;
 			}
 			routerIps.learn(dv.info);
 
