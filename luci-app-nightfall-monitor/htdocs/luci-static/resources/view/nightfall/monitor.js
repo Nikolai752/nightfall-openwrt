@@ -386,8 +386,122 @@ function sumMonitorDeviceApps(data, deviceIps) {
 	return Object.entries(apps).sort((a, b) => b[1] - a[1]);
 }
 
-function sumMonitorAppDeviceTraffic(data, fromDate, hints, neighbours, wifi, routerIps) {
-	const ipMac = monitorBuildIpMacMap(hints, neighbours, wifi), totals = {};
+function monitorBuildDhcpIdentity(leases) {
+	const candidates = {}, names = {};
+	for (const row of leases || []) {
+		if (!Array.isArray(row) || row.length < 2) continue;
+		const ip = normalizeMonitorIp(row[0]);
+		const mac = String(row[1] || '').toUpperCase();
+		if (!ip || !/^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) continue;
+		(candidates[ip] || (candidates[ip] = new Set())).add(mac);
+		const name = String(row[2] || '').trim();
+		if (name && name !== '*') (names[ip] || (names[ip] = new Set())).add(name);
+	}
+	const ipMac = {}, ipName = {}, ambiguous = {};
+	for (const ip in candidates) {
+		if (candidates[ip].size !== 1) { ambiguous[ip] = true; continue; }
+		ipMac[ip] = Array.from(candidates[ip])[0];
+		if (names[ip] && names[ip].size === 1) ipName[ip] = Array.from(names[ip])[0];
+	}
+	return { ipMac, ipName, ambiguous };
+}
+
+function monitorSharedNeighbourMacs(neighbours) {
+	const ips = {};
+	for (const row of neighbours || []) {
+		const ip = normalizeMonitorIp(row && row[0]);
+		const mac = String(row && row[1] || '').toUpperCase();
+		if (!ip || !/^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac) || ip.indexOf(':') >= 0) continue;
+		(ips[mac] || (ips[mac] = new Set())).add(ip);
+	}
+	return new Set(Object.keys(ips).filter(mac => ips[mac].size > 1));
+}
+
+function monitorBuildIpMacMap(hints, neighbours, wifi, leases) {
+	const dhcp = monitorBuildDhcpIdentity(leases), proxyMacs = monitorSharedNeighbourMacs(neighbours);
+	const hintCandidates = {}, ipMac = {};
+	/* Runtime DHCP leases are the authoritative IP -> endpoint MAC source.
+	 * LuCI host hints can inherit a bridge/proxy neighbour MAC for many hosts. */
+	for (const ip in dhcp.ipMac) ipMac[ip] = dhcp.ipMac[ip];
+
+	for (const mac0 of Object.keys(hints || {})) {
+		const mac = String(mac0).toUpperCase(), hint = hints[mac0] || {};
+		if (!/^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac) || proxyMacs.has(mac)) continue;
+		for (const addr of (hint.ipaddrs || []).concat(hint.ip6addrs || [])) {
+			const ip = normalizeMonitorIp(addr);
+			if (!ip || dhcp.ipMac[ip] || dhcp.ambiguous[ip]) continue;
+			(hintCandidates[ip] || (hintCandidates[ip] = new Set())).add(mac);
+		}
+	}
+	/* Host hints are a fallback only when DHCP has no entry and the IP is not ambiguous. */
+	for (const ip in hintCandidates)
+		if (hintCandidates[ip].size === 1 && !dhcp.ambiguous[ip]) ipMac[ip] = Array.from(hintCandidates[ip])[0];
+
+	for (const row of neighbours || []) {
+		const ip = normalizeMonitorIp(row && row[0]), mac = String(row && row[1] || '').toUpperCase();
+		if (!ip || !/^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac) || ipMac[ip] || dhcp.ambiguous[ip]) continue;
+		if (hintCandidates[ip] && hintCandidates[ip].size > 1) continue;
+		/* A MAC repeated by multiple IPv4 neighbours is a shared next hop,
+		 * not proof that those IP addresses belong to one endpoint. */
+		if (proxyMacs.has(mac)) continue;
+		ipMac[ip] = mac;
+	}
+	return ipMac;
+}
+
+function monitorIsInfrastructureName(name) {
+	const value = String(name || '').trim().replace(/\.lan$/i, '');
+	return /(?:^|[^a-z0-9])(?:router|gateway|repeater|extender|range[- _]?extender|mesh|bridge|access[- _]?point|wireless[- _]?ap|wifi[- _]?ap|ap)(?:$|[^a-z0-9])/i.test(value)
+		|| /^re\d{3,5}$/i.test(value);
+}
+
+function monitorBuildWifiDisplayRows(wifi, hints, neighbours, leases) {
+	const direct = (wifi || []).map(row => Object.assign({}, row));
+	const directMacs = new Set(direct.map(row => String(row.mac || '').toUpperCase()).filter(Boolean));
+	const identities = monitorBuildIpMacMap(hints, neighbours, direct, leases);
+	const dhcp = monitorBuildDhcpIdentity(leases);
+	const neighbourByIp = new Map();
+	for (const row of neighbours || []) {
+		const ip = normalizeMonitorIp(row && row[0]), mac = String(row && row[1] || '').toUpperCase();
+		if (ip && mac) neighbourByIp.set(ip, { mac, state: String(row[2] || '').toUpperCase() });
+	}
+	const byUpstream = {}, infrastructureNames = {}, bridgeMacs = new Set();
+	const hintName = mac => {
+		const h = hints[mac] || hints[String(mac || '').toLowerCase()] || {};
+		return String(h.name || '').trim();
+	};
+	for (const ip of Object.keys(identities)) {
+		const upstream = neighbourByIp.get(ip), endpoint = identities[ip];
+		if (!upstream || !directMacs.has(upstream.mac) || upstream.mac === endpoint) continue;
+		bridgeMacs.add(upstream.mac);
+		const name = dhcp.ipName[ip] || hintName(endpoint);
+		if (monitorIsInfrastructureName(name)) {
+			infrastructureNames[upstream.mac] = name.replace(/\.lan$/i, '');
+			continue;
+		}
+		const rows = byUpstream[upstream.mac] || (byUpstream[upstream.mac] = {});
+		rows[endpoint] = { mac: endpoint, ip, upstream: upstream.mac, state: upstream.state };
+	}
+	const enriched = direct.map(row => {
+		const mac = String(row.mac || '').toUpperCase(), bridge = bridgeMacs.has(mac);
+		return Object.assign({}, row, {
+			proxyStation: bridge,
+			displayName: infrastructureNames[mac] || (bridge ? '' : hintName(mac))
+		});
+	});
+	const inferred = [];
+	for (const upstream of Object.keys(byUpstream)) {
+		for (const row of Object.values(byUpstream[upstream])) inferred.push({
+			mac: row.mac, ip: row.ip, ssid: 'За ретранслятором', band: 'proxy', proxy: true,
+			upstream: row.upstream, proxyState: row.state, signal: null, rx: null, tx: null,
+			connected_time: null
+		});
+	}
+	return enriched.concat(inferred);
+}
+
+function sumMonitorAppDeviceTraffic(data, fromDate, hints, neighbours, wifi, routerIps, leases) {
+	const ipMac = monitorBuildIpMacMap(hints, neighbours, wifi, leases), totals = {};
 	const add = (ip, down, up) => {
 		const norm = normalizeMonitorIp(ip);
 		const mac = ipMac[norm] || '';
@@ -403,48 +517,8 @@ function sumMonitorAppDeviceTraffic(data, fromDate, hints, neighbours, wifi, rou
 	return Object.values(totals).filter(row => row.total > 0).sort((a, b) => b.total - a.total);
 }
 
-function monitorBuildIpMacMap(hints, neighbours, wifi) {
-	const candidates = {}, activeCandidates = {}, ipMac = {}, neighbourIps = {};
-	const activeMacs = new Set((wifi || []).map(c => String(c.mac || '').toUpperCase()).filter(Boolean));
-	for (const mac in hints || {}) {
-		const value = String(mac).toUpperCase(), hint = hints[mac] || {};
-		for (const ip of (hint.ipaddrs || []).concat(hint.ip6addrs || [])) {
-			const key = normalizeMonitorIp(ip);
-			if (!key) continue;
-			(candidates[key] || (candidates[key] = new Set())).add(value);
-			if (activeMacs.has(value)) (activeCandidates[key] || (activeCandidates[key] = new Set())).add(value);
-		}
-	}
-	/* Единый приоритет идентичности для всех вкладок:
-	 * 1) уникальная DHCP/host-hint привязка;
-	 * 2) если IP одновременно заявлен активной Wi-Fi-станцией — единственная активная станция;
-	 * 3) neighbour только как осторожный fallback, если MAC не является proxy/repeater.
-	 * Конфликтующие DHCP-кандидаты не разрешаем по случайному neighbour MAC. */
-	for (const ip in candidates) {
-		const active = activeCandidates[ip];
-		if (active && active.size === 1) ipMac[ip] = Array.from(active)[0];
-		else if (candidates[ip].size === 1) ipMac[ip] = Array.from(candidates[ip])[0];
-	}
-	for (const [ip, mac] of neighbours || []) {
-		const key = normalizeMonitorIp(ip), value = String(mac || '').toUpperCase();
-		if (!key || !value) continue;
-		(neighbourIps[value] || (neighbourIps[value] = new Set())).add(key);
-	}
-	for (const [ip, mac] of neighbours || []) {
-		const key = normalizeMonitorIp(ip), value = String(mac || '').toUpperCase();
-		if (!key || !value || ipMac[key]) continue;
-		/* DHCP ambiguity is authoritative uncertainty: do not override it with ARP. */
-		if (candidates[key] && candidates[key].size > 1) continue;
-		/* One proxy/repeater MAC on several IPv4 addresses is not device identity. */
-		const ipv4 = Array.from(neighbourIps[value] || []).filter(x => x.indexOf(':') < 0);
-		if (ipv4.length > 1) continue;
-		ipMac[key] = value;
-	}
-	return ipMac;
-}
-
-function sumMonitorDeviceDailyTraffic(rows, hints, neighbours, wifi, routerIps) {
-	const ipMac = monitorBuildIpMacMap(hints, neighbours, wifi), totals = {};
+function sumMonitorDeviceDailyTraffic(rows, hints, neighbours, wifi, routerIps, leases) {
+	const ipMac = monitorBuildIpMacMap(hints, neighbours, wifi, leases), totals = {};
 	for (const [ip, down, up] of rows || []) {
 		if (routerIps && routerIps.has && routerIps.has(ip)) continue;
 		const norm = normalizeMonitorIp(ip), mac = ipMac[norm] || '', key = mac || 'ip:' + norm;
@@ -1040,14 +1114,8 @@ return view.extend({
 	render(data) {
 		const board = data[0] || {}, ifdump = (data[1] || {}).interface || [], hints = data[2] || {};
 
-		/* IP -> имя только при однозначном соответствии одному MAC.
-		 * getHostHints() может временно содержать старую DHCP-аренду и новую запись
-		 * после смены/рандомизации MAC. Порядок ключей объекта не является приоритетом. */
-		const names = {}, nameIpMac = monitorBuildIpMacMap(hints, [], []);
-		for (const ip in nameIpMac) {
-			const mac = nameIpMac[ip], h = hints[mac] || hints[mac.toLowerCase()] || {};
-			if (h.name) names[ip] = String(h.name).trim();
-		}
+		/* Names are filled only after the DHCP-backed identity resolver is available. */
+		const names = {}, routerNameIps = new Set();
 		/* собственные адреса роутера (LAN и WAN) подписываем «Роутер» */
 		/* адреса самого роутера: текущие, прежние внешние (провайдер их меняет) и вся внешняя подсеть. Их трафик повторяет трафик устройств (VPN, прокси)
 		   или служебный, поэтому в «устройства» не входит */
@@ -1064,7 +1132,7 @@ return view.extend({
 				}
 			};
 		})();
-		for (const i of ifdump) for (const a of (i['ipv4-address'] || [])) if (a.address) { routerIps.add(a.address); if (!names[a.address] || names[a.address] === a.address) names[a.address] = 'Роутер'; }
+		for (const i of ifdump) for (const a of (i['ipv4-address'] || [])) if (a.address) { routerIps.add(a.address); routerNameIps.add(a.address); names[a.address] = 'Роутер'; }
 
 		/* device -> logical interface, default-route device */
 		const devRole = {};
@@ -1084,6 +1152,21 @@ return view.extend({
 			paused: false, tick: 0, iface: null, tab: 'overview', sort: 'mem', filter: '',
 				at: {}, alerts: undefined, devs: undefined, devDay: 'day', hist: undefined, range: 'h', appTraffic: undefined, appPeriod: 'day', appDevice: ''
 		};
+
+		function refreshIdentityNames() {
+			for (const ip of Object.keys(names)) if (!routerNameIps.has(ip)) delete names[ip];
+			const dv = S.devs || {};
+			/* Older monitor backends do not expose DHCP leases. Do not rebuild
+			 * IP labels from host hints alone: they may carry proxy-neighbour aliases. */
+			if (!Array.isArray(dv.leases)) return;
+			const dhcp = monitorBuildDhcpIdentity(dv.leases);
+			const ipMac = monitorBuildIpMacMap(hints, dv.neigh || [], S.wifi, dv.leases);
+			for (const ip of Object.keys(ipMac)) {
+				const mac = ipMac[ip], h = hints[mac] || hints[String(mac).toLowerCase()] || {};
+				const name = dhcp.ipName[ip] || h.name || '';
+				if (name) names[ip] = String(name).trim();
+			}
+		}
 
 		try {
 			const saved = JSON.parse(window.sessionStorage.getItem(STORE_KEY) || 'null');
@@ -1635,35 +1718,8 @@ return view.extend({
 		 * когда несколько DHCP-клиентов сходятся на одну реально ассоциированную станцию.
 		 */
 		function wifiDisplayRows() {
-			const direct = (S.wifi || []).slice();
-			const directMacs = new Set(direct.map(c => String(c.mac || '').toUpperCase()).filter(Boolean));
-			const stationMacs = new Set(directMacs);
-			const byUpstream = {};
 			const dv = S.devs || {};
-			const neigh = new Map((dv.neigh || []).map(x => [ String(x[0]), { mac: String(x[1] || '').toUpperCase(), state: String(x[2] || '').toUpperCase() } ]));
-			for (const mac0 of Object.keys(hints || {})) {
-				const mac = String(mac0).toUpperCase();
-				if (!mac || directMacs.has(mac)) continue;
-				const h = hints[mac0] || {};
-				for (const ip of h.ipaddrs || []) {
-					const n = neigh.get(String(ip));
-					if (!n || !stationMacs.has(n.mac)) continue;
-					const a = byUpstream[n.mac] || (byUpstream[n.mac] = {});
-					a[mac] = { mac, ip: String(ip), upstream: n.mac, state: n.state };
-				}
-			}
-			const inferred = [];
-			for (const upstream of Object.keys(byUpstream)) {
-				const clients = Object.values(byUpstream[upstream]);
-				/* IP клиента указывает на MAC активной Wi-Fi-станции, но собственный DHCP MAC другой:
-				 * это признак промежуточного узла даже при единственном клиенте за ним. */
-				for (const c of clients) inferred.push({
-					mac: c.mac, ssid: 'За ретранслятором', band: 'proxy', proxy: true,
-					upstream: c.upstream, proxyState: c.state, signal: null, rx: null, tx: null,
-					connected_time: null
-				});
-			}
-			return direct.concat(inferred);
+			return monitorBuildWifiDisplayRows(S.wifi || [], hints, dv.neigh || [], dv.leases || []);
 		}
 		function renderWifiExtra() {
 			const cl = wifiDisplayRows(), R = S.wq;
@@ -1899,7 +1955,7 @@ return view.extend({
 				const t = String(A.today || ''), base = /^\d{8}$/.test(t) ? new Date(+t.slice(0, 4), +t.slice(4, 6) - 1, +t.slice(6, 8)) : new Date();
 				base.setDate(base.getDate() - 6);
 				const from = base.getFullYear() * 10000 + (base.getMonth() + 1) * 100 + base.getDate();
-				const top = sumMonitorAppDeviceTraffic(A, from, hints, S.devs && S.devs.neigh, S.wifi, routerIps).filter(row => row.key !== 'router');
+				const top = sumMonitorAppDeviceTraffic(A, from, hints, S.devs && S.devs.neigh, S.wifi, routerIps, S.devs && S.devs.leases).filter(row => row.key !== 'router');
 				if (top.length) {
 					const name = row => row.mac ? ((hints[row.mac] || hints[row.mac.toLowerCase()] || {}).name || row.ip) : names[row.ip] || row.ip;
 					heavy = [ name(top[0]), fmtBytes(top[0].total) + ' за неделю' + (top[1] ? ' · дальше ' + fmtBytes(top[1].total) : '') ];
@@ -1970,7 +2026,7 @@ return view.extend({
 			ui.showModal(title, [ body, E('div', { class: 'button-row' }, [ E('button', { class: 'btn', click: ui.hideModal }, 'Закрыть') ]) ]);
 			const J = a => callHistory(a).catch(() => null);
 			Promise.all([ J([ 'devdaily' ]), J([ 'devices' ]), J([ 'devhr' ]) ]).then(([ dd, dv, hr ]) => {
-				const norm = normalizeMonitorIp, ipMac = monitorBuildIpMacMap(hints, dv && dv.neigh, S.wifi);
+				const norm = normalizeMonitorIp, ipMac = monitorBuildIpMacMap(hints, dv && dv.neigh, S.wifi, dv && dv.leases);
 				routerIps.learn(dv && dv.info);
 				const ymdOf = d => d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
 				const nowD = new Date(), today = ymdOf(nowD), yest = ymdOf(new Date(nowD.getTime() - 86400000));
@@ -2117,7 +2173,7 @@ return view.extend({
 			} ],
 			[ 'Приложения', () => {
 				const A = S.wkA; if (!A || !((A.hist || []).length || (A.day || []).length)) return null;
-				const nm = {}, map = monitorBuildIpMacMap(hints, S.devs && S.devs.neigh, S.wifi);
+				const nm = {}, map = monitorBuildIpMacMap(hints, S.devs && S.devs.neigh, S.wifi, S.devs && S.devs.leases);
 				for (const ip in map) { const h = hints[map[ip]] || hints[map[ip].toLowerCase()] || {}; if (h.name) nm[ip] = h.name; }
 				const t = /^\d{8}$/.test(String(A.today || '')) ? isoD(A.today) : stamp();
 				const out = [ [ 'Дата', 'Устройство (IP)', 'Имя', 'Приложение', 'Принято, байт', 'Отправлено, байт', 'Маршрут' ] ];
@@ -2224,7 +2280,7 @@ return view.extend({
 			const ips = Array.from(new Set([ ...(d.day || []).map(r => r[0]), ...(d.hist || []).map(r => r[1]) ])).filter(Boolean).sort();
 			/* Группировка адресов использует тот же resolver, что трафик устройств,
 			 * дневной отчёт и карточки. Неоднозначные DHCP/ARP записи не склеиваются. */
-			const ipMac = monitorBuildIpMacMap(hints, S.devs && S.devs.neigh, S.wifi);
+			const ipMac = monitorBuildIpMacMap(hints, S.devs && S.devs.neigh, S.wifi, S.devs && S.devs.leases);
 			const deviceGroups = {};
 			for (const addr of ips) {
 				const macValue = ipMac[normalizeMonitorIp(addr)] || '';
@@ -2530,7 +2586,7 @@ return view.extend({
 		function fetchExtras() {
 			const jobs = [];
 			if (due('alerts', ALERTS_EVERY * INTERVAL)) jobs.push(callHistory([ 'alerts' ]).then(r => { S.alerts = r; }));
-			if (onTab('net', 'devs', 'overview', 'wifi') && due('devs', DEVICES_EVERY * INTERVAL)) jobs.push(callHistory([ 'devices' ]).then(r => { S.devs = r; }));
+			if (onTab('net', 'devs', 'overview', 'wifi') && due('devs', DEVICES_EVERY * INTERVAL)) jobs.push(callHistory([ 'devices' ]).then(r => { S.devs = r; refreshIdentityNames(); }));
 			if (due('mode', 60)) jobs.push(callHistory([ 'mode' ]).then(setMode));
 			if (onTab('hist', 'log') && due('hist', HIST_EVERY * INTERVAL)) jobs.push(callHistory([ 'series', RANGES[S.range][0] ]).then(r => { S.hist = r; }));
 			if (S.tab === 'hist' && due('tr', 300)) jobs.push(callHistory([ 'traffic' ]).then(r => { S.tr = r; }));
@@ -2694,8 +2750,8 @@ return view.extend({
 		function renderTop3() {
 			const list = (title, rows) => E('div', {}, [ E('div', { class: 'nfm-k', style: 'margin:0 0 4px' }, title) ].concat(rows.length ? rows.map(x => E('div', { class: 'nfm-host' }, [ E('span', {}, x[0]), E('b', {}, x[1]) ])) : [ E('div', { class: 'nfm-empty' }, 'Пока пусто') ]));
 			const progs = S.full ? groupedProcs().sort((a, b) => b.rss - a.rss).slice(0, 3).map(e => [ e.label, fmtMB(e.rss) ]) : [];
-			const dv = S.devs && S.devs.day ? sumMonitorDeviceDailyTraffic(S.devs.day, hints, S.devs.neigh, S.wifi, routerIps).slice(0, 3) : [];
-			const identityMap = monitorBuildIpMacMap(hints, S.devs && S.devs.neigh, S.wifi);
+			const dv = S.devs && S.devs.day ? sumMonitorDeviceDailyTraffic(S.devs.day, hints, S.devs.neigh, S.wifi, routerIps, S.devs.leases).slice(0, 3) : [];
+			const identityMap = monitorBuildIpMacMap(hints, S.devs && S.devs.neigh, S.wifi, S.devs && S.devs.leases);
 			const nm = ip => {
 				const mac = identityMap[normalizeMonitorIp(ip)];
 				const h = mac ? hints[mac] || hints[mac.toLowerCase()] || {} : {};
@@ -2721,7 +2777,7 @@ return view.extend({
 			/* conntrack prints IPv6 in full form, DHCP/NDP hints in short form: compare in one form */
 			const norm = normalizeMonitorIp;
 			/* Keep exact DHCP identity and avoid merging clients behind proxy-ARP/repeaters. */
-			const ipMac = monitorBuildIpMacMap(hints, dv.neigh || []);
+			const ipMac = monitorBuildIpMacMap(hints, dv.neigh || [], S.wifi, dv.leases || []);
 			routerIps.learn(dv.info);
 
 			const rows = {};
@@ -2865,7 +2921,7 @@ return view.extend({
 			const pk = (a, f) => a == null ? '–' : f(a);
 			const tile = (k, v, s) => E('div', { class: 'nfm-tile' }, [ k, E('b', {}, v), s ? E('span', { class: 'nfm-note-s' }, s) : '' ]);
 
-			const topAll = sumMonitorDeviceDailyTraffic(D.d && D.d.day, hints, D.d && D.d.neigh, S.wifi, routerIps);
+			const topAll = sumMonitorDeviceDailyTraffic(D.d && D.d.day, hints, D.d && D.d.neigh, S.wifi, routerIps, D.d && D.d.leases);
 			const list = topAll.slice(0, 3);
 			const mx = list.length ? list[0].total : 1;
 
@@ -2933,7 +2989,7 @@ return view.extend({
 
 		/* ---------- что грузит канал ---------- */
 		function ipLabel(ip) {
-			const map = monitorBuildIpMacMap(hints, S.devs && S.devs.neigh, S.wifi);
+			const map = monitorBuildIpMacMap(hints, S.devs && S.devs.neigh, S.wifi, S.devs && S.devs.leases);
 			const mac = map[normalizeMonitorIp(ip)], h = mac ? hints[mac] || hints[mac.toLowerCase()] || {} : {};
 			return h.name || names[ip] || ip;
 		}
@@ -2943,7 +2999,7 @@ return view.extend({
 			if (!d) { dnsBox.replaceChildren(E('div', { class: 'nfm-empty' }, d === false ? MISSING : 'Собираю данные…')); return; }
 			if (!d.enabled) { dnsBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Журнал DNS-запросов выключен. Включить: uci set dhcp.@dnsmasq[0].logqueries=1; uci commit dhcp; /etc/init.d/dnsmasq restart')); return; }
 			const list = (title, rows, nm) => E('div', {}, [ E('div', { class: 'nfm-k', style: 'margin-bottom:6px' }, title) ].concat(rows.length ? rows.slice(0, 8).map(x => E('div', { class: 'nfm-host' }, [ E('span', {}, nm ? nm(x[0]) : x[0]), E('b', {}, String(x[1])) ])) : [ E('div', { class: 'nfm-empty' }, 'Пока пусто') ]));
-			const who = ip => { const m = Object.keys(hints).find(k => (hints[k].ipaddrs || []).includes(ip)); return (m && devName(m)) || names[ip] || ip; };
+			const who = ip => names[ip] || ip;
 			dnsBox.replaceChildren(
 				E('div', { class: 'nfm-note-s', style: 'grid-column:1/-1' }, 'Запросов в журнале: ' + d.total + ', не нашлось имён: ' + d.nx + (d.types && d.types.length ? ' · ' + d.types.slice(0, 4).map(x => x[0] + ' ' + x[1]).join(', ') : '')),
 				list('Куда чаще обращаются', d.sites || []), list('Кто спрашивает', d.clients || [], who), list('Не нашлось (NXDOMAIN)', d.nxd || []));
@@ -3549,11 +3605,12 @@ return view.extend({
 			if (onTab('net', 'wifi')) {
 				const rows = wifiDisplayRows().slice().sort((a, b) => (b.signal || -999) - (a.signal || -999)).map(c => {
 					const mac = (c.mac || '').toUpperCase(), h = hints[mac] || hints[mac.toLowerCase()] || {};
+					const deviceName = c.displayName || (!c.proxyStation ? h.name : '') || (h.ipaddrs || [])[0] || c.ip || mac;
 					const lvl = c.proxy ? 0 : c.signal >= -55 ? 4 : c.signal >= -65 ? 3 : c.signal >= -75 ? 2 : 1;
 					const link = x => x && x.rate ? nf0.format(x.rate / 1000) + '\u00a0Мбит/с' : '–';
-					return E('tr', { class: 'nfm-click', title: 'Показать сигнал в динамике', click: () => { if (!c.proxy) wifiDialog(mac, h.name || (h.ipaddrs || [])[0] || mac, c); } }, [
-						E('td', {}, [ h.name || (h.ipaddrs || [])[0] || mac, h.name ? E('span', { class: 'nfm-chip' }, mac) : '' ]),
-						E('td', {}, [ c.ssid, c.proxy ? E('span', { class: 'nfm-chip' }, 'вероятно RE / proxy') : c.band ? E('span', { class: 'nfm-chip' }, BANDS[c.band] || c.band) : '' ]),
+					return E('tr', { class: 'nfm-click', title: 'Показать сигнал в динамике', click: () => { if (!c.proxy) wifiDialog(mac, deviceName, c); } }, [
+						E('td', {}, [ deviceName, (c.displayName || h.name) ? E('span', { class: 'nfm-chip' }, mac) : '' ]),
+						E('td', {}, [ c.ssid, c.proxy ? E('span', { class: 'nfm-chip' }, 'за точкой доступа') : c.proxyStation ? E('span', { class: 'nfm-chip' }, 'точка доступа / мост') : c.band ? E('span', { class: 'nfm-chip' }, BANDS[c.band] || c.band) : '' ]),
 						E('td', {}, c.proxy ? '—' : [ E('span', { class: 'nfm-sig' + (lvl <= 2 ? ' weak' : '') }, [ 1, 2, 3, 4 ].map(n => E('i', { class: n <= lvl ? 'on' : '' }))), `${c.signal} дБм` ]),
 						E('td', { class: 'r' }, c.proxy ? '—' : link(c.tx)), E('td', { class: 'r' }, c.proxy ? '—' : link(c.rx)),
 						E('td', { class: 'r' }, c.proxy ? ((c.proxyState === 'REACHABLE' || c.proxyState === 'DELAY' || c.proxyState === 'PROBE') ? 'через ретранслятор · доступен' : 'через ретранслятор · не подтверждён') : c.connected_time != null ? fmtDur(c.connected_time) : '–') ]);
