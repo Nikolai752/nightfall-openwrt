@@ -10,7 +10,7 @@ const bytesEnd = source.indexOf('\n}', bytesStart) + 2;
 const start = source.indexOf('const APP_TRAFFIC_CATEGORIES =');
 const end = source.indexOf('\n/* ---------- widgets ---------- */', start);
 if (normStart < 0 || normEnd <= normStart || bytesStart < 0 || bytesEnd <= bytesStart || start < 0 || end < 0) throw new Error('application traffic classifier not found');
-const api = vm.runInNewContext(source.slice(normStart, normEnd) + '\n' + source.slice(bytesStart, bytesEnd) + '\n' + source.slice(start, end) + '\n;({ normalizeMonitorIp, trafficBytes, monitorDeviceOwnsHistoricalRow, appTrafficCategory, appTrafficDisplayName, sumMonitorAppTraffic, sumMonitorDeviceApps, sumMonitorAppDeviceTraffic, sumMonitorDeviceDailyTraffic });');
+const api = vm.runInNewContext(source.slice(normStart, normEnd) + '\n' + source.slice(bytesStart, bytesEnd) + '\n' + source.slice(start, end) + '\n;({ normalizeMonitorIp, trafficBytes, monitorDeviceOwnsHistoricalRow, appTrafficCategory, appTrafficDisplayName, sumMonitorAppTraffic, sumMonitorDeviceApps, sumMonitorAppDeviceTraffic, monitorBuildIpMacMap, sumMonitorDeviceDailyTraffic });');
 const check = (ok, message) => { if (!ok) throw new Error('FAIL: ' + message); };
 const data = {
   today: '20261118',
@@ -90,6 +90,36 @@ const ambiguousDaily = api.sumMonitorDeviceDailyTraffic([['192.0.2.10', 50, 10]]
   '11:22:33:44:55:66': { ipaddrs: ['192.0.2.10'] }
 }, [], [], { has: () => false });
 check(ambiguousDaily.length === 1 && !ambiguousDaily[0].mac, 'ambiguous IP is not attributed to an arbitrary MAC');
+const repeaterMac = 'DE:0D:AB:73:AA:8E';
+const behindRepeater = api.sumMonitorDeviceDailyTraffic([
+  ['192.168.1.110', 14000000000, 400000000],
+  ['192.168.1.191', 23000000000, 400000000],
+  ['192.168.1.180', 5000000000, 80000000],
+  ['192.168.1.132', 4700000000, 370000000]
+], {
+  '34:10:BE:8B:C4:5D': { ipaddrs: ['192.168.1.110'] },
+  'DE:4D:0A:58:83:C1': { ipaddrs: ['192.168.1.191'] },
+  '9C:FC:28:99:43:A0': { ipaddrs: ['192.168.1.180'] },
+  '60:3D:61:C4:8A:A4': { ipaddrs: ['192.168.1.132'] }
+}, [
+  ['192.168.1.110', repeaterMac],
+  ['192.168.1.191', repeaterMac],
+  ['192.168.1.180', repeaterMac],
+  ['192.168.1.132', repeaterMac]
+], [{ mac: repeaterMac }], { has: () => false });
+check(behindRepeater.length === 4, 'repeater MAC shared by several downstream IPs does not merge their traffic');
+check(behindRepeater.every(row => row.mac !== repeaterMac), 'shared repeater MAC never replaces per-IP DHCP identities');
+check(behindRepeater.find(row => row.ip === '192.168.1.110').mac === '34:10:BE:8B:C4:5D', 'DHCP identity wins over repeater proxy neighbour');
+const unknownBehindRepeater = api.sumMonitorDeviceDailyTraffic([
+  ['192.168.1.174', 2000, 100],
+  ['192.168.1.185', 3000, 200]
+], {}, [
+  ['192.168.1.174', repeaterMac],
+  ['192.168.1.185', repeaterMac]
+], [{ mac: repeaterMac }], { has: () => false });
+check(unknownBehindRepeater.length === 2 && unknownBehindRepeater.every(row => !row.mac), 'unknown downstream clients remain separate by IP when only a shared repeater MAC is visible');
+const singleNeighbour = api.sumMonitorDeviceDailyTraffic([['192.0.2.50', 100, 20]], {}, [['192.0.2.50', 'AA:BB:CC:DD:EE:01']], [], { has: () => false });
+check(singleNeighbour.length === 1 && singleNeighbour[0].mac === 'AA:BB:CC:DD:EE:01', 'unique neighbour MAC remains a valid fallback when no DHCP identity exists');
 const oldIpSet = new Set(['192.0.2.20']);
 check(api.monitorDeviceOwnsHistoricalRow('AA:BB:CC:DD:EE:FF', oldIpSet, '192.0.2.99', 'aa:bb:cc:dd:ee:ff'), 'historical row follows exact MAC after the device changes IP');
 check(!api.monitorDeviceOwnsHistoricalRow('AA:BB:CC:DD:EE:FF', oldIpSet, '192.0.2.20', '11:22:33:44:55:66'), 'different historical MAC never matches merely because IP is reused');
