@@ -411,8 +411,8 @@ function sumMonitorAppDeviceTraffic(data, fromDate, hints, routerIps) {
 	return Object.values(totals).filter(row => row.total > 0).sort((a, b) => b.total - a.total);
 }
 
-function sumMonitorDeviceDailyTraffic(rows, hints, neighbours, wifi, routerIps) {
-	const candidates = {}, ipMac = {}, totals = {};
+function monitorBuildIpMacMap(hints, neighbours) {
+	const candidates = {}, ipMac = {}, neighbourIps = {};
 	for (const mac in hints || {}) {
 		const hint = hints[mac] || {};
 		for (const ip of (hint.ipaddrs || []).concat(hint.ip6addrs || [])) {
@@ -420,33 +420,31 @@ function sumMonitorDeviceDailyTraffic(rows, hints, neighbours, wifi, routerIps) 
 			(candidates[key] || (candidates[key] = new Set())).add(String(mac).toUpperCase());
 		}
 	}
-	for (const ip in candidates) if (candidates[ip].size === 1) ipMac[ip] = Array.from(candidates[ip])[0];
-	const active = new Set((wifi || []).map(row => String(row.mac || '').toUpperCase()).filter(Boolean));
-
-	/*
-	 * A Wi-Fi station MAC can be exposed by ARP for several downstream
-	 * clients when a repeater/bridge is in the path. Detect only strong
-	 * evidence: the same active station MAC is reported for at least two
-	 * IPv4 addresses whose DHCP hints identify different MAC addresses.
-	 * In that case the station is an upstream bridge, not the owner of
-	 * those IPs, so do not use it as a fallback identity.
-	 */
-	const bridgedWifiMacs = new Set(), conflicts = {};
+	/* DHCP/host hints are the strongest IP identity. Never replace a unique
+	 * lease mapping with an ARP neighbour: proxy-ARP/repeater bridges can expose
+	 * the repeater MAC for several unrelated downstream IPv4 clients. */
+	for (const ip in candidates)
+		if (candidates[ip].size === 1) ipMac[ip] = Array.from(candidates[ip])[0];
 	for (const [ip, mac] of neighbours || []) {
 		const key = normalizeMonitorIp(ip), value = String(mac || '').toUpperCase();
-		if (!value || !active.has(value) || key.indexOf(':') >= 0) continue;
-		const hinted = candidates[key];
-		if (hinted && hinted.size === 1 && !hinted.has(value))
-			conflicts[value] = (conflicts[value] || 0) + 1;
+		if (!value) continue;
+		(neighbourIps[value] || (neighbourIps[value] = new Set())).add(key);
 	}
-	for (const mac in conflicts) if (conflicts[mac] >= 2) bridgedWifiMacs.add(mac);
-
-	/* DHCP/host hints are authoritative when unambiguous. Neighbours only
-	 * fill gaps; they must never overwrite a known endpoint MAC. */
 	for (const [ip, mac] of neighbours || []) {
 		const key = normalizeMonitorIp(ip), value = String(mac || '').toUpperCase();
-		if (value && !ipMac[key] && !bridgedWifiMacs.has(value)) ipMac[key] = value;
+		if (!value || ipMac[key]) continue;
+		/* A single L2 MAC claiming multiple IPv4 addresses is a shared
+		 * next-hop/proxy identity, not proof that those IPs are one device.
+		 * Keep them separate unless DHCP supplied a per-IP identity above. */
+		const ipv4 = Array.from(neighbourIps[value] || []).filter(x => x.indexOf(':') < 0);
+		if (ipv4.length > 1) continue;
+		ipMac[key] = value;
 	}
+	return ipMac;
+}
+
+function sumMonitorDeviceDailyTraffic(rows, hints, neighbours, wifi, routerIps) {
+	const ipMac = monitorBuildIpMacMap(hints, neighbours), totals = {};
 	for (const [ip, down, up] of rows || []) {
 		if (routerIps && routerIps.has && routerIps.has(ip)) continue;
 		const norm = normalizeMonitorIp(ip), mac = ipMac[norm] || '', key = mac || 'ip:' + norm;
@@ -2749,24 +2747,8 @@ return view.extend({
 
 			/* conntrack prints IPv6 in full form, DHCP/NDP hints in short form: compare in one form */
 			const norm = normalizeMonitorIp;
-			const ipMac = {}, ipMacCandidates = {};
-			for (const mac in hints)
-				for (const ip of (hints[mac].ipaddrs || []).concat(hints[mac].ip6addrs || [])) {
-					const k = norm(ip);
-					if (!ipMacCandidates[k]) ipMacCandidates[k] = [];
-					ipMacCandidates[k].push(String(mac).toUpperCase());
-				}
-			/* DHCP-кандидат используем только при однозначном IP -> MAC соответствии. */
-			for (const ip in ipMacCandidates)
-				if (new Set(ipMacCandidates[ip]).size === 1) ipMac[ip] = ipMacCandidates[ip][0];
-			/* Активная Wi-Fi-станция имеет приоритет над устаревшей DHCP-арендой:
-			 * это важно при приватном/рандомизированном MAC. Не подменяем MAC клиента
-			 * MAC-адресом ретранслятора, если он не является активной Wi-Fi-станцией. */
-			const activeNeighbourMacs = new Set((S.wifi || []).map(c => String(c.mac || '').toUpperCase()).filter(Boolean));
-			for (const [ ip, mac ] of dv.neigh || []) {
-				const u = String(mac).toUpperCase();
-				if (activeNeighbourMacs.has(u) || !ipMac[norm(ip)]) ipMac[norm(ip)] = u;
-			}
+			/* Keep exact DHCP identity and avoid merging clients behind proxy-ARP/repeaters. */
+			const ipMac = monitorBuildIpMacMap(hints, dv.neigh || []);
 			routerIps.learn(dv.info);
 
 			const rows = {};
