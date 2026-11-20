@@ -45,12 +45,12 @@ jobs:
       - name: Сборка RC с исправлениями учёта трафика и репитера
         if: github.event_name == 'pull_request' && github.head_ref == 'fix/repeater-device-identity'
         env:
-          VERSION: v1.28.7-rc.1
+          VERSION: v1.28.7-rc.2
         run: sh ./build-release.sh
       - name: Проверка RC-архива и версии
         if: github.event_name == 'pull_request' && github.head_ref == 'fix/repeater-device-identity'
         env:
-          VERSION: v1.28.7-rc.1
+          VERSION: v1.28.7-rc.2
         run: |
           set -eu
           test -s dist/nightfall-root.tar.gz
@@ -64,7 +64,7 @@ jobs:
         if: success() && github.event_name == 'pull_request' && github.head_ref == 'fix/repeater-device-identity'
         uses: actions/upload-artifact@v4
         with:
-          name: nightfall-v1.28.7-rc.1
+          name: nightfall-v1.28.7-rc.2
           path: |
             dist/nightfall-root.tar.gz
             dist/nightfall-root.tar.gz.sha256
