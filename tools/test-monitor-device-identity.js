@@ -49,7 +49,7 @@ assert.strictEqual(byMac[macA], 110, 'DHCP identity A must survive repeater ARP 
 assert.strictEqual(byMac[macB], 220, 'DHCP identity B must survive repeater ARP MAC');
 assert.strictEqual(byMac[macC], 330, 'DHCP identity C must survive repeater ARP MAC');
 assert.strictEqual(byMac[direct], 440, 'a normal directly connected Wi-Fi client must still map');
-assert(got.some(x => x.key === 'ip:192.168.1.99' && x.total === 550),
+assert(got.some(x => !x.mac && x.ip === '192.168.1.99' && x.total === 550),
   'unknown client behind a detected repeater must remain separate, not merge into repeater MAC');
 
 const noRepeater = sum(
