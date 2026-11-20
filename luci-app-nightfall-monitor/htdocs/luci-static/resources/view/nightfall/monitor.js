@@ -801,8 +801,8 @@ const CSS = `
 .nfm .nfm-cfg-g { border:1px solid var(--nfm-border); border-radius:var(--nfm-r); background:var(--nfm-card2); padding:0; min-width:0; overflow:hidden; align-self:start; }
 .nfm .nfm-cfg-head { display:flex; align-items:center; gap:10px; min-height:52px; margin:0; padding:9px 14px; list-style:none; cursor:pointer; color:var(--nfm-text); font-size:13px; font-weight:700; background:transparent; border-bottom:1px solid transparent; }
 .nfm .nfm-cfg-head::-webkit-details-marker { display:none; }
-.nfm .nfm-cfg-head:hover { background:color-mix(in srgb,var(--nfm-card) 55%,transparent); }
 .nfm .nfm-cfg-g[open] > .nfm-cfg-head { border-bottom-color:var(--nfm-border); }
+html #view .nfm-card.nfm-cfg-settings-card:focus-within { border-color:var(--nfm-border); }
 .nfm-cfg-icon { display:grid; place-items:center; flex:0 0 32px; width:32px; height:32px; border-radius:10px; color:var(--blue,#1688f8); background:color-mix(in srgb,var(--blue,#1688f8) 14%,var(--nfm-card)); }
 .nfm-cfg-icon svg { display:block; width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
 .nfm-cfg-heading { min-width:0; flex:1; }
@@ -1447,7 +1447,7 @@ return view.extend({
 				E('summary', {}, 'Справка по настройкам'),
 				E('div', {}, 'Для честного разделения трафика укажите известные VPN-серверы в формате IP:порт (через запятую): их внешний трафик будет показан как «VPN». Содержимое внутри зашифрованного туннеля определить нельзя. Пустой адрес 1 отключает проверку интернета. Историю безопаснее хранить на USB/SD. Путь внутри /overlay разрешается только при включённом переключателе внутренней флеш-памяти: это ускоряет износ и может заполнить системный раздел, поэтому оставляйте запас свободного места. Корневой / и /rom всегда запрещены. Резервные копии лежат отдельно в nightfall-backups; если USB отключён, копия временно создаётся в /tmp. После сохранения сборщик перезапускается, накопленная история не теряется.')
 			])
-		]));
+		]), 'nfm-cfg-settings-card');
 		const jrnTiles = E('div', { class: 'nfm-tiles t4', style: 'margin-bottom:10px' }, [ [ 'jCnt', 'обрывов за 7 дней' ], [ 'jSum', 'без связи суммарно' ], [ 'jAv', 'доступность' ], [ 'jBoot', 'последняя загрузка' ] ]
 			.map(([ k, l ]) => E('div', { class: 'nfm-tile' }, [ l, T[k] = E('b', {}, '–') ])));
 		const jrnBox = E('div');
