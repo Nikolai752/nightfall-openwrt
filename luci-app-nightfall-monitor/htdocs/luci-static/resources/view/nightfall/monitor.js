@@ -422,9 +422,30 @@ function sumMonitorDeviceDailyTraffic(rows, hints, neighbours, wifi, routerIps) 
 	}
 	for (const ip in candidates) if (candidates[ip].size === 1) ipMac[ip] = Array.from(candidates[ip])[0];
 	const active = new Set((wifi || []).map(row => String(row.mac || '').toUpperCase()).filter(Boolean));
+
+	/*
+	 * A Wi-Fi station MAC can be exposed by ARP for several downstream
+	 * clients when a repeater/bridge is in the path. Detect only strong
+	 * evidence: the same active station MAC is reported for at least two
+	 * IPv4 addresses whose DHCP hints identify different MAC addresses.
+	 * In that case the station is an upstream bridge, not the owner of
+	 * those IPs, so do not use it as a fallback identity.
+	 */
+	const bridgedWifiMacs = new Set(), conflicts = {};
 	for (const [ip, mac] of neighbours || []) {
 		const key = normalizeMonitorIp(ip), value = String(mac || '').toUpperCase();
-		if (value && (active.has(value) || !ipMac[key])) ipMac[key] = value;
+		if (!value || !active.has(value) || key.indexOf(':') >= 0) continue;
+		const hinted = candidates[key];
+		if (hinted && hinted.size === 1 && !hinted.has(value))
+			conflicts[value] = (conflicts[value] || 0) + 1;
+	}
+	for (const mac in conflicts) if (conflicts[mac] >= 2) bridgedWifiMacs.add(mac);
+
+	/* DHCP/host hints are authoritative when unambiguous. Neighbours only
+	 * fill gaps; they must never overwrite a known endpoint MAC. */
+	for (const [ip, mac] of neighbours || []) {
+		const key = normalizeMonitorIp(ip), value = String(mac || '').toUpperCase();
+		if (value && !ipMac[key] && !bridgedWifiMacs.has(value)) ipMac[key] = value;
 	}
 	for (const [ip, down, up] of rows || []) {
 		if (routerIps && routerIps.has && routerIps.has(ip)) continue;
