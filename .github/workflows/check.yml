@@ -42,6 +42,35 @@ jobs:
             dist/nightfall-root.tar.gz.sha256
           if-no-files-found: error
           retention-days: 14
+      - name: Сборка RC с исправлениями учёта трафика и репитера
+        if: github.event_name == 'pull_request' && github.head_ref == 'fix/repeater-device-identity'
+        env:
+          VERSION: v1.28.7-rc.1
+        run: sh ./build-release.sh
+      - name: Проверка RC-архива и версии
+        if: github.event_name == 'pull_request' && github.head_ref == 'fix/repeater-device-identity'
+        env:
+          VERSION: v1.28.7-rc.1
+        run: |
+          set -eu
+          test -s dist/nightfall-root.tar.gz
+          test -s dist/nightfall-root.tar.gz.sha256
+          (cd dist && sha256sum -c nightfall-root.tar.gz.sha256)
+          EXPECTED_VERSION="${VERSION#v}"
+          ARCHIVE_VERSION=$(tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | awk -F'"' '/"version"/ { print $4; exit }')
+          test "$ARCHIVE_VERSION" = "$EXPECTED_VERSION"
+          tar -xOf dist/nightfall-root.tar.gz ./usr/share/ucode/luci/template/themes/nightfall/header.ut | grep -Fq "?v=$EXPECTED_VERSION"
+      - name: Загрузка RC для установки на роутер
+        if: success() && github.event_name == 'pull_request' && github.head_ref == 'fix/repeater-device-identity'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightfall-v1.28.7-rc.1
+          path: |
+            dist/nightfall-root.tar.gz
+            dist/nightfall-root.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Проверка службы и скриптов мониторинга
         run: sh tools/test-service.sh
       - name: "USB-хранилище: отключение и восстановление"
