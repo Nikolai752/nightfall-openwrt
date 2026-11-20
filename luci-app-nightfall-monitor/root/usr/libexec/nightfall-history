@@ -63,6 +63,36 @@ neigh_json() {  # соседи по сети: «адрес → MAC» (IPv4 и IP
 	printf ']'
 }
 
+leases_json() {
+	f=${NF_LEASES:-/tmp/dhcp.leases}
+	printf '['
+	[ -r "$f" ] && awk -v now="$now" '
+		function quote(s, out, i, c) {
+			out = "\""
+			for (i = 1; i <= length(s); i++) {
+				c = substr(s, i, 1)
+				if (c == "\\") out = out "\\\\"
+				else if (c == "\"") out = out "\\\""
+				else if (c == "\r" || c == "\n") out = out " "
+				else out = out c
+			}
+			return out "\""
+		}
+		function validmac(s, a, n, i) {
+			if (length(s) != 17) return 0
+			n = split(s, a, ":")
+			if (n != 6) return 0
+			for (i = 1; i <= 6; i++) if (a[i] !~ /^[[:xdigit:]][[:xdigit:]]$/) return 0
+			return 1
+		}
+		NF >= 3 && $1 ~ /^[0-9]+$/ && ($1 == 0 || $1 > now) && validmac($2) &&
+			$3 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ {
+				name = $4; if (name == "*") name = ""
+				printf "%s[%s,%s,%s]", (n++ ? "," : ""), quote($3), quote(toupper($2)), quote(name)
+			}
+	' "$f"
+	printf ']'
+}
 journal_json() {
 	f=${NF_JOURNAL:-/etc/nightfall-journal.log}
 	printf '['
@@ -107,6 +137,7 @@ devices)
 	printf ',"day":'; devs_json "$DIR/dev.day"
 	printf ',"yday":'; devs_json "$DIR/dev.yday"
 	printf ',"neigh":'; neigh_json
+	printf ',"leases":'; leases_json
 	printf ',"info":'; info_json
 	printf '}\n' ;;
 channel)
@@ -260,7 +291,7 @@ traffic)
 	printf ']}\n' ;;
 devdaily)   # итоги по устройствам за прошлые сутки: [день, ip, принято, отправлено, mac]
 	printf '{"now":%s,"rows":[' "$now"
-	[ -r "$DIR/dev.daily" ] && awk 'NF >= 4 && $1 ~ /^[0-9]{8}$/ { printf "%s[\"%s\",\"%s\",%d,%d,\"%s\"]", (n++ ? "," : ""), $1, $2, $3, $4, ($5 == "" ? "-" : $5) }' "$DIR/dev.daily"
+	[ -r "$DIR/dev.daily" ] && awk 'NF >= 4 && $1 ~ /^[0-9]{8}$/ { printf "%s[\"%s\",\"%s\",%.0f,%.0f,\"%s\"]", (n++ ? "," : ""), $1, $2, $3, $4, ($5 == "" ? "-" : $5) }' "$DIR/dev.daily"
 	printf ']}\n' ;;
 known)   # когда сборщик впервые увидел устройства: [mac, имя, время]
 	printf '{"now":%s,"rows":[' "$now"
