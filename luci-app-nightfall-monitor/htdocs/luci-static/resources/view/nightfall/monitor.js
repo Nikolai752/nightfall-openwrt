@@ -1043,18 +1043,10 @@ return view.extend({
 		/* IP -> имя только при однозначном соответствии одному MAC.
 		 * getHostHints() может временно содержать старую DHCP-аренду и новую запись
 		 * после смены/рандомизации MAC. Порядок ключей объекта не является приоритетом. */
-		const names = {}, hintIps = {};
-		for (const mac in hints) {
-			const h = hints[mac] || {};
-			for (const ip of (h.ipaddrs || [])) {
-				if (!hintIps[ip]) hintIps[ip] = [];
-				hintIps[ip].push({ mac: String(mac).toUpperCase(), name: String(h.name || '').trim() });
-			}
-		}
-		for (const ip in hintIps) {
-			const candidates = hintIps[ip];
-			if (candidates.length === 1 && candidates[0].name)
-				names[ip] = candidates[0].name;
+		const names = {}, nameIpMac = monitorBuildIpMacMap(hints, [], []);
+		for (const ip in nameIpMac) {
+			const mac = nameIpMac[ip], h = hints[mac] || hints[mac.toLowerCase()] || {};
+			if (h.name) names[ip] = String(h.name).trim();
 		}
 		/* собственные адреса роутера (LAN и WAN) подписываем «Роутер» */
 		/* адреса самого роутера: текущие, прежние внешние (провайдер их меняет) и вся внешняя подсеть. Их трафик повторяет трафик устройств (VPN, прокси)
@@ -2125,7 +2117,8 @@ return view.extend({
 			} ],
 			[ 'Приложения', () => {
 				const A = S.wkA; if (!A || !((A.hist || []).length || (A.day || []).length)) return null;
-				const nm = {}; for (const mac in hints) for (const ip of (hints[mac].ipaddrs || [])) nm[ip] = hints[mac].name || '';
+				const nm = {}, map = monitorBuildIpMacMap(hints, S.devs && S.devs.neigh, S.wifi);
+				for (const ip in map) { const h = hints[map[ip]] || hints[map[ip].toLowerCase()] || {}; if (h.name) nm[ip] = h.name; }
 				const t = /^\d{8}$/.test(String(A.today || '')) ? isoD(A.today) : stamp();
 				const out = [ [ 'Дата', 'Устройство (IP)', 'Имя', 'Приложение', 'Принято, байт', 'Отправлено, байт', 'Маршрут' ] ];
 				for (const [ dt, ip, app, route, d, u ] of A.hist || []) out.push([ isoD(dt), ip, nm[ip] || '', app, trafficBytes(d), trafficBytes(u), route ]);
@@ -2940,8 +2933,9 @@ return view.extend({
 
 		/* ---------- что грузит канал ---------- */
 		function ipLabel(ip) {
-			for (const mac in hints) if ((hints[mac].ipaddrs || []).includes(ip) || (hints[mac].ip6addrs || []).includes(ip)) return hints[mac].name || ip;
-			return names[ip] || ip;
+			const map = monitorBuildIpMacMap(hints, S.devs && S.devs.neigh, S.wifi);
+			const mac = map[normalizeMonitorIp(ip)], h = mac ? hints[mac] || hints[mac.toLowerCase()] || {} : {};
+			return h.name || names[ip] || ip;
 		}
 
 		function renderDns() {
