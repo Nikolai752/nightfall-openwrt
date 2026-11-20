@@ -294,14 +294,21 @@ live_list() {   # строки «W mac» (Wi-Fi) и «A mac ip интерфей�
 		neigh_dump > "$DIR/neigh.cur"
 	fi
 	res=$( {
-		awk '/lladdr/ && $NF == "REACHABLE" { m = ""; d = ""; for (i = 1; i < NF; i++) { if ($i == "lladdr") m = tolower($(i + 1)); if ($i == "dev") d = $(i + 1) } if (m != "") print "A", m, $1, d }' "$DIR/neigh.cur"
+		# ip neigh may report a repeater's MAC for downstream clients. Prefer the
+		# DHCP endpoint MAC for that IP; suppress a shared next-hop MAC when no
+		# lease can identify the endpoint.
+		{ [ -r "$LEASES" ] && awk '{ print "L", $3, tolower($2) }' "$LEASES"
+		  awk '/lladdr/ && $NF == "REACHABLE" { m = ""; d = ""; for (i = 1; i < NF; i++) { if ($i == "lladdr") m = tolower($(i + 1)); if ($i == "dev") d = $(i + 1) } if (m != "") print "N", $1, m, d }' "$DIR/neigh.cur"; } |
+		awk '$1 == "L" { lease[$2] = $3; next }
+			$1 == "N" { ip[++n] = $2; mac[n] = $3; dev[n] = $4; count[$3]++ }
+			END { for (i = 1; i <= n; i++) { m = (ip[i] in lease ? lease[ip[i]] : mac[i]); if (!(ip[i] in lease) && count[mac[i]] > 1) continue; print "A", m, ip[i], dev[i] } }'
 		# ответ на ping — прямое доказательство, что устройство включено (даже если запись ARP успела устареть)
 		if [ -s "$DIR/ping.ok" ]; then
 			{ sed 's/^/P /' "$DIR/ping.ok"
 			  awk '/lladdr/ { m = ""; d = ""; for (i = 1; i < NF; i++) { if ($i == "lladdr") m = tolower($(i + 1)); if ($i == "dev") d = $(i + 1) } if (m != "") print "N", $1, m, d }' "$DIR/neigh.cur"
 			  [ -r "$LEASES" ] && awk '{ print "L", $3, tolower($2) }' "$LEASES"; } |
-			awk '$1 == "N" { nm[$2] = $3; nd[$2] = $4; next } $1 == "L" { lm[$2] = $3; next } $1 == "P" { p[$2] = 1 }
-				END { for (ip in p) { m = (ip in nm ? nm[ip] : lm[ip]); if (m != "") print "A", m, ip, (ip in nd ? nd[ip] : "") } }'
+			awk '$1 == "N" { nm[$2] = $3; nd[$2] = $4; count[$3]++; next } $1 == "L" { lm[$2] = $3; next } $1 == "P" { p[$2] = 1 }
+				END { for (ip in p) { if (ip in lm) m = lm[ip]; else { m = nm[ip]; if (count[m] > 1) continue } if (m != "") print "A", m, ip, nd[ip] } }'
 		fi; } )
 	# Запасной вариант: если проверка ничего не нашла (нет ip, ping или прав), показываем записи ARP, как раньше. Страницу открывает
 	# устройство из сети, так что «никого нет в сети» означает сбой проверки, а не реальность.
