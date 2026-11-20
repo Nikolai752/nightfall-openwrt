@@ -132,6 +132,34 @@ jobs:
             dist/nightfall-root.tar.gz.sha256
           if-no-files-found: error
           retention-days: 7
+      - name: Build device identity test archive
+        if: github.event_name == 'pull_request' && github.head_ref == 'fix/device-identity-proxy-neighbours'
+        env:
+          VERSION: v1.28.6-alpha.1-device-identity-test
+        run: sh ./build-release.sh
+      - name: Verify device identity test archive
+        if: github.event_name == 'pull_request' && github.head_ref == 'fix/device-identity-proxy-neighbours'
+        env:
+          VERSION: v1.28.6-alpha.1-device-identity-test
+        run: |
+          set -eu
+          test -s dist/nightfall-root.tar.gz
+          test -s dist/nightfall-root.tar.gz.sha256
+          (cd dist && sha256sum -c nightfall-root.tar.gz.sha256)
+          EXPECTED_VERSION="${VERSION#v}"
+          ARCHIVE_VERSION=$(tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+          test "$ARCHIVE_VERSION" = "$EXPECTED_VERSION"
+      - name: Upload device identity test archive
+        if: success() && github.event_name == 'pull_request' && github.head_ref == 'fix/device-identity-proxy-neighbours'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightfall-device-identity-test-v1.28.6-alpha.1
+          path: |
+            dist/nightfall-root.tar.gz
+            dist/nightfall-root.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Build Telegram restore test archive
         if: github.event_name == 'pull_request' && github.head_ref == 'feat/telegram-backup-restore-buttons'
         env:
