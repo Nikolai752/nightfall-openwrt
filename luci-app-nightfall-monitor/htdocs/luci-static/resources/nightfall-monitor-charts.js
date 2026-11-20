@@ -4,6 +4,15 @@
 const WINDOW = 300;
 const nf1 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 
+function SVG(tag, attrs, children) {
+	const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+	for (const k in attrs || {})
+		el.setAttribute(k, attrs[k]);
+	for (const child of [].concat(children || []))
+		if (child != null) el.appendChild(child);
+	return el;
+}
+
 function ring(color) {
 	const r = 31, c = 2 * Math.PI * r;
 	const fg = SVG('circle', { cx: 40, cy: 40, r, fill: 'none', 'stroke-width': 9, 'stroke-linecap': 'round',
