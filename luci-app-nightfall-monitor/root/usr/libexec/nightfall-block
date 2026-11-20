@@ -271,13 +271,21 @@ wifi_macs() {
 neigh_dump() { if [ -n "$NF_NEIGH" ]; then cat "$NF_NEIGH" 2>/dev/null; else ${NF_IP:-ip} -4 neigh show 2>/dev/null; fi; }
 live_list() {   # строки «W mac» (Wi-Fi) и «A mac ip интерфейс» (ответили по ARP)
 	wm=$(wifi_macs | tr 'A-F' 'a-f' | sort -u)
-	[ -n "$wm" ] && printf '%s\n' "$wm" | awk '{ print "W", $1 }'
 	if [ -z "$NF_NEIGH" ] && ! command -v "${NF_IP:-ip}" >/dev/null 2>&1; then
+		[ -n "$wm" ] && printf '%s\n' "$wm" | awk '{ print "W", $1 }'
 		[ -r "$PROC/net/arp" ] && awk 'NR > 1 && $3 == "0x2" && $4 != "00:00:00:00:00:00" { print "A", tolower($4), $1, $6 }' "$PROC/net/arp"
 		return 0
 	fi
 	mkdir -p "$DIR" 2>/dev/null
 	neigh_dump > "$DIR/neigh.cur"
+	# DHCP IP/MAC mismatches identify an associated repeater bridge, not its downstream clients.
+	proxy_macs=$( { [ -r "$LEASES" ] && awk '{ print "L", $3, tolower($2) }' "$LEASES"
+		awk '/lladdr/ { m = ""; for (i = 1; i < NF; i++) if ($i == "lladdr") m = tolower($(i + 1)); if (m != "") print "N", $1, m }' "$DIR/neigh.cur"; } |
+		awk '$1 == "L" { lease[$2] = $3; next } $1 == "N" { neigh[$2] = $3 }
+			END { for (ip in lease) if ((ip in neigh) && neigh[ip] != lease[ip]) proxy[neigh[ip]] = 1; for (m in proxy) print m }')
+	if [ -n "$wm" ]; then
+		printf '%s\n' "$wm" | awk -v p=" $proxy_macs " 'index(p, " " $1 " ") == 0 { print "W", $1 }'
+	fi
 	cand=$( { [ -r "$LEASES" ] && awk '{ print "L", tolower($2), $3 }' "$LEASES"
 		awk '/lladdr/ { for (i = 1; i < NF; i++) if ($i == "lladdr") print "N", tolower($(i + 1)), $1, $NF }' "$DIR/neigh.cur"; } 2>/dev/null |
 		awk -v wm=" $(printf '%s ' $wm)" '
