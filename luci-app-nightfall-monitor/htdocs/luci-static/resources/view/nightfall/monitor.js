@@ -1482,7 +1482,7 @@ return view.extend({
 		function renderDevExtra() {
 			const R = S.wq, cl = wifiDisplayRows(), up = m => String(m).toUpperCase();
 			const here = {}, via = {};
-			for (const c of cl) if (c.mac && (!c.proxy || [ 'REACHABLE', 'DELAY', 'PROBE' ].includes(c.proxyState))) {
+			for (const c of cl) if (c.mac && !c.proxyStation && (!c.proxy || [ 'REACHABLE', 'DELAY', 'PROBE' ].includes(c.proxyState))) {
 				here[up(c.mac)] = true;
 				if (c.proxy) via[up(c.mac)] = true;
 			}
@@ -1525,9 +1525,10 @@ return view.extend({
 			/* рекомендации */
 			const tips = [];
 			const by = {};
-			for (const x of (R && R.rows) || []) { const m = String(x[1]).toLowerCase(), v = +x[2]; if (!isFinite(v)) continue; (by[m] = by[m] || []).push(v); }
+			const bridgeMacs = new Set(cl.filter(c => c.proxyStation).map(c => String(c.mac).toUpperCase()));
+			for (const x of (R && R.rows) || []) { const m = String(x[1]).toLowerCase(), v = +x[2]; if (bridgeMacs.has(m.toUpperCase()) || !isFinite(v)) continue; (by[m] = by[m] || []).push(v); }
 			const leaves = {};
-			for (const e of (R && R.events) || []) if (e[2] === 'leave') { const k = String(e[1]).toLowerCase(); leaves[k] = (leaves[k] || 0) + 1; }
+			for (const e of (R && R.events) || []) if (e[2] === 'leave' && !bridgeMacs.has(String(e[1]).toUpperCase())) { const k = String(e[1]).toLowerCase(); leaves[k] = (leaves[k] || 0) + 1; }
 			for (const m of Object.keys(by)) { const v = by[m], avg = v.reduce((a, b) => a + b, 0) / v.length; if (v.length >= 5 && avg <= -75) tips.push([ 'warn', devName(m) + ': средний сигнал ' + Math.round(avg) + ' дБм. Поднесите ближе к роутеру или добавьте точку доступа; если устройство на 2,4 ГГц, проверьте, нет ли помех на канале (карточка ниже).' ]); }
 			for (const m of Object.keys(leaves)) if (leaves[m] >= 6) tips.push([ 'warn', devName(m) + ': ' + leaves[m] + ' отключений за период. Часто виновато энергосбережение Wi‑Fi на устройстве; попробуйте отключить его или включить «Фиксированный MAC» вместо частного.' ]);
 			const n24 = (bands['2g'] || {}).n || 0, n5 = (bands['5g'] || {}).n || 0;
@@ -1554,7 +1555,8 @@ return view.extend({
 		function renderWq() {
 			const R = S.wq;
 			if (R === undefined) { wqBody.replaceChildren(E('div', { class: 'nfm-empty' }, 'Загружаю…')); return; }
-			const rows = R && R.rows || [];
+			const bridgeMacs = new Set(wifiDisplayRows().filter(c => c.proxyStation).map(c => String(c.mac).toLowerCase()));
+			const rows = (R && R.rows || []).filter(x => !bridgeMacs.has(String(x[1]).toLowerCase()));
 			if (!rows.length) {
 				const verdict = E('div', { class: 'nfm-note-s' });
 				const btn = E('button', { type: 'button', class: 'nfm-btn', click: () => {
@@ -1605,7 +1607,8 @@ return view.extend({
 		function renderWHeat() {
 			const R = S.whr;
 			if (R === undefined) { whBody.replaceChildren(E('div', { class: 'nfm-empty' }, 'Загружаю…')); return; }
-			const rows = R && R.rows || [];
+			const bridgeMacs = new Set(wifiDisplayRows().filter(c => c.proxyStation).map(c => String(c.mac).toLowerCase()));
+			const rows = (R && R.rows || []).filter(x => !bridgeMacs.has(String(x[1]).toLowerCase()));
 			if (!rows.length) { whBody.replaceChildren(E('div', { class: 'nfm-hint' }, 'Данных пока нет: сборщик записывает средний сигнал каждого клиента раз в час (первые точки появятся через час после запуска) и хранит их на накопителе, если он подключён.' + (R === null ? ' Обновите тему на роутере до последней версии.' : ''))); return; }
 			const week = S.whR === 'w', step = week ? 21600 : 3600, n = week ? 28 : 24, end = R.now;
 			const by = {};
@@ -3399,11 +3402,11 @@ return view.extend({
 			if (onTab('net', 'wifi')) {
 				const rows = wifiDisplayRows().slice().sort((a, b) => (b.signal || -999) - (a.signal || -999)).map(c => {
 					const mac = (c.mac || '').toUpperCase(), h = hints[mac] || hints[mac.toLowerCase()] || {};
-					const deviceName = c.displayName || (!c.proxyStation ? h.name : '') || (h.ipaddrs || [])[0] || c.ip || mac;
+					const deviceName = c.displayName || (!c.proxyStation ? h.name : '') || (!c.proxyStation ? (h.ipaddrs || [])[0] : '') || (!c.proxyStation ? c.ip : '') || mac;
 					const lvl = c.proxy ? 0 : c.signal >= -55 ? 4 : c.signal >= -65 ? 3 : c.signal >= -75 ? 2 : 1;
 					const link = x => x && x.rate ? nf0.format(x.rate / 1000) + '\u00a0Мбит/с' : '–';
 					return E('tr', { class: 'nfm-click', title: 'Показать сигнал в динамике', click: () => { if (!c.proxy) wifiDialog(mac, deviceName, c); } }, [
-						E('td', {}, [ deviceName, (c.displayName || h.name) ? E('span', { class: 'nfm-chip' }, mac) : '' ]),
+						E('td', {}, [ deviceName, (c.displayName || (!c.proxyStation && h.name)) ? E('span', { class: 'nfm-chip' }, mac) : '' ]),
 						E('td', {}, [ c.ssid, c.proxy ? E('span', { class: 'nfm-chip' }, 'за точкой доступа') : c.proxyStation ? E('span', { class: 'nfm-chip' }, 'точка доступа / мост') : c.band ? E('span', { class: 'nfm-chip' }, BANDS[c.band] || c.band) : '' ]),
 						E('td', {}, c.proxy ? '—' : [ E('span', { class: 'nfm-sig' + (lvl <= 2 ? ' weak' : '') }, [ 1, 2, 3, 4 ].map(n => E('i', { class: n <= lvl ? 'on' : '' }))), `${c.signal} дБм` ]),
 						E('td', { class: 'r' }, c.proxy ? '—' : link(c.tx)), E('td', { class: 'r' }, c.proxy ? '—' : link(c.rx)),
