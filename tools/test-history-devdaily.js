@@ -11,6 +11,13 @@ const { execFileSync } = require('child_process');
 
 const root = path.join(__dirname, '..');
 const history = path.join(root, 'luci-app-nightfall-monitor/root/usr/libexec/nightfall-history');
+const historySource = fs.readFileSync(history, 'utf8');
+const serializer = historySource.split('devdaily)')[1]?.split('known)')[0] || '';
+assert(serializer.includes('%.0f,%.0f'),
+  'production devdaily serializer must use floating-point-safe integer formatting (%.0f)');
+assert(!serializer.includes('%d,%d'),
+  'production devdaily serializer must not use narrow %d formatting');
+
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nightfall-devdaily-'));
 
 try {
