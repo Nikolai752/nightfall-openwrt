@@ -58,10 +58,10 @@ jobs:
         run: sh tools/test-block.sh
       - name: Учёт трафика только для LAN-клиентов
         run: sh tools/test-device-accounting.sh
-      - name: Очистка старых WAN-записей из истории устройств
-        run: sh tools/test-device-archive-filter.sh
       - name: Test monitor device identity (repeater and direct Wi-Fi)
         run: node tools/test-monitor-device-identity.js
+      - name: Большие счётчики трафика в JSON истории
+        run: node tools/test-history-devdaily.js
       - name: Окно «Что нового» после обновления
         run: sh tools/test-whats-new.sh
       - name: Изолированные тесты LuCI updater и отката
