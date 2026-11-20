@@ -8,6 +8,7 @@ const PRESETS = vm.runInNewContext(THEME_SRC.slice(PRESET_START, PRESET_END) + '
 const ROOT = path.join(__dirname, '..');
 const LIB = path.join(ROOT, 'luci-app-nightfall-monitor/root/usr/libexec');
 const SRC = fs.readFileSync(path.join(ROOT, 'luci-app-nightfall-monitor/htdocs/luci-static/resources/view/nightfall/monitor.js'), 'utf8');
+const CHARTS_SRC = fs.readFileSync(path.join(ROOT, 'luci-app-nightfall-monitor/htdocs/luci-static/resources/nightfall-monitor-charts.js'), 'utf8');
 const CSS = path.join(ROOT, 'luci-theme-nightfall/htdocs/luci-static/nightfall/cascade.css');
 const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
 const T = fs.mkdtempSync(path.join(os.tmpdir(), 'nfmon-'));
@@ -42,6 +43,14 @@ function E(tag, attr, data) {
 	return el;
 }
 window.E = E; window._ = s => s;
+function SVG(tag, attrs, children) {
+	const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+	for (const k in (attrs || {})) if (attrs[k] != null) el.setAttribute(k, attrs[k]);
+	const add = d => { if (d == null) return; if (Array.isArray(d)) d.forEach(add); else el.appendChild(d); };
+	add(children);
+	return el;
+}
+window.SVG = SVG;
 const ok = v => Promise.resolve(v);
 window.L = { resolveDefault: (p, d) => Promise.resolve(p).catch(() => d), require: n => /overview/.test(n) ? ok({ blockCard: () => ({ el: E('div', { class: 'cbi-section' }, [ E('h3', {}, 'Доступ в интернет'), E('div', {}, 'карточка') ]), start() {} }) }) : ok({ identify: () => null, parseUA: () => null }), bind: (f, o) => f.bind(o) };
 const viewM = { extend: o => o };
@@ -54,7 +63,8 @@ const uiM = { addNotification() {}, showModal(t, c) { const d = document.createE
 const pollM = { fn: null, add(f) { this.fn = f; }, remove() {}, start() {}, stop() {} };
 window.__runMonitorTick = () => pollM.fn ? pollM.fn() : Promise.resolve();
 const netM = { getWifiNetworks: () => ok([]), getHostHints: () => ok({ getMACHints: () => [] }) };
-window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevId', SRC.replace(/^'require[^\\n]*\\n/gm, '')))(viewM, rpcM, fsM, pollM, uiM, netM, { identify: () => null });
+const Charts = new Function('baseclass', CHARTS_SRC.replace(/^'require[^\\n]*\\n/gm, ''))({ extend: o => o });
+window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevId', 'Charts', SRC.replace(/^'require[^\\n]*\\n/gm, '')))(viewM, rpcM, fsM, pollM, uiM, netM, { identify: () => null }, Charts);
 `;
 (async () => {
 	const b = await chromium.launch();
@@ -77,7 +87,7 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 			return r.fulfill({ status: 404, body: '' });
 		});
 		await p.goto('http://t.local/page');
-		await p.addScriptTag({ content: 'const SRC = ' + JSON.stringify(SRC) + ';\n' + BOOT });
+		await p.addScriptTag({ content: 'const SRC = ' + JSON.stringify(SRC) + ';\nconst CHARTS_SRC = ' + JSON.stringify(CHARTS_SRC) + ';\n' + BOOT });
 		await p.evaluate(async () => { const m = window.__mod; const d = await m.load(); document.getElementById('m').appendChild(m.render(d)); });
 		await p.waitForTimeout(2500);
 		const tabs = await p.$$eval('.nfm-tab.nfm-ti', els => els.map(e => e.getAttribute('data-ic')));
