@@ -63,20 +63,20 @@ neigh_json() {  # соседи по сети: «адрес → MAC» (IPv4 и IP
 	printf ']'
 }
 
-leases_json() {  # активные DHCP-аренды: [ip, MAC, имя], главный источник идентичности IP -> устройство
-	f=\${NF_LEASES:-/tmp/dhcp.leases}
+leases_json() {
+	f=${NF_LEASES:-/tmp/dhcp.leases}
 	printf '['
 	[ -r "$f" ] && awk -v now="$now" '
 		function quote(s, out, i, c) {
-			out = "\\""
+			out = "\""
 			for (i = 1; i <= length(s); i++) {
 				c = substr(s, i, 1)
-				if (c == "\\\\") out = out "\\\\\\\\"
-				else if (c == "\\"") out = out "\\\\\\""
-				else if (c == "\\r" || c == "\\n") out = out " "
+				if (c == "\\") out = out "\\\\"
+				else if (c == "\"") out = out "\\\""
+				else if (c == "\r" || c == "\n") out = out " "
 				else out = out c
 			}
-			return out "\\""
+			return out "\""
 		}
 		function validmac(s, a, n, i) {
 			if (length(s) != 17) return 0
@@ -93,7 +93,6 @@ leases_json() {  # активные DHCP-аренды: [ip, MAC, имя], гла
 	' "$f"
 	printf ']'
 }
-
 journal_json() {
 	f=${NF_JOURNAL:-/etc/nightfall-journal.log}
 	printf '['
