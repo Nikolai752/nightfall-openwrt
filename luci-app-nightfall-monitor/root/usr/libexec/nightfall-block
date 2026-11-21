@@ -282,7 +282,7 @@ live_list() {   # строки «W mac» (Wi-Fi) и «A mac ip интерфей�
 	proxy_macs=$( { [ -r "$LEASES" ] && awk '{ print "L", $3, tolower($2) }' "$LEASES"
 		awk '/lladdr/ { m = ""; for (i = 1; i < NF; i++) if ($i == "lladdr") m = tolower($(i + 1)); if (m != "") print "N", $1, m }' "$DIR/neigh.cur"; } |
 		awk '$1 == "L" { lease[$2] = $3; next } $1 == "N" { neigh[$2] = $3 }
-			END { for (ip in lease) if ((ip in neigh) && neigh[ip] != lease[ip]) proxy[neigh[ip]] = 1; for (m in proxy) print m }')
+			END { for (ip in lease) if ((ip in neigh) && neigh[ip] != lease[ip]) proxy[neigh[ip]] = 1; for (m in proxy) printf "%s ", m }')
 	if [ -n "$wm" ]; then
 		printf '%s\n' "$wm" | awk -v p=" $proxy_macs " 'index(p, " " $1 " ") == 0 { print "W", $1 }'
 	fi
