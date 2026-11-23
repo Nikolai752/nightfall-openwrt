@@ -129,6 +129,22 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				if (severity.err < 1) bad(vn + ': уровень kern.err не выделен как ошибка');
 				if (severity.warn < 1) bad(vn + ': метка steer[warn] не распознана как предупреждение');
 				if (!severity.detail || !severity.controls) bad(vn + ': не отображаются подробности или инструменты журнала');
+				const intelligence = await p.evaluate(() => ({
+					wan: Array.from(document.querySelectorAll('.nfm-log-diagnostic')).some(e => e.textContent.includes('WAN / интернет')),
+					dns: Array.from(document.querySelectorAll('.nfm-log-diagnostic')).some(e => e.textContent.includes('DNS')),
+					repeat: Array.from(document.querySelectorAll('.nfm-log-repeat')).some(e => e.textContent.includes('× 3'))
+				}));
+				if (!intelligence.wan || !intelligence.dns) bad(vn + ': диагностика не выявила тестовые WAN/DNS события');
+				if (!intelligence.repeat) bad(vn + ': одинаковые сообщения не сгруппированы');
+				await p.click('.nfm-log-diagnostic');
+				await p.waitForTimeout(200);
+				const focused = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog-item')).map(e => e.textContent).join('|'));
+				if (!focused.includes('netifd') || focused.includes('dropbear')) bad(vn + ': фильтр диагностического эпизода не ограничил записи');
+				await p.click('.nfm-log-diagnostic.on');
+				await p.click('button:has-text("Повторы: сгруппированы")');
+				await p.waitForTimeout(200);
+				if (await p.locator('.nfm-log-repeat').count()) bad(vn + ': отключение группировки не показало отдельные записи');
+				await p.click('button:has-text("Повторы: отдельно")');
 				await p.fill('.nfm-search[aria-label="Поиск по журналу роутера"]', 'luci'); await p.waitForTimeout(300);
 				const f2 = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog .nfm-ev-i')).map(e => e.textContent).join('|'));
 				if (f2.includes('dropbear') || !f2.includes('failed login')) bad(vn + ': поиск по журналу роутера не сработал: ' + f2.slice(0, 80));
