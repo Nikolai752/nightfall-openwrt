@@ -7075,3 +7075,143 @@ body.nf-blank .modal.login > .spinning::before {
 	.nf-apps-other-size { grid-column:2; grid-row:1; }
 	.nf-apps-other-share { grid-column:2; grid-row:2; }
 }
+
+
+/* ======== v20261123: LuCI interaction and layout regression fixes ======== */
+
+/* DHCP lease tables: an empty-state row must not widen the table on every poll.
+ * The fixed layout gives the placeholder a stable containing width while a
+ * collapsed card is opened; long DUID/IAID values may wrap instead of pushing
+ * the whole page into horizontal scrolling. */
+html body #view #lease_status_table,
+html body #view #lease6_status_table,
+html body #view #status_leases,
+html body #view #status_leases6 {
+	width: 100% !important;
+	max-width: 100% !important;
+	table-layout: fixed !important;
+	box-sizing: border-box;
+}
+html body #view #lease_status_table .td,
+html body #view #lease6_status_table .td,
+html body #view #status_leases .td,
+html body #view #status_leases6 .td {
+	min-width: 0 !important;
+	max-width: 100%;
+	overflow-wrap: anywhere;
+	word-break: normal;
+	box-sizing: border-box;
+}
+html body #view #lease_status_table .tr.placeholder,
+html body #view #lease6_status_table .tr.placeholder,
+html body #view #status_leases .tr.placeholder,
+html body #view #status_leases6 .tr.placeholder {
+	display: block;
+	position: relative;
+	width: 100%;
+	max-width: 100%;
+	height: auto;
+	box-sizing: border-box;
+}
+html body #view #lease_status_table .tr.placeholder > .td,
+html body #view #lease6_status_table .tr.placeholder > .td,
+html body #view #status_leases .tr.placeholder > .td,
+html body #view #status_leases6 .tr.placeholder > .td {
+	display: block;
+	position: static;
+	width: 100% !important;
+	min-width: 0 !important;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+/* Network → Interfaces: keep the port tooltip outside the rounded interface card.
+ * The card surface remains rounded through its own head/body corners. */
+html body[data-page="admin-network-network"] #view .ifacebox {
+	position: relative;
+	overflow: visible !important;
+}
+html body[data-page="admin-network-network"] #view .ifacebox:hover {
+	z-index: 30;
+}
+html body[data-page="admin-network-network"] #view .ifacebox .ifacebox-head {
+	border-radius: 7px 7px 0 0;
+}
+html body[data-page="admin-network-network"] #view .ifacebox .ifacebox-body {
+	border-radius: 0 0 7px 7px;
+}
+html body[data-page="admin-network-network"] #view .ifacebox .cbi-tooltip-container,
+html body[data-page="admin-network-network"] #view .ifacebox .cbi-tooltip {
+	position: relative;
+	z-index: 1200;
+	overflow: visible;
+}
+
+/* macOS: the secondary Save button must stay visible against both palettes. */
+html[data-nf-style="mac"] body .cbi-page-actions .cbi-button-save,
+html[data-nf-style="mac"] body #view > .cbi-page-actions .cbi-button-save,
+html[data-nf-style="mac"] body #cbi-tachyon ~ .cbi-page-actions .cbi-button-save {
+	display: inline-flex !important;
+	visibility: visible !important;
+	flex: 0 0 auto !important;
+	width: auto !important;
+	min-width: 108px !important;
+	min-height: 38px !important;
+	align-items: center;
+	justify-content: center;
+	padding: 0 16px !important;
+	color: var(--nf-text) !important;
+	-webkit-text-fill-color: var(--nf-text) !important;
+	background: var(--nf-ctrl) !important;
+	border: 1px solid var(--nf-stroke-strong) !important;
+	border-bottom-color: var(--nf-stroke-strong) !important;
+	border-radius: 999px !important;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, .10) !important;
+	font-size: 13px !important;
+	font-weight: 600 !important;
+	line-height: 1.2 !important;
+	text-align: center !important;
+	text-indent: 0 !important;
+	text-shadow: none !important;
+	white-space: nowrap !important;
+	opacity: 1 !important;
+}
+html[data-nf-style="mac"] body .cbi-page-actions .cbi-button-save:hover {
+	background: var(--nf-ctrl-hover) !important;
+	border-color: var(--nf-accent) !important;
+}
+
+/* Validation errors: give the field a soft red surface as well as a red border.
+ * This is intentionally limited to invalid controls and does not mark untouched
+ * optional fields as errors. */
+.cbi-input-invalid:not([type="checkbox"]):not([type="radio"]),
+.cbi-value-error input:not([type="checkbox"]):not([type="radio"]),
+.cbi-value-error select,
+.cbi-value-error textarea,
+[aria-invalid="true"]:not([type="checkbox"]):not([type="radio"]) {
+	color: var(--nf-text) !important;
+	background: color-mix(in srgb, var(--nf-error-bg) 72%, var(--nf-input-bg, var(--background-color-high))) !important;
+	border-color: var(--error-color-high) !important;
+	box-shadow: 0 0 0 2px color-mix(in srgb, var(--error-color-high) 16%, transparent) !important;
+}
+.cbi-input-invalid:focus,
+.cbi-value-error input:focus,
+.cbi-value-error select:focus,
+.cbi-value-error textarea:focus,
+[aria-invalid="true"]:focus {
+	border-color: var(--error-color-high) !important;
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--error-color-high) 24%, transparent) !important;
+	outline: 0;
+}
+.cbi-input-invalid.cbi-dropdown:not(.btn):not(.cbi-button),
+.cbi-input-invalid.cbi-dropdown:not([open]) > ul > li {
+	background: color-mix(in srgb, var(--nf-error-bg) 78%, var(--nf-card, var(--background-color-high))) !important;
+	border-color: var(--error-color-high) !important;
+}
+html[data-nf-style="mac"] .cbi-tooltip.error {
+	background: var(--nf-error-bg) !important;
+	color: var(--nf-text) !important;
+	border: 1px solid var(--error-color-high) !important;
+	border-radius: 8px !important;
+	box-shadow: 0 8px 24px color-mix(in srgb, var(--error-color-high) 22%, transparent) !important;
+}
