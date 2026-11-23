@@ -92,25 +92,60 @@ return baseclass.extend({
 					window.matchMedia('(hover: hover) and (min-width: 900px)').matches;
 				let tin = 0, tout = 0;
 
+				link.setAttribute('aria-haspopup', 'true');
+				link.setAttribute('aria-expanded', String(li.classList.contains('open')));
+
+				/* В один момент раскрыт только один раздел верхнего уровня. */
+				const closePeers = () => {
+					Array.from(li.parentElement.children).forEach(peer => {
+						if (peer === li || !peer.classList.contains('dropdown')) return;
+						peer.classList.remove('open');
+						delete peer.dataset.hov;
+						const peerLink = peer.querySelector(':scope > a.menu');
+						if (peerLink) peerLink.setAttribute('aria-expanded', 'false');
+					});
+				};
+				const openFromHover = () => {
+					closePeers();
+					li.classList.add('open');
+					li.dataset.hov = '1';
+					link.setAttribute('aria-expanded', 'true');
+				};
+
 				li.addEventListener('mouseenter', () => {
 					window.clearTimeout(tout);
 					if (!hoverMode() || li.classList.contains('open')) return;
-					tin = window.setTimeout(() => { li.classList.add('open'); li.dataset.hov = '1'; }, 120);
+					tin = window.setTimeout(openFromHover, 120);
 				});
 				li.addEventListener('mouseleave', () => {
 					window.clearTimeout(tin);
 					if (!hoverMode() || li.dataset.hov !== '1') return;
-					tout = window.setTimeout(() => { if (li.dataset.hov === '1') { li.classList.remove('open'); delete li.dataset.hov; } }, 220);
+					tout = window.setTimeout(() => {
+						if (li.dataset.hov === '1') {
+							li.classList.remove('open');
+							delete li.dataset.hov;
+							link.setAttribute('aria-expanded', 'false');
+						}
+					}, 220);
 				});
 				link.addEventListener('click', ev => {
 					ev.preventDefault();
 					window.clearTimeout(tin);
 					if (hoverMode() && li.dataset.hov === '1') {
-						delete li.dataset.hov;   /* открыт наведением: клик закрепляет */
+						delete li.dataset.hov;   /* открыто наведением: клик закрепляет раздел */
 						return;
 					}
-					delete li.dataset.hov;
-					li.classList.toggle('open');
+					if (li.classList.contains('open')) {
+						li.classList.remove('open');
+						delete li.dataset.hov;
+						link.setAttribute('aria-expanded', 'false');
+					}
+					else {
+						closePeers();
+						li.classList.add('open');
+						delete li.dataset.hov;
+						link.setAttribute('aria-expanded', 'true');
+					}
 				});
 			}
 
