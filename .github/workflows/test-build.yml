@@ -5,6 +5,7 @@ on:
     branches:
       - fix/unified-device-identity
       - fix/ui-menu-save-dhcp-backup-errors
+      - feat/router-log-center
   workflow_dispatch:
     inputs:
       version:
