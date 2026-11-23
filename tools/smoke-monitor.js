@@ -136,11 +136,14 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				}));
 				if (!intelligence.wan || !intelligence.dns) bad(vn + ': диагностика не выявила тестовые WAN/DNS события');
 				if (!intelligence.repeat) bad(vn + ': одинаковые сообщения не сгруппированы');
-				await p.click('.nfm-log-diagnostic');
+				await p.locator('.nfm-log-diagnostic').filter({ hasText: 'WAN / интернет' }).click();
 				await p.waitForTimeout(200);
-				const focused = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog-item')).map(e => e.textContent).join('|'));
-				if (!focused.includes('netifd') || focused.includes('dropbear')) bad(vn + ': фильтр диагностического эпизода не ограничил записи');
-				await p.click('.nfm-log-diagnostic.on');
+				const focused = await p.evaluate(() => ({
+					text: Array.from(document.querySelectorAll('.nfm-rlog-item')).map(e => e.textContent).join('|'),
+					active: Array.from(document.querySelectorAll('.nfm-log-diagnostic.on')).map(e => e.textContent).join('|')
+				}));
+				if (!focused.active.includes('WAN / интернет') || !focused.text.includes('netifd') || focused.text.includes('dropbear') || focused.text.includes('dnsmasq')) bad(vn + ': фильтр WAN не ограничил записи: ' + focused.text.slice(0, 160));
+				await p.locator('.nfm-log-diagnostic.on').filter({ hasText: 'WAN / интернет' }).click();
 				await p.click('button:has-text("Повторы: сгруппированы")');
 				await p.waitForTimeout(200);
 				if (await p.locator('.nfm-log-repeat').count()) bad(vn + ': отключение группировки не показало отдельные записи');
