@@ -78,7 +78,8 @@ while [ "$offset" -lt "$SIZE" ]; do
   offset=$((offset + got))
 done
 cmp "$ARCHIVE" "$TMP/downloaded.tar.gz"
-echo "Base64 fallback recovery tests: ok"\nif "$TOOL" download "$NAME" "$SIZE" 100 > "$TMP/empty-chunk.out" 2>&1; then
+echo "Base64 fallback recovery tests: ok"
+if "$TOOL" download "$NAME" "$SIZE" 100 > "$TMP/empty-chunk.out" 2>&1; then
   echo "download unexpectedly returned an empty block at EOF" >&2; exit 1
 fi
 grep -q 'запрошен пустой блок' "$TMP/empty-chunk.out"
