@@ -882,6 +882,46 @@ html #view .nfm-card.nfm-cfg-settings-card:focus-within { border-color:var(--nfm
 .nfm-ev-i i { width: 8px; height: 8px; border-radius: 50%; background: var(--nfm-dim); }
 .nfm-ev-i.warn i { background: #f7a21b; } .nfm-ev-i.crit i { background: #e5484d; } .nfm-ev-i.ok i { background: #13a10e; }
 .nfm-ev-i time { color: var(--nfm-dim); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.nfm-rlog { max-height: min(620px, 68vh); padding: 2px 4px 4px 2px; }
+.nfm-rlog-item { border-bottom: 1px solid color-mix(in srgb, var(--nfm-border) 58%, transparent); }
+.nfm-rlog-item:last-child { border-bottom: 0; }
+.nfm-rlog-item > summary { list-style: none; cursor: pointer; border: 0; border-radius: 6px; padding: 8px 8px; }
+.nfm-rlog-item > summary::-webkit-details-marker { display: none; }
+.nfm-rlog-item > summary::marker { content: ''; }
+.nfm-rlog-item > summary:hover { background: color-mix(in srgb, var(--nfm-card2) 74%, transparent); }
+.nfm-rlog .nfm-ev-i { grid-template-columns: 8px 118px minmax(0, 1fr); align-items: center; gap: 10px; }
+.nfm-rlog .nfm-ev-i.crit { background: color-mix(in srgb, #e5484d 13%, var(--nfm-card)); box-shadow: inset 2px 0 #e5484d; }
+.nfm-rlog .nfm-ev-i.warn { background: color-mix(in srgb, #e8a30a 9%, var(--nfm-card)); box-shadow: inset 2px 0 color-mix(in srgb, #e8a30a 72%, transparent); }
+.nfm-rlog .nfm-ev-i.notice { background: color-mix(in srgb, #4b9bea 5%, transparent); }
+.nfm-log-line { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.nfm-log-service { flex: 0 0 auto; font-weight: 650; color: var(--nfm-text); }
+.nfm-log-level { flex: 0 0 auto; display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 7px; font-size: 10px; line-height: 1.35; font-weight: 750; letter-spacing: .035em; color: var(--nfm-dim); background: color-mix(in srgb, var(--nfm-dim) 12%, transparent); }
+.nfm-log-level.crit { color: #ff777b; background: color-mix(in srgb, #e5484d 18%, transparent); }
+.nfm-log-level.warn { color: #ffc44d; background: color-mix(in srgb, #e8a30a 18%, transparent); }
+.nfm-log-level.notice, .nfm-log-level.info { color: #72baff; background: color-mix(in srgb, #398be5 16%, transparent); }
+.nfm-log-level.debug { color: var(--nfm-dim); background: color-mix(in srgb, var(--nfm-dim) 10%, transparent); }
+.nfm-log-text { min-width: 0; overflow-wrap: anywhere; }
+.nfm-log-summary, .nfm-log-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 8px 0; }
+.nfm-log-summary { color: var(--nfm-dim); font-size: 11px; }
+.nfm-log-count { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border: 1px solid var(--nfm-border); border-radius: 999px; background: var(--nfm-card2); }
+.nfm-log-count b { color: var(--nfm-text); font-variant-numeric: tabular-nums; }
+.nfm-log-count.crit b { color: #ff777b; } .nfm-log-count.warn b { color: #ffc44d; } .nfm-log-count.info b { color: #72baff; }
+.nfm-log-tab-count { display: inline-block; min-width: 18px; margin-left: 5px; padding: 1px 5px; border-radius: 999px; background: color-mix(in srgb, var(--nfm-dim) 14%, transparent); font-size: 10px; font-variant-numeric: tabular-nums; }
+.nfm-log-tools { margin: 8px 0 10px; }
+.nfm-log-tools .nfm-btn { min-height: 30px; }
+.nfm-log-status { margin-left: auto; color: var(--nfm-dim); font-size: 11px; }
+.nfm-log-detail { margin: 0 8px 9px 136px; padding: 10px 12px; border: 1px solid var(--nfm-border); border-radius: 7px; background: var(--nfm-card2); }
+.nfm-log-detail-head { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.nfm-log-detail-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; color: var(--nfm-dim); font-size: 11px; }
+.nfm-log-detail-meta b { color: var(--nfm-text); font-weight: 600; }
+.nfm-log-full { margin: 0; padding: 8px 10px; border-radius: 5px; background: color-mix(in srgb, var(--nfm-card) 85%, transparent); color: var(--nfm-text); font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.nfm-log-more { display: flex; justify-content: center; padding: 8px 0 2px; }
+@media (max-width: 720px) {
+  .nfm-rlog .nfm-ev-i { grid-template-columns: 7px 88px minmax(0, 1fr); gap: 6px; padding: 8px 5px; }
+  .nfm-rlog .nfm-ev-i time { font-size: 10px; }
+  .nfm-log-detail { margin-left: 8px; }
+  .nfm-log-status { width: 100%; margin-left: 0; }
+}
 .nfm-tiles.t4 { grid-template-columns: 1fr 1fr; }
 .nfm-cfg { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px 18px; }
 .nfm-cfg-i { display: flex; flex-direction: column; gap: 4px; min-width:0; font-size: 12.5px; color: var(--nfm-dim); }
@@ -943,7 +983,7 @@ return view.extend({
 		const S = {
 			times: [], cpu: [], mem: [], temp: [], cores: [], net: {},
 			prev: null, last: null, full: null, wifi: undefined, prevProcs: null, procRate: {},
-			paused: false, tick: 0, iface: null, tab: 'overview', sort: 'mem', filter: '',
+			paused: false, rlAuto: true, rlLimit: 300, tick: 0, iface: null, tab: 'overview', sort: 'mem', filter: '',
 				at: {}, alerts: undefined, devs: undefined, devDay: 'day', hist: undefined, range: 'h', appTraffic: undefined, appPeriod: 'day', appDevice: ''
 		};
 
@@ -2040,11 +2080,30 @@ return view.extend({
 			const a = E('a', { href: URL.createObjectURL(new Blob([ txt ], { type: 'text/csv;charset=utf-8' })), download: 'nightfall-журнал.csv' }); document.body.appendChild(a); a.click(); a.remove();
 		} }, 'Скачать CSV');
 		/* ---- журнал самого роутера (logread): поиск, уровень, служба ---- */
-		const rlQ = E('input', { class: 'nfm-search', type: 'search', placeholder: 'Поиск по журналу роутера…', 'aria-label': 'Поиск по журналу роутера', input: () => renderRouterLog() });
-		const rlSvc = E('select', { class: 'nfm-sel', 'aria-label': 'Служба', change: () => renderRouterLog() }, E('option', { value: '' }, 'Все службы'));
-		const RLV = [ [ 'all', 'Все' ], [ 'warn', 'Предупреждения и ошибки' ], [ 'err', 'Только ошибки' ] ];
-		const rlChips = E('div', { class: 'nfm-tabs', style: 'margin-bottom:10px' }, RLV.map(([ k, l ]) => E('button', { type: 'button', class: 'nfm-tab' + (k === 'all' ? ' on' : ''), 'data-k': k, click: () => { S.rlK = k; renderRouterLog(); } }, l)));
+		const rlQ = E('input', { class: 'nfm-search', type: 'search', placeholder: 'Поиск по журналу роутера…', 'aria-label': 'Поиск по журналу роутера', input: () => { S.rlLimit = 300; renderRouterLog(); } });
+		const rlSvc = E('select', { class: 'nfm-sel', 'aria-label': 'Служба', change: () => { S.rlLimit = 300; renderRouterLog(); } }, E('option', { value: '' }, 'Все службы'));
+		const RLV = [ [ 'all', 'Все' ], [ 'warn', 'Предупреждения и ошибки' ], [ 'err', 'Только ошибки' ], [ 'info', 'Информация' ], [ 'debug', 'Отладка' ] ];
+		const rlChipRefs = {};
+		const rlChips = E('div', { class: 'nfm-tabs nfm-log-tabs', style: 'margin-bottom:8px' }, RLV.map(([ k, l ]) => {
+			const count = E('span', { class: 'nfm-log-tab-count' }, '0');
+			const button = E('button', { type: 'button', class: 'nfm-tab' + (k === 'all' ? ' on' : ''), 'data-k': k, click: () => { S.rlK = k; S.rlLimit = 300; renderRouterLog(); } }, [ l, count ]);
+			rlChipRefs[k] = { button, count };
+			return button;
+		}));
+		let rlVisible = [];
+		const rlSummary = E('div', { class: 'nfm-log-summary' });
+		const rlStatus = E('span', { class: 'nfm-log-status' }, 'Загрузка журнала…');
+		const rlAutoBtn = E('button', { type: 'button', class: 'nfm-btn', title: 'Автоматически получать новые записи каждые 20 секунд', click: () => {
+				S.rlAuto = S.rlAuto === false;
+				setRouterLogAutoLabel();
+				if (S.rlAuto) refreshRouterLog();
+			} }, 'Автообновление: вкл');
+		const rlRefreshBtn = E('button', { type: 'button', class: 'nfm-btn', title: 'Получить журнал сейчас', click: () => refreshRouterLog() }, 'Обновить');
+		const rlCopyBtn = E('button', { type: 'button', class: 'nfm-btn', title: 'Скопировать отфильтрованные записи', click: () => copyRouterLog() }, 'Копировать');
+		const rlExportBtn = E('button', { type: 'button', class: 'nfm-btn', title: 'Скачать отфильтрованные записи в CSV', click: () => exportRouterLog() }, 'Экспорт CSV');
+		const rlTools = E('div', { class: 'nfm-log-tools' }, [ rlAutoBtn, rlRefreshBtn, rlCopyBtn, rlExportBtn, rlStatus ]);
 		const rlBox = E('div', { class: 'nfm-evlist nfm-rlog' });
+		const rlMore = E('div', { class: 'nfm-log-more', hidden: '' }, E('button', { type: 'button', class: 'nfm-btn', click: () => { S.rlLimit = (S.rlLimit || 300) + 300; renderRouterLog(); } }, 'Показать ещё'));
 		const MONRU = { Jan: 'янв.', Feb: 'февр.', Mar: 'мар.', Apr: 'апр.', May: 'мая', Jun: 'июн.', Jul: 'июл.', Aug: 'авг.', Sep: 'сент.', Oct: 'окт.', Nov: 'нояб.', Dec: 'дек.' };
 		const wifiTab = E('div', { hidden: true }, [
 			E('div', { class: 'nfm-grid' }, [
@@ -2191,7 +2250,7 @@ return view.extend({
 		const logTab = E('div', { hidden: true }, [
 			E('div', { class: 'nfm-grid' }, [ card([ 'Журнал событий', E('span', { class: 'nfm-spacer' }), logPer, logCsv, logQ ], E('div', {}, [ logChips, logBox ])) ]),
 			E('div', { class: 'nfm-grid' }, [ card('Журнал перезагрузок и обрывов связи', E('div', {}, [ jrnTiles, jrnBox ])) ]),
-			E('div', { class: 'nfm-grid' }, [ card([ 'Журнал роутера', E('span', { class: 'nfm-spacer' }), rlSvc, rlQ ], E('div', {}, [ rlChips, rlBox ])) ])
+			E('div', { class: 'nfm-grid' }, [ card([ 'Журнал роутера', E('span', { class: 'nfm-spacer' }), rlSvc, rlQ ], E('div', {}, [ rlChips, rlSummary, rlTools, rlBox, rlMore ])) ])
 		]);
 		const diagTab = E('div', { hidden: true }, [
 			E('div', { class: 'nfm-grid' }, [ card('Диагностика сети', diagBody) ]),
@@ -2401,7 +2460,7 @@ return view.extend({
 			if (S.tab === 'sec' && due('sec', 60)) jobs.push(fs.exec(SECBIN, [ 'summary' ]).then(r => { try { S.sec = JSON.parse(r.stdout); S.secErr = ''; } catch (e) { S.sec = null; S.secErr = 'ответ скрипта не разобран' + (r.stderr ? ': ' + String(r.stderr).slice(0, 120) : ''); } }).catch(e => { S.sec = null; S.secErr = String((e && e.message) || e).slice(0, 120); }));
 			if (S.tab === 'sec' && due('bans', 30)) jobs.push(fs.exec(SECBIN, [ 'bans' ]).then(r => { try { S.bans = JSON.parse(r.stdout); } catch (e) { S.bans = null; } }).catch(() => { S.bans = null; }));
 			if (S.tab === 'sec' && due('secu', 600)) jobs.push(fs.exec(SECBIN, [ 'updates' ]).then(r => { try { S.secu = JSON.parse(r.stdout); } catch (e) { S.secu = null; } }).catch(() => { S.secu = null; }));
-			if (S.tab === 'log' && due('rlog', 20)) jobs.push(fs.exec('/usr/libexec/nightfall-log', [ 'read', '800' ]).then(r => { try { S.rlog = JSON.parse(r.stdout); } catch (e) { S.rlog = null; } }).catch(() => { S.rlog = null; }));
+			if (S.tab === 'log' && (S.rlog === undefined || (S.rlAuto !== false && due('rlog', 20)))) jobs.push(fs.exec('/usr/libexec/nightfall-log', [ 'read', '800' ]).then(r => { try { S.rlog = JSON.parse(r.stdout); S.rlogUpdated = Date.now(); } catch (e) { S.rlog = null; } }).catch(() => { S.rlog = null; }));
 			if (S.tab === 'log' && due('blog', 30)) jobs.push(fs.exec('/usr/libexec/nightfall-block', [ 'log' ]).then(r => { try { S.blog = JSON.parse(r.stdout); } catch (e) { S.blog = null; } }).catch(() => { S.blog = null; }));
 			if (onTab('hist', 'log') && due('jrn', 30)) jobs.push(callHistory([ 'journal' ]).then(r => { S.jrn = r; }));
 			if (onTab('hist', 'diag') && due('spd', S.spdRun ? 3 : 30)) jobs.push(callHistory([ 'speed' ]).then(r => { S.spd = r; if (S.spdRun && Date.now() - (S.spdT || 0) > 4000 && (!r || !r.running)) { S.spdRun = false; if (r === false) ui.addNotification(null, E('p', {}, 'Замер завершён, но результат не прочитан: ' + MISSING), 'danger'); } }));
@@ -3175,18 +3234,135 @@ return view.extend({
 		const banBtn = ip => isExternalIp(ip) ? E('button', { type: 'button', class: 'nfm-btn', title: 'Роутер перестанет принимать пакеты с этого адреса на 24 часа (до перезагрузки роутера)',
 			click: () => { if (window.confirm('Закрыть адрес ' + ip + ' для роутера на 24 часа?')) secAct([ 'ban', ip, '24' ]); } }, 'Закрыть на 24 ч') : '';
 		const RISKY = { 21: 'FTP без шифрования', 23: 'Telnet без шифрования', 445: 'SMB', 139: 'SMB', 3389: 'удалённый рабочий стол', 5900: 'VNC' };
+		const routerLogLevel = x => {
+			const priority = String(x[1] || '').trim().toLowerCase().split('.').pop();
+			const source = String(x[2] || '') + ' ' + String(x[3] || '');
+			const tagged = (source.match(/(?:^|[^a-z0-9_-])(?:[a-z0-9_.-]+)?\\[(emerg|panic|alert|crit(?:ical)?|err(?:or)?|warn(?:ing)?|notice|info|debug)\\]/i) || [])[1];
+			const value = String(tagged || priority || '').toLowerCase();
+			if (/^(emerg|panic|alert|crit|critical|err|error)$/.test(value)) return 'err';
+			if (/^(warn|warning)$/.test(value)) return 'warn';
+			if (value === 'notice') return 'notice';
+			if (value === 'debug') return 'debug';
+			if (value === 'info') return 'info';
+			return 'info';
+		};
+		const routerLogMeta = {
+			err: { cls: 'crit', tag: 'ERR', title: 'Ошибка' },
+			warn: { cls: 'warn', tag: 'WARN', title: 'Предупреждение' },
+			notice: { cls: 'notice', tag: 'NOTICE', title: 'Уведомление' },
+			info: { cls: 'info', tag: 'INFO', title: 'Информация' },
+			debug: { cls: 'debug', tag: 'DEBUG', title: 'Отладка' }
+		};
+		function setRouterLogAutoLabel() {
+			rlAutoBtn.textContent = S.rlAuto === false ? 'Автообновление: выкл' : 'Автообновление: вкл';
+			rlAutoBtn.classList.toggle('on', S.rlAuto !== false);
+		}
+		function routerLogRowText(x) {
+			return [ x[0], x[1], x[2], x[3] ].map(v => String(v == null ? '' : v)).join(' ');
+		}
+		function copyRouterLogRows(rows) {
+			const value = rows.map(routerLogRowText).join('\\n');
+			if (!value) { rlStatus.textContent = 'Нет записей для копирования'; return; }
+			const done = () => { rlStatus.textContent = 'Скопировано: ' + rows.length + ' записей'; };
+			const fallback = () => {
+				const area = document.createElement('textarea');
+				area.value = value; area.setAttribute('readonly', ''); area.style.position = 'fixed'; area.style.opacity = '0';
+				document.body.appendChild(area); area.select();
+				let ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+				area.remove(); if (ok) done(); else rlStatus.textContent = 'Не удалось скопировать — используйте экспорт CSV';
+			};
+			if (window.navigator && window.navigator.clipboard && window.navigator.clipboard.writeText)
+				window.navigator.clipboard.writeText(value).then(done).catch(fallback);
+			else fallback();
+		}
+		function copyRouterLog() { copyRouterLogRows(rlVisible); }
+		function exportRouterLog() {
+			const quote = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+			const csv = '\\ufeffвремя;приоритет;служба;сообщение\\n' + rlVisible.map(x => [ x[0], x[1], x[2], x[3] ].map(quote).join(';')).join('\\n');
+			const url = URL.createObjectURL(new Blob([ csv ], { type: 'text/csv;charset=utf-8' }));
+			const a = E('a', { href: url, download: 'nightfall-router-log.csv' });
+			document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 30000);
+			rlStatus.textContent = 'Экспортировано: ' + rlVisible.length + ' записей';
+		}
+		function refreshRouterLog() {
+			rlStatus.textContent = 'Обновляю журнал…';
+			S.at.rlog = Date.now();
+			fs.exec('/usr/libexec/nightfall-log', [ 'read', '800' ]).then(r => {
+				const data = JSON.parse(r.stdout);
+				if (!data || !data.ok || !Array.isArray(data.rows)) throw new Error('Некорректный ответ');
+				S.rlog = data; S.rlogUpdated = Date.now();
+			}).catch(() => { S.rlog = null; })
+				.then(() => renderRouterLog());
+		}
 		function renderRouterLog() {
 			const R = S.rlog;
-			for (const b of rlChips.children) b.classList.toggle('on', b.getAttribute('data-k') === (S.rlK || 'all'));
-			if (R === undefined) { rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Загружаю…')); return; }
-			if (!R || !R.ok) { rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Не удалось получить журнал. Выйдите из LuCI и войдите снова после обновления.')); return; }
-			const svcs = Array.from(new Set(R.rows.map(x => x[2]))).sort();
-			if (rlSvc.options.length - 1 !== svcs.length) { const cur = rlSvc.value; rlSvc.replaceChildren(E('option', { value: '' }, 'Все службы'), ...svcs.map(v => E('option', { value: v }, v))); rlSvc.value = svcs.includes(cur) ? cur : ''; }
-			const q = rlQ.value.trim().toLowerCase(), k = S.rlK || 'all', sv = rlSvc.value;
-			const lvl = x => { const l = (x[1].split('.')[1] || '').toLowerCase(); return /^(emerg|alert|crit|err)/.test(l) ? 'err' : /^warn/.test(l) ? 'warn' : 'info'; };
-			const list = R.rows.filter(x => (!sv || x[2] === sv) && (k === 'all' || (k === 'err' ? lvl(x) === 'err' : lvl(x) !== 'info')) && (!q || (x[2] + ' ' + x[3]).toLowerCase().includes(q))).slice(-300).reverse();
-			rlBox.replaceChildren(...(list.length ? list.map(x => E('div', { class: 'nfm-ev-i ' + ({ err: 'crit', warn: 'warn', info: 'info' })[lvl(x)] }, [ E('i'), E('time', {}, x[0].replace(/^([A-Z][a-z]{2}) (\d+) /, (m, a, d) => d + ' ' + (MONRU[a] || a) + ', ')), E('span', {}, [ E('b', {}, x[2] + ' '), x[3] ]) ]))
-				: [ E('div', { class: 'nfm-empty' }, 'Ничего не найдено.') ]));
+			for (const key of Object.keys(rlChipRefs))
+				rlChipRefs[key].button.classList.toggle('on', key === (S.rlK || 'all'));
+			setRouterLogAutoLabel();
+			if (R === undefined) { rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Загружаю журнал роутера…')); return; }
+			if (!R || !R.ok || !Array.isArray(R.rows)) {
+				rlVisible = []; rlSummary.replaceChildren();
+				rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Не удалось получить журнал. Выйдите из LuCI и войдите снова после обновления.'));
+				rlStatus.textContent = 'Нет данных'; rlMore.hidden = true; return;
+			}
+			const rows = R.rows.filter(x => Array.isArray(x) && x.length >= 4);
+			const levels = rows.map(x => routerLogLevel(x));
+			const counts = { all: rows.length, err: 0, warn: 0, info: 0, debug: 0 };
+			rows.forEach((x, i) => { const l = levels[i]; if (l === 'err') counts.err++; else if (l === 'warn') counts.warn++; else if (l === 'debug') counts.debug++; else counts.info++; });
+			const tabCounts = { all: counts.all, warn: counts.err + counts.warn, err: counts.err, info: counts.info, debug: counts.debug };
+			for (const key of Object.keys(rlChipRefs)) rlChipRefs[key].count.textContent = String(tabCounts[key] || 0);
+			const svcs = Array.from(new Set(rows.map(x => String(x[2] || 'неизвестно')))).sort((a, b) => a.localeCompare(b, 'ru'));
+			if (rlSvc.options.length - 1 !== svcs.length) {
+				const cur = rlSvc.value;
+				rlSvc.replaceChildren(E('option', { value: '' }, 'Все службы'), ...svcs.map(v => E('option', { value: v }, v)));
+				rlSvc.value = svcs.includes(cur) ? cur : '';
+			}
+			const q = rlQ.value.trim().toLowerCase(), key = S.rlK || 'all', service = rlSvc.value;
+			const filtered = rows.filter((x, i) => {
+				const l = levels[i], searchable = (String(x[1]) + ' ' + String(x[2]) + ' ' + String(x[3])).toLowerCase();
+				const typeMatch = key === 'all' || (key === 'err' && l === 'err') ||
+					(key === 'warn' && (l === 'err' || l === 'warn')) ||
+					(key === 'info' && (l === 'notice' || l === 'info')) || (key === 'debug' && l === 'debug');
+				return typeMatch && (!service || String(x[2] || 'неизвестно') === service) && (!q || searchable.includes(q));
+			});
+			rlVisible = filtered.slice().reverse();
+			const limit = Math.max(1, S.rlLimit || 300), visible = rlVisible.slice(0, limit);
+			rlSummary.replaceChildren(
+				E('span', { class: 'nfm-log-count' }, [ 'В памяти: ', E('b', {}, String(rows.length)) ]),
+				E('span', { class: 'nfm-log-count crit' }, [ 'Ошибки: ', E('b', {}, String(counts.err)) ]),
+				E('span', { class: 'nfm-log-count warn' }, [ 'Предупреждения: ', E('b', {}, String(counts.warn)) ]),
+				E('span', { class: 'nfm-log-count info' }, [ 'Информация: ', E('b', {}, String(counts.info)) ])
+			);
+			rlBox.replaceChildren(...(visible.length ? visible.map(x => {
+				const l = routerLogLevel(x), meta = routerLogMeta[l] || routerLogMeta.info, serviceName = String(x[2] || 'неизвестно');
+				const time = String(x[0] || '').replace(/^([A-Z][a-z]{2}) (\\d+) /, (m, a, d) => d + ' ' + (MONRU[a] || a) + ', ');
+				return E('details', { class: 'nfm-rlog-item' }, [
+					E('summary', { class: 'nfm-ev-i ' + meta.cls, title: 'Раскрыть подробности записи' }, [
+						E('i', { 'aria-hidden': 'true' }), E('time', {}, time),
+						E('span', { class: 'nfm-log-line' }, [
+							E('b', { class: 'nfm-log-service' }, serviceName),
+						E('span', { class: 'nfm-log-level ' + meta.cls, title: meta.title }, meta.tag),
+						E('span', { class: 'nfm-log-text' }, String(x[3] || ''))
+						])
+					]),
+					E('div', { class: 'nfm-log-detail' }, [
+						E('div', { class: 'nfm-log-detail-head' }, [
+							E('div', { class: 'nfm-log-detail-meta' }, [
+								E('span', {}, [ 'Служба: ', E('b', {}, serviceName) ]),
+								E('span', {}, [ 'Приоритет syslog: ', E('b', {}, String(x[1] || 'не указан')) ]),
+								E('span', {}, [ 'Класс: ', E('b', {}, meta.title) ]),
+								E('span', {}, [ 'Время: ', E('b', {}, String(x[0] || 'не указано')) ])
+							]),
+							E('button', { type: 'button', class: 'nfm-btn', click: ev => { ev.preventDefault(); copyRouterLogRows([ x ]); } }, 'Копировать запись')
+						]),
+						E('pre', { class: 'nfm-log-full' }, String(x[3] || ''))
+					])
+				]);
+			}) : [ E('div', { class: 'nfm-empty' }, 'Ничего не найдено по выбранным условиям.') ]));
+			rlMore.hidden = filtered.length <= visible.length;
+			rlMore.firstChild.textContent = 'Показать ещё (' + Math.min(300, filtered.length - visible.length) + ' из ' + filtered.length + ')';
+			const updated = S.rlogUpdated ? new Date(S.rlogUpdated).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'ещё не обновлялся';
+			rlStatus.textContent = 'Показано ' + visible.length + ' из ' + filtered.length + ' · обновлено ' + updated;
 		}
 		function renderSec() {
 			const R = S.sec;
