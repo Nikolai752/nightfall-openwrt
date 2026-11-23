@@ -3237,7 +3237,7 @@ return view.extend({
 		const routerLogLevel = x => {
 			const priority = String(x[1] || '').trim().toLowerCase().split('.').pop();
 			const source = String(x[2] || '') + ' ' + String(x[3] || '');
-			const tagged = (source.match(/(?:^|[^a-z0-9_-])(?:[a-z0-9_.-]+)?\\[(emerg|panic|alert|crit(?:ical)?|err(?:or)?|warn(?:ing)?|notice|info|debug)\\]/i) || [])[1];
+			const tagged = (source.match(/(?:^|[^a-z0-9_-])(?:[a-z0-9_.-]+)?\[(emerg|panic|alert|crit(?:ical)?|err(?:or)?|warn(?:ing)?|notice|info|debug)\]/i) || [])[1];
 			const value = String(tagged || priority || '').toLowerCase();
 			if (/^(emerg|panic|alert|crit|critical|err|error)$/.test(value)) return 'err';
 			if (/^(warn|warning)$/.test(value)) return 'warn';
@@ -3261,7 +3261,7 @@ return view.extend({
 			return [ x[0], x[1], x[2], x[3] ].map(v => String(v == null ? '' : v)).join(' ');
 		}
 		function copyRouterLogRows(rows) {
-			const value = rows.map(routerLogRowText).join('\\n');
+			const value = rows.map(routerLogRowText).join('\n');
 			if (!value) { rlStatus.textContent = 'Нет записей для копирования'; return; }
 			const done = () => { rlStatus.textContent = 'Скопировано: ' + rows.length + ' записей'; };
 			const fallback = () => {
@@ -3278,7 +3278,7 @@ return view.extend({
 		function copyRouterLog() { copyRouterLogRows(rlVisible); }
 		function exportRouterLog() {
 			const quote = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-			const csv = '\\ufeffвремя;приоритет;служба;сообщение\\n' + rlVisible.map(x => [ x[0], x[1], x[2], x[3] ].map(quote).join(';')).join('\\n');
+			const csv = '\ufeffвремя;приоритет;служба;сообщение\n' + rlVisible.map(x => [ x[0], x[1], x[2], x[3] ].map(quote).join(';')).join('\n');
 			const url = URL.createObjectURL(new Blob([ csv ], { type: 'text/csv;charset=utf-8' }));
 			const a = E('a', { href: url, download: 'nightfall-router-log.csv' });
 			document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 30000);
@@ -3312,7 +3312,8 @@ return view.extend({
 			const tabCounts = { all: counts.all, warn: counts.err + counts.warn, err: counts.err, info: counts.info, debug: counts.debug };
 			for (const key of Object.keys(rlChipRefs)) rlChipRefs[key].count.textContent = String(tabCounts[key] || 0);
 			const svcs = Array.from(new Set(rows.map(x => String(x[2] || 'неизвестно')))).sort((a, b) => a.localeCompare(b, 'ru'));
-			if (rlSvc.options.length - 1 !== svcs.length) {
+			const currentServices = Array.from(rlSvc.options).slice(1).map(o => o.value);
+			if (currentServices.join('\\u0000') !== svcs.join('\\u0000')) {
 				const cur = rlSvc.value;
 				rlSvc.replaceChildren(E('option', { value: '' }, 'Все службы'), ...svcs.map(v => E('option', { value: v }, v)));
 				rlSvc.value = svcs.includes(cur) ? cur : '';
@@ -3335,7 +3336,7 @@ return view.extend({
 			);
 			rlBox.replaceChildren(...(visible.length ? visible.map(x => {
 				const l = routerLogLevel(x), meta = routerLogMeta[l] || routerLogMeta.info, serviceName = String(x[2] || 'неизвестно');
-				const time = String(x[0] || '').replace(/^([A-Z][a-z]{2}) (\\d+) /, (m, a, d) => d + ' ' + (MONRU[a] || a) + ', ');
+				const time = String(x[0] || '').replace(/^([A-Z][a-z]{2}) (\d+) /, (m, a, d) => d + ' ' + (MONRU[a] || a) + ', ');
 				return E('details', { class: 'nfm-rlog-item' }, [
 					E('summary', { class: 'nfm-ev-i ' + meta.cls, title: 'Раскрыть подробности записи' }, [
 						E('i', { 'aria-hidden': 'true' }), E('time', {}, time),
