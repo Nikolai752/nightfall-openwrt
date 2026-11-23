@@ -28,7 +28,7 @@ jobs:
 
       - name: Build archive
         env:
-          VERSION: ${{ inputs.version || 'v1.29.0-alpha.1-router-log-center' }}
+          VERSION: ${{ inputs.version || 'v1.29.0-alpha.2-router-log-diagnostics' }}
         run: sh ./build-release.sh
 
       - name: Verify archive and checksum
@@ -42,7 +42,7 @@ jobs:
       - name: Upload installable archive
         uses: actions/upload-artifact@v4
         with:
-          name: nightfall-test-v1.29.0-alpha.1-router-log-center
+          name: nightfall-test-v1.29.0-alpha.2-router-log-diagnostics
           path: |
             dist/nightfall-root.tar.gz
             dist/nightfall-root.tar.gz.sha256
