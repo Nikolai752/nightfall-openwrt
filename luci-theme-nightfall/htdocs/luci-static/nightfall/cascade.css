@@ -7140,9 +7140,12 @@ html body[data-page="admin-network-network"] #view .ifacebox .ifacebox-head {
 html body[data-page="admin-network-network"] #view .ifacebox .ifacebox-body {
 	border-radius: 0 0 7px 7px;
 }
-html body[data-page="admin-network-network"] #view .ifacebox .cbi-tooltip-container,
-html body[data-page="admin-network-network"] #view .ifacebox .cbi-tooltip {
+html body[data-page="admin-network-network"] #view .ifacebox .cbi-tooltip-container {
 	position: relative;
+	z-index: 1200;
+	overflow: visible;
+}
+html body[data-page="admin-network-network"] #view .ifacebox .cbi-tooltip {
 	z-index: 1200;
 	overflow: visible;
 }
