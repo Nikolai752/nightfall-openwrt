@@ -3462,6 +3462,7 @@ return view.extend({
 								E('span', {}, [ 'Приоритет syslog: ', E('b', {}, String(x[1] || 'не указан')) ]),
 								E('span', {}, [ 'Класс: ', E('b', {}, meta.title) ]),
 								E('span', {}, [ 'Повторов в буфере: ', E('b', {}, String(repeats)) ]),
+								E('span', {}, [ 'Первое событие: ', E('b', {}, String(group.rows[0][0] || 'не указано')) ]),
 								E('span', {}, [ 'Последнее событие: ', E('b', {}, String(x[0] || 'не указано')) ])
 							]),
 							E('button', { type: 'button', class: 'nfm-btn', click: ev => { ev.preventDefault(); copyRouterLogRows(group.rows); } }, repeats > 1 ? 'Копировать группу' : 'Копировать запись')
