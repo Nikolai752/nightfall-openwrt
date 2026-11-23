@@ -4,13 +4,14 @@ on:
   push:
     branches:
       - fix/unified-device-identity
+      - fix/ui-menu-save-dhcp-backup-errors
   workflow_dispatch:
     inputs:
       version:
         description: "Версия тестового архива"
         required: true
         type: string
-        default: "v1.28.6-alpha.3-dhcp-identity-test"
+        default: "v1.28.11-alpha.1-ui-regression-test"
 
 permissions:
   contents: read
@@ -25,7 +26,7 @@ jobs:
 
       - name: Build archive
         env:
-          VERSION: ${{ inputs.version || 'v1.28.6-alpha.3-dhcp-identity-test' }}
+          VERSION: ${{ inputs.version || 'v1.28.11-alpha.1-ui-regression-test' }}
         run: sh ./build-release.sh
 
       - name: Verify archive and checksum
@@ -39,7 +40,7 @@ jobs:
       - name: Upload installable archive
         uses: actions/upload-artifact@v4
         with:
-          name: nightfall-test-v1.28.6-alpha.3-dhcp-identity-test
+          name: nightfall-test-v1.28.11-alpha.1-ui-regression-test
           path: |
             dist/nightfall-root.tar.gz
             dist/nightfall-root.tar.gz.sha256
