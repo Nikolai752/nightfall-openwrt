@@ -87,7 +87,7 @@ jobs:
           (cd dist && sha256sum -c nightfall-root.tar.gz.sha256)
           ARCHIVE_VERSION=$(tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | awk -F'"' '/"version"/ { print $4; exit }')
           test "$ARCHIVE_VERSION" = "${VERSION#v}"
-          tar -xOf dist/nightfall-root.tar.gz ./usr/share/ucode/luci/template/themes/nightfall/header.ut | grep -Fq "?v=$VERSION"
+          tar -xOf dist/nightfall-root.tar.gz ./usr/share/ucode/luci/template/themes/nightfall/header.ut | grep -Fq "?v=${VERSION#v}"
       - name: Загрузка тестового архива v1.29.1-rc.1
         if: success() && github.event_name == 'pull_request' && github.head_ref == 'release/v1.29.1-rc.1'
         uses: actions/upload-artifact@v4
