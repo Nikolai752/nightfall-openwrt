@@ -298,6 +298,51 @@ header h3 a, header .brand {
 		flex-basis: 50% !important;
 	}
 
+	/* Подключённые клиенты: компактная карточка вместо равных 50%-ячеек.
+	   Сеть и хост занимают всю строку, сигнал и скорость — две колонки,
+	   действие остаётся отдельной строкой и не сжимается. */
+	#view #wifi_assoclist_table .tr {
+		display: grid !important;
+		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		align-items: center;
+		gap: 6px 10px;
+		margin: 0 0 8px;
+		padding: 10px;
+		border: 1px solid var(--border-color-medium);
+		border-radius: 12px;
+	}
+	#view #wifi_assoclist_table .td {
+		display: block;
+		width: auto !important;
+		max-width: 100%;
+		min-width: 0 !important;
+		flex: none !important;
+		padding: 3px 2px;
+		overflow: visible;
+		text-overflow: clip;
+		white-space: normal;
+		word-break: normal;
+		overflow-wrap: anywhere;
+	}
+	#view #wifi_assoclist_table .td:nth-of-type(1),
+	#view #wifi_assoclist_table .td:nth-of-type(3),
+	#view #wifi_assoclist_table .td:nth-of-type(6) {
+		grid-column: 1 / -1;
+	}
+	#view #wifi_assoclist_table .td:nth-of-type(4),
+	#view #wifi_assoclist_table .td:nth-of-type(5) {
+		align-self: start;
+	}
+	#view #wifi_assoclist_table .td:nth-of-type(6) {
+		justify-self: end;
+		text-align: right;
+	}
+	#view #wifi_assoclist_table .td:nth-of-type(6) .cbi-button,
+	#view #wifi_assoclist_table .td:nth-of-type(6) button {
+		width: auto;
+		max-width: 100%;
+	}
+
 	[data-page="admin-status-processes"] .td[data-widget="button"] {
 		flex-basis: 33% !important;
 	}
