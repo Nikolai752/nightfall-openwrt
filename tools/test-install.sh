@@ -58,6 +58,16 @@ ver() { sed -n 's/.*"version"[^"]*"\([^"]*\)".*/\1/p' "$1/www/luci-static/nightf
 printf '[ { "tag_name": "v2.0.0" }, { "tag_name": "v1.9.0" } ]\n' > "$T/www/list.json"
 echo "== обязательный Base64 encoder проверяется до установки =="
 TBASE=$T/base64-deps; mkdir -p "$TBASE/bin" "$TBASE/r"
+# Build an isolated PATH containing normal tools but deliberately no base64.
+for d in /usr/bin /bin /usr/sbin /sbin; do
+  [ -d "$d" ] || continue
+  for tool in "$d"/*; do
+    [ -x "$tool" ] || continue
+    name=${tool##*/}
+    case "$name" in base64|busybox|apk) continue ;; esac
+    [ -e "$TBASE/bin/$name" ] || ln -s "$tool" "$TBASE/bin/$name" 2>/dev/null || :
+  done
+done
 cat > "$TBASE/bin/busybox" <<'EOF'
 #!/bin/sh
 [ "$1" = "base64" ] && exit 1
@@ -68,7 +78,8 @@ cat > "$TBASE/bin/apk" <<'EOF'
 echo "$*" >> "$APK_LOG"
 case "$*" in
   "update") exit 0 ;;
-  "add coreutils-base64") cat > "$APK_INSTALLED" <<'B64'
+  "add coreutils-base64")
+    cat > "$APK_INSTALLED" <<'B64'
 #!/bin/sh
 exec /usr/bin/base64 "$@"
 B64
@@ -78,9 +89,12 @@ esac
 exit 1
 EOF
 chmod +x "$TBASE/bin/busybox" "$TBASE/bin/apk"
-APK_LOG="$TBASE/apk.log" APK_INSTALLED="$TBASE/bin/base64" PATH="$TBASE/bin:/usr/bin:/bin" NF_ROOT= NF_TMP="$T/tmp" NF_API="$B/api.json" NF_RAW="$B" NF_DL="$B/dl" sh "$REPO/install-update.sh" --version v1.0.0 > "$TBASE/out" 2>&1 || true
-if grep -q 'add coreutils-base64' "$TBASE/apk.log" && grep -q 'Установлена версия 1.0.0' "$TBASE/out"; then
-  pass "coreutils-base64 установлен до удалённой установки при отсутствии BusyBox base64"
+APK_LOG="$TBASE/apk.log" APK_INSTALLED="$TBASE/bin/base64" PATH="$TBASE/bin" NF_ROOT="$TBASE/r" NF_TEST_BASE64=1 NF_TMP="$T/tmp" NF_API="$B/api.json" NF_RAW="$B" NF_DL="$B/dl" sh "$REPO/install-update.sh" --version v1.0.0 > "$TBASE/out" 2>&1
+if grep -q 'add coreutils-base64' "$TBASE/apk.log" &&
+   grep -q 'Установлена версия 1.0.0' "$TBASE/out" &&
+   grep -q 'Устанавливаю coreutils-base64' "$TBASE/out" &&
+   [ "$(grep -n 'Устанавливаю coreutils-base64' "$TBASE/out" | cut -d: -f1)" -lt "$(grep -n 'Скачиваю v1.0.0' "$TBASE/out" | cut -d: -f1)" ]; then
+  pass "coreutils-base64 установлен до загрузки архива при отсутствии системного и BusyBox base64"
 else
   fail "ранняя установка coreutils-base64: $(cat "$TBASE/out" 2>/dev/null) / $(cat "$TBASE/apk.log" 2>/dev/null)"
 fi
