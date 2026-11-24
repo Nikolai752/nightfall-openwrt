@@ -83,8 +83,63 @@ base64_available() {
  [ -z "${NF_BASE64:-}" ] && command -v busybox >/dev/null 2>&1 && busybox base64 </dev/null >/dev/null 2>&1 && return 0
  return 1
 }
+# Validate system encoder output before accepting it. Some minimal router
+# builds ship a base64 applet which exists but fails on real input; fall back
+# to a small POSIX awk encoder for one already-bounded download chunk.
+base64_encoded_file() {
+ encoded_clean=$(tr -d '\n' < "$1" 2>/dev/null) || return 1
+ expected_encoded=$(( (wanted + 2) / 3 * 4 ))
+ [ "${#encoded_clean}" -eq "$expected_encoded" ] || return 1
+ case "$encoded_clean" in *[!A-Za-z0-9+/=]*) return 1 ;; esac
+ printf '%s' "$encoded_clean"
+}
 base64_encode() {
- if [ -n "${NF_BASE64:-}" ]; then "$NF_BASE64"; elif command -v base64 >/dev/null 2>&1; then base64; else busybox base64; fi
+ input=$1
+ encoded_file="$DOWNLOAD_TMP/base64.out"
+
+ if [ -n "${NF_BASE64:-}" ]; then
+  if "$NF_BASE64" < "$input" > "$encoded_file" 2>/dev/null && base64_encoded_file "$encoded_file"; then return 0; fi
+ elif command -v base64 >/dev/null 2>&1; then
+  if base64 < "$input" > "$encoded_file" 2>/dev/null && base64_encoded_file "$encoded_file"; then return 0; fi
+ elif command -v busybox >/dev/null 2>&1; then
+  if busybox base64 < "$input" > "$encoded_file" 2>/dev/null && base64_encoded_file "$encoded_file"; then return 0; fi
+ fi
+
+ # Portable fallback: encode the bounded byte block using od + POSIX awk.
+ # The block limit is 24 KiB, so this stays small even on router targets.
+ command -v od >/dev/null 2>&1 && command -v awk >/dev/null 2>&1 || return 1
+ od -An -v -tu1 "$input" > "$DOWNLOAD_TMP/bytes" 2>/dev/null || return 1
+ awk '
+  BEGIN { alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" }
+  {
+   for (i = 1; i <= NF; i++) {
+    b[++n] = $i + 0
+    if (n == 3) {
+     v = b[1] * 65536 + b[2] * 256 + b[3]
+     out = out substr(alphabet, int(v / 262144) % 64 + 1, 1)
+     out = out substr(alphabet, int(v / 4096) % 64 + 1, 1)
+     out = out substr(alphabet, int(v / 64) % 64 + 1, 1)
+     out = out substr(alphabet, v % 64 + 1, 1)
+     n = 0
+    }
+   }
+  }
+  END {
+   if (n == 1) {
+    v = b[1] * 65536
+    out = out substr(alphabet, int(v / 262144) + 1, 1)
+    out = out substr(alphabet, int(v / 4096) % 64 + 1, 1) "=="
+   }
+   else if (n == 2) {
+    v = b[1] * 65536 + b[2] * 256
+    out = out substr(alphabet, int(v / 262144) + 1, 1)
+    out = out substr(alphabet, int(v / 4096) % 64 + 1, 1)
+    out = out substr(alphabet, int(v / 64) % 64 + 1, 1) "="
+   }
+   printf "%s", out
+  }
+ ' "$DOWNLOAD_TMP/bytes" > "$encoded_file" 2>/dev/null || return 1
+ base64_encoded_file "$encoded_file"
 }
 base64_decode() {
  if [ -n "${NF_BASE64:-}" ]; then "$NF_BASE64" -d; elif command -v base64 >/dev/null 2>&1; then base64 -d; else busybox base64 -d; fi
@@ -299,7 +354,6 @@ download_info() {
  printf "size=%s sha256=%s\n" "$size" "$hash"
 }
 download_chunk() {
- base64_available || fail "не найдена base64. Установите пакет coreutils-base64 (apk add coreutils-base64) или используйте сборку BusyBox с applet base64"
  archive=$(backup_name "${2:-}")
  offset=${3:-}; length=${4:-24576}
  case "$offset:$length" in *[!0-9:]*|:*) fail "неверные параметры загрузки" ;; esac
@@ -320,7 +374,7 @@ download_chunk() {
  head -c "$wanted" "$DOWNLOAD_TMP/tail" > "$DOWNLOAD_TMP/chunk" 2>/dev/null || fail "не удалось выделить блок архива"
  actual=$(wc -c < "$DOWNLOAD_TMP/chunk" | tr -d ' ') || fail "не удалось проверить размер блока"
  [ "$actual" -eq "$wanted" ] || fail "неполный блок архива: $actual из $wanted байт"
- base64_encode < "$DOWNLOAD_TMP/chunk" > "$DOWNLOAD_TMP/encoded" 2>/dev/null || fail "не удалось закодировать блок архива"
+ base64_encode "$DOWNLOAD_TMP/chunk" > "$DOWNLOAD_TMP/encoded" 2>/dev/null || fail "не удалось закодировать блок архива"
  encoded_size=$(tr -d '\n' < "$DOWNLOAD_TMP/encoded" | wc -c | tr -d ' ') || fail "не удалось проверить кодированный блок"
  expected_size=$(( (wanted + 2) / 3 * 4 ))
  [ "$encoded_size" -eq "$expected_size" ] || fail "неполный base64-блок: $encoded_size вместо $expected_size символов"

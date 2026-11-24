@@ -46,11 +46,23 @@ sed -i 's/^tool_version=.*/tool_version=1.27.7/' "$TMP/legacy/MANIFEST.txt"
 "$TOOL" list "$TMP/legacy-backup.tar.gz" > "$TMP/legacy-list"
 grep -q 'tool_version=1.27.7' "$TMP/legacy-list"
 
-echo "== clear error when base64 is unavailable =="
-if NF_BASE64="$TMP/no-such-base64" "$TOOL" download "$NAME" 0 100 > "$TMP/no-base64.out" 2>&1; then
-  echo "download unexpectedly succeeded without base64" >&2; exit 1
-fi
-grep -q 'не найдена base64' "$TMP/no-base64.out"
+echo "== portable Base64 fallback when the installed encoder is missing or broken =="
+check_download_fallback() {
+  helper="$1"
+  label="$2"
+  out="$TMP/$label.b64"
+  NF_BASE64="$helper" "$TOOL" download "$NAME" 0 100 > "$out"
+  base64 -d "$out" > "$TMP/fallback.bin"
+  dd if="$ARCHIVE" of="$TMP/fallback.expected" bs=1 count=100 2>/dev/null
+  cmp "$TMP/fallback.expected" "$TMP/fallback.bin"
+}
+check_download_fallback "$TMP/no-such-base64" no-base64
+printf '#!/bin/sh\nexit 7\n' > "$TMP/fail-base64"
+chmod +x "$TMP/fail-base64"
+check_download_fallback "$TMP/fail-base64" failed-base64
+printf '#!/bin/sh\nprintf x\n' > "$TMP/short-base64"
+chmod +x "$TMP/short-base64"
+check_download_fallback "$TMP/short-base64" short-base64
 
 echo "== multi-chunk browser download =="
 : > "$TMP/downloaded.tar.gz"
@@ -66,19 +78,7 @@ while [ "$offset" -lt "$SIZE" ]; do
   offset=$((offset + got))
 done
 cmp "$ARCHIVE" "$TMP/downloaded.tar.gz"
-echo "== chunk failures are reported instead of returning an empty/successful block =="
-printf '#!/bin/sh\nexit 7\n' > "$TMP/fail-base64"
-chmod +x "$TMP/fail-base64"
-if NF_BASE64="$TMP/fail-base64" "$TOOL" download "$NAME" 0 100 > "$TMP/fail-encode.out" 2>&1; then
-  echo "download unexpectedly succeeded after base64 failure" >&2; exit 1
-fi
-grep -q 'не удалось закодировать блок архива' "$TMP/fail-encode.out"
-printf '#!/bin/sh\nprintf x\n' > "$TMP/short-base64"
-chmod +x "$TMP/short-base64"
-if NF_BASE64="$TMP/short-base64" "$TOOL" download "$NAME" 0 100 > "$TMP/short-encode.out" 2>&1; then
-  echo "download unexpectedly accepted a truncated base64 block" >&2; exit 1
-fi
-grep -q 'неполный base64-блок' "$TMP/short-encode.out"
+echo "Base64 fallback recovery tests: ok"
 if "$TOOL" download "$NAME" "$SIZE" 100 > "$TMP/empty-chunk.out" 2>&1; then
   echo "download unexpectedly returned an empty block at EOF" >&2; exit 1
 fi
