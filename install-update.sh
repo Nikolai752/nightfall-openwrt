@@ -102,7 +102,7 @@ latest_tag() {
 
 # Ensure the required Base64 encoder before any package or service changes.
 # Localized NF_ROOT test installs intentionally avoid modifying the host system.
-if [ -z "$ROOT" ]; then ensure_base64; fi
+if [ -z "$ROOT" ] || [ "${NF_TEST_BASE64:-0}" = 1 ]; then ensure_base64; fi
 
 ensure_base64() {
 	command -v base64 >/dev/null 2>&1 && return 0
