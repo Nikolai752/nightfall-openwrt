@@ -100,10 +100,6 @@ latest_tag() {
 	[ -n "$t" ] && echo "v${t#v}"
 }
 
-# Ensure the required Base64 encoder before any package or service changes.
-# Localized NF_ROOT test installs intentionally avoid modifying the host system.
-if [ -z "$ROOT" ] || [ "${NF_TEST_BASE64:-0}" = 1 ]; then ensure_base64; fi
-
 ensure_base64() {
 	command -v base64 >/dev/null 2>&1 && return 0
 	if command -v busybox >/dev/null 2>&1 && busybox base64 </dev/null >/dev/null 2>&1; then return 0; fi
@@ -117,6 +113,11 @@ ensure_base64() {
 	fi
 	command -v base64 >/dev/null 2>&1 || { command -v busybox >/dev/null 2>&1 && busybox base64 </dev/null >/dev/null 2>&1; } || die "coreutils-base64 установлен, но команда base64 недоступна"
 }
+
+# Ensure the required Base64 encoder before any package or service changes.
+# Localized NF_ROOT test installs intentionally avoid modifying the host system.
+if [ -z "$ROOT" ] || [ "${NF_TEST_BASE64:-0}" = 1 ]; then ensure_base64; fi
+
 
 if [ "$LIST" = 1 ]; then
 	fetch "$APILIST" "$WORK/list.json" 2>/dev/null || die "не удалось получить список версий (нет связи с GitHub)"
