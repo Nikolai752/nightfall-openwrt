@@ -62,11 +62,19 @@
 				}
 			}
 
-			/* Даже если ячейка уже широкая, текст пустого состояния должен быть по центру. */
+			/* Повторяем эталон LuCI: значок и подпись образуют единый
+			 * вертикальный блок, центрированный по всей ширине таблицы.
+			 * Flex нужен и для уже широкой ячейки — text-align центрирует
+			 * только текст, но не сам значок.
+			 */
 			set(cell, {
-				'text-align': 'center',
+				display: 'flex',
+				'flex-direction': 'column',
 				'align-items': 'center',
-				'justify-content': 'center'
+				'justify-content': 'center',
+				'text-align': 'center',
+				'box-sizing': 'border-box',
+				'padding': '26px 16px'
 			});
 			set(em, {
 				display: 'block',
