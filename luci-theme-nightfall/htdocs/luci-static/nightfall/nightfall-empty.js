@@ -33,49 +33,44 @@
 			if (!tableWidth) return; /* вкладка пока скрыта; повторим после её открытия */
 
 			var cell = row.firstElementChild;
-			var narrow = cell.getBoundingClientRect().width < tableWidth * 0.9;
-
-			if (narrow) {
-				for (var node = em.parentElement; node && node !== table; node = node.parentElement) {
-					set(node, FULL);
-					if (node === row) {
-						set(node, {
-							display: 'block',
-							position: 'static',
-							height: 'auto',
-							'flex': '0 0 100%'
-						});
-					}
-					else if (node === cell) {
-						set(node, {
-							display: 'flex',
-							position: 'static',
-							height: 'auto',
-							'flex': '0 0 100%',
-							'flex-direction': 'column',
-							'align-items': 'center',
-							'justify-content': 'center',
-							'text-align': 'center',
-							padding: '26px 16px'
-						});
-					}
+			/* На desktop и mobile пустая строка должна занимать всю ширину
+			 * таблицы/карточки. В мобильной раскладке LuCI строки могут быть
+			 * grid/flex-элементами фиксированной ширины, поэтому одного
+			 * text-align недостаточно: растягиваем именно пустую строку.
+			 */
+			for (var node = em.parentElement; node && node !== table; node = node.parentElement) {
+				set(node, FULL);
+				if (node === row) {
+					set(node, {
+						display: 'flex',
+						'flex': '0 0 100%',
+						'flex-wrap': 'wrap',
+						'align-items': 'center',
+						'justify-content': 'center',
+						'align-self': 'stretch',
+						'grid-column': '1 / -1',
+						'box-sizing': 'border-box'
+					});
+				}
+				else if (node === cell) {
+					set(node, {
+						display: 'flex',
+						'flex': '1 1 100%',
+						'flex-direction': 'column',
+						'align-items': 'center',
+						'justify-content': 'center',
+						'align-self': 'stretch',
+						'grid-column': '1 / -1',
+						'width': '100%',
+					'min-width': '0',
+					'height': 'auto',
+					'position': 'static',
+					'text-align': 'center',
+					'box-sizing': 'border-box',
+					'padding': '26px 16px'
+					});
 				}
 			}
-
-			/* Повторяем эталон LuCI: значок и подпись образуют единый
-			 * вертикальный блок, центрированный по всей ширине таблицы.
-			 * Flex нужен и для уже широкой ячейки — text-align центрирует
-			 * только текст, но не сам значок.
-			 */
-			set(cell, {
-				display: 'flex',
-				'flex-direction': 'column',
-				'align-items': 'center',
-				'justify-content': 'center',
-				'text-align': 'center',
-				'box-sizing': 'border-box',
-				'padding': '26px 16px'
-			});
 			set(em, {
 				display: 'block',
 				width: '100%',
