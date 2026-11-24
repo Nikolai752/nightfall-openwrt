@@ -19,6 +19,7 @@ $STAMP daemon.warn netifd[601]: Interface 'wan' is now down
 $STAMP daemon.warn netifd[602]: Interface 'wan' is now down
 $STAMP daemon.warn netifd[603]: Interface 'wan' is now down
 $STAMP daemon.err dnsmasq[604]: no servers found in /tmp/resolv.conf, will retry
+$STAMP cron.err crond[700]: USER root pid 16994 cmd /opt/zapret-manager-luci/backend.sh zm_watch >/dev/null 2>&1
 L
 printf '#!/bin/sh\ncat %s\n' "$T/log.txt" > "$T/logread"; chmod +x "$T/logread"
 
