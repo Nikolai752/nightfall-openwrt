@@ -6055,6 +6055,23 @@ html .nfm .nfm-table tbody tr:hover td:first-child { box-shadow: inset 2px 0 0 v
 	html #view .ifacebox .cbi-tooltip { z-index: 1200; }
 }
 
+/* Wi-Fi client list must stay inside its card in Chromium.
+   The general hover rule above allows some sections to overflow visibly
+   for tooltips; keep this specific table contained and horizontally scrollable
+   if a narrow viewport cannot fit all columns. */
+html #view > .cbi-section.fade-in:has(#wifi_assoclist_table) {
+	min-width: 0;
+	max-width: 100%;
+	overflow-x: auto !important;
+	overflow-y: hidden !important;
+}
+html #view #wifi_assoclist_table {
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
+	box-sizing: border-box;
+}
+
 /* ======== v1.11: светлые варианты старых сценических фонов ======== */
 html:not([data-darkmode="true"])[data-nf-bg="mountains"] body::before, html:not([data-darkmode="true"])[data-nf-login-bg="mountains"] body.nf-blank::before { opacity: 1; filter: brightness(1.75) saturate(1.25); }
 html:not([data-darkmode="true"])[data-nf-bg="mountains"] body::after, html:not([data-darkmode="true"])[data-nf-login-bg="mountains"] body.nf-blank::after { opacity: 1; background: radial-gradient(90% 50% at 78% 8%, rgba(255,226,170,.75), transparent 60%), linear-gradient(180deg, #86b9f5 0%, #c6dcf8 45%, #fbe0d2 82%, #fff0d8 100%); z-index: -2; }
