@@ -2670,9 +2670,28 @@ div.cbi-value var.cbi-tooltip-container,
 .assoclist .td img, .assoclist td img, .leases .td img { width: 24px; height: 24px; object-fit: contain; vertical-align: middle; }
 .assoclist .td img[style*="32px"], .assoclist td img[style*="32px"] { width: 32px; height: 32px; }
 
-.assoclist .td:nth-of-type(3),
-.assoclist .td:nth-of-type(5) {
-	width: 25%;
+/* Подключённые Wi-Fi-клиенты: распределяем ширину по назначению колонок.
+   Не оставляем интерфейсу узкую автоширину, из-за которой подпись точки доступа
+   ломается на отдельные слова, а соседние поля визуально разъезжаются. */
+@media (min-width: 601px) {
+	#view #wifi_assoclist_table {
+		width: 100%;
+		min-width: 0;
+		table-layout: fixed;
+	}
+	#view #wifi_assoclist_table .th:nth-of-type(1),
+	#view #wifi_assoclist_table .td:nth-of-type(1) { width: 14%; }
+	#view #wifi_assoclist_table .th:nth-of-type(3),
+	#view #wifi_assoclist_table .td:nth-of-type(3) { width: 26%; }
+	#view #wifi_assoclist_table .th:nth-of-type(4),
+	#view #wifi_assoclist_table .td:nth-of-type(4) { width: 13%; }
+	#view #wifi_assoclist_table .th:nth-of-type(5),
+	#view #wifi_assoclist_table .td:nth-of-type(5) { width: 35%; }
+	#view #wifi_assoclist_table .th:nth-of-type(6),
+	#view #wifi_assoclist_table .td:nth-of-type(6) { width: 12%; }
+	#view #wifi_assoclist_table .td:nth-of-type(6) {
+		white-space: nowrap;
+	}
 }
 
 .assoclist .td:nth-of-type(6) button {
