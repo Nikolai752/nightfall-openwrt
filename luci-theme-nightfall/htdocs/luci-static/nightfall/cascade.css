@@ -2689,6 +2689,31 @@ div.cbi-value var.cbi-tooltip-container,
 	#view #wifi_assoclist_table .td:nth-of-type(5) { width: 35%; }
 	#view #wifi_assoclist_table .th:nth-of-type(6),
 	#view #wifi_assoclist_table .td:nth-of-type(6) { width: 12%; }
+
+	/* Chromium (Chrome/Yandex) может расширять table-cell по min-content
+	   ширине вложенного ifacebadge. Явно разрешаем ячейкам сжиматься
+	   в пределах таблицы и переносить длинное содержимое.
+	 */
+	#view #wifi_assoclist_table .th,
+	#view #wifi_assoclist_table .td {
+		min-width: 0;
+		max-width: 100%;
+		box-sizing: border-box;
+	}
+	#view #wifi_assoclist_table .td:nth-of-type(1),
+	#view #wifi_assoclist_table .td:nth-of-type(3),
+	#view #wifi_assoclist_table .td:nth-of-type(4),
+	#view #wifi_assoclist_table .td:nth-of-type(5) {
+		overflow-wrap: anywhere;
+		word-break: normal;
+	}
+	#view #wifi_assoclist_table .td:nth-of-type(1) .ifacebadge {
+		min-width: 0;
+		max-width: 100%;
+		white-space: normal;
+		overflow-wrap: anywhere;
+		box-sizing: border-box;
+	}
 	#view #wifi_assoclist_table .td:nth-of-type(6) {
 		white-space: nowrap;
 	}
