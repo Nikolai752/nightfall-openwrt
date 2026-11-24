@@ -1000,7 +1000,7 @@ return view.extend({
 		const S = {
 			times: [], cpu: [], mem: [], temp: [], cores: [], net: {},
 			prev: null, last: null, full: null, wifi: undefined, prevProcs: null, procRate: {},
-			paused: false, rlAuto: true, rlLimit: 300, tick: 0, iface: null, tab: 'overview', sort: 'mem', filter: '',
+			paused: false, rlAuto: true, rlLimit: 300, rlExpanded: {}, tick: 0, iface: null, tab: 'overview', sort: 'mem', filter: '',
 				at: {}, alerts: undefined, devs: undefined, devDay: 'day', hist: undefined, range: 'h', appTraffic: undefined, appPeriod: 'day', appDevice: ''
 		};
 
@@ -3254,6 +3254,8 @@ return view.extend({
 			click: () => { if (window.confirm('Закрыть адрес ' + ip + ' для роутера на 24 часа?')) secAct([ 'ban', ip, '24' ]); } }, 'Закрыть на 24 ч') : '';
 		const RISKY = { 21: 'FTP без шифрования', 23: 'Telnet без шифрования', 445: 'SMB', 139: 'SMB', 3389: 'удалённый рабочий стол', 5900: 'VNC' };
 		const routerLogLevel = x => {
+			/* BusyBox crond logs a normal job dispatch at cron.err; it does not mean the job failed. */
+			if (String(x[2] || '').toLowerCase() === 'crond' && /^USER\s+\S+\s+pid\s+\d+\s+cmd\s+/.test(String(x[3] || ''))) return 'notice';
 			const priority = String(x[1] || '').trim().toLowerCase().split('.').pop();
 			const source = String(x[2] || '') + ' ' + String(x[3] || '');
 			const tagged = (source.match(/(?:^|[^a-z0-9_-])(?:[a-z0-9_.-]+)?\[(emerg|panic|alert|crit(?:ical)?|err(?:or)?|warn(?:ing)?|notice|info|debug)\]/i) || [])[1];
@@ -3314,11 +3316,11 @@ return view.extend({
 			return svc + '|' + level + '|' + msg;
 		}
 		function groupRouterLogRows(rows) {
-			if (S.rlGrouped === false) return rows.slice().reverse().map((x, i) => ({ rows: [ x ], lastIndex: rows.length - i }));
+			if (S.rlGrouped === false) return rows.slice().reverse().map((x, i) => ({ rows: [ x ], lastIndex: rows.length - i, key: routerLogFingerprint(x) + '|' + String(x[0] || '') + '|' + i }));
 			const map = new Map();
 			rows.forEach((x, i) => {
 				const key = routerLogFingerprint(x);
-				if (!map.has(key)) map.set(key, { rows: [], lastIndex: i });
+				if (!map.has(key)) map.set(key, { key, rows: [], lastIndex: i });
 				const group = map.get(key);
 				group.rows.push(x); group.lastIndex = i;
 			});
@@ -3437,6 +3439,7 @@ return view.extend({
 				E('span', { class: 'nfm-log-count info' }, [ 'Информация: ', E('b', {}, String(counts.info)) ]),
 				S.rlDiag ? E('button', { type: 'button', class: 'nfm-btn', click: () => { S.rlDiag = ''; renderRouterLog(); } }, 'Сбросить диагностику') : ''
 			);
+			const logScrollTop = rlBox.scrollTop;
 			rlBox.replaceChildren(...(visible.length ? visible.map(group => {
 				const x = group.rows[group.rows.length - 1], l = routerLogLevel(x);
 				const meta = routerLogMeta[l] || routerLogMeta.info, serviceName = String(x[2] || 'неизвестно');
@@ -3445,7 +3448,8 @@ return view.extend({
 				const occurrences = repeats > 1 ? E('div', { class: 'nfm-log-occurrences' }, group.rows.slice().reverse().map(row =>
 					E('div', {}, [ E('time', {}, String(row[0] || '')), E('span', {}, String(row[1] || '')), E('span', {}, String(row[3] || '')) ])
 				)) : '';
-				return E('details', { class: 'nfm-rlog-item' }, [
+				const groupKey = group.key || routerLogFingerprint(x);
+				const item = E('details', { class: 'nfm-rlog-item', 'data-log-key': groupKey }, [
 					E('summary', { class: 'nfm-ev-i ' + meta.cls, title: 'Раскрыть подробности записи' }, [
 						E('i', { 'aria-hidden': 'true' }), E('time', {}, time),
 						E('span', { class: 'nfm-log-line' }, [
@@ -3471,7 +3475,16 @@ return view.extend({
 						E('pre', { class: 'nfm-log-full' }, String(x[3] || ''))
 					])
 				]);
+				item.open = !!(S.rlExpanded && S.rlExpanded[groupKey]);
+				item.addEventListener('toggle', () => {
+					if (!item.isConnected) return;
+					if (!S.rlExpanded) S.rlExpanded = {};
+					if (item.open) S.rlExpanded[groupKey] = true;
+					else delete S.rlExpanded[groupKey];
+				});
+				return item;
 			}) : [ E('div', { class: 'nfm-empty' }, 'Ничего не найдено по выбранным условиям.') ]));
+			rlBox.scrollTop = logScrollTop;
 			rlMore.hidden = groups.length <= visible.length;
 			rlMore.firstChild.textContent = 'Показать ещё (' + Math.min(300, groups.length - visible.length) + ' из ' + groups.length + ')';
 			const updated = S.rlogUpdated ? new Date(S.rlogUpdated).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'ещё не обновлялся';
