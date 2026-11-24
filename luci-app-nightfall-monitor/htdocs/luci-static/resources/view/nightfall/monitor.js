@@ -903,6 +903,23 @@ html #view .nfm-card.nfm-cfg-settings-card:focus-within { border-color:var(--nfm
 .nfm-log-text { min-width: 0; overflow-wrap: anywhere; }
 .nfm-log-summary, .nfm-log-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 8px 0; }
 .nfm-log-summary { color: var(--nfm-dim); font-size: 11px; }
+.nfm-log-diagnostics { margin:10px 0 12px; padding:10px; border:1px solid var(--nfm-border); border-radius:9px; background:color-mix(in srgb,var(--nfm-card2) 55%,transparent); }
+.nfm-log-diagnostics-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px 12px; margin-bottom:8px; font-size:12px; }
+.nfm-log-diagnostics-head span, .nfm-log-diagnostic small { color:var(--nfm-dim); font-size:11px; font-weight:400; }
+.nfm-log-diagnostic-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:7px; }
+.nfm-log-diagnostic { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:3px 8px; align-items:center; padding:8px 10px; border:1px solid var(--nfm-border); border-radius:7px; text-align:left; color:var(--nfm-text); background:var(--nfm-card); cursor:pointer; }
+.nfm-log-diagnostic:hover, .nfm-log-diagnostic.on { border-color:var(--nfm-accent); background:var(--nfm-card2); }
+.nfm-log-diagnostic b { font-size:13px; font-variant-numeric:tabular-nums; }
+.nfm-log-diagnostic small { grid-column:1/-1; }
+.nfm-log-diagnostic.crit b { color:#ff777b; } .nfm-log-diagnostic.warn b { color:#ffc44d; }
+.nfm-log-diagnostics-empty { color:var(--nfm-dim); font-size:11px; }
+.nfm-log-repeat { flex:0 0 auto; padding:2px 7px; border:1px solid var(--nfm-border); border-radius:999px; color:var(--nfm-text); background:var(--nfm-card2); font-size:10px; font-weight:700; }
+.nfm-log-occurrences { display:grid; gap:5px; margin:0 0 8px; }
+.nfm-log-occurrences > div { display:grid; grid-template-columns:150px 110px minmax(0,1fr); gap:8px; padding:5px 7px; border-radius:5px; background:color-mix(in srgb,var(--nfm-card) 75%,transparent); font-size:11px; }
+.nfm-log-occurrences time, .nfm-log-occurrences > div > span:nth-child(2) { color:var(--nfm-dim); }
+@media (max-width:720px) { .nfm-log-occurrences > div { grid-template-columns:1fr; gap:2px; } .nfm-log-diagnostic-list { grid-template-columns:1fr 1fr; } }
+@media (max-width:420px) { .nfm-log-diagnostic-list { grid-template-columns:1fr; } }
+
 .nfm-log-count { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border: 1px solid var(--nfm-border); border-radius: 999px; background: var(--nfm-card2); }
 .nfm-log-count b { color: var(--nfm-text); font-variant-numeric: tabular-nums; }
 .nfm-log-count.crit b { color: #ff777b; } .nfm-log-count.warn b { color: #ffc44d; } .nfm-log-count.info b { color: #72baff; }
@@ -983,7 +1000,7 @@ return view.extend({
 		const S = {
 			times: [], cpu: [], mem: [], temp: [], cores: [], net: {},
 			prev: null, last: null, full: null, wifi: undefined, prevProcs: null, procRate: {},
-			paused: false, rlAuto: true, rlLimit: 300, tick: 0, iface: null, tab: 'overview', sort: 'mem', filter: '',
+			paused: false, rlAuto: true, rlLimit: 300, rlExpanded: {}, tick: 0, iface: null, tab: 'overview', sort: 'mem', filter: '',
 				at: {}, alerts: undefined, devs: undefined, devDay: 'day', hist: undefined, range: 'h', appTraffic: undefined, appPeriod: 'day', appDevice: ''
 		};
 
@@ -2092,6 +2109,7 @@ return view.extend({
 		}));
 		let rlVisible = [];
 		const rlSummary = E('div', { class: 'nfm-log-summary' });
+		const rlDiag = E('div', { class: 'nfm-log-diagnostics' });
 		const rlStatus = E('span', { class: 'nfm-log-status' }, 'Загрузка журнала…');
 		const rlAutoBtn = E('button', { type: 'button', class: 'nfm-btn', title: 'Автоматически получать новые записи каждые 20 секунд', click: () => {
 				S.rlAuto = S.rlAuto === false;
@@ -2101,7 +2119,8 @@ return view.extend({
 		const rlRefreshBtn = E('button', { type: 'button', class: 'nfm-btn', title: 'Получить журнал сейчас', click: () => refreshRouterLog() }, 'Обновить');
 		const rlCopyBtn = E('button', { type: 'button', class: 'nfm-btn', title: 'Скопировать отфильтрованные записи', click: () => copyRouterLog() }, 'Копировать');
 		const rlExportBtn = E('button', { type: 'button', class: 'nfm-btn', title: 'Скачать отфильтрованные записи в CSV', click: () => exportRouterLog() }, 'Экспорт CSV');
-		const rlTools = E('div', { class: 'nfm-log-tools' }, [ rlAutoBtn, rlRefreshBtn, rlCopyBtn, rlExportBtn, rlStatus ]);
+		const rlGroupBtn = E('button', { type: 'button', class: 'nfm-btn', title: 'Объединять одинаковые сообщения', click: () => { S.rlGrouped = S.rlGrouped === false; renderRouterLog(); } }, 'Повторы: сгруппированы');
+		const rlTools = E('div', { class: 'nfm-log-tools' }, [ rlAutoBtn, rlRefreshBtn, rlCopyBtn, rlExportBtn, rlGroupBtn, rlStatus ]);
 		const rlBox = E('div', { class: 'nfm-evlist nfm-rlog' });
 		const rlMore = E('div', { class: 'nfm-log-more', hidden: '' }, E('button', { type: 'button', class: 'nfm-btn', click: () => { S.rlLimit = (S.rlLimit || 300) + 300; renderRouterLog(); } }, 'Показать ещё'));
 		const MONRU = { Jan: 'янв.', Feb: 'февр.', Mar: 'мар.', Apr: 'апр.', May: 'мая', Jun: 'июн.', Jul: 'июл.', Aug: 'авг.', Sep: 'сент.', Oct: 'окт.', Nov: 'нояб.', Dec: 'дек.' };
@@ -2250,7 +2269,7 @@ return view.extend({
 		const logTab = E('div', { hidden: true }, [
 			E('div', { class: 'nfm-grid' }, [ card([ 'Журнал событий', E('span', { class: 'nfm-spacer' }), logPer, logCsv, logQ ], E('div', {}, [ logChips, logBox ])) ]),
 			E('div', { class: 'nfm-grid' }, [ card('Журнал перезагрузок и обрывов связи', E('div', {}, [ jrnTiles, jrnBox ])) ]),
-			E('div', { class: 'nfm-grid' }, [ card([ 'Журнал роутера', E('span', { class: 'nfm-spacer' }), rlSvc, rlQ ], E('div', {}, [ rlChips, rlSummary, rlTools, rlBox, rlMore ])) ])
+			E('div', { class: 'nfm-grid' }, [ card([ 'Журнал роутера', E('span', { class: 'nfm-spacer' }), rlSvc, rlQ ], E('div', {}, [ rlChips, rlSummary, rlDiag, rlTools, rlBox, rlMore ])) ])
 		]);
 		const diagTab = E('div', { hidden: true }, [
 			E('div', { class: 'nfm-grid' }, [ card('Диагностика сети', diagBody) ]),
@@ -3235,6 +3254,8 @@ return view.extend({
 			click: () => { if (window.confirm('Закрыть адрес ' + ip + ' для роутера на 24 часа?')) secAct([ 'ban', ip, '24' ]); } }, 'Закрыть на 24 ч') : '';
 		const RISKY = { 21: 'FTP без шифрования', 23: 'Telnet без шифрования', 445: 'SMB', 139: 'SMB', 3389: 'удалённый рабочий стол', 5900: 'VNC' };
 		const routerLogLevel = x => {
+			/* BusyBox crond logs a normal job dispatch at cron.err; it does not mean the job failed. */
+			if (String(x[2] || '').toLowerCase() === 'crond' && /^USER\s+\S+\s+pid\s+\d+\s+cmd\s+/.test(String(x[3] || ''))) return 'notice';
 			const priority = String(x[1] || '').trim().toLowerCase().split('.').pop();
 			const source = String(x[2] || '') + ' ' + String(x[3] || '');
 			const tagged = (source.match(/(?:^|[^a-z0-9_-])(?:[a-z0-9_.-]+)?\[(emerg|panic|alert|crit(?:ical)?|err(?:or)?|warn(?:ing)?|notice|info|debug)\]/i) || [])[1];
@@ -3253,6 +3274,58 @@ return view.extend({
 			info: { cls: 'info', tag: 'INFO', title: 'Информация' },
 			debug: { cls: 'debug', tag: 'DEBUG', title: 'Отладка' }
 		};
+		const routerLogDiagMeta = {
+			wan: { title: 'WAN / интернет', hint: 'События потери или восстановления WAN-соединения', cls: 'crit' },
+			dns: { title: 'DNS', hint: 'Ошибки DNS-службы или её конфигурации', cls: 'warn' },
+			wifi: { title: 'Wi-Fi', hint: 'Частые отключения или ошибки аутентификации клиентов', cls: 'warn' },
+			vpn: { title: 'VPN и прокси', hint: 'Ошибки подключения, маршрута или handshake', cls: 'warn' },
+			service: { title: 'Службы роутера', hint: 'Перезапуски, аварийные завершения или нехватка памяти', cls: 'crit' },
+			security: { title: 'Безопасность', hint: 'Повторяющиеся неудачные попытки входа', cls: 'warn' }
+		};
+		function routerLogDiagnosis(x) {
+			const svc = String(x[2] || '').toLowerCase(), msg = String(x[3] || '').toLowerCase();
+			const level = routerLogLevel(x);
+			if (/^(netifd|udhcpc|pppd|odhcp6c)$/.test(svc) &&
+				/(wan|interface|carrier|link|lease|lcp)/.test(msg) &&
+				/(now down|link is down|lost carrier|no lease|lease lost|lcp terminated|failed to bring up|network unreachable|no route to host|ifdown)/.test(msg))
+				return 'wan';
+			if (/dnsmasq|smartdns|unbound|https-dns|stubby/.test(svc) &&
+				/(no servers found|failed to create listening socket|failed to bind|cannot assign requested address|no address range available|cannot read .*resolv)/.test(msg))
+				return 'dns';
+			if (/^(sing-box|xray|v2ray|openvpn|wg|wireguard|tailscale|zerotier|nikki|podkop|mihomo|clash)$/.test(svc) &&
+				(level === 'err' || level === 'warn') &&
+				/(handshake.*timed out|timeout|connection refused|failed|error|unreachable|no route)/.test(msg))
+				return 'vpn';
+			if (/^(procd|kernel)$/.test(svc) &&
+				/(respawn|crash|segfault|out of memory|oom-kill|killed process|process .* exited)/.test(msg))
+				return 'service';
+			if (/^(hostapd|wpad|wpa_supplicant)$/.test(svc) &&
+				(level === 'err' || level === 'warn') &&
+				/(deauth|disassoc|disconnected|authentication failed|handshake failed)/.test(msg))
+				return 'wifi';
+			if (/^(dropbear|luci|uhttpd)$/.test(svc) &&
+				/(bad password|failed login|login attempt for nonexistent|authentication failed)/.test(msg))
+				return 'security';
+			return '';
+		}
+		function routerLogFingerprint(x) {
+			const svc = String(x[2] || 'unknown').toLowerCase();
+			const level = routerLogLevel(x);
+			const msg = String(x[3] || '').toLowerCase().replace(/\b(pid|port|id)[=: ]+\d+\b/g, '$1=#')
+				.replace(/\s+/g, ' ').trim();
+			return svc + '|' + level + '|' + msg;
+		}
+		function groupRouterLogRows(rows) {
+			if (S.rlGrouped === false) return rows.slice().reverse().map((x, i) => ({ rows: [ x ], lastIndex: rows.length - i, key: routerLogFingerprint(x) + '|' + String(x[0] || '') + '|' + String(x[3] || '') }));
+			const map = new Map();
+			rows.forEach((x, i) => {
+				const key = routerLogFingerprint(x);
+				if (!map.has(key)) map.set(key, { key, rows: [], lastIndex: i });
+				const group = map.get(key);
+				group.rows.push(x); group.lastIndex = i;
+			});
+			return Array.from(map.values()).sort((a, b) => b.lastIndex - a.lastIndex);
+		}
 		function setRouterLogAutoLabel() {
 			rlAutoBtn.textContent = S.rlAuto === false ? 'Автообновление: выкл' : 'Автообновление: вкл';
 			rlAutoBtn.classList.toggle('on', S.rlAuto !== false);
@@ -3299,9 +3372,11 @@ return view.extend({
 			for (const key of Object.keys(rlChipRefs))
 				rlChipRefs[key].button.classList.toggle('on', key === (S.rlK || 'all'));
 			setRouterLogAutoLabel();
+			rlGroupBtn.textContent = S.rlGrouped === false ? 'Повторы: отдельно' : 'Повторы: сгруппированы';
+			rlGroupBtn.classList.toggle('on', S.rlGrouped !== false);
 			if (R === undefined) { rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Загружаю журнал роутера…')); return; }
 			if (!R || !R.ok || !Array.isArray(R.rows)) {
-				rlVisible = []; rlSummary.replaceChildren();
+				rlVisible = []; rlSummary.replaceChildren(); rlDiag.replaceChildren();
 				rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Не удалось получить журнал. Выйдите из LuCI и войдите снова после обновления.'));
 				rlStatus.textContent = 'Нет данных'; rlMore.hidden = true; return;
 			}
@@ -3313,37 +3388,75 @@ return view.extend({
 			for (const key of Object.keys(rlChipRefs)) rlChipRefs[key].count.textContent = String(tabCounts[key] || 0);
 			const svcs = Array.from(new Set(rows.map(x => String(x[2] || 'неизвестно')))).sort((a, b) => a.localeCompare(b, 'ru'));
 			const currentServices = Array.from(rlSvc.options).slice(1).map(o => o.value);
-			if (currentServices.join('\\u0000') !== svcs.join('\\u0000')) {
+			if (currentServices.join('\u0000') !== svcs.join('\u0000')) {
 				const cur = rlSvc.value;
 				rlSvc.replaceChildren(E('option', { value: '' }, 'Все службы'), ...svcs.map(v => E('option', { value: v }, v)));
 				rlSvc.value = svcs.includes(cur) ? cur : '';
 			}
+			const diagnostics = {};
+			rows.forEach(x => {
+				const cat = routerLogDiagnosis(x);
+				if (cat) {
+					if (!diagnostics[cat]) diagnostics[cat] = [];
+					diagnostics[cat].push(x);
+				}
+			});
+			/* Wi-Fi disconnects and failed logins are noisy individually; only surface repeated bursts. */
+			if (diagnostics.wifi && diagnostics.wifi.length < 5) delete diagnostics.wifi;
+			if (diagnostics.security && diagnostics.security.length < 3) delete diagnostics.security;
+			const diagKeys = Object.keys(diagnostics);
+			rlDiag.replaceChildren(...(diagKeys.length ? [
+				E('div', { class: 'nfm-log-diagnostics-head' }, [
+					E('b', {}, 'Возможные проблемы'),
+					E('span', {}, 'Подсказки по шаблонам журнала, не окончательный диагноз')
+				]),
+				E('div', { class: 'nfm-log-diagnostic-list' }, diagKeys.map(cat => {
+					const meta = routerLogDiagMeta[cat], items = diagnostics[cat];
+					const button = E('button', { type: 'button', class: 'nfm-log-diagnostic ' + meta.cls + (S.rlDiag === cat ? ' on' : ''), click: () => { S.rlDiag = S.rlDiag === cat ? '' : cat; S.rlLimit = 300; renderRouterLog(); } }, [
+						E('span', { class: 'nfm-log-diagnostic-title' }, meta.title),
+						E('b', {}, String(items.length)),
+						E('small', {}, meta.hint)
+					]);
+					return button;
+				}))
+			] : [ E('div', { class: 'nfm-log-diagnostics-empty' }, 'По текущим записям явных повторяющихся проблем не обнаружено.') ]));
 			const q = rlQ.value.trim().toLowerCase(), key = S.rlK || 'all', service = rlSvc.value;
 			const filtered = rows.filter((x, i) => {
 				const l = levels[i], searchable = (String(x[1]) + ' ' + String(x[2]) + ' ' + String(x[3])).toLowerCase();
 				const typeMatch = key === 'all' || (key === 'err' && l === 'err') ||
 					(key === 'warn' && (l === 'err' || l === 'warn')) ||
 					(key === 'info' && (l === 'notice' || l === 'info')) || (key === 'debug' && l === 'debug');
-				return typeMatch && (!service || String(x[2] || 'неизвестно') === service) && (!q || searchable.includes(q));
+				const diagMatch = !S.rlDiag || routerLogDiagnosis(x) === S.rlDiag;
+				return typeMatch && diagMatch && (!service || String(x[2] || 'неизвестно') === service) && (!q || searchable.includes(q));
 			});
 			rlVisible = filtered.slice().reverse();
-			const limit = Math.max(1, S.rlLimit || 300), visible = rlVisible.slice(0, limit);
+			const groups = groupRouterLogRows(filtered);
+			const limit = Math.max(1, S.rlLimit || 300), visible = groups.slice(0, limit);
 			rlSummary.replaceChildren(
 				E('span', { class: 'nfm-log-count' }, [ 'В памяти: ', E('b', {}, String(rows.length)) ]),
 				E('span', { class: 'nfm-log-count crit' }, [ 'Ошибки: ', E('b', {}, String(counts.err)) ]),
 				E('span', { class: 'nfm-log-count warn' }, [ 'Предупреждения: ', E('b', {}, String(counts.warn)) ]),
-				E('span', { class: 'nfm-log-count info' }, [ 'Информация: ', E('b', {}, String(counts.info)) ])
+				E('span', { class: 'nfm-log-count info' }, [ 'Информация: ', E('b', {}, String(counts.info)) ]),
+				S.rlDiag ? E('button', { type: 'button', class: 'nfm-btn', click: () => { S.rlDiag = ''; renderRouterLog(); } }, 'Сбросить диагностику') : ''
 			);
-			rlBox.replaceChildren(...(visible.length ? visible.map(x => {
-				const l = routerLogLevel(x), meta = routerLogMeta[l] || routerLogMeta.info, serviceName = String(x[2] || 'неизвестно');
+			const logScrollTop = rlBox.scrollTop;
+			rlBox.replaceChildren(...(visible.length ? visible.map(group => {
+				const x = group.rows[group.rows.length - 1], l = routerLogLevel(x);
+				const meta = routerLogMeta[l] || routerLogMeta.info, serviceName = String(x[2] || 'неизвестно');
 				const time = String(x[0] || '').replace(/^([A-Z][a-z]{2}) (\d+) /, (m, a, d) => d + ' ' + (MONRU[a] || a) + ', ');
-				return E('details', { class: 'nfm-rlog-item' }, [
+				const repeats = group.rows.length;
+				const occurrences = repeats > 1 ? E('div', { class: 'nfm-log-occurrences' }, group.rows.slice().reverse().map(row =>
+					E('div', {}, [ E('time', {}, String(row[0] || '')), E('span', {}, String(row[1] || '')), E('span', {}, String(row[3] || '')) ])
+				)) : '';
+				const groupKey = group.key || routerLogFingerprint(x);
+				const item = E('details', { class: 'nfm-rlog-item', 'data-log-key': groupKey }, [
 					E('summary', { class: 'nfm-ev-i ' + meta.cls, title: 'Раскрыть подробности записи' }, [
 						E('i', { 'aria-hidden': 'true' }), E('time', {}, time),
 						E('span', { class: 'nfm-log-line' }, [
 							E('b', { class: 'nfm-log-service' }, serviceName),
-						E('span', { class: 'nfm-log-level ' + meta.cls, title: meta.title }, meta.tag),
-						E('span', { class: 'nfm-log-text' }, String(x[3] || ''))
+							E('span', { class: 'nfm-log-level ' + meta.cls, title: meta.title }, meta.tag),
+							E('span', { class: 'nfm-log-text' }, String(x[3] || '')),
+							repeats > 1 ? E('span', { class: 'nfm-log-repeat' }, '× ' + repeats) : ''
 						])
 					]),
 					E('div', { class: 'nfm-log-detail' }, [
@@ -3352,18 +3465,30 @@ return view.extend({
 								E('span', {}, [ 'Служба: ', E('b', {}, serviceName) ]),
 								E('span', {}, [ 'Приоритет syslog: ', E('b', {}, String(x[1] || 'не указан')) ]),
 								E('span', {}, [ 'Класс: ', E('b', {}, meta.title) ]),
-								E('span', {}, [ 'Время: ', E('b', {}, String(x[0] || 'не указано')) ])
+								E('span', {}, [ 'Повторов в буфере: ', E('b', {}, String(repeats)) ]),
+								E('span', {}, [ 'Первое событие: ', E('b', {}, String(group.rows[0][0] || 'не указано')) ]),
+								E('span', {}, [ 'Последнее событие: ', E('b', {}, String(x[0] || 'не указано')) ])
 							]),
-							E('button', { type: 'button', class: 'nfm-btn', click: ev => { ev.preventDefault(); copyRouterLogRows([ x ]); } }, 'Копировать запись')
+							E('button', { type: 'button', class: 'nfm-btn', click: ev => { ev.preventDefault(); copyRouterLogRows(group.rows); } }, repeats > 1 ? 'Копировать группу' : 'Копировать запись')
 						]),
+						occurrences,
 						E('pre', { class: 'nfm-log-full' }, String(x[3] || ''))
 					])
 				]);
+				item.open = !!(S.rlExpanded && S.rlExpanded[groupKey]);
+				item.addEventListener('toggle', () => {
+					if (!item.isConnected) return;
+					if (!S.rlExpanded) S.rlExpanded = {};
+					if (item.open) S.rlExpanded[groupKey] = true;
+					else delete S.rlExpanded[groupKey];
+				});
+				return item;
 			}) : [ E('div', { class: 'nfm-empty' }, 'Ничего не найдено по выбранным условиям.') ]));
-			rlMore.hidden = filtered.length <= visible.length;
-			rlMore.firstChild.textContent = 'Показать ещё (' + Math.min(300, filtered.length - visible.length) + ' из ' + filtered.length + ')';
+			rlBox.scrollTop = logScrollTop;
+			rlMore.hidden = groups.length <= visible.length;
+			rlMore.firstChild.textContent = 'Показать ещё (' + Math.min(300, groups.length - visible.length) + ' из ' + groups.length + ')';
 			const updated = S.rlogUpdated ? new Date(S.rlogUpdated).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'ещё не обновлялся';
-			rlStatus.textContent = 'Показано ' + visible.length + ' из ' + filtered.length + ' · обновлено ' + updated;
+			rlStatus.textContent = 'Показано ' + visible.length + ' групп из ' + groups.length + ' · записей ' + filtered.length + ' · обновлено ' + updated;
 		}
 		function renderSec() {
 			const R = S.sec;

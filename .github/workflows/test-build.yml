@@ -6,13 +6,14 @@ on:
       - fix/unified-device-identity
       - fix/ui-menu-save-dhcp-backup-errors
       - feat/router-log-center
+      - feat/router-log-intelligent-diagnostics
   workflow_dispatch:
     inputs:
       version:
         description: "Версия тестового архива"
         required: true
         type: string
-        default: "v1.29.0-alpha.1-router-log-center"
+        default: "v1.29.0-alpha.3-router-log-diagnostics"
 
 permissions:
   contents: read
@@ -27,7 +28,7 @@ jobs:
 
       - name: Build archive
         env:
-          VERSION: ${{ inputs.version || 'v1.29.0-alpha.1-router-log-center' }}
+          VERSION: ${{ inputs.version || 'v1.29.0-alpha.3-router-log-diagnostics' }}
         run: sh ./build-release.sh
 
       - name: Verify archive and checksum
@@ -41,7 +42,7 @@ jobs:
       - name: Upload installable archive
         uses: actions/upload-artifact@v4
         with:
-          name: nightfall-test-v1.29.0-alpha.1-router-log-center
+          name: nightfall-test-v1.29.0-alpha.3-router-log-diagnostics
           path: |
             dist/nightfall-root.tar.gz
             dist/nightfall-root.tar.gz.sha256
