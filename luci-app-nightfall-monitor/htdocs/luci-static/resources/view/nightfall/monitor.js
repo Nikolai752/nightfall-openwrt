@@ -3316,7 +3316,7 @@ return view.extend({
 			return svc + '|' + level + '|' + msg;
 		}
 		function groupRouterLogRows(rows) {
-			if (S.rlGrouped === false) return rows.slice().reverse().map((x, i) => ({ rows: [ x ], lastIndex: rows.length - i, key: routerLogFingerprint(x) + '|' + String(x[0] || '') + '|' + i }));
+			if (S.rlGrouped === false) return rows.slice().reverse().map((x, i) => ({ rows: [ x ], lastIndex: rows.length - i, key: routerLogFingerprint(x) + '|' + String(x[0] || '') + '|' + String(x[3] || '') }));
 			const map = new Map();
 			rows.forEach((x, i) => {
 				const key = routerLogFingerprint(x);
