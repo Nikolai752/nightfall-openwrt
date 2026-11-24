@@ -68,19 +68,7 @@ done
 rm -rf "$WORK"; mkdir -p "$WORK" || die "не удалось создать рабочую папку $WORK"
 trap 'rm -rf "$WORK"' EXIT
 
-ensure_base64() {
- command -v base64 >/dev/null 2>&1 && return 0
- if command -v busybox >/dev/null 2>&1 && busybox base64 </dev/null >/dev/null 2>&1; then return 0; fi
- say "Не найдена утилита base64. Устанавливаю coreutils-base64…"
- if command -v apk >/dev/null 2>&1; then
-  apk update >/dev/null 2>&1 && apk add coreutils-base64 >/dev/null 2>&1 || die "не удалось установить coreutils-base64 через apk. Выполните: apk update && apk add coreutils-base64"
- elif command -v opkg >/dev/null 2>&1; then
-  opkg update >/dev/null 2>&1 && opkg install coreutils-base64 >/dev/null 2>&1 || die "не удалось установить coreutils-base64 через opkg. Выполните: opkg update && opkg install coreutils-base64"
- else
-  die "не найдена base64 и не обнаружен apk/opkg. Установите coreutils-base64 вручную"
- fi
- command -v base64 >/dev/null 2>&1 || { command -v busybox >/dev/null 2>&1 && busybox base64 </dev/null >/dev/null 2>&1; } || die "coreutils-base64 установлен, но команда base64 недоступна"
-}
+
 fetch() { # url out
 	if command -v curl >/dev/null 2>&1; then
 		curl -fsSL --retry 2 --connect-timeout 15 --max-time 300 -o "$2" "$1"
@@ -111,6 +99,10 @@ latest_tag() {
 	fi
 	[ -n "$t" ] && echo "v${t#v}"
 }
+
+# Ensure the required Base64 encoder before any package or service changes.
+# Localized NF_ROOT test installs intentionally avoid modifying the host system.
+if [ -z "$ROOT" ]; then ensure_base64; fi
 
 if [ "$LIST" = 1 ]; then
 	fetch "$APILIST" "$WORK/list.json" 2>/dev/null || die "не удалось получить список версий (нет связи с GitHub)"
@@ -228,8 +220,6 @@ if [ "$SRC" = local ] && [ "$OLD" = "$NEW" ] && [ "$FORCE" = 0 ]; then
 	exit 0
 fi
 
-# --- runtime dependencies ---
-if [ -z "$ROOT" ]; then ensure_base64; fi
 
 # --- остановить сборщик и бота перед заменой файлов ---
 if [ -z "$ROOT" ]; then
