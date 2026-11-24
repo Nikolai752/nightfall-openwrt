@@ -20,7 +20,7 @@
 		<meta charset="utf-8">
 		<title>{{ striptags(`${boardinfo.hostname ?? '?'}${dispatched?.title ? ` | ${_(dispatched.title)}` : ''}`) }}</title>
 		<script src="{{ media }}/nightfall.js?v=20261118j"></script>
-		<script src="{{ media }}/nightfall-empty.js?v=20261118j" defer></script>
+		<script src="{{ media }}/nightfall-empty.js?v=20261124a" defer></script>
 		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 		<meta name="darkreader-lock">
 		<link rel="stylesheet" href="{{ media }}/cascade.css?v=20261118j">
