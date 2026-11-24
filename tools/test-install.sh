@@ -68,7 +68,7 @@ cat > "$TBASE/bin/apk" <<'EOF'
 echo "$*" >> "$APK_LOG"
 case "$*" in
   "update") exit 0 ;;
-  "add coreutils-base64") cat > "$APK_INSTALLED <<'B64'
+  "add coreutils-base64") cat > "$APK_INSTALLED" <<'B64'
 #!/bin/sh
 exec /usr/bin/base64 "$@"
 B64
