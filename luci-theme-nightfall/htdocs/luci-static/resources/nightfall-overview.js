@@ -1166,6 +1166,12 @@ function stabilizeTables(view) {
 	view.querySelectorAll('.table').forEach(tb => {
 		if (!tb.querySelector('.td[data-title], td')) return;
 		const st = tb.id ? (STAB_MEM[tb.id] = STAB_MEM[tb.id] || {}) : (tb.__nfSt = tb.__nfSt || {});
+		/* У Wi-Fi association list ширину колонок задаёт CSS: фиксирование
+		 * измеренных min-width при каждом опросе раздвигает таблицу и ломает
+		 * пропорции после изменения имени/скорости клиента. Высоту строк
+		 * продолжаем стабилизировать, но ширины ячеек этой таблицы не запоминаем.
+		 */
+		const lockColumns = !tb.matches('#wifi_assoclist_table, .assoclist');
 		if (st.gen !== STAB_GEN) { st.gen = STAB_GEN; st.col = []; st.row = []; st.h = 0; }
 		if (tb.__nfGen !== STAB_GEN) { tb.__nfGen = STAB_GEN; tb.querySelectorAll('.tr, tr').forEach(r => { r.style.minHeight = ''; r.querySelectorAll('.td, .th, td, th').forEach(c => { c.style.minWidth = ''; }); }); tb.style.minHeight = ''; }
 		const rows = Array.from(tb.querySelectorAll(':scope > .tr, :scope > tbody > tr, :scope > thead > tr'));
@@ -1185,6 +1191,10 @@ function stabilizeTables(view) {
 		rows.forEach((r, ri) => {
 			const cells = Array.from(r.querySelectorAll(':scope > .td, :scope > .th, :scope > td, :scope > th'));
 			cells.forEach((c, ci) => {
+				if (!lockColumns) {
+					if (c.style.minWidth) c.style.minWidth = '';
+					return;
+				}
 				const w = Math.ceil(c.getBoundingClientRect().width);
 				if (!keepW) return;
 				if (w > (st.col[ci] || 0)) st.col[ci] = w;
