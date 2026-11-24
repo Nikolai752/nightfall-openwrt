@@ -11,6 +11,10 @@ $STAMP authpriv.notice dropbear[114]: Password auth succeeded for 'root' from 19
 $STAMP authpriv.info luci: failed login on / for root from 203.0.113.9
 $STAMP authpriv.info luci: accepted login on / for root from 192.168.1.10
 $STAMP daemon.info something: unrelated
+$STAMP kern.err rtw88_8821cu[501]: error beacon valid
+$STAMP user.notice steerd[502]: steer[warn] tunnel: TCP пришёл в устройство (перенаправления к слушателю нет)
+$STAMP daemon.notice tachyon[503]: [info] No subscription rules are due for update
+$STAMP daemon.debug dnsmasq[504]: [debug] query[A] example.net from 192.0.2.10
 L
 printf '#!/bin/sh\ncat %s\n' "$T/log.txt" > "$T/logread"; chmod +x "$T/logread"
 

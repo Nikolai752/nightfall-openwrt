@@ -120,6 +120,15 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				await p.waitForTimeout(1500);
 				const rl = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog .nfm-ev-i')).map(e => e.textContent).join('|'));
 				if (!rl.includes('dropbear') || !rl.includes('Bad password attempt')) bad(vn + ': журнал роутера пуст: ' + rl.slice(0, 80));
+				const severity = await p.evaluate(() => ({
+					err: document.querySelectorAll('.nfm-rlog-item > .nfm-ev-i.crit').length,
+					warn: document.querySelectorAll('.nfm-rlog-item > .nfm-ev-i.warn').length,
+					detail: !!document.querySelector('.nfm-rlog-item > .nfm-ev-i.crit + .nfm-log-detail'),
+					controls: !!document.querySelector('.nfm-log-tools') && !!document.querySelector('.nfm-log-summary')
+				}));
+				if (severity.err < 1) bad(vn + ': уровень kern.err не выделен как ошибка');
+				if (severity.warn < 1) bad(vn + ': метка steer[warn] не распознана как предупреждение');
+				if (!severity.detail || !severity.controls) bad(vn + ': не отображаются подробности или инструменты журнала');
 				await p.fill('.nfm-search[aria-label="Поиск по журналу роутера"]', 'luci'); await p.waitForTimeout(300);
 				const f2 = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog .nfm-ev-i')).map(e => e.textContent).join('|'));
 				if (f2.includes('dropbear') || !f2.includes('failed login')) bad(vn + ': поиск по журналу роутера не сработал: ' + f2.slice(0, 80));

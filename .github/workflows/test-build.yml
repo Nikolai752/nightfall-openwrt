@@ -5,13 +5,14 @@ on:
     branches:
       - fix/unified-device-identity
       - fix/ui-menu-save-dhcp-backup-errors
+      - feat/router-log-center
   workflow_dispatch:
     inputs:
       version:
         description: "Версия тестового архива"
         required: true
         type: string
-        default: "v1.28.11-alpha.1-ui-regression-test"
+        default: "v1.29.0-alpha.1-router-log-center"
 
 permissions:
   contents: read
@@ -26,7 +27,7 @@ jobs:
 
       - name: Build archive
         env:
-          VERSION: ${{ inputs.version || 'v1.28.11-alpha.1-ui-regression-test' }}
+          VERSION: ${{ inputs.version || 'v1.29.0-alpha.1-router-log-center' }}
         run: sh ./build-release.sh
 
       - name: Verify archive and checksum
@@ -40,7 +41,7 @@ jobs:
       - name: Upload installable archive
         uses: actions/upload-artifact@v4
         with:
-          name: nightfall-test-v1.28.11-alpha.1-ui-regression-test
+          name: nightfall-test-v1.29.0-alpha.1-router-log-center
           path: |
             dist/nightfall-root.tar.gz
             dist/nightfall-root.tar.gz.sha256
