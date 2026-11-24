@@ -3,7 +3,7 @@
 #   nightfall-notify send ТЕКСТ   — отправить сообщение (только если TG=1)
 #   nightfall-notify test         — отправить проверочное сообщение (JSON-ответ для интерфейса)
 #   nightfall-notify chatid       — найти chat id по последнему сообщению боту (JSON-ответ)
-# Настройки читаются из /etc/nightfall-monitor.conf: TG, TG_TOKEN, TG_CHAT, TG_PROXY (например socks5h://127.0.0.1:1080), TG_IFACE (интерфейс VPN, например wg0: запросы пойдут через него).
+# Настройки читаются из /etc/nightfall-monitor.conf: TG, TG_TOKEN, TG_CHAT, TG_PROXY (например socks5h://127.0.0.1:1080), TG_IFACE (обычный VPN-интерфейс) или TG_MARK (SO_MARK для policy routing, например 0x00500000).
 # Не более 30 сообщений в час, чтобы при сбое не завалить чат.
 # Для тестов: NF_CONF, NF_DIR, NF_CURL (команда вместо curl).
 CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
@@ -12,7 +12,7 @@ CURL=${NF_CURL:-curl}
 HOST=$(cat /proc/sys/kernel/hostname 2>/dev/null || echo router)
 
 cfg() { [ -r "$CONF" ] && sed -n "s/^$1=\"\{0,1\}\([^ #\"]*\).*/\1/p" "$CONF" | head -n 1; }
-TG=$(cfg TG); TOKEN=$(cfg TG_TOKEN); CHAT=$(cfg TG_CHAT); PROXY=$(cfg TG_PROXY); IFACE=$(cfg TG_IFACE)
+TG=$(cfg TG); TOKEN=$(cfg TG_TOKEN); CHAT=$(cfg TG_CHAT); PROXY=$(cfg TG_PROXY); IFACE=$(cfg TG_IFACE); MARK=$(cfg TG_MARK)
 
 fail() { printf '{"ok":false,"error":"%s"}\n' "$1"; exit 1; }
 
@@ -20,10 +20,18 @@ fail() { printf '{"ok":false,"error":"%s"}\n' "$1"; exit 1; }
 api() {
 	m=$1; shift
 	command -v "$CURL" >/dev/null 2>&1 || { echo '{"ok":false,"description":"не найден curl (apk add curl)"}'; return 0; }
-	# прокси (в нём может быть логин и пароль) и интерфейс тоже идут через stdin, а не аргументами
-	{ printf 'url = "https://api.telegram.org/bot%s/%s"\n' "$TOKEN" "$m"
-	  [ -n "$PROXY" ] && printf 'proxy = "%s"\n' "$PROXY"
-	  [ -n "$IFACE" ] && printf 'interface = "%s"\n' "$IFACE"; } | "$CURL" -sS -m "${NF_TMO:-25}" -K - "$@" 2>&1
+	# Для Steer маркируем только сокет Nightfall (SO_MARK); привязка к TUN через interface здесь не подходит.
+	# Если curl не умеет --mark, завершаемся с ошибкой: нельзя незаметно отправлять запрос без нужной policy route.
+	if [ -n "$MARK" ]; then
+		[ -z "$IFACE" ] || { echo '{"ok":false,"description":"TG_MARK и TG_IFACE нельзя использовать одновременно"}'; return 1; }
+		"$CURL" --help all 2>/dev/null | grep -q -- '--mark' || { echo '{"ok":false,"description":"установленный curl не поддерживает --mark; обновите curl или используйте TG_PROXY"}'; return 1; }
+		{ printf 'url = "https://api.telegram.org/bot%s/%s"\n' "$TOKEN" "$m"
+		  [ -n "$PROXY" ] && printf 'proxy = "%s"\n' "$PROXY"; } | "$CURL" --mark "$MARK" -sS -m "${NF_TMO:-25}" -K - "$@" 2>&1
+	else
+		{ printf 'url = "https://api.telegram.org/bot%s/%s"\n' "$TOKEN" "$m"
+		  [ -n "$PROXY" ] && printf 'proxy = "%s"\n' "$PROXY"
+		  [ -n "$IFACE" ] && printf 'interface = "%s"\n' "$IFACE"; } | "$CURL" -sS -m "${NF_TMO:-25}" -K - "$@" 2>&1
+	fi
 }
 
 explain() {  # разбор ответа Telegram: печатает текст ошибки
