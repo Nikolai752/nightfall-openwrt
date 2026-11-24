@@ -128,6 +128,8 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				}));
 				if (severity.err < 1) bad(vn + ': уровень kern.err не выделен как ошибка');
 				if (severity.warn < 1) bad(vn + ': метка steer[warn] не распознана как предупреждение');
+				const cronDispatch = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog-item')).some(e => e.textContent.includes('backend.sh zm_watch') && !!e.querySelector('.nfm-log-level.notice')));
+				if (!cronDispatch) bad(vn + ': обычный запуск cron ошибочно классифицирован как ошибка');
 				if (!severity.detail || !severity.controls) bad(vn + ': не отображаются подробности или инструменты журнала');
 				const intelligence = await p.evaluate(() => ({
 					wan: Array.from(document.querySelectorAll('.nfm-log-diagnostic')).some(e => e.textContent.includes('WAN / интернет')),
@@ -136,6 +138,19 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				}));
 				if (!intelligence.wan || !intelligence.dns) bad(vn + ': диагностика не выявила тестовые WAN/DNS события');
 				if (!intelligence.repeat) bad(vn + ': одинаковые сообщения не сгруппированы');
+				const repeatedGroup = p.locator('.nfm-rlog-item:has(.nfm-log-repeat)').first();
+				const repeatedKey = await repeatedGroup.getAttribute('data-log-key');
+				await repeatedGroup.locator('summary').click();
+				await p.waitForTimeout(100);
+				await p.evaluate(() => window.__runMonitorTick());
+				const stayedOpen = await p.evaluate(key => { const el = Array.from(document.querySelectorAll('.nfm-rlog-item')).find(x => x.getAttribute('data-log-key') === key); return !!el && el.open; }, repeatedKey);
+				if (!stayedOpen) bad(vn + ': раскрытая группа повторов свернулась после обновления интерфейса');
+				const currentRepeated = p.locator('.nfm-rlog-item[data-log-key]').filter({ has: p.locator('.nfm-log-repeat') }).first();
+				await currentRepeated.locator('summary').click();
+				await p.waitForTimeout(100);
+				await p.evaluate(() => window.__runMonitorTick());
+				const stayedClosed = await p.evaluate(key => { const el = Array.from(document.querySelectorAll('.nfm-rlog-item')).find(x => x.getAttribute('data-log-key') === key); return !!el && !el.open; }, repeatedKey);
+				if (!stayedClosed) bad(vn + ': закрытая группа самопроизвольно раскрылась после обновления интерфейса');
 				await p.locator('.nfm-log-diagnostic').filter({ hasText: 'WAN / интернет' }).click();
 				await p.waitForTimeout(200);
 				const focused = await p.evaluate(() => ({
