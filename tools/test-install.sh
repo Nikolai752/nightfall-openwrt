@@ -56,6 +56,35 @@ run() { # корень, параметры...
 ver() { sed -n 's/.*"version"[^"]*"\([^"]*\)".*/\1/p' "$1/www/luci-static/nightfall/version.json" 2>/dev/null; }
 
 printf '[ { "tag_name": "v2.0.0" }, { "tag_name": "v1.9.0" } ]\n' > "$T/www/list.json"
+echo "== обязательный Base64 encoder проверяется до установки =="
+TBASE=$T/base64-deps; mkdir -p "$TBASE/bin" "$TBASE/r"
+cat > "$TBASE/bin/busybox" <<'EOF'
+#!/bin/sh
+[ "$1" = "base64" ] && exit 1
+exit 0
+EOF
+cat > "$TBASE/bin/apk" <<'EOF'
+#!/bin/sh
+echo "$*" >> "$APK_LOG"
+case "$*" in
+  "update") exit 0 ;;
+  "add coreutils-base64") cat > "$APK_INSTALLED <<'B64'
+#!/bin/sh
+exec /usr/bin/base64 "$@"
+B64
+    chmod +x "$APK_INSTALLED"
+    exit 0 ;;
+esac
+exit 1
+EOF
+chmod +x "$TBASE/bin/busybox" "$TBASE/bin/apk"
+APK_LOG="$TBASE/apk.log" APK_INSTALLED="$TBASE/bin/base64" PATH="$TBASE/bin:/usr/bin:/bin" NF_ROOT= NF_TMP="$T/tmp" NF_API="$B/api.json" NF_RAW="$B" NF_DL="$B/dl" sh "$REPO/install-update.sh" --version v1.0.0 > "$TBASE/out" 2>&1 || true
+if grep -q 'add coreutils-base64' "$TBASE/apk.log" && grep -q 'Установлена версия 1.0.0' "$TBASE/out"; then
+  pass "coreutils-base64 установлен до удалённой установки при отсутствии BusyBox base64"
+else
+  fail "ранняя установка coreutils-base64: $(cat "$TBASE/out" 2>/dev/null) / $(cat "$TBASE/apk.log" 2>/dev/null)"
+fi
+
 echo "== список версий =="
 out=$(NF_ROOT="$T/rl" NF_TMP="$T/tmp" NF_APILIST="$B/list.json" sh "$REPO/install-update.sh" --list 2>&1)
 case "$out" in *v2.0.0*v1.9.0*) pass "--list показывает версии" ;; *) fail "--list: $out" ;; esac
