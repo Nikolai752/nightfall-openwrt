@@ -6,6 +6,8 @@ on:
       - release/v1.29.1-old-router-log
       - fix/unified-device-identity
       - fix/ui-menu-save-dhcp-backup-errors
+      - feat/router-log-center
+      - feat/router-log-intelligent-diagnostics
   workflow_dispatch:
     inputs:
       version:
