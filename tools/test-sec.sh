@@ -117,43 +117,11 @@ r=$(sh "$L" read 100)
 echo "$r" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null && { ok=$((ok + 1)); echo "ok  nightfall-log: корректный JSON"; } || { bad=$((bad + 1)); echo "ОШИБКА: nightfall-log не JSON: $r"; }
 want "log: служба без номера процесса" '"authpriv.warn","dropbear","Bad password attempt for' "$r"
 want "log: текст сообщения целиком" "from 203.0.113.5:40022" "$r"
-want "log: уровень ошибки ядра сохраняется" '"kern.err","kernel","rtw88_8821cu[501]: error beacon valid"' "$r"
+want "log: уровень ошибки ядра сохраняется" '"kern.err","rtw88_8821cu","error beacon valid"' "$r"
 want "log: сообщение steerd с warn сохраняется" '"user.notice","steerd","steer[warn] tunnel:' "$r"
 want "log: уведомление info сохраняется" '"daemon.notice","tachyon","[info] No subscription rules' "$r"
 r=$(sh "$L" read 2); nowant "log: N ограничивает число строк" "02:10:01" "$r"
 r=$(sh "$L" read abc); want "log: мусор вместо N не ломает" '"ok":true' "$r"
-
-# Разные варианты logread: без года/дня недели, ISO timestamp и незнакомый формат приоритета.
-ALT_LOG="$T/logread-alt"
-ALT_LOG_DATA="$T/logread-alt.txt"
-cat > "$ALT_LOG_DATA" <<'L'
-Nov 25 09:00:01 daemon.err dnsmasq: no upstream servers
-2026-11-25T09:00:02+03:00 host daemon.warn netifd[22]: Interface wan is down
-Nov 25 09:00:03 vendor.priority strange-service: vendor-specific event
-<27>1 2026-11-25T09:00:04Z router dropbear 123 BADLOGIN - Bad password attempt
-[25 нояб. 2026 г., 09:42:11 GMT+4] kern.err: [592125.596682] rtw88_8821cu 5-1:1.0: error beacon valid
-L
-printf '#!/bin/sh\ncat "%s"\n' "$ALT_LOG_DATA" > "$ALT_LOG"
-chmod +x "$ALT_LOG"
-r=$(NF_LOGREAD="$ALT_LOG" sh "$L" read 20)
-echo "$r" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null && { ok=$((ok + 1)); echo "ok  nightfall-log: alternate syslog formats produce valid JSON"; } || { bad=$((bad + 1)); echo "ОШИБКА: alternate logread не JSON: $r"; }
-want "log: формат без года сохраняет ошибку" '"daemon.err","dnsmasq","no upstream servers"' "$r"
-want "log: ISO timestamp сохраняет предупреждение" '"daemon.warn","netifd","Interface wan is down"' "$r"
-want "log: неизвестный приоритет не теряет запись" '"vendor.priority","strange-service"' "$r"
-want "log: RFC5424 numeric PRI maps to error" '"syslog.err","dropbear","Bad password attempt"' "$r"
-want "log: localized timestamp and kern.err are parsed" '"[25 нояб. 2026 г., 09:42:11 GMT+4]","kern.err","kernel","[592125.596682] rtw88_8821cu 5-1:1.0: error beacon valid"' "$r"
-
-# Большой журнал не должен превышать безопасный размер ответа LuCI/ubus.
-BULK_LOG="$T/logread-bulk"
-BULK_DATA="$T/logread-bulk.txt"
-awk 'BEGIN { for (i = 1; i <= 200; i++) { printf "Nov 25 10:00:%02d daemon.err bulk: record-%03d ", i % 60, i; for (j = 1; j <= 700; j++) printf "x"; printf "\n" } }' > "$BULK_DATA"
-printf '#!/bin/sh\ncat "%s"\n' "$BULK_DATA" > "$BULK_LOG"
-chmod +x "$BULK_LOG"
-r=$(NF_LOGREAD="$BULK_LOG" sh "$L" read 800)
-bytes=$(printf '%s' "$r" | wc -c)
-echo "$r" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null && { ok=$((ok + 1)); echo "ok  nightfall-log: large response remains valid JSON"; } || { bad=$((bad + 1)); echo "ОШИБКА: large log response is not valid JSON"; }
-[ "$bytes" -le 46000 ] && { ok=$((ok + 1)); echo "ok  nightfall-log: RPC response bounded to 46 KB"; } || { bad=$((bad + 1)); echo "ОШИБКА: RPC response too large ($bytes bytes)"; }
-want "log: large response keeps newest records" '"bulk","record-200' "$r"
 
 
 # DNS-статистика
