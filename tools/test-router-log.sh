@@ -10,7 +10,8 @@ check() {
   printf '%s' "$output" | grep -Fq "$expected" && { ok=$((ok + 1)); echo "ok  $name"; } || { bad=$((bad + 1)); echo "ОШИБКА: $name: $output"; }
 }
 cat > "$T/logread-ok" <<'EOF'
-Nov 25 09:00:01 daemon.err dnsmasq: no upstream servers
+#!/bin/sh
+printf '%s\\n' 'Nov 25 09:00:01 daemon.err dnsmasq: no upstream servers'
 EOF
 cat > "$T/logread-fail" <<'EOF'
 #!/bin/sh
