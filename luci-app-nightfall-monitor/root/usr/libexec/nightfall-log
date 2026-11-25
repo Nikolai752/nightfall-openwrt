@@ -35,7 +35,7 @@ read)
 		te = stampEnd(); t = ""
 		for (i = 1; i <= te; i++) t = t (t == "" ? "" : " ") $i
 		if (pri) {
-			lv = $pri; start = pri + 1
+			lv = $pri; sub(/:$/, "", lv); start = pri + 1
 			if ($pri ~ /^<[0-9]+>[0-9]+$/ || $pri ~ /^<[0-9]+>$/) {
 				num = $pri; sub(/^</, "", num); sub(/>.*/, "", num); sev = num % 8
 				levels[0]="emerg"; levels[1]="alert"; levels[2]="crit"; levels[3]="err"; levels[4]="warn"; levels[5]="notice"; levels[6]="info"; levels[7]="debug"
