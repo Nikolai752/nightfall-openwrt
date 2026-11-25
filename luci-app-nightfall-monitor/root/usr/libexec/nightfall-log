@@ -11,6 +11,7 @@ read)
 	[ "$n" -le 1500 ] || n=1500; [ "$n" -ge 1 ] || n=400
 	printf '{"ok":true,"rows":['
 	$LOGREAD 2>/dev/null | tail -n "$n" | awk '
+	BEGIN { first = 1 }
 	function q(x) { gsub(/\\/, "\\\\", x); gsub(/"/, "\\\"", x); gsub(/[\001-\037]/, " ", x); return x }
 	function month(x) { return x ~ /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/ }
 	function stampEnd() {
