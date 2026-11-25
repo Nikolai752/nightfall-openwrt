@@ -123,6 +123,19 @@ want "log: уведомление info сохраняется" '"daemon.notice",
 r=$(sh "$L" read 2); nowant "log: N ограничивает число строк" "02:10:01" "$r"
 r=$(sh "$L" read abc); want "log: мусор вместо N не ломает" '"ok":true' "$r"
 
+# Разные варианты logread: без года/дня недели, ISO timestamp и незнакомый формат приоритета.
+ALT_LOG="$T/logread-alt"
+cat > "$ALT_LOG" <<'L'
+Nov 25 09:00:01 daemon.err dnsmasq: no upstream servers
+2026-11-25T09:00:02+03:00 host daemon.warn netifd[22]: Interface wan is down
+Nov 25 09:00:03 vendor.priority strange-service: vendor-specific event
+L
+r=$(NF_LOGREAD="$ALT_LOG" sh "$L" read 20)
+echo "$r" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null && { ok=$((ok + 1)); echo "ok  nightfall-log: alternate syslog formats produce valid JSON"; } || { bad=$((bad + 1)); echo "ОШИБКА: alternate logread не JSON: $r"; }
+want "log: формат без года сохраняет ошибку" '"daemon.err","dnsmasq","no upstream servers"' "$r"
+want "log: ISO timestamp сохраняет предупреждение" '"daemon.warn","netifd","Interface wan is down"' "$r"
+want "log: неизвестный приоритет не теряет запись" '"unknown","strange-service"' "$r"
+
 
 # DNS-статистика
 N="$PWD/luci-app-nightfall-monitor/root/usr/libexec/nightfall-dns"
