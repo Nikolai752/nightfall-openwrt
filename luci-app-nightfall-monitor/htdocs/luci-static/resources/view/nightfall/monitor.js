@@ -943,7 +943,8 @@ html #view .nfm-card.nfm-cfg-settings-card:focus-within { border-color:var(--nfm
 .nfm-log-full { margin: 0; padding: 8px 10px; border-radius: 5px; background: color-mix(in srgb, var(--nfm-card) 85%, transparent); color: var(--nfm-text); font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .nfm-log-more { display: flex; justify-content: center; padding: 8px 0 2px; }
 @media (max-width: 720px) {
-  .nfm-rlog .nfm-ev-i { grid-template-columns: 7px 88px minmax(0, 1fr); gap: 6px; padding: 8px 5px; }
+  .nfm-rlog .nfm-ev-i { grid-template-columns: 7px minmax(0, 1fr); gap: 6px; padding: 8px 5px; min-width: 0; }
+  .nfm-rlog .nfm-ev-i > .nfm-log-line { width: 100%; min-width: 0; }
   .nfm-rlog .nfm-ev-i time { font-size: 10px; }
   .nfm-log-detail { margin-left: 8px; }
   .nfm-log-status { width: 100%; margin-left: 0; }
