@@ -889,7 +889,14 @@ html #view .nfm-card.nfm-cfg-settings-card:focus-within { border-color:var(--nfm
 .nfm-rlog-item > summary::-webkit-details-marker { display: none; }
 .nfm-rlog-item > summary::marker { content: ''; }
 .nfm-rlog-item > summary:hover { background: color-mix(in srgb, var(--nfm-card2) 74%, transparent); }
-.nfm-rlog .nfm-ev-i { grid-template-columns: 8px 118px minmax(0, 1fr); align-items: center; gap: 10px; }
+.nfm-rlog .nfm-ev-i { grid-template-columns: 8px minmax(150px, max-content) minmax(0, 1fr); align-items: center; gap: 10px; }
+.nfm-rlog .nfm-ev-i > time { white-space: nowrap; }
+@media (max-width: 720px) {
+  .nfm-rlog .nfm-ev-i { grid-template-columns: 8px minmax(0, 1fr); align-items: start; row-gap: 4px; }
+  .nfm-rlog .nfm-ev-i > i { grid-column: 1; grid-row: 1 / span 2; align-self: center; }
+  .nfm-rlog .nfm-ev-i > time { grid-column: 2; grid-row: 1; white-space: normal; }
+  .nfm-rlog .nfm-ev-i > .nfm-log-line { grid-column: 2; grid-row: 2; }
+}
 .nfm-rlog .nfm-ev-i.crit { background: color-mix(in srgb, #e5484d 13%, var(--nfm-card)); box-shadow: inset 2px 0 #e5484d; }
 .nfm-rlog .nfm-ev-i.warn { background: color-mix(in srgb, #e8a30a 9%, var(--nfm-card)); box-shadow: inset 2px 0 color-mix(in srgb, #e8a30a 72%, transparent); }
 .nfm-rlog .nfm-ev-i.notice { background: color-mix(in srgb, #4b9bea 5%, transparent); }
