@@ -2,7 +2,7 @@
 # Nightfall: системный журнал роутера для вкладки «Журнал». Только чтение.
 #   nightfall-log read [N]   — последние N строк (по умолчанию 400, не больше 1500), JSON:
 #                              {"ok":true,"rows":[["Nov 16 02:10:01","daemon.info","dropbear","текст"],...]}
-# Для проверок: NF_LOGREAD (команда вместо logread).
+# Совместимый сбор и разбор из Nightfall v1.28.11.
 LOGREAD=${NF_LOGREAD:-logread}
 case "$1" in
 read)
@@ -11,13 +11,13 @@ read)
 	[ "$n" -le 1500 ] || n=1500; [ "$n" -ge 1 ] || n=400
 	printf '{"ok":true,"rows":['
 	$LOGREAD 2>/dev/null | tail -n "$n" | awk '
-	function q(x) { gsub(/\\/, "\\\\", x); gsub(/"/, "\\\"", x); gsub(/[\001-\037]/, " ", x); return x }
+	function q(x) { gsub(/\\\\/, "\\\\\\\\", x); gsub(/"/, "\\\\\"", x); gsub(/[\\001-\\037]/, " ", x); return x }
 	NF >= 7 {
-		t = $2 " " $3 " " $4; lv = $6; sv = $7; sub(/\[[0-9]+\]:?$/, "", sv); sub(/:$/, "", sv)
+		t = $2 " " $3 " " $4; lv = $6; sv = $7; sub(/\\[[0-9]+\\]:?$/, "", sv); sub(/:$/, "", sv)
 		m = $0; k = index(m, $7); m = substr(m, k + length($7) + 1); sub(/^ +/, "", m)
-		printf "%s[\"%s\",\"%s\",\"%s\",\"%s\"]", first ? "," : "", q(t), q(lv), q(sv), q(m); first = 1
+		printf "%s[\\"%s\\",\\"%s\\",\\"%s\\",\\"%s\\"]", first ? "," : "", q(t), q(lv), q(sv), q(m); first = 1
 	}'
-	printf ']}\n' ;;
+	printf ']}\\n' ;;
 *)
 	echo "usage: nightfall-log read [N]" >&2; exit 1 ;;
 esac
