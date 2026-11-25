@@ -131,6 +131,7 @@ Nov 25 09:00:01 daemon.err dnsmasq: no upstream servers
 2026-11-25T09:00:02+03:00 host daemon.warn netifd[22]: Interface wan is down
 Nov 25 09:00:03 vendor.priority strange-service: vendor-specific event
 <27>1 2026-11-25T09:00:04Z router dropbear 123 BADLOGIN - Bad password attempt
+[25 нояб. 2026 г., 09:42:11 GMT+4] kern.err: [592125.596682] rtw88_8821cu 5-1:1.0: error beacon valid
 L
 printf '#!/bin/sh\ncat "%s"\n' "$ALT_LOG_DATA" > "$ALT_LOG"
 chmod +x "$ALT_LOG"
@@ -140,6 +141,7 @@ want "log: формат без года сохраняет ошибку" '"daemo
 want "log: ISO timestamp сохраняет предупреждение" '"daemon.warn","netifd","Interface wan is down"' "$r"
 want "log: неизвестный приоритет не теряет запись" '"vendor.priority","strange-service"' "$r"
 want "log: RFC5424 numeric PRI maps to error" '"syslog.err","dropbear","Bad password attempt"' "$r"
+want "log: localized timestamp and kern.err are parsed" '"[25 нояб. 2026 г., 09:42:11 GMT+4]","kern.err","kernel","[592125.596682] rtw88_8821cu 5-1:1.0: error beacon valid"' "$r"
 
 
 # DNS-статистика
