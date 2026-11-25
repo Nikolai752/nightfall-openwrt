@@ -17,7 +17,7 @@ cat > "$T/logread-fail" <<'EOF'
 echo "simulated logread failure" >&2
 exit 7
 EOF
-chmod +x "$T/logread-fail"
+chmod +x "$T/logread-ok" "$T/logread-fail"
 r=$(NF_LOGREAD="$T/logread-ok" sh "$L" read 20)
 check "обычная запись читается" '"daemon.err","dnsmasq","no upstream servers"' "$r"
 r=$(NF_LOGREAD="$T/logread-fail" sh "$L" read 20)
@@ -26,6 +26,7 @@ check "причина ошибки logread видна" 'simulated logread failur
 r=$(NF_LOGREAD="$T/does-not-exist" sh "$L" read 20)
 check "отсутствующий logread диагностируется" 'Команда logread не найдена' "$r"
 : > "$T/logread-empty"
+chmod +x "$T/logread-empty"
 r=$(NF_LOGREAD="$T/logread-empty" sh "$L" read 20)
 check "пустой журнал остаётся успешным пустым ответом" '"ok":true,"rows":[]' "$r"
 echo "ИТОГО: $ok успешно, $bad ошибок"
