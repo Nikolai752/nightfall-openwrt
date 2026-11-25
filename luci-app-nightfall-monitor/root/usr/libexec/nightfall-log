@@ -26,7 +26,7 @@ read)
 	}
 	{
 		if ($0 == "") next
-		pri = 0
+		pri = 0; sv = ""
 		for (i = 1; i <= NF; i++) {
 			if ($i ~ /^[[:alnum:]_-]+\.[[:alnum:]_-]+:?$/ || $i ~ /^<[0-9]+>$/) { pri = i; break }
 		}
