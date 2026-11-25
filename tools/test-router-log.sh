@@ -13,7 +13,7 @@ cat > "$T/logread-ok" <<'EOF'
 #!/bin/sh
 cat <<'LOG'
 Wed Nov 25 11:00:01 2026 daemon.notice netifd: lease renewed
-Nov 25 11:00:02 steerd[12] daemon.warn: tunnel warning
+Nov 25 11:00:02 daemon.warn steerd[12]: tunnel warning
 2026-11-25T11:00:03+03:00 router daemon.err dnsmasq[3]: no upstream servers
 <27>1 2026-11-25T11:00:04Z router dropbear 123 BADLOGIN - Bad password attempt
 [25 нояб., 11:00:05] user.notice dispatcher.uc: accepted login
