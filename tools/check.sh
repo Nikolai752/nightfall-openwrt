@@ -47,7 +47,7 @@ for k in $(sed -n 's/^KEYS="\(.*\)"/\1/p' luci-app-nightfall-monitor/root/usr/li
   grep -q "^$k=" "$DEFC" || err "в $DEFC нет строки $k (страница покажет пустое поле и не сохранится)"
 done
 
-echo "== VPN accounting ==\n"
+echo "== Router log diagnostics ==\\n"\nsh tools/test-router-log.sh || err "проверка диагностики журнала роутера"\n\necho "== VPN accounting ==\n"
 sh tools/test-vpn-accounting.sh || err "проверка VPN accounting"
 
 echo "== Application catalog ==\n"
