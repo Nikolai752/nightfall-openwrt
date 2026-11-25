@@ -2097,32 +2097,11 @@ return view.extend({
 			const a = E('a', { href: URL.createObjectURL(new Blob([ txt ], { type: 'text/csv;charset=utf-8' })), download: 'nightfall-журнал.csv' }); document.body.appendChild(a); a.click(); a.remove();
 		} }, 'Скачать CSV');
 		/* ---- журнал самого роутера (logread): поиск, уровень, служба ---- */
-		const rlQ = E('input', { class: 'nfm-search', type: 'search', placeholder: 'Поиск по журналу роутера…', 'aria-label': 'Поиск по журналу роутера', input: () => { S.rlLimit = 300; renderRouterLog(); } });
-		const rlSvc = E('select', { class: 'nfm-sel', 'aria-label': 'Служба', change: () => { S.rlLimit = 300; renderRouterLog(); } }, E('option', { value: '' }, 'Все службы'));
-		const RLV = [ [ 'all', 'Все' ], [ 'warn', 'Предупреждения и ошибки' ], [ 'err', 'Только ошибки' ], [ 'info', 'Информация' ], [ 'debug', 'Отладка' ] ];
-		const rlChipRefs = {};
-		const rlChips = E('div', { class: 'nfm-tabs nfm-log-tabs', style: 'margin-bottom:8px' }, RLV.map(([ k, l ]) => {
-			const count = E('span', { class: 'nfm-log-tab-count' }, '0');
-			const button = E('button', { type: 'button', class: 'nfm-tab' + (k === 'all' ? ' on' : ''), 'data-k': k, click: () => { S.rlK = k; S.rlLimit = 300; renderRouterLog(); } }, [ l, count ]);
-			rlChipRefs[k] = { button, count };
-			return button;
-		}));
-		let rlVisible = [];
-		const rlSummary = E('div', { class: 'nfm-log-summary' });
-		const rlDiag = E('div', { class: 'nfm-log-diagnostics' });
-		const rlStatus = E('span', { class: 'nfm-log-status' }, 'Загрузка журнала…');
-		const rlAutoBtn = E('button', { type: 'button', class: 'nfm-btn', title: 'Автоматически получать новые записи каждые 20 секунд', click: () => {
-				S.rlAuto = S.rlAuto === false;
-				setRouterLogAutoLabel();
-				if (S.rlAuto) refreshRouterLog();
-			} }, 'Автообновление: вкл');
-		const rlRefreshBtn = E('button', { type: 'button', class: 'nfm-btn', title: 'Получить журнал сейчас', click: () => refreshRouterLog() }, 'Обновить');
-		const rlCopyBtn = E('button', { type: 'button', class: 'nfm-btn', title: 'Скопировать отфильтрованные записи', click: () => copyRouterLog() }, 'Копировать');
-		const rlExportBtn = E('button', { type: 'button', class: 'nfm-btn', title: 'Скачать отфильтрованные записи в CSV', click: () => exportRouterLog() }, 'Экспорт CSV');
-		const rlGroupBtn = E('button', { type: 'button', class: 'nfm-btn', title: 'Объединять одинаковые сообщения', click: () => { S.rlGrouped = S.rlGrouped === false; renderRouterLog(); } }, 'Повторы: сгруппированы');
-		const rlTools = E('div', { class: 'nfm-log-tools' }, [ rlAutoBtn, rlRefreshBtn, rlCopyBtn, rlExportBtn, rlGroupBtn, rlStatus ]);
+		const rlQ = E('input', { class: 'nfm-search', type: 'search', placeholder: 'Поиск по журналу роутера…', 'aria-label': 'Поиск по журналу роутера', input: () => renderRouterLog() });
+		const rlSvc = E('select', { class: 'nfm-sel', 'aria-label': 'Служба', change: () => renderRouterLog() }, E('option', { value: '' }, 'Все службы'));
+		const RLV = [ [ 'all', 'Все' ], [ 'warn', 'Предупреждения и ошибки' ], [ 'err', 'Только ошибки' ] ];
+		const rlChips = E('div', { class: 'nfm-tabs', style: 'margin-bottom:10px' }, RLV.map(([ k, l ]) => E('button', { type: 'button', class: 'nfm-tab' + (k === 'all' ? ' on' : ''), 'data-k': k, click: () => { S.rlK = k; renderRouterLog(); } }, l)));
 		const rlBox = E('div', { class: 'nfm-evlist nfm-rlog' });
-		const rlMore = E('div', { class: 'nfm-log-more', hidden: '' }, E('button', { type: 'button', class: 'nfm-btn', click: () => { S.rlLimit = (S.rlLimit || 300) + 300; renderRouterLog(); } }, 'Показать ещё'));
 		const MONRU = { Jan: 'янв.', Feb: 'февр.', Mar: 'мар.', Apr: 'апр.', May: 'мая', Jun: 'июн.', Jul: 'июл.', Aug: 'авг.', Sep: 'сент.', Oct: 'окт.', Nov: 'нояб.', Dec: 'дек.' };
 		const wifiTab = E('div', { hidden: true }, [
 			E('div', { class: 'nfm-grid' }, [
@@ -2269,7 +2248,7 @@ return view.extend({
 		const logTab = E('div', { hidden: true }, [
 			E('div', { class: 'nfm-grid' }, [ card([ 'Журнал событий', E('span', { class: 'nfm-spacer' }), logPer, logCsv, logQ ], E('div', {}, [ logChips, logBox ])) ]),
 			E('div', { class: 'nfm-grid' }, [ card('Журнал перезагрузок и обрывов связи', E('div', {}, [ jrnTiles, jrnBox ])) ]),
-			E('div', { class: 'nfm-grid' }, [ card([ 'Журнал роутера', E('span', { class: 'nfm-spacer' }), rlSvc, rlQ ], E('div', {}, [ rlChips, rlSummary, rlDiag, rlTools, rlBox, rlMore ])) ])
+			E('div', { class: 'nfm-grid' }, [ card([ 'Журнал роутера', E('span', { class: 'nfm-spacer' }), rlSvc, rlQ ], E('div', {}, [ rlChips, rlBox ])) ])
 		]);
 		const diagTab = E('div', { hidden: true }, [
 			E('div', { class: 'nfm-grid' }, [ card('Диагностика сети', diagBody) ]),
