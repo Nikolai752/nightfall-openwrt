@@ -7300,3 +7300,22 @@ html[data-nf-style="mac"] .cbi-tooltip.error {
 	border-radius: 8px !important;
 	box-shadow: 0 8px 24px color-mix(in srgb, var(--error-color-high) 22%, transparent) !important;
 }
+
+
+/* v20261125: center the empty-state icon and caption in Active DHCPv4 leases.
+ * Keep this scoped to the IPv4 lease table; reservation and DHCPv6 tables
+ * retain their existing layout. */
+html body #view #lease_status_table .tr.placeholder > .td {
+	display: flex !important;
+	flex-direction: column !important;
+	align-items: center !important;
+	justify-content: center !important;
+	gap: 10px !important;
+	min-height: 132px !important;
+	padding: 18px 12px !important;
+	text-align: center !important;
+}
+html body #view #lease_status_table .tr.placeholder > .td > * {
+	max-width: 100%;
+	text-align: center !important;
+}
