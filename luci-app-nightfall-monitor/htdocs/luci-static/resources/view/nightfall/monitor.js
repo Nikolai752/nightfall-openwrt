@@ -2481,16 +2481,9 @@ return view.extend({
 			if (S.tab === 'sec' && due('bans', 30)) jobs.push(fs.exec(SECBIN, [ 'bans' ]).then(r => { try { S.bans = JSON.parse(r.stdout); } catch (e) { S.bans = null; } }).catch(() => { S.bans = null; }));
 			if (S.tab === 'sec' && due('secu', 600)) jobs.push(fs.exec(SECBIN, [ 'updates' ]).then(r => { try { S.secu = JSON.parse(r.stdout); } catch (e) { S.secu = null; } }).catch(() => { S.secu = null; }));
 			if (S.tab === 'log' && (S.rlog === undefined || (S.rlAuto !== false && due('rlog', 20)))) jobs.push(fs.exec('/usr/libexec/nightfall-log', [ 'read', '800' ]).then(r => {
-				const stdout = String(r && r.stdout || '');
-				try {
-					const data = JSON.parse(stdout);
-					if (!data || !data.ok || !Array.isArray(data.rows)) throw new Error('неверная структура ответа');
-					S.rlog = data; S.rlogError = ''; S.rlogUpdated = Date.now();
-				} catch (e) {
-					S.rlog = null;
-					S.rlogError = String((e && e.message) || e) + ' (' + stdout.length + ' байт)';
-				}
-			}).catch(e => { S.rlog = null; S.rlogError = String((e && e.message) || e).slice(0, 180); }));
+				try { S.rlog = parseRouterLogResponse(r); S.rlogError = ''; S.rlogUpdated = Date.now(); }
+				catch (e) { S.rlog = null; S.rlogError = routerLogExecError(e); }
+			}).catch(e => { S.rlog = null; S.rlogError = routerLogExecError(e); }));
 			if (S.tab === 'log' && due('blog', 30)) jobs.push(fs.exec('/usr/libexec/nightfall-block', [ 'log' ]).then(r => { try { S.blog = JSON.parse(r.stdout); } catch (e) { S.blog = null; } }).catch(() => { S.blog = null; }));
 			if (onTab('hist', 'log') && due('jrn', 30)) jobs.push(callHistory([ 'journal' ]).then(r => { S.jrn = r; }));
 			if (onTab('hist', 'diag') && due('spd', S.spdRun ? 3 : 30)) jobs.push(callHistory([ 'speed' ]).then(r => { S.spd = r; if (S.spdRun && Date.now() - (S.spdT || 0) > 4000 && (!r || !r.running)) { S.spdRun = false; if (r === false) ui.addNotification(null, E('p', {}, 'Замер завершён, но результат не прочитан: ' + MISSING), 'danger'); } }));
@@ -3390,20 +3383,48 @@ return view.extend({
 			document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 30000);
 			rlStatus.textContent = 'Экспортировано: ' + rlVisible.length + ' записей';
 		}
+		function parseRouterLogResponse(r) {
+			const stdout = String(r && r.stdout || '');
+			const stderr = String(r && r.stderr || '').trim();
+			if (r && typeof r.code === 'number' && r.code !== 0)
+				throw new Error('команда завершилась с кодом ' + r.code + (stderr ? ': ' + stderr.slice(0, 220) : ''));
+			if (!stdout.trim()) {
+				if (stderr) throw new Error('скрипт не вернул данные: ' + stderr.slice(0, 220));
+				throw new Error('пустой ответ от /usr/libexec/nightfall-log. Проверьте наличие файла, права на выполнение и работу LuCI RPC');
+			}
+			let data;
+			try { data = JSON.parse(stdout); }
+			catch (e) {
+				const detail = stderr ? '; stderr: ' + stderr.slice(0, 160) : '';
+				throw new Error('ответ не является корректным JSON (' + stdout.length + ' байт)' + detail + '; возможно, скрипт завершился с ошибкой или вывод загрязнён сообщениями оболочки');
+			}
+			if (!data || typeof data !== 'object')
+				throw new Error('скрипт вернул пустой или неподдерживаемый ответ');
+			if (data.ok === false)
+				throw new Error('скрипт сообщил об ошибке' + (data.error || data.message ? ': ' + String(data.error || data.message).slice(0, 220) : ''));
+			if (!Array.isArray(data.rows))
+				throw new Error('в ответе отсутствует массив rows; формат скрипта несовместим с этой версией LuCI');
+			return data;
+		}
+		function routerLogExecError(e) {
+			const raw = String((e && e.message) || e || 'неизвестная ошибка').trim();
+			if (/permission denied|not permitted|access denied/i.test(raw))
+				return 'Недостаточно прав для чтения журнала или запуска скрипта. Проверьте права /usr/libexec/nightfall-log и ACL/RPC пользователя LuCI. Подробности: ' + raw.slice(0, 180);
+			if (/not found|no such file|убедитесь.*файл/i.test(raw))
+				return 'Не найден /usr/libexec/nightfall-log. Переустановите пакет монитора Nightfall и проверьте целостность установки. Подробности: ' + raw.slice(0, 180);
+			if (/rpc|ubus|session|access denied|not authorized/i.test(raw))
+				return 'Не удалось выполнить команду через LuCI RPC/ubus. Проверьте сессию LuCI, права пользователя и доступность RPC. Подробности: ' + raw.slice(0, 180);
+			return raw.slice(0, 320);
+		}
 		function refreshRouterLog() {
 			rlStatus.textContent = 'Обновляю журнал…';
 			S.at.rlog = Date.now();
 			S.rlogError = '';
 			fs.exec('/usr/libexec/nightfall-log', [ 'read', '800' ]).then(r => {
-				const stdout = String(r && r.stdout || '');
-				let data;
-				try { data = JSON.parse(stdout); }
-				catch (e) { throw new Error('ответ не JSON (' + stdout.length + ' байт)' + (r && r.stderr ? ': ' + String(r.stderr).slice(0, 100) : '')); }
-				if (!data || !data.ok || !Array.isArray(data.rows)) throw new Error('неверная структура ответа');
-				S.rlog = data; S.rlogUpdated = Date.now();
+				S.rlog = parseRouterLogResponse(r); S.rlogError = ''; S.rlogUpdated = Date.now();
 			}).catch(e => {
 				S.rlog = null;
-				S.rlogError = String((e && e.message) || e || 'неизвестная ошибка').slice(0, 180);
+				S.rlogError = routerLogExecError(e);
 			}).then(() => renderRouterLog());
 		}
 		function renderRouterLog() {
@@ -3420,6 +3441,11 @@ return view.extend({
 				rlStatus.textContent = 'Нет данных'; rlMore.hidden = true; return;
 			}
 			const rows = R.rows.map(normalizeRouterLogRow).filter(x => x[3] !== '');
+			if (!rows.length) {
+				rlVisible = []; rlSummary.replaceChildren(); rlDiag.replaceChildren();
+				rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Журнал получен, но записей нет. logread не вернул событий. Это не ошибка загрузки: проверьте, что системный журнал включён и в нём уже есть записи.'));
+				rlStatus.textContent = '0 записей'; rlMore.hidden = true; return;
+			}
 			const levels = rows.map(x => routerLogLevel(x));
 			const counts = { all: rows.length, err: 0, warn: 0, info: 0, debug: 0, unknown: 0 };
 			rows.forEach((x, i) => { const l = levels[i]; if (l === 'err') counts.err++; else if (l === 'warn') counts.warn++; else if (l === 'debug') counts.debug++; else if (l === 'unknown') counts.unknown++; else counts.info++; });
