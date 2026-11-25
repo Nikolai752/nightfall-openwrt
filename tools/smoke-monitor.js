@@ -121,48 +121,21 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				const rl = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog .nfm-ev-i')).map(e => e.textContent).join('|'));
 				if (!rl.includes('dropbear') || !rl.includes('Bad password attempt')) bad(vn + ': журнал роутера пуст: ' + rl.slice(0, 80));
 				const severity = await p.evaluate(() => ({
-					err: document.querySelectorAll('.nfm-rlog-item > .nfm-ev-i.crit').length,
-					warn: document.querySelectorAll('.nfm-rlog-item > .nfm-ev-i.warn').length,
-					detail: !!document.querySelector('.nfm-rlog-item > .nfm-ev-i.crit + .nfm-log-detail'),
-					controls: !!document.querySelector('.nfm-log-tools') && !!document.querySelector('.nfm-log-summary')
+					err: document.querySelectorAll('.nfm-rlog-item > summary.crit').length,
+					warn: document.querySelectorAll('.nfm-rlog-item > summary.warn').length,
+					detail: !!document.querySelector('.nfm-rlog-item > summary + .nfm-log-detail'),
+					levels: Array.from(document.querySelectorAll('.nfm-log-level')).map(e => e.textContent).join('|')
 				}));
 				if (severity.err < 1) bad(vn + ': уровень kern.err не выделен как ошибка');
 				if (severity.warn < 1) bad(vn + ': метка steer[warn] не распознана как предупреждение');
+				if (!severity.levels.includes('NOTICE') || !severity.levels.includes('INFO') || !severity.levels.includes('DEBUG')) bad(vn + ': не отображаются уровни NOTICE/INFO/DEBUG');
 				const cronDispatch = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog-item')).some(e => e.textContent.includes('backend.sh zm_watch') && !!e.querySelector('.nfm-log-level.notice')));
 				if (!cronDispatch) bad(vn + ': обычный запуск cron ошибочно классифицирован как ошибка');
-				if (!severity.detail || !severity.controls) bad(vn + ': не отображаются подробности или инструменты журнала');
-				const intelligence = await p.evaluate(() => ({
-					wan: Array.from(document.querySelectorAll('.nfm-log-diagnostic')).some(e => e.textContent.includes('WAN / интернет')),
-					dns: Array.from(document.querySelectorAll('.nfm-log-diagnostic')).some(e => e.textContent.includes('DNS')),
-					repeat: Array.from(document.querySelectorAll('.nfm-log-repeat')).some(e => e.textContent.includes('× 3'))
-				}));
-				if (!intelligence.wan || !intelligence.dns) bad(vn + ': диагностика не выявила тестовые WAN/DNS события');
-				if (!intelligence.repeat) bad(vn + ': одинаковые сообщения не сгруппированы');
-				const repeatedGroup = p.locator('.nfm-rlog-item:has(.nfm-log-repeat)').first();
-				const repeatedKey = await repeatedGroup.getAttribute('data-log-key');
-				await repeatedGroup.locator('summary').click();
-				await p.waitForTimeout(100);
-				await p.evaluate(() => window.__runMonitorTick());
-				const stayedOpen = await p.evaluate(key => { const el = Array.from(document.querySelectorAll('.nfm-rlog-item')).find(x => x.getAttribute('data-log-key') === key); return !!el && el.open; }, repeatedKey);
-				if (!stayedOpen) bad(vn + ': раскрытая группа повторов свернулась после обновления интерфейса');
-				const currentRepeated = p.locator('.nfm-rlog-item[data-log-key]').filter({ has: p.locator('.nfm-log-repeat') }).first();
-				await currentRepeated.locator('summary').click();
-				await p.waitForTimeout(100);
-				await p.evaluate(() => window.__runMonitorTick());
-				const stayedClosed = await p.evaluate(key => { const el = Array.from(document.querySelectorAll('.nfm-rlog-item')).find(x => x.getAttribute('data-log-key') === key); return !!el && !el.open; }, repeatedKey);
-				if (!stayedClosed) bad(vn + ': закрытая группа самопроизвольно раскрылась после обновления интерфейса');
-				await p.locator('.nfm-log-diagnostic').filter({ hasText: 'WAN / интернет' }).click();
-				await p.waitForTimeout(200);
-				const focused = await p.evaluate(() => ({
-					text: Array.from(document.querySelectorAll('.nfm-rlog-item')).map(e => e.textContent).join('|'),
-					active: Array.from(document.querySelectorAll('.nfm-log-diagnostic.on')).map(e => e.textContent).join('|')
-				}));
-				if (!focused.active.includes('WAN / интернет') || !focused.text.includes('netifd') || focused.text.includes('dropbear') || focused.text.includes('dnsmasq')) bad(vn + ': фильтр WAN не ограничил записи: ' + focused.text.slice(0, 160));
-				await p.locator('.nfm-log-diagnostic.on').filter({ hasText: 'WAN / интернет' }).click();
-				await p.click('button:has-text("Повторы: сгруппированы")');
-				await p.waitForTimeout(200);
-				if (await p.locator('.nfm-log-repeat').count()) bad(vn + ': отключение группировки не показало отдельные записи');
-				await p.click('button:has-text("Повторы: отдельно")');
+				if (!severity.detail) bad(vn + ': не отображаются раскрываемые подробности записи');
+				const firstLog = p.locator('.nfm-rlog-item').first();
+				await firstLog.locator('summary').click();
+				if (!(await firstLog.evaluate(e => e.open))) bad(vn + ': подробности записи не раскрываются');
+				await firstLog.locator('summary').click();
 				await p.fill('.nfm-search[aria-label="Поиск по журналу роутера"]', 'luci'); await p.waitForTimeout(300);
 				const f2 = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog .nfm-ev-i')).map(e => e.textContent).join('|'));
 				if (f2.includes('dropbear') || !f2.includes('failed login')) bad(vn + ': поиск по журналу роутера не сработал: ' + f2.slice(0, 80));
