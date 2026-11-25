@@ -3228,10 +3228,10 @@ return view.extend({
 			const q = rlQ.value.trim().toLowerCase(), k = S.rlK || 'all', sv = rlSvc.value;
 			const lvl = x => {
 				/* BusyBox crond reports normal job dispatches as cron.err. */
-				if (String(x[2] || '').toLowerCase() === 'crond' && /^USER\\s+\\S+\\s+pid\\s+\\d+\\s+cmd\\s+/.test(String(x[3] || ''))) return 'info';
+				if (String(x[2] || '').toLowerCase() === 'crond' && /^USER\s+\S+\s+pid\s+\d+\s+cmd\s+/.test(String(x[3] || ''))) return 'info';
 				const priority = String(x[1] || '').trim().toLowerCase().split('.').pop();
 				const source = String(x[2] || '') + ' ' + String(x[3] || '');
-				const tagged = (source.match(/(?:^|[^a-z0-9_-])(?:[a-z0-9_.-]+)?\\[(emerg|panic|alert|crit(?:ical)?|err(?:or)?|warn(?:ing)?|notice|info|debug)\\]/i) || [])[1];
+				const tagged = (source.match(/(?:^|[^a-z0-9_-])(?:[a-z0-9_.-]+)?\[(emerg|panic|alert|crit(?:ical)?|err(?:or)?|warn(?:ing)?|notice|info|debug)\]/i) || [])[1];
 				const value = String(tagged || priority || '').toLowerCase();
 				if (/^(emerg|panic|alert|crit|critical|err|error)$/.test(value)) return 'err';
 				if (/^(warn|warning)$/.test(value)) return 'warn';
