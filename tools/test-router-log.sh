@@ -22,7 +22,7 @@ r=$(NF_LOGREAD="$T/logread-ok" sh "$L" read 20)
 check "обычная запись читается" '"daemon.err","dnsmasq","no upstream servers"' "$r"
 r=$(NF_LOGREAD="$T/logread-fail" sh "$L" read 20)
 check "ненулевой код logread не маскируется пустым журналом" '"ok":false' "$r"
-check "причина ошибки logread видна" 'simulated logread failure' "$r"
+check "код ошибки logread виден" 'кодом 7' "$r"
 r=$(NF_LOGREAD="$T/does-not-exist" sh "$L" read 20)
 check "отсутствующий logread диагностируется" 'Команда logread не найдена' "$r"
 : > "$T/logread-empty"
