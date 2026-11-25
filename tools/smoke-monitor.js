@@ -118,26 +118,20 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 			}
 			if (k === 'log') {
 				await p.waitForTimeout(1500);
-				const rl = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog .nfm-ev-i')).map(e => e.textContent).join('|'));
-				if (!rl.includes('dropbear') || !rl.includes('Bad password attempt')) bad(vn + ': журнал роутера пуст: ' + rl.slice(0, 80));
-				const severity = await p.evaluate(() => ({
-					err: document.querySelectorAll('.nfm-rlog-item > summary.crit').length,
-					warn: document.querySelectorAll('.nfm-rlog-item > summary.warn').length,
-					detail: !!document.querySelector('.nfm-rlog-item > summary + .nfm-log-detail'),
-					levels: Array.from(document.querySelectorAll('.nfm-log-level')).map(e => e.textContent).join('|')
+				const rows = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog-row')).map(e => e.textContent).join('|'));
+				if (!rows.includes('dropbear') || !rows.includes('Bad password attempt')) bad(vn + ': журнал роутера пуст: ' + rows.slice(0, 80));
+				const view = await p.evaluate(() => ({
+					err: document.querySelectorAll('.nfm-rlog-row.crit').length,
+					warn: document.querySelectorAll('.nfm-rlog-row.warn').length,
+					priority: Array.from(document.querySelectorAll('.nfm-rlog-priority')).map(e => e.textContent).join('|'),
+					indexes: Array.from(document.querySelectorAll('.nfm-rlog-index')).map(e => e.textContent)
 				}));
-				if (severity.err < 1) bad(vn + ': уровень kern.err не выделен как ошибка');
-				if (severity.warn < 1) bad(vn + ': метка steer[warn] не распознана как предупреждение');
-				if (!severity.levels.includes('NOTICE') || !severity.levels.includes('INFO') || !severity.levels.includes('DEBUG')) bad(vn + ': не отображаются уровни NOTICE/INFO/DEBUG');
-				const cronDispatch = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog-item')).some(e => e.textContent.includes('backend.sh zm_watch') && !!e.querySelector('.nfm-log-level.notice')));
-				if (!cronDispatch) bad(vn + ': обычный запуск cron ошибочно классифицирован как ошибка');
-				if (!severity.detail) bad(vn + ': не отображаются раскрываемые подробности записи');
-				const firstLog = p.locator('.nfm-rlog-item').first();
-				await firstLog.locator('summary').click();
-				if (!(await firstLog.evaluate(e => e.open))) bad(vn + ': подробности записи не раскрываются');
-				await firstLog.locator('summary').click();
+				if (view.err < 1) bad(vn + ': kern.err не выделен как ошибка');
+				if (view.warn < 1) bad(vn + ': daemon.warn не выделен как предупреждение');
+				if (!view.priority.includes('kern.err') || !view.priority.includes('user.notice')) bad(vn + ': исходные приоритеты syslog не отображаются');
+				if (!view.indexes.length || view.indexes[0] !== '001') bad(vn + ': отсутствует нумерация строк журнала');
 				await p.fill('.nfm-search[aria-label="Поиск по журналу роутера"]', 'luci'); await p.waitForTimeout(300);
-				const f2 = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog .nfm-ev-i')).map(e => e.textContent).join('|'));
+				const f2 = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-rlog-row')).map(e => e.textContent).join('|'));
 				if (f2.includes('dropbear') || !f2.includes('failed login')) bad(vn + ': поиск по журналу роутера не сработал: ' + f2.slice(0, 80));
 			}
 			if (k === 'overview') {
