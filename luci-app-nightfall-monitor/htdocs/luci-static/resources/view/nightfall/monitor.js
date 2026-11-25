@@ -3261,10 +3261,10 @@ return view.extend({
 			if (rlSvc.options.length - 1 !== svcs.length) { const cur = rlSvc.value; rlSvc.replaceChildren(E('option', { value: '' }, 'Все службы'), ...svcs.map(v => E('option', { value: v }, v))); rlSvc.value = svcs.includes(cur) ? cur : ''; }
 			const level = x => {
 				/* Keep v1.28.11 logread rows intact; classify only for presentation. */
-				if (String(x[2] || '').toLowerCase() === 'crond' && /^USER\\s+\\S+\\s+pid\\s+\\d+\\s+cmd\\s+/.test(String(x[3] || ''))) return 'notice';
+				if (String(x[2] || '').toLowerCase() === 'crond' && /^USER\s+\S+\s+pid\s+\d+\s+cmd\s+/.test(String(x[3] || ''))) return 'notice';
 				const priority = String(x[1] || '').trim().toLowerCase().split('.').pop();
 				const source = String(x[2] || '') + ' ' + String(x[3] || '');
-				const tagged = (source.match(/(?:^|[^a-z0-9_-])(?:[a-z0-9_.-]+)?\\[(emerg|panic|alert|crit(?:ical)?|err(?:or)?|warn(?:ing)?|notice|info|debug)\\]/i) || [])[1];
+				const tagged = (source.match(/(?:^|[^a-z0-9_-])(?:[a-z0-9_.-]+)?\[(emerg|panic|alert|crit(?:ical)?|err(?:or)?|warn(?:ing)?|notice|info|debug)\]/i) || [])[1];
 				const value = String(tagged || priority || '').toLowerCase();
 				if (/^(emerg|panic|alert|crit|critical|err|error)$/.test(value)) return 'err';
 				if (/^(warn|warning)$/.test(value)) return 'warn';
