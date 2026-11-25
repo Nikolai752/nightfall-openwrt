@@ -900,6 +900,7 @@ html #view .nfm-card.nfm-cfg-settings-card:focus-within { border-color:var(--nfm
 .nfm-log-level.warn { color: #ffc44d; background: color-mix(in srgb, #e8a30a 18%, transparent); }
 .nfm-log-level.notice, .nfm-log-level.info { color: #72baff; background: color-mix(in srgb, #398be5 16%, transparent); }
 .nfm-log-level.debug { color: var(--nfm-dim); background: color-mix(in srgb, var(--nfm-dim) 10%, transparent); }
+.nfm-log-level.unknown { color: var(--nfm-dim); border: 1px dashed var(--nfm-border); background: transparent; }
 .nfm-log-text { min-width: 0; overflow-wrap: anywhere; }
 .nfm-log-summary, .nfm-log-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 8px 0; }
 .nfm-log-summary { color: var(--nfm-dim); font-size: 11px; }
@@ -3259,7 +3260,7 @@ return view.extend({
 					String(row[0] == null ? '' : row[0]),
 					String(row[1] == null || row[1] === '' ? 'unknown' : row[1]),
 					String(row[2] == null || row[2] === '' ? 'unknown' : row[2]),
-					row.slice(3).map(v => String(v == null ? '' : v)).join(' ')
+					row.slice(3).map(v => String(v == null ? '' : v)).join(' ') || JSON.stringify(row)
 				];
 			}
 			if (row && typeof row === 'object') {
@@ -3267,7 +3268,7 @@ return view.extend({
 					String(row.time || row.timestamp || row.ts || ''),
 					String(row.priority || row.level || row.facility || 'unknown'),
 					String(row.service || row.process || row.tag || 'unknown'),
-					String(row.message || row.msg || row.text || '')
+					String(row.message || row.msg || row.text || JSON.stringify(row))
 				];
 			}
 			return ['', 'unknown', 'unknown', String(row == null ? '' : row)];
