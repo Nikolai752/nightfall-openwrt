@@ -14,18 +14,14 @@ read)
 	err="/tmp/nightfall-log.$.err"
 	trap 'rm -f "$raw" "$err"' EXIT HUP INT TERM
 	if ! command -v "$LOGREAD" >/dev/null 2>&1; then
-		printf '{"ok":false,"error":"Команда logread не найдена. Установите/включите системный журнал OpenWrt (logd) и проверьте PATH."}\\n'
+		printf '{"ok":false,"error":"Команда logread не найдена. Установите/включите системный журнал OpenWrt (logd) и проверьте PATH."}\n'
 		exit 0
 	fi
 	if $LOGREAD >"$raw" 2>"$err"; then
 		:
 	else
 		code=$?
-		detail=$(tr '\\r\\n' '  ' < "$err" | cut -c1-180)
-		printf '%s\\n' "$detail" | awk -v code="$code" '
-			function q(x) { gsub(/\\\\/, "\\\\\\\\", x); gsub(/"/, "\\\\\"", x); gsub(/[\\001-\\037]/, " ", x); return x }
-			{ printf "{\\\"ok\\\":false,\\\"error\\\":\\\"logread завершился с кодом %d%s\\\"}\\n", code, length($0) ? ": " q($0) : "" }
-		'
+		printf '{"ok":false,"error":"logread завершился с кодом %s"}\n' "$code"
 		exit 0
 	fi
 	printf '{"ok":true,"rows":['
