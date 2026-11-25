@@ -986,7 +986,7 @@ return view.extend({
 		const S = {
 			times: [], cpu: [], mem: [], temp: [], cores: [], net: {},
 			prev: null, last: null, full: null, wifi: undefined, prevProcs: null, procRate: {},
-			paused: false, rlAuto: true, rlLimit: 300, rlExpanded: {}, tick: 0, iface: null, tab: 'overview', sort: 'mem', filter: '',
+			paused: false, rlAuto: true, rlExpanded: {}, tick: 0, iface: null, tab: 'overview', sort: 'mem', filter: '',
 				at: {}, alerts: undefined, devs: undefined, devDay: 'day', hist: undefined, range: 'h', appTraffic: undefined, appPeriod: 'day', appDevice: ''
 		};
 
@@ -3226,7 +3226,17 @@ return view.extend({
 			const svcs = Array.from(new Set(R.rows.map(x => x[2]))).sort();
 			if (rlSvc.options.length - 1 !== svcs.length) { const cur = rlSvc.value; rlSvc.replaceChildren(E('option', { value: '' }, 'Все службы'), ...svcs.map(v => E('option', { value: v }, v))); rlSvc.value = svcs.includes(cur) ? cur : ''; }
 			const q = rlQ.value.trim().toLowerCase(), k = S.rlK || 'all', sv = rlSvc.value;
-			const lvl = x => { const l = (x[1].split('.')[1] || '').toLowerCase(); return /^(emerg|alert|crit|err)/.test(l) ? 'err' : /^warn/.test(l) ? 'warn' : 'info'; };
+			const lvl = x => {
+				/* BusyBox crond reports normal job dispatches as cron.err. */
+				if (String(x[2] || '').toLowerCase() === 'crond' && /^USER\\s+\\S+\\s+pid\\s+\\d+\\s+cmd\\s+/.test(String(x[3] || ''))) return 'info';
+				const priority = String(x[1] || '').trim().toLowerCase().split('.').pop();
+				const source = String(x[2] || '') + ' ' + String(x[3] || '');
+				const tagged = (source.match(/(?:^|[^a-z0-9_-])(?:[a-z0-9_.-]+)?\\[(emerg|panic|alert|crit(?:ical)?|err(?:or)?|warn(?:ing)?|notice|info|debug)\\]/i) || [])[1];
+				const value = String(tagged || priority || '').toLowerCase();
+				if (/^(emerg|panic|alert|crit|critical|err|error)$/.test(value)) return 'err';
+				if (/^(warn|warning)$/.test(value)) return 'warn';
+				return 'info';
+			};
 			const list = R.rows.filter(x => (!sv || x[2] === sv) && (k === 'all' || (k === 'err' ? lvl(x) === 'err' : lvl(x) !== 'info')) && (!q || (x[2] + ' ' + x[3]).toLowerCase().includes(q))).slice(-300).reverse();
 			rlBox.replaceChildren(...(list.length ? list.map(x => E('div', { class: 'nfm-ev-i ' + ({ err: 'crit', warn: 'warn', info: 'info' })[lvl(x)] }, [ E('i'), E('time', {}, x[0].replace(/^([A-Z][a-z]{2}) (\d+) /, (m, a, d) => d + ' ' + (MONRU[a] || a) + ', ')), E('span', {}, [ E('b', {}, x[2] + ' '), x[3] ]) ]))
 				: [ E('div', { class: 'nfm-empty' }, 'Ничего не найдено.') ]));
