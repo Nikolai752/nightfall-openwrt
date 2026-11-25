@@ -2670,53 +2670,9 @@ div.cbi-value var.cbi-tooltip-container,
 .assoclist .td img, .assoclist td img, .leases .td img { width: 24px; height: 24px; object-fit: contain; vertical-align: middle; }
 .assoclist .td img[style*="32px"], .assoclist td img[style*="32px"] { width: 32px; height: 32px; }
 
-/* Подключённые Wi-Fi-клиенты: распределяем ширину по назначению колонок.
-   Не оставляем интерфейсу узкую автоширину, из-за которой подпись точки доступа
-   ломается на отдельные слова, а соседние поля визуально разъезжаются. */
-@media (min-width: 601px) {
-	#view #wifi_assoclist_table {
-		width: 100%;
-		min-width: 0;
-		table-layout: fixed;
-	}
-	#view #wifi_assoclist_table .th:nth-of-type(1),
-	#view #wifi_assoclist_table .td:nth-of-type(1) { width: 14%; }
-	#view #wifi_assoclist_table .th:nth-of-type(3),
-	#view #wifi_assoclist_table .td:nth-of-type(3) { width: 26%; }
-	#view #wifi_assoclist_table .th:nth-of-type(4),
-	#view #wifi_assoclist_table .td:nth-of-type(4) { width: 13%; }
-	#view #wifi_assoclist_table .th:nth-of-type(5),
-	#view #wifi_assoclist_table .td:nth-of-type(5) { width: 35%; }
-	#view #wifi_assoclist_table .th:nth-of-type(6),
-	#view #wifi_assoclist_table .td:nth-of-type(6) { width: 12%; }
-
-	/* Chromium (Chrome/Yandex) может расширять table-cell по min-content
-	   ширине вложенного ifacebadge. Явно разрешаем ячейкам сжиматься
-	   в пределах таблицы и переносить длинное содержимое.
-	 */
-	#view #wifi_assoclist_table .th,
-	#view #wifi_assoclist_table .td {
-		min-width: 0;
-		max-width: 100%;
-		box-sizing: border-box;
-	}
-	#view #wifi_assoclist_table .td:nth-of-type(1),
-	#view #wifi_assoclist_table .td:nth-of-type(3),
-	#view #wifi_assoclist_table .td:nth-of-type(4),
-	#view #wifi_assoclist_table .td:nth-of-type(5) {
-		overflow-wrap: anywhere;
-		word-break: normal;
-	}
-	#view #wifi_assoclist_table .td:nth-of-type(1) .ifacebadge {
-		min-width: 0;
-		max-width: 100%;
-		white-space: normal;
-		overflow-wrap: anywhere;
-		box-sizing: border-box;
-	}
-	#view #wifi_assoclist_table .td:nth-of-type(6) {
-		white-space: nowrap;
-	}
+.assoclist .td:nth-of-type(3),
+.assoclist .td:nth-of-type(5) {
+	width: 25%;
 }
 
 .assoclist .td:nth-of-type(6) button {
@@ -6053,23 +6009,6 @@ html .nfm .nfm-table tbody tr:hover td:first-child { box-shadow: inset 2px 0 0 v
 	html #view > .cbi-section.fade-in:has(.ifacebox, .cbi-tooltip-container) { overflow: visible; }
 	html #view .cbi-section:has(.cbi-tooltip-container:hover), html #view .cbi-section:has(.ifacebox:hover) { z-index: 30; }
 	html #view .ifacebox .cbi-tooltip { z-index: 1200; }
-}
-
-/* Wi-Fi client list must stay inside its card in Chromium.
-   The general hover rule above allows some sections to overflow visibly
-   for tooltips; keep this specific table contained and horizontally scrollable
-   if a narrow viewport cannot fit all columns. */
-html #view > .cbi-section.fade-in:has(#wifi_assoclist_table) {
-	min-width: 0;
-	max-width: 100%;
-	overflow-x: auto !important;
-	overflow-y: hidden !important;
-}
-html #view #wifi_assoclist_table {
-	width: 100%;
-	max-width: 100%;
-	min-width: 0;
-	box-sizing: border-box;
 }
 
 /* ======== v1.11: светлые варианты старых сценических фонов ======== */
