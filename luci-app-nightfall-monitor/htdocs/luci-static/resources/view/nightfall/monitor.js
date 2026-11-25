@@ -896,7 +896,7 @@ html #view .nfm-card.nfm-cfg-settings-card:focus-within { border-color:var(--nfm
   .nfm-rlog .nfm-ev-i > i { grid-column: 1; grid-row: 1 / span 2; align-self: center; }
   .nfm-rlog .nfm-ev-i > time { grid-column: 2; grid-row: 1; white-space: normal; }
   .nfm-rlog .nfm-ev-i > .nfm-log-line { grid-column: 2; grid-row: 2; display: grid; grid-template-columns: max-content max-content minmax(0, 1fr); align-items: center; gap: 6px 8px; }
-  .nfm-rlog .nfm-log-text { grid-column: 1 / -1; min-width: 0; overflow-wrap: break-word; word-break: normal; }
+  .nfm-rlog .nfm-log-text { grid-column: 1 / -1; min-width: 0; padding-left: 10px; overflow-wrap: break-word; word-break: normal; }
   .nfm-rlog .nfm-log-repeat { grid-column: 1 / -1; justify-self: start; }
 }
 .nfm-rlog .nfm-ev-i.crit { background: color-mix(in srgb, #e5484d 13%, var(--nfm-card)); box-shadow: inset 2px 0 #e5484d; }
