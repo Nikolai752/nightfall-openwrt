@@ -905,8 +905,6 @@ html #view .nfm-card.nfm-cfg-settings-card:focus-within { border-color:var(--nfm
 .nfm-log-summary { color: var(--nfm-dim); font-size: 11px; }
 
 
-@media (max-width:720px) { .nfm-log-occurrences > div { grid-template-columns:1fr; gap:2px; } .nfm-log-diagnostic-list { grid-template-columns:1fr 1fr; } }
-@media (max-width:420px) { .nfm-log-diagnostic-list { grid-template-columns:1fr; } }
 
 .nfm-log-count { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border: 1px solid var(--nfm-border); border-radius: 999px; background: var(--nfm-card2); }
 .nfm-log-count b { color: var(--nfm-text); font-variant-numeric: tabular-nums; }
