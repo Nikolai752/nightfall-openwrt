@@ -9,8 +9,27 @@ read)
 	n=${2:-400}
 	case "$n" in ''|*[!0-9]*) n=400 ;; esac
 	[ "$n" -le 1500 ] || n=1500; [ "$n" -ge 1 ] || n=400
+	# Capture logread separately so a missing command or non-zero exit is not mistaken for an empty journal.
+	raw="/tmp/nightfall-log.$.raw"
+	err="/tmp/nightfall-log.$.err"
+	trap 'rm -f "$raw" "$err"' EXIT HUP INT TERM
+	if ! command -v "$LOGREAD" >/dev/null 2>&1; then
+		printf '{"ok":false,"error":"Команда logread не найдена. Установите/включите системный журнал OpenWrt (logd) и проверьте PATH."}\\n'
+		exit 0
+	fi
+	if $LOGREAD >"$raw" 2>"$err"; then
+		:
+	else
+		code=$?
+		detail=$(tr '\\r\\n' '  ' < "$err" | cut -c1-180)
+		printf '%s\\n' "$detail" | awk -v code="$code" '
+			function q(x) { gsub(/\\\\/, "\\\\\\\\", x); gsub(/"/, "\\\\\"", x); gsub(/[\\001-\\037]/, " ", x); return x }
+			{ printf "{\\\"ok\\\":false,\\\"error\\\":\\\"logread завершился с кодом %d%s\\\"}\\n", code, length($0) ? ": " q($0) : "" }
+		'
+		exit 0
+	fi
 	printf '{"ok":true,"rows":['
-	$LOGREAD 2>/dev/null | tail -n "$n" | awk '
+	tail -n "$n" "$raw" | awk '
 	BEGIN { first = 1 }
 	function q(x) { gsub(/\\/, "\\\\", x); gsub(/"/, "\\\"", x); gsub(/[\001-\037]/, " ", x); return x }
 	function month(x) { return x ~ /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/ }
