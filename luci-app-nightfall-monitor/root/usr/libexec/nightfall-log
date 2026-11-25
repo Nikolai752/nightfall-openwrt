@@ -22,9 +22,21 @@ read)
 		return 0
 	}
 	function cleanService(x) { sub(/\[[0-9]+\]:?$/, "", x); sub(/:$/, "", x); return x }
-	function emit(t, lv, sv, msg) {
-		printf "%s[\"%s\",\"%s\",\"%s\",\"%s\"]", first ? "," : "", q(t), q(lv), q(sv), q(msg)
-		first = 1
+	function emit(t, lv, sv, msg, row) {
+		/* Bound the RPC response: long log lines and large history must not break LuCI JSON. */
+		if (length(msg) > 4096) msg = substr(msg, 1, 4096) " ... [truncated]"
+		row = "[\"" q(t) "\",\"" q(lv) "\",\"" q(sv) "\",\"" q(msg) "\"]"
+		rows[++last] = row
+		bytes += length(row) + 1
+		while (bytes > 45000 && first < last) {
+			bytes -= length(rows[first]) + 1
+			delete rows[first]
+			first++
+		}
+	}
+	function flushRows(i) {
+		for (i = first; i <= last; i++)
+			printf "%s%s", i == first ? "" : ",", rows[i]
 	}
 	{
 		if ($0 == "") next
@@ -59,7 +71,8 @@ read)
 			start = te + 1; sv = start <= NF ? cleanService($start) : "unknown"
 			emit(t, "unknown", sv, $0)
 		}
-	}'
+	}
+	END { flushRows() }
 	printf ']}\n' ;;
 *)
 	echo "usage: nightfall-log read [N]" >&2; exit 1 ;;
