@@ -2679,16 +2679,21 @@ div.cbi-value var.cbi-tooltip-container,
 		min-width: 0;
 		table-layout: fixed;
 	}
+	/* Все шесть колонок должны иметь явную долю: раньше вторая (MAC)
+	   оставалась автошириной поверх уже распределённых 100%, из-за чего
+	   Chromium/Yandex накладывали её на соседние ячейки. */
 	#view #wifi_assoclist_table .th:nth-of-type(1),
-	#view #wifi_assoclist_table .td:nth-of-type(1) { width: 14%; }
+	#view #wifi_assoclist_table .td:nth-of-type(1) { width: 13%; }
+	#view #wifi_assoclist_table .th:nth-of-type(2),
+	#view #wifi_assoclist_table .td:nth-of-type(2) { width: 20%; }
 	#view #wifi_assoclist_table .th:nth-of-type(3),
-	#view #wifi_assoclist_table .td:nth-of-type(3) { width: 26%; }
+	#view #wifi_assoclist_table .td:nth-of-type(3) { width: 18%; }
 	#view #wifi_assoclist_table .th:nth-of-type(4),
-	#view #wifi_assoclist_table .td:nth-of-type(4) { width: 13%; }
+	#view #wifi_assoclist_table .td:nth-of-type(4) { width: 12%; }
 	#view #wifi_assoclist_table .th:nth-of-type(5),
-	#view #wifi_assoclist_table .td:nth-of-type(5) { width: 35%; }
+	#view #wifi_assoclist_table .td:nth-of-type(5) { width: 27%; }
 	#view #wifi_assoclist_table .th:nth-of-type(6),
-	#view #wifi_assoclist_table .td:nth-of-type(6) { width: 12%; }
+	#view #wifi_assoclist_table .td:nth-of-type(6) { width: 10%; }
 
 	/* Chromium (Chrome/Yandex) может расширять table-cell по min-content
 	   ширине вложенного ifacebadge. Явно разрешаем ячейкам сжиматься
@@ -4152,6 +4157,22 @@ html[data-nf-style="glass"] .table .tr:first-child > .th:last-child, html[data-n
 	background-repeat: no-repeat; background-position: center; background-size: 24px;
 }
 .table .tr.placeholder > .td em { display: block; }
+
+/* DHCP: пустая строка таблицы активных аренд должна занимать всю ширину
+   секции, а не оставаться визуально в первой колонке. Остальные таблицы
+   и их уже корректное центрирование не переопределяем. */
+body[data-page="admin-network-dhcp"] .cbi-section-table .tr.placeholder > .td {
+	position: static;
+	left: auto;
+	right: auto;
+	width: 100% !important;
+	min-width: 0;
+	text-align: center !important;
+	align-items: center;
+	justify-content: center;
+	padding: 26px 16px;
+	box-sizing: border-box;
+}
 .spinning { position: relative; }
 @keyframes nf-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 html:not([data-nf-motion="off"]) #view > .spinning, html:not([data-nf-motion="off"]) .table .tr.placeholder .spinning {
