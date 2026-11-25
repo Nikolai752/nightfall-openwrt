@@ -8,6 +8,7 @@ on:
       - fix/ui-menu-save-dhcp-backup-errors
       - feat/router-log-center
       - feat/router-log-intelligent-diagnostics
+      - fix/router-log-v12811-nightfall-style
   workflow_dispatch:
     inputs:
       version:
