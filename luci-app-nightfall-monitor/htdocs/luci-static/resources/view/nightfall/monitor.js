@@ -3383,12 +3383,18 @@ return view.extend({
 		function refreshRouterLog() {
 			rlStatus.textContent = 'Обновляю журнал…';
 			S.at.rlog = Date.now();
+			S.rlogError = '';
 			fs.exec('/usr/libexec/nightfall-log', [ 'read', '800' ]).then(r => {
-				const data = JSON.parse(r.stdout);
-				if (!data || !data.ok || !Array.isArray(data.rows)) throw new Error('Некорректный ответ');
+				const stdout = String(r && r.stdout || '');
+				let data;
+				try { data = JSON.parse(stdout); }
+				catch (e) { throw new Error('ответ не JSON (' + stdout.length + ' байт)' + (r && r.stderr ? ': ' + String(r.stderr).slice(0, 100) : '')); }
+				if (!data || !data.ok || !Array.isArray(data.rows)) throw new Error('неверная структура ответа');
 				S.rlog = data; S.rlogUpdated = Date.now();
-			}).catch(() => { S.rlog = null; })
-				.then(() => renderRouterLog());
+			}).catch(e => {
+				S.rlog = null;
+				S.rlogError = String((e && e.message) || e || 'неизвестная ошибка').slice(0, 180);
+			}).then(() => renderRouterLog());
 		}
 		function renderRouterLog() {
 			const R = S.rlog;
@@ -3400,7 +3406,7 @@ return view.extend({
 			if (R === undefined) { rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Загружаю журнал роутера…')); return; }
 			if (!R || !R.ok || !Array.isArray(R.rows)) {
 				rlVisible = []; rlSummary.replaceChildren(); rlDiag.replaceChildren();
-				rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Не удалось получить журнал. Выйдите из LuCI и войдите снова после обновления.'));
+				rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Не удалось получить журнал.' + (S.rlogError ? ' Причина: ' + S.rlogError : ' Проверьте доступ LuCI RPC и обновите страницу.')));
 				rlStatus.textContent = 'Нет данных'; rlMore.hidden = true; return;
 			}
 			const rows = R.rows.map(normalizeRouterLogRow).filter(x => x[3] !== '');
