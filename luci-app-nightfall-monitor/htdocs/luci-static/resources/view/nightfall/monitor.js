@@ -883,6 +883,29 @@ html #view .nfm-card.nfm-cfg-settings-card:focus-within { border-color:var(--nfm
 .nfm-ev-i.warn i { background: #f7a21b; } .nfm-ev-i.crit i { background: #e5484d; } .nfm-ev-i.ok i { background: #13a10e; }
 .nfm-ev-i time { color: var(--nfm-dim); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .nfm-rlog { max-height: min(620px, 68vh); padding: 2px 4px 4px 2px; }
+/* Router log: Nightfall-native compact rows inspired by the reference screenshot. */
+.nfm-rlog { max-height: min(680px, 72vh); padding: 2px 4px 4px 2px; }
+.nfm-rlog-row { display: grid; grid-template-columns: 34px 132px minmax(86px, auto) minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 7px 9px; border-bottom: 1px solid color-mix(in srgb, var(--nfm-border) 62%, transparent); border-left: 2px solid transparent; font-size: 12px; line-height: 1.45; }
+.nfm-rlog-row:last-child { border-bottom: 0; }
+.nfm-rlog-index { color: var(--nfm-dim); opacity: .72; font: 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; text-align: right; font-variant-numeric: tabular-nums; }
+.nfm-rlog-row time { color: var(--nfm-dim); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.nfm-rlog-priority { display: inline-block; width: fit-content; max-width: 100%; overflow-wrap: anywhere; border-radius: 4px; padding: 1px 5px; font: 600 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--nfm-dim); background: color-mix(in srgb, var(--nfm-dim) 10%, transparent); }
+.nfm-rlog-priority.crit { color: #ff777b; background: color-mix(in srgb, #e5484d 15%, transparent); }
+.nfm-rlog-priority.warn { color: #e5a52c; background: color-mix(in srgb, #e8a30a 15%, transparent); }
+.nfm-rlog-priority.info { color: #4b9bea; background: color-mix(in srgb, #398be5 12%, transparent); }
+.nfm-rlog-message { min-width: 0; overflow-wrap: anywhere; color: var(--nfm-text); }
+.nfm-rlog-message b { color: var(--nfm-dim); font-weight: 600; }
+.nfm-rlog-row.crit { border-left-color: #e5484d; background: color-mix(in srgb, #e5484d 6%, transparent); }
+.nfm-rlog-row.warn { border-left-color: #e8a30a; background: color-mix(in srgb, #e8a30a 5%, transparent); }
+.nfm-rlog-row.info { border-left-color: color-mix(in srgb, #398be5 55%, transparent); }
+@media (max-width: 680px) {
+ .nfm-rlog-row { grid-template-columns: 26px minmax(0, 1fr); gap: 4px 8px; padding: 8px 6px; }
+ .nfm-rlog-row time { grid-column: 2; grid-row: 1; }
+ .nfm-rlog-priority { grid-column: 2; grid-row: 2; }
+ .nfm-rlog-message { grid-column: 2; grid-row: 3; }
+ .nfm-rlog-index { grid-column: 1; grid-row: 1 / span 3; align-self: start; padding-top: 2px; }
+}
+
 .nfm-rlog-item { border-bottom: 1px solid color-mix(in srgb, var(--nfm-border) 58%, transparent); }
 .nfm-rlog-item:last-child { border-bottom: 0; }
 .nfm-rlog-item > summary { list-style: none; cursor: pointer; border: 0; border-radius: 6px; padding: 8px 8px; }
@@ -3244,61 +3267,24 @@ return view.extend({
 		const banBtn = ip => isExternalIp(ip) ? E('button', { type: 'button', class: 'nfm-btn', title: 'Роутер перестанет принимать пакеты с этого адреса на 24 часа (до перезагрузки роутера)',
 			click: () => { if (window.confirm('Закрыть адрес ' + ip + ' для роутера на 24 часа?')) secAct([ 'ban', ip, '24' ]); } }, 'Закрыть на 24 ч') : '';
 		const RISKY = { 21: 'FTP без шифрования', 23: 'Telnet без шифрования', 445: 'SMB', 139: 'SMB', 3389: 'удалённый рабочий стол', 5900: 'VNC' };
-		const routerLogMeta = {
-			err: { cls: 'crit', tag: 'ERROR', title: 'Ошибка' },
-			warn: { cls: 'warn', tag: 'WARNING', title: 'Предупреждение' },
-			notice: { cls: 'notice', tag: 'NOTICE', title: 'Уведомление' },
-			info: { cls: 'info', tag: 'INFO', title: 'Информация' },
-			debug: { cls: 'debug', tag: 'DEBUG', title: 'Отладка' }
-		};
 		function renderRouterLog() {
 			const R = S.rlog;
 			for (const b of rlChips.children) b.classList.toggle('on', b.getAttribute('data-k') === (S.rlK || 'all'));
 			if (R === undefined) { rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Загружаю…')); return; }
-			if (!R || !R.ok || !Array.isArray(R.rows)) { rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Не удалось получить журнал. Выйдите из LuCI и войдите снова после обновления.')); return; }
-			const rows = R.rows.filter(x => Array.isArray(x) && x.length >= 4);
-			const svcs = Array.from(new Set(rows.map(x => String(x[2] || 'неизвестно')))).sort();
+			if (!R || !R.ok) { rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Не удалось получить журнал. Выйдите из LuCI и войдите снова после обновления.')); return; }
+			const svcs = Array.from(new Set(R.rows.map(x => x[2]))).sort();
 			if (rlSvc.options.length - 1 !== svcs.length) { const cur = rlSvc.value; rlSvc.replaceChildren(E('option', { value: '' }, 'Все службы'), ...svcs.map(v => E('option', { value: v }, v))); rlSvc.value = svcs.includes(cur) ? cur : ''; }
-			const level = x => {
-				/* Keep v1.28.11 logread rows intact; classify only for presentation. */
-				if (String(x[2] || '').toLowerCase() === 'crond' && /^USER\s+\S+\s+pid\s+\d+\s+cmd\s+/.test(String(x[3] || ''))) return 'notice';
-				const priority = String(x[1] || '').trim().toLowerCase().split('.').pop();
-				const source = String(x[2] || '') + ' ' + String(x[3] || '');
-				const tagged = (source.match(/(?:^|[^a-z0-9_-])(?:[a-z0-9_.-]+)?\[(emerg|panic|alert|crit(?:ical)?|err(?:or)?|warn(?:ing)?|notice|info|debug)\]/i) || [])[1];
-				const value = String(tagged || priority || '').toLowerCase();
-				if (/^(emerg|panic|alert|crit|critical|err|error)$/.test(value)) return 'err';
-				if (/^(warn|warning)$/.test(value)) return 'warn';
-				if (value === 'notice') return 'notice';
-				if (value === 'debug') return 'debug';
-				return 'info';
-			};
+			/* Классификация и фильтрация — без изменений, как в v1.28.11. */
+			const lvl = x => { const l = (x[1].split('.')[1] || '').toLowerCase(); return /^(emerg|alert|crit|err)/.test(l) ? 'err' : /^warn/.test(l) ? 'warn' : 'info'; };
 			const q = rlQ.value.trim().toLowerCase(), k = S.rlK || 'all', sv = rlSvc.value;
-			const list = rows.filter(x => {
-				const l = level(x);
-				return (!sv || String(x[2] || 'неизвестно') === sv) &&
-					(k === 'all' || (k === 'err' ? l === 'err' : (l === 'err' || l === 'warn'))) &&
-					(!q || (String(x[1]) + ' ' + String(x[2]) + ' ' + String(x[3])).toLowerCase().includes(q));
-			}).slice(-300).reverse();
-			rlBox.replaceChildren(...(list.length ? list.map(x => {
-				const l = level(x), meta = routerLogMeta[l] || routerLogMeta.info;
-				const time = String(x[0] || '').replace(/^([A-Z][a-z]{2}) (\\d+) /, (m, a, d) => d + ' ' + (MONRU[a] || a) + ', ');
-				return E('details', { class: 'nfm-rlog-item' }, [
-					E('summary', { class: 'nfm-ev-i ' + meta.cls, title: 'Раскрыть подробности записи' }, [
-						E('i', { 'aria-hidden': 'true' }), E('time', {}, time),
-						E('span', { class: 'nfm-log-line' }, [
-							E('b', { class: 'nfm-log-service' }, String(x[2] || 'неизвестно')),
-							E('span', { class: 'nfm-log-level ' + meta.cls, title: meta.title }, meta.tag),
-							E('span', { class: 'nfm-log-text' }, String(x[3] || ''))
-						])
-					]),
-					E('div', { class: 'nfm-log-detail' }, [
-						E('div', { class: 'nfm-log-detail-meta' }, [
-							E('span', {}, [ 'Служба: ', E('b', {}, String(x[2] || 'неизвестно')) ]),
-							E('span', {}, [ 'Приоритет syslog: ', E('b', {}, String(x[1] || 'не указан')) ]),
-							E('span', {}, [ 'Класс: ', E('b', {}, meta.title) ])
-						]),
-						E('pre', { class: 'nfm-log-full' }, String(x[3] || ''))
-					])
+			const list = R.rows.filter(x => (!sv || x[2] === sv) && (k === 'all' || (k === 'err' ? lvl(x) === 'err' : lvl(x) !== 'info')) && (!q || (x[2] + ' ' + x[3]).toLowerCase().includes(q))).slice(-300).reverse();
+			rlBox.replaceChildren(...(list.length ? list.map((x, i) => {
+				const l = lvl(x), cls = l === 'err' ? 'crit' : l === 'warn' ? 'warn' : 'info';
+				return E('div', { class: 'nfm-rlog-row ' + cls }, [
+					E('span', { class: 'nfm-rlog-index', 'aria-label': 'Номер записи' }, String(i + 1).padStart(3, '0')),
+					E('time', {}, x[0].replace(/^([A-Z][a-z]{2}) (\\d+) /, (m, a, d) => d + ' ' + (MONRU[a] || a) + ', ')),
+					E('span', { class: 'nfm-rlog-priority ' + cls }, String(x[1] || '')),
+					E('span', { class: 'nfm-rlog-message' }, [ E('b', {}, String(x[2] || '') + ' : '), String(x[3] || '') ])
 				]);
 			}) : [ E('div', { class: 'nfm-empty' }, 'Ничего не найдено.') ]));
 		}
