@@ -187,3 +187,32 @@ jobs:
             dist/nightfall-root.tar.gz.sha256
           if-no-files-found: error
           retention-days: 7
+
+      - name: Сборка архива для проверки на роутере v1.29.1
+        if: github.event_name == 'pull_request' && github.head_ref == 'release/v1.29.1-old-router-log'
+        env:
+          VERSION: v1.29.1
+        run: sh ./build-release.sh
+      - name: Проверка архива v1.29.1
+        if: github.event_name == 'pull_request' && github.head_ref == 'release/v1.29.1-old-router-log'
+        env:
+          VERSION: v1.29.1
+        run: |
+          set -eu
+          test -s dist/nightfall-root.tar.gz
+          test -s dist/nightfall-root.tar.gz.sha256
+          (cd dist && sha256sum -c nightfall-root.tar.gz.sha256)
+          EXPECTED_VERSION="${VERSION#v}"
+          ARCHIVE_VERSION=$(tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p')
+          test "$ARCHIVE_VERSION" = "$EXPECTED_VERSION"
+          tar -xOf dist/nightfall-root.tar.gz ./usr/share/ucode/luci/template/themes/nightfall/header.ut | grep -Fq "?v=$EXPECTED_VERSION"
+      - name: Загрузка архива v1.29.1 для проверки на Cudy
+        if: success() && github.event_name == 'pull_request' && github.head_ref == 'release/v1.29.1-old-router-log'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightfall-v1.29.1-router-test
+          path: |
+            dist/nightfall-root.tar.gz
+            dist/nightfall-root.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 14
