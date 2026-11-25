@@ -2480,7 +2480,17 @@ return view.extend({
 			if (S.tab === 'sec' && due('sec', 60)) jobs.push(fs.exec(SECBIN, [ 'summary' ]).then(r => { try { S.sec = JSON.parse(r.stdout); S.secErr = ''; } catch (e) { S.sec = null; S.secErr = 'ответ скрипта не разобран' + (r.stderr ? ': ' + String(r.stderr).slice(0, 120) : ''); } }).catch(e => { S.sec = null; S.secErr = String((e && e.message) || e).slice(0, 120); }));
 			if (S.tab === 'sec' && due('bans', 30)) jobs.push(fs.exec(SECBIN, [ 'bans' ]).then(r => { try { S.bans = JSON.parse(r.stdout); } catch (e) { S.bans = null; } }).catch(() => { S.bans = null; }));
 			if (S.tab === 'sec' && due('secu', 600)) jobs.push(fs.exec(SECBIN, [ 'updates' ]).then(r => { try { S.secu = JSON.parse(r.stdout); } catch (e) { S.secu = null; } }).catch(() => { S.secu = null; }));
-			if (S.tab === 'log' && (S.rlog === undefined || (S.rlAuto !== false && due('rlog', 20)))) jobs.push(fs.exec('/usr/libexec/nightfall-log', [ 'read', '800' ]).then(r => { try { S.rlog = JSON.parse(r.stdout); S.rlogUpdated = Date.now(); } catch (e) { S.rlog = null; } }).catch(() => { S.rlog = null; }));
+			if (S.tab === 'log' && (S.rlog === undefined || (S.rlAuto !== false && due('rlog', 20)))) jobs.push(fs.exec('/usr/libexec/nightfall-log', [ 'read', '800' ]).then(r => {
+				const stdout = String(r && r.stdout || '');
+				try {
+					const data = JSON.parse(stdout);
+					if (!data || !data.ok || !Array.isArray(data.rows)) throw new Error('неверная структура ответа');
+					S.rlog = data; S.rlogError = ''; S.rlogUpdated = Date.now();
+				} catch (e) {
+					S.rlog = null;
+					S.rlogError = String((e && e.message) || e) + ' (' + stdout.length + ' байт)';
+				}
+			}).catch(e => { S.rlog = null; S.rlogError = String((e && e.message) || e).slice(0, 180); }));
 			if (S.tab === 'log' && due('blog', 30)) jobs.push(fs.exec('/usr/libexec/nightfall-block', [ 'log' ]).then(r => { try { S.blog = JSON.parse(r.stdout); } catch (e) { S.blog = null; } }).catch(() => { S.blog = null; }));
 			if (onTab('hist', 'log') && due('jrn', 30)) jobs.push(callHistory([ 'journal' ]).then(r => { S.jrn = r; }));
 			if (onTab('hist', 'diag') && due('spd', S.spdRun ? 3 : 30)) jobs.push(callHistory([ 'speed' ]).then(r => { S.spd = r; if (S.spdRun && Date.now() - (S.spdT || 0) > 4000 && (!r || !r.running)) { S.spdRun = false; if (r === false) ui.addNotification(null, E('p', {}, 'Замер завершён, но результат не прочитан: ' + MISSING), 'danger'); } }));
