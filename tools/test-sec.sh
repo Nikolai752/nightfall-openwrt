@@ -143,6 +143,18 @@ want "log: неизвестный приоритет не теряет запи�
 want "log: RFC5424 numeric PRI maps to error" '"syslog.err","dropbear","Bad password attempt"' "$r"
 want "log: localized timestamp and kern.err are parsed" '"[25 нояб. 2026 г., 09:42:11 GMT+4]","kern.err","kernel","[592125.596682] rtw88_8821cu 5-1:1.0: error beacon valid"' "$r"
 
+# Большой журнал не должен превышать безопасный размер ответа LuCI/ubus.
+BULK_LOG="$T/logread-bulk"
+BULK_DATA="$T/logread-bulk.txt"
+awk 'BEGIN { for (i = 1; i <= 200; i++) { printf "Nov 25 10:00:%02d daemon.err bulk: record-%03d ", i % 60, i; for (j = 1; j <= 700; j++) printf "x"; printf "\n" } }' > "$BULK_DATA"
+printf '#!/bin/sh\ncat "%s"\n' "$BULK_DATA" > "$BULK_LOG"
+chmod +x "$BULK_LOG"
+r=$(NF_LOGREAD="$BULK_LOG" sh "$L" read 800)
+bytes=$(printf '%s' "$r" | wc -c)
+echo "$r" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null && { ok=$((ok + 1)); echo "ok  nightfall-log: large response remains valid JSON"; } || { bad=$((bad + 1)); echo "ОШИБКА: large log response is not valid JSON"; }
+[ "$bytes" -le 46000 ] && { ok=$((ok + 1)); echo "ok  nightfall-log: RPC response bounded to 46 KB"; } || { bad=$((bad + 1)); echo "ОШИБКА: RPC response too large ($bytes bytes)"; }
+want "log: large response keeps newest records" '"bulk","record-200' "$r"
+
 
 # DNS-статистика
 N="$PWD/luci-app-nightfall-monitor/root/usr/libexec/nightfall-dns"
