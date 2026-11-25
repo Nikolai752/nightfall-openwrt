@@ -129,12 +129,14 @@ cat > "$ALT_LOG" <<'L'
 Nov 25 09:00:01 daemon.err dnsmasq: no upstream servers
 2026-11-25T09:00:02+03:00 host daemon.warn netifd[22]: Interface wan is down
 Nov 25 09:00:03 vendor.priority strange-service: vendor-specific event
+<27>1 2026-11-25T09:00:04Z router dropbear 123 BADLOGIN - Bad password attempt
 L
 r=$(NF_LOGREAD="$ALT_LOG" sh "$L" read 20)
 echo "$r" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null && { ok=$((ok + 1)); echo "ok  nightfall-log: alternate syslog formats produce valid JSON"; } || { bad=$((bad + 1)); echo "ОШИБКА: alternate logread не JSON: $r"; }
 want "log: формат без года сохраняет ошибку" '"daemon.err","dnsmasq","no upstream servers"' "$r"
 want "log: ISO timestamp сохраняет предупреждение" '"daemon.warn","netifd","Interface wan is down"' "$r"
-want "log: неизвестный приоритет не теряет запись" '"unknown","strange-service"' "$r"
+want "log: неизвестный приоритет не теряет запись" '"vendor.priority","strange-service"' "$r"
+want "log: RFC5424 numeric PRI maps to error" '"syslog.err","dropbear","Bad password attempt"' "$r"
 
 
 # DNS-статистика
