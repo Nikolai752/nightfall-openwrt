@@ -3,6 +3,7 @@ name: Test build archive
 on:
   push:
     branches:
+      - release/v1.29.1-old-router-log
       - fix/unified-device-identity
       - fix/ui-menu-save-dhcp-backup-errors
   workflow_dispatch:
