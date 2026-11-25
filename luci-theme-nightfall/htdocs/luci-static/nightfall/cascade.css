@@ -7218,3 +7218,25 @@ html[data-nf-style="mac"] .cbi-tooltip.error {
 	border-radius: 8px !important;
 	box-shadow: 0 8px 24px color-mix(in srgb, var(--error-color-high) 22%, transparent) !important;
 }
+
+
+/* v20261125: restore the centered empty state in Active DHCPv4 leases.
+ * The lease-table sizing rules above intentionally make the placeholder cell
+ * block-level; this final, IPv4-only override restores the icon + caption stack. */
+html body #view #lease_status_table .tr.placeholder > .td {
+	display: flex !important;
+	flex-direction: column !important;
+	align-items: center !important;
+	justify-content: center !important;
+	gap: 4px !important;
+	position: static !important;
+	width: 100% !important;
+	min-height: 132px !important;
+	padding: 26px 16px !important;
+	border-top: 0 !important;
+	text-align: center !important;
+	line-height: 1.4 !important;
+}
+html body #view #lease_status_table .tr.placeholder > .td em {
+	text-align: center !important;
+}
