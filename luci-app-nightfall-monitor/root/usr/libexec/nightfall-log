@@ -28,18 +28,20 @@ read)
 		if ($0 == "") next
 		pri = 0; sv = ""
 		for (i = 1; i <= NF; i++) {
-			if ($i ~ /^[[:alnum:]_-]+\.[[:alnum:]_-]+:?$/ || $i ~ /^<[0-9]+>$/) { pri = i; break }
+			if ($i ~ /^[[:alnum:]_-]+\.[[:alnum:]_-]+:?$/ || $i ~ /^<[0-9]+>[0-9]+$/ || $i ~ /^<[0-9]+>$/) { pri = i; break }
 		}
 		te = stampEnd(); t = ""
 		for (i = 1; i <= te; i++) t = t (t == "" ? "" : " ") $i
 		if (pri) {
 			lv = $pri; start = pri + 1
-			if ($pri ~ /^<[0-9]+>$/) {
-				num = $pri; gsub(/[<>]/, "", num); sev = num % 8
+			if ($pri ~ /^<[0-9]+>[0-9]+$/ || $pri ~ /^<[0-9]+>$/) {
+				num = $pri; sub(/^</, "", num); sub(/>.*/, "", num); sev = num % 8
 				levels[0]="emerg"; levels[1]="alert"; levels[2]="crit"; levels[3]="err"; levels[4]="warn"; levels[5]="notice"; levels[6]="info"; levels[7]="debug"
 				lv = "syslog." levels[sev]
 				/* RFC5424: <PRI>VERSION TIMESTAMP HOST APP PROCID MSGID STRUCTURED-DATA MSG */
-				if (pri == 1 && $(pri + 1) ~ /^[0-9]+$/ && substr($(pri + 2), 1, 4) ~ /^[0-9][0-9][0-9][0-9]$/) {
+				if (pri == 1 && $pri ~ /^<[0-9]+>[0-9]+$/ && substr($(pri + 1), 1, 4) ~ /^[0-9][0-9][0-9][0-9]$/) {
+					t = $(pri + 1); sv = cleanService($(pri + 3)); start = pri + 7
+				} else if (pri == 1 && $pri ~ /^<[0-9]+>$/ && $(pri + 1) ~ /^[0-9]+$/ && substr($(pri + 2), 1, 4) ~ /^[0-9][0-9][0-9][0-9]$/) {
 					t = $(pri + 2); sv = cleanService($(pri + 4)); start = pri + 8
 				}
 			}
