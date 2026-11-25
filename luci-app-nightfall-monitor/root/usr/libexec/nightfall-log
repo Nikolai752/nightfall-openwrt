@@ -11,7 +11,7 @@ read)
 	[ "$n" -le 1500 ] || n=1500; [ "$n" -ge 1 ] || n=400
 	printf '{"ok":true,"rows":['
 	$LOGREAD 2>/dev/null | tail -n "$n" | awk '
-	function q(x) { gsub(/\\/, "\\\\\\\\", x); gsub(/"/, "\\\\\"", x); gsub(/[\001-\037]/, " ", x); return x }
+	function q(x) { gsub(/\\/, "\\\\", x); gsub(/"/, "\\\"", x); gsub(/[\001-\037]/, " ", x); return x }
 	function month(x) { return x ~ /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/ }
 	function stampEnd() {
 		if ($1 ~ /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat)$/ && month($2)) return 5
@@ -28,7 +28,7 @@ read)
 		if ($0 == "") next
 		pri = 0
 		for (i = 1; i <= NF; i++) {
-			if ($i ~ /^[[:alnum:]_-]+\.(emerg|alert|crit|critical|err|error|warn|warning|notice|info|debug):?$/ || $i ~ /^<[0-9]+>$/) { pri = i; break }
+			if ($i ~ /^[[:alnum:]_-]+\.[[:alnum:]_-]+:?$/ || $i ~ /^<[0-9]+>$/) { pri = i; break }
 		}
 		te = stampEnd(); t = ""
 		for (i = 1; i <= te; i++) t = t (t == "" ? "" : " ") $i
