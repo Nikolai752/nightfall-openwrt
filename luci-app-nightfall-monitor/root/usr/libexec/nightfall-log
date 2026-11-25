@@ -38,8 +38,12 @@ read)
 				num = $pri; gsub(/[<>]/, "", num); sev = num % 8
 				levels[0]="emerg"; levels[1]="alert"; levels[2]="crit"; levels[3]="err"; levels[4]="warn"; levels[5]="notice"; levels[6]="info"; levels[7]="debug"
 				lv = "syslog." levels[sev]
+				/* RFC5424: <PRI>VERSION TIMESTAMP HOST APP PROCID MSGID STRUCTURED-DATA MSG */
+				if (pri == 1 && $(pri + 1) ~ /^[0-9]+$/ && substr($(pri + 2), 1, 4) ~ /^[0-9][0-9][0-9][0-9]$/) {
+					t = $(pri + 2); sv = cleanService($(pri + 4)); start = pri + 8
+				}
 			}
-			if (start <= NF) { sv = cleanService($start); start++ } else sv = "unknown"
+			if (start <= NF && sv == "") { sv = cleanService($start); start++ } else if (sv == "") sv = "unknown"
 			msg = ""
 			for (i = start; i <= NF; i++) msg = msg (msg == "" ? "" : " ") $i
 			if (msg == "") msg = $0
