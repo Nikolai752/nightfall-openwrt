@@ -189,12 +189,12 @@ jobs:
           retention-days: 7
 
       - name: Сборка архива для проверки на роутере v1.29.1
-        if: github.event_name == 'pull_request' && github.head_ref == 'release/v1.29.1-old-router-log'
+        if: github.event_name == 'pull_request' && (github.head_ref == 'release/v1.29.1-old-router-log' || github.head_ref == 'fix/router-log-v12811-nightfall-style')
         env:
           VERSION: v1.29.1
         run: sh ./build-release.sh
       - name: Проверка архива v1.29.1
-        if: github.event_name == 'pull_request' && github.head_ref == 'release/v1.29.1-old-router-log'
+        if: github.event_name == 'pull_request' && (github.head_ref == 'release/v1.29.1-old-router-log' || github.head_ref == 'fix/router-log-v12811-nightfall-style')
         env:
           VERSION: v1.29.1
         run: |
@@ -207,7 +207,7 @@ jobs:
           test "$ARCHIVE_VERSION" = "$EXPECTED_VERSION"
           tar -xOf dist/nightfall-root.tar.gz ./usr/share/ucode/luci/template/themes/nightfall/header.ut | grep -Fq "?v=$EXPECTED_VERSION"
       - name: Загрузка архива v1.29.1 для проверки на Cudy
-        if: success() && github.event_name == 'pull_request' && github.head_ref == 'release/v1.29.1-old-router-log'
+        if: success() && github.event_name == 'pull_request' && (github.head_ref == 'release/v1.29.1-old-router-log' || github.head_ref == 'fix/router-log-v12811-nightfall-style')
         uses: actions/upload-artifact@v4
         with:
           name: nightfall-v1.29.1-router-test
