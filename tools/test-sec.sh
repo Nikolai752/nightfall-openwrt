@@ -117,7 +117,7 @@ r=$(sh "$L" read 100)
 echo "$r" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null && { ok=$((ok + 1)); echo "ok  nightfall-log: корректный JSON"; } || { bad=$((bad + 1)); echo "ОШИБКА: nightfall-log не JSON: $r"; }
 want "log: служба без номера процесса" '"authpriv.warn","dropbear","Bad password attempt for' "$r"
 want "log: текст сообщения целиком" "from 203.0.113.5:40022" "$r"
-want "log: уровень ошибки ядра сохраняется" '"kern.err","rtw88_8821cu","error beacon valid"' "$r"
+want "log: уровень ошибки ядра сохраняется" '"kern.err","kernel","rtw88_8821cu[501]: error beacon valid"' "$r"
 want "log: сообщение steerd с warn сохраняется" '"user.notice","steerd","steer[warn] tunnel:' "$r"
 want "log: уведомление info сохраняется" '"daemon.notice","tachyon","[info] No subscription rules' "$r"
 r=$(sh "$L" read 2); nowant "log: N ограничивает число строк" "02:10:01" "$r"
