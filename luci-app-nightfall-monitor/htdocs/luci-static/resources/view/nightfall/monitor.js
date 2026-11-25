@@ -892,10 +892,12 @@ html #view .nfm-card.nfm-cfg-settings-card:focus-within { border-color:var(--nfm
 .nfm-rlog .nfm-ev-i { grid-template-columns: 8px max-content minmax(0, 1fr); align-items: start; gap: 10px; }
 .nfm-rlog .nfm-ev-i > time { white-space: nowrap; }
 @media (max-width: 720px) {
-  .nfm-rlog .nfm-ev-i { grid-template-columns: 8px minmax(0, 1fr); align-items: start; row-gap: 4px; }
+  .nfm-rlog .nfm-ev-i { grid-template-columns: 8px minmax(0, 1fr); align-items: start; row-gap: 5px; }
   .nfm-rlog .nfm-ev-i > i { grid-column: 1; grid-row: 1 / span 2; align-self: center; }
   .nfm-rlog .nfm-ev-i > time { grid-column: 2; grid-row: 1; white-space: normal; }
-  .nfm-rlog .nfm-ev-i > .nfm-log-line { grid-column: 2; grid-row: 2; }
+  .nfm-rlog .nfm-ev-i > .nfm-log-line { grid-column: 2; grid-row: 2; display: grid; grid-template-columns: max-content max-content minmax(0, 1fr); align-items: center; gap: 6px 8px; }
+  .nfm-rlog .nfm-log-text { grid-column: 1 / -1; min-width: 0; overflow-wrap: anywhere; word-break: normal; }
+  .nfm-rlog .nfm-log-repeat { grid-column: 1 / -1; justify-self: start; }
 }
 .nfm-rlog .nfm-ev-i.crit { background: color-mix(in srgb, #e5484d 13%, var(--nfm-card)); box-shadow: inset 2px 0 #e5484d; }
 .nfm-rlog .nfm-ev-i.warn { background: color-mix(in srgb, #e8a30a 9%, var(--nfm-card)); box-shadow: inset 2px 0 color-mix(in srgb, #e8a30a 72%, transparent); }
@@ -3367,12 +3369,19 @@ return view.extend({
 		function refreshRouterLog() {
 			rlStatus.textContent = 'Обновляю журнал…';
 			S.at.rlog = Date.now();
+			S.rlogError = '';
 			fs.exec('/usr/libexec/nightfall-log', [ 'read', '800' ]).then(r => {
-				const data = JSON.parse(r.stdout);
-				if (!data || !data.ok || !Array.isArray(data.rows)) throw new Error('Некорректный ответ');
-				S.rlog = data; S.rlogUpdated = Date.now();
-			}).catch(() => { S.rlog = null; })
-				.then(() => renderRouterLog());
+				const stdout = String(r && r.stdout || '');
+				if (r && typeof r.code === 'number' && r.code !== 0)
+					throw new Error('Команда журнала завершилась с кодом ' + r.code + (r.stderr ? ': ' + String(r.stderr).slice(0, 180) : ''));
+				const data = JSON.parse(stdout);
+				if (!data || data.ok !== true || !Array.isArray(data.rows))
+					throw new Error(data && data.error ? data.error : 'Неожиданный формат ответа журнала');
+				S.rlog = data; S.rlogError = ''; S.rlogUpdated = Date.now();
+			}).catch(e => {
+				S.rlog = null;
+				S.rlogError = String((e && e.message) || e || 'Неизвестная ошибка').slice(0, 320);
+			}).then(() => renderRouterLog());
 		}
 		function renderRouterLog() {
 			const R = S.rlog;
@@ -3384,7 +3393,7 @@ return view.extend({
 			if (R === undefined) { rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Загружаю журнал роутера…')); return; }
 			if (!R || !R.ok || !Array.isArray(R.rows)) {
 				rlVisible = []; rlSummary.replaceChildren(); rlDiag.replaceChildren();
-				rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Не удалось получить журнал. Выйдите из LuCI и войдите снова после обновления.'));
+				rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Не удалось получить журнал.' + (S.rlogError ? ' Причина: ' + S.rlogError : ' Проверьте доступ к logread и обновите страницу.')));
 				rlStatus.textContent = 'Нет данных'; rlMore.hidden = true; return;
 			}
 			const rows = R.rows.filter(x => Array.isArray(x) && x.length >= 4);
