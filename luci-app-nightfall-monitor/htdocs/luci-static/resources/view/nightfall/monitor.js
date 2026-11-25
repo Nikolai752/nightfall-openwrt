@@ -901,6 +901,32 @@ html #view .nfm-card.nfm-cfg-settings-card:focus-within { border-color:var(--nfm
 .nfm-log-level.notice, .nfm-log-level.info { color: #72baff; background: color-mix(in srgb, #398be5 16%, transparent); }
 .nfm-log-level.debug { color: var(--nfm-dim); background: color-mix(in srgb, var(--nfm-dim) 10%, transparent); }
 .nfm-log-text { min-width: 0; overflow-wrap: anywhere; }
+.nfm-rlog-item { border-bottom: 1px solid color-mix(in srgb, var(--nfm-border) 58%, transparent); }
+.nfm-rlog-item:last-child { border-bottom: 0; }
+.nfm-rlog-item > summary { list-style: none; cursor: pointer; border-radius: 6px; padding: 8px; }
+.nfm-rlog-item > summary::-webkit-details-marker { display: none; }
+.nfm-rlog-item > summary::marker { content: ''; }
+.nfm-rlog-item > summary:hover { background: color-mix(in srgb, var(--nfm-card2) 74%, transparent); }
+.nfm-rlog .nfm-ev-i { align-items: center; }
+.nfm-rlog .nfm-ev-i.crit { background: color-mix(in srgb, #e5484d 13%, var(--nfm-card)); box-shadow: inset 2px 0 #e5484d; }
+.nfm-rlog .nfm-ev-i.warn { background: color-mix(in srgb, #e8a30a 9%, var(--nfm-card)); box-shadow: inset 2px 0 color-mix(in srgb, #e8a30a 72%, transparent); }
+.nfm-rlog .nfm-ev-i.notice { background: color-mix(in srgb, #4b9bea 5%, transparent); }
+.nfm-log-line { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.nfm-log-service { flex: 0 0 auto; font-weight: 650; color: var(--nfm-text); }
+.nfm-log-level { flex: 0 0 auto; display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 7px; font-size: 10px; line-height: 1.35; font-weight: 750; letter-spacing: .035em; color: var(--nfm-dim); background: color-mix(in srgb, var(--nfm-dim) 12%, transparent); }
+.nfm-log-level.crit { color: #ff777b; background: color-mix(in srgb, #e5484d 18%, transparent); }
+.nfm-log-level.warn { color: #ffc44d; background: color-mix(in srgb, #e8a30a 18%, transparent); }
+.nfm-log-level.notice, .nfm-log-level.info { color: #72baff; background: color-mix(in srgb, #398be5 16%, transparent); }
+.nfm-log-level.debug { color: var(--nfm-dim); background: color-mix(in srgb, var(--nfm-dim) 10%, transparent); }
+.nfm-log-detail { margin: 0 8px 9px 136px; padding: 10px 12px; border: 1px solid var(--nfm-border); border-radius: 7px; background: var(--nfm-card2); }
+.nfm-log-detail-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 8px; color: var(--nfm-dim); font-size: 11px; }
+.nfm-log-detail-meta b { color: var(--nfm-text); font-weight: 600; }
+.nfm-log-full { margin: 0; padding: 8px 10px; border-radius: 5px; background: color-mix(in srgb, var(--nfm-card) 85%, transparent); color: var(--nfm-text); font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 720px) {
+  .nfm-rlog .nfm-ev-i { grid-template-columns: 7px 88px minmax(0, 1fr); gap: 6px; padding: 8px 5px; }
+  .nfm-rlog .nfm-ev-i time { font-size: 10px; }
+  .nfm-log-detail { margin-left: 8px; }
+}
 .nfm-log-summary, .nfm-log-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 8px 0; }
 .nfm-log-summary { color: var(--nfm-dim); font-size: 11px; }
 
@@ -3218,28 +3244,63 @@ return view.extend({
 		const banBtn = ip => isExternalIp(ip) ? E('button', { type: 'button', class: 'nfm-btn', title: 'Роутер перестанет принимать пакеты с этого адреса на 24 часа (до перезагрузки роутера)',
 			click: () => { if (window.confirm('Закрыть адрес ' + ip + ' для роутера на 24 часа?')) secAct([ 'ban', ip, '24' ]); } }, 'Закрыть на 24 ч') : '';
 		const RISKY = { 21: 'FTP без шифрования', 23: 'Telnet без шифрования', 445: 'SMB', 139: 'SMB', 3389: 'удалённый рабочий стол', 5900: 'VNC' };
+		const routerLogMeta = {
+			err: { cls: 'crit', tag: 'ERROR', title: 'Ошибка' },
+			warn: { cls: 'warn', tag: 'WARNING', title: 'Предупреждение' },
+			notice: { cls: 'notice', tag: 'NOTICE', title: 'Уведомление' },
+			info: { cls: 'info', tag: 'INFO', title: 'Информация' },
+			debug: { cls: 'debug', tag: 'DEBUG', title: 'Отладка' }
+		};
 		function renderRouterLog() {
 			const R = S.rlog;
 			for (const b of rlChips.children) b.classList.toggle('on', b.getAttribute('data-k') === (S.rlK || 'all'));
 			if (R === undefined) { rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Загружаю…')); return; }
-			if (!R || !R.ok) { rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Не удалось получить журнал. Выйдите из LuCI и войдите снова после обновления.')); return; }
-			const svcs = Array.from(new Set(R.rows.map(x => x[2]))).sort();
+			if (!R || !R.ok || !Array.isArray(R.rows)) { rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Не удалось получить журнал. Выйдите из LuCI и войдите снова после обновления.')); return; }
+			const rows = R.rows.filter(x => Array.isArray(x) && x.length >= 4);
+			const svcs = Array.from(new Set(rows.map(x => String(x[2] || 'неизвестно')))).sort();
 			if (rlSvc.options.length - 1 !== svcs.length) { const cur = rlSvc.value; rlSvc.replaceChildren(E('option', { value: '' }, 'Все службы'), ...svcs.map(v => E('option', { value: v }, v))); rlSvc.value = svcs.includes(cur) ? cur : ''; }
-			const q = rlQ.value.trim().toLowerCase(), k = S.rlK || 'all', sv = rlSvc.value;
-			const lvl = x => {
-				/* BusyBox crond reports normal job dispatches as cron.err. */
-				if (String(x[2] || '').toLowerCase() === 'crond' && /^USER\s+\S+\s+pid\s+\d+\s+cmd\s+/.test(String(x[3] || ''))) return 'info';
+			const level = x => {
+				/* Keep v1.28.11 logread rows intact; classify only for presentation. */
+				if (String(x[2] || '').toLowerCase() === 'crond' && /^USER\\s+\\S+\\s+pid\\s+\\d+\\s+cmd\\s+/.test(String(x[3] || ''))) return 'notice';
 				const priority = String(x[1] || '').trim().toLowerCase().split('.').pop();
 				const source = String(x[2] || '') + ' ' + String(x[3] || '');
-				const tagged = (source.match(/(?:^|[^a-z0-9_-])(?:[a-z0-9_.-]+)?\[(emerg|panic|alert|crit(?:ical)?|err(?:or)?|warn(?:ing)?|notice|info|debug)\]/i) || [])[1];
+				const tagged = (source.match(/(?:^|[^a-z0-9_-])(?:[a-z0-9_.-]+)?\\[(emerg|panic|alert|crit(?:ical)?|err(?:or)?|warn(?:ing)?|notice|info|debug)\\]/i) || [])[1];
 				const value = String(tagged || priority || '').toLowerCase();
 				if (/^(emerg|panic|alert|crit|critical|err|error)$/.test(value)) return 'err';
 				if (/^(warn|warning)$/.test(value)) return 'warn';
+				if (value === 'notice') return 'notice';
+				if (value === 'debug') return 'debug';
 				return 'info';
 			};
-			const list = R.rows.filter(x => (!sv || x[2] === sv) && (k === 'all' || (k === 'err' ? lvl(x) === 'err' : lvl(x) !== 'info')) && (!q || (x[2] + ' ' + x[3]).toLowerCase().includes(q))).slice(-300).reverse();
-			rlBox.replaceChildren(...(list.length ? list.map(x => E('div', { class: 'nfm-ev-i ' + ({ err: 'crit', warn: 'warn', info: 'info' })[lvl(x)] }, [ E('i'), E('time', {}, x[0].replace(/^([A-Z][a-z]{2}) (\d+) /, (m, a, d) => d + ' ' + (MONRU[a] || a) + ', ')), E('span', {}, [ E('b', {}, x[2] + ' '), x[3] ]) ]))
-				: [ E('div', { class: 'nfm-empty' }, 'Ничего не найдено.') ]));
+			const q = rlQ.value.trim().toLowerCase(), k = S.rlK || 'all', sv = rlSvc.value;
+			const list = rows.filter(x => {
+				const l = level(x);
+				return (!sv || String(x[2] || 'неизвестно') === sv) &&
+					(k === 'all' || (k === 'err' ? l === 'err' : (l === 'err' || l === 'warn'))) &&
+					(!q || (String(x[1]) + ' ' + String(x[2]) + ' ' + String(x[3])).toLowerCase().includes(q));
+			}).slice(-300).reverse();
+			rlBox.replaceChildren(...(list.length ? list.map(x => {
+				const l = level(x), meta = routerLogMeta[l] || routerLogMeta.info;
+				const time = String(x[0] || '').replace(/^([A-Z][a-z]{2}) (\\d+) /, (m, a, d) => d + ' ' + (MONRU[a] || a) + ', ');
+				return E('details', { class: 'nfm-rlog-item' }, [
+					E('summary', { class: 'nfm-ev-i ' + meta.cls, title: 'Раскрыть подробности записи' }, [
+						E('i', { 'aria-hidden': 'true' }), E('time', {}, time),
+						E('span', { class: 'nfm-log-line' }, [
+							E('b', { class: 'nfm-log-service' }, String(x[2] || 'неизвестно')),
+							E('span', { class: 'nfm-log-level ' + meta.cls, title: meta.title }, meta.tag),
+							E('span', { class: 'nfm-log-text' }, String(x[3] || ''))
+						])
+					]),
+					E('div', { class: 'nfm-log-detail' }, [
+						E('div', { class: 'nfm-log-detail-meta' }, [
+							E('span', {}, [ 'Служба: ', E('b', {}, String(x[2] || 'неизвестно')) ]),
+							E('span', {}, [ 'Приоритет syslog: ', E('b', {}, String(x[1] || 'не указан')) ]),
+							E('span', {}, [ 'Класс: ', E('b', {}, meta.title) ])
+						]),
+						E('pre', { class: 'nfm-log-full' }, String(x[3] || ''))
+					])
+				]);
+			}) : [ E('div', { class: 'nfm-empty' }, 'Ничего не найдено.') ]));
 		}
 		function renderSec() {
 			const R = S.sec;
