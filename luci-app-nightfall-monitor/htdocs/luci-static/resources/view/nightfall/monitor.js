@@ -3253,26 +3253,48 @@ return view.extend({
 		const banBtn = ip => isExternalIp(ip) ? E('button', { type: 'button', class: 'nfm-btn', title: 'Роутер перестанет принимать пакеты с этого адреса на 24 часа (до перезагрузки роутера)',
 			click: () => { if (window.confirm('Закрыть адрес ' + ip + ' для роутера на 24 часа?')) secAct([ 'ban', ip, '24' ]); } }, 'Закрыть на 24 ч') : '';
 		const RISKY = { 21: 'FTP без шифрования', 23: 'Telnet без шифрования', 445: 'SMB', 139: 'SMB', 3389: 'удалённый рабочий стол', 5900: 'VNC' };
+		function normalizeRouterLogRow(row) {
+			if (Array.isArray(row)) {
+				return [
+					String(row[0] == null ? '' : row[0]),
+					String(row[1] == null || row[1] === '' ? 'unknown' : row[1]),
+					String(row[2] == null || row[2] === '' ? 'unknown' : row[2]),
+					row.slice(3).map(v => String(v == null ? '' : v)).join(' ')
+				];
+			}
+			if (row && typeof row === 'object') {
+				return [
+					String(row.time || row.timestamp || row.ts || ''),
+					String(row.priority || row.level || row.facility || 'unknown'),
+					String(row.service || row.process || row.tag || 'unknown'),
+					String(row.message || row.msg || row.text || '')
+				];
+			}
+			return ['', 'unknown', 'unknown', String(row == null ? '' : row)];
+		}
 		const routerLogLevel = x => {
 			/* BusyBox crond logs a normal job dispatch at cron.err; it does not mean the job failed. */
 			if (String(x[2] || '').toLowerCase() === 'crond' && /^USER\s+\S+\s+pid\s+\d+\s+cmd\s+/.test(String(x[3] || ''))) return 'notice';
 			const priority = String(x[1] || '').trim().toLowerCase().split('.').pop();
 			const source = String(x[2] || '') + ' ' + String(x[3] || '');
 			const tagged = (source.match(/(?:^|[^a-z0-9_-])(?:[a-z0-9_.-]+)?\[(emerg|panic|alert|crit(?:ical)?|err(?:or)?|warn(?:ing)?|notice|info|debug)\]/i) || [])[1];
-			const value = String(tagged || priority || '').toLowerCase();
+			const raw = String(tagged || priority || '').toLowerCase();
+			const numeric = raw.match(/^<?(\d+)>?$/);
+			const value = numeric ? [ 'emerg', 'alert', 'crit', 'err', 'warn', 'notice', 'info', 'debug' ][Number(numeric[1]) % 8] : raw;
 			if (/^(emerg|panic|alert|crit|critical|err|error)$/.test(value)) return 'err';
 			if (/^(warn|warning)$/.test(value)) return 'warn';
 			if (value === 'notice') return 'notice';
 			if (value === 'debug') return 'debug';
 			if (value === 'info') return 'info';
-			return 'info';
+			return 'unknown';
 		};
 		const routerLogMeta = {
 			err: { cls: 'crit', tag: 'ERR', title: 'Ошибка' },
 			warn: { cls: 'warn', tag: 'WARN', title: 'Предупреждение' },
 			notice: { cls: 'notice', tag: 'NOTICE', title: 'Уведомление' },
 			info: { cls: 'info', tag: 'INFO', title: 'Информация' },
-			debug: { cls: 'debug', tag: 'DEBUG', title: 'Отладка' }
+			debug: { cls: 'debug', tag: 'DEBUG', title: 'Отладка' },
+			unknown: { cls: 'unknown', tag: 'UNKNOWN', title: 'Уровень не определён' }
 		};
 		const routerLogDiagMeta = {
 			wan: { title: 'WAN / интернет', hint: 'События потери или восстановления WAN-соединения', cls: 'crit' },
@@ -3380,11 +3402,11 @@ return view.extend({
 				rlBox.replaceChildren(E('div', { class: 'nfm-empty' }, 'Не удалось получить журнал. Выйдите из LuCI и войдите снова после обновления.'));
 				rlStatus.textContent = 'Нет данных'; rlMore.hidden = true; return;
 			}
-			const rows = R.rows.filter(x => Array.isArray(x) && x.length >= 4);
+			const rows = R.rows.map(normalizeRouterLogRow).filter(x => x[3] !== '');
 			const levels = rows.map(x => routerLogLevel(x));
-			const counts = { all: rows.length, err: 0, warn: 0, info: 0, debug: 0 };
-			rows.forEach((x, i) => { const l = levels[i]; if (l === 'err') counts.err++; else if (l === 'warn') counts.warn++; else if (l === 'debug') counts.debug++; else counts.info++; });
-			const tabCounts = { all: counts.all, warn: counts.err + counts.warn, err: counts.err, info: counts.info, debug: counts.debug };
+			const counts = { all: rows.length, err: 0, warn: 0, info: 0, debug: 0, unknown: 0 };
+			rows.forEach((x, i) => { const l = levels[i]; if (l === 'err') counts.err++; else if (l === 'warn') counts.warn++; else if (l === 'debug') counts.debug++; else if (l === 'unknown') counts.unknown++; else counts.info++; });
+			const tabCounts = { all: counts.all, warn: counts.err + counts.warn, err: counts.err, info: counts.info + counts.unknown, debug: counts.debug };
 			for (const key of Object.keys(rlChipRefs)) rlChipRefs[key].count.textContent = String(tabCounts[key] || 0);
 			const svcs = Array.from(new Set(rows.map(x => String(x[2] || 'неизвестно')))).sort((a, b) => a.localeCompare(b, 'ru'));
 			const currentServices = Array.from(rlSvc.options).slice(1).map(o => o.value);
@@ -3425,7 +3447,7 @@ return view.extend({
 				const l = levels[i], searchable = (String(x[1]) + ' ' + String(x[2]) + ' ' + String(x[3])).toLowerCase();
 				const typeMatch = key === 'all' || (key === 'err' && l === 'err') ||
 					(key === 'warn' && (l === 'err' || l === 'warn')) ||
-					(key === 'info' && (l === 'notice' || l === 'info')) || (key === 'debug' && l === 'debug');
+					(key === 'info' && (l === 'notice' || l === 'info' || l === 'unknown')) || (key === 'debug' && l === 'debug');
 				const diagMatch = !S.rlDiag || routerLogDiagnosis(x) === S.rlDiag;
 				return typeMatch && diagMatch && (!service || String(x[2] || 'неизвестно') === service) && (!q || searchable.includes(q));
 			});
@@ -3437,6 +3459,7 @@ return view.extend({
 				E('span', { class: 'nfm-log-count crit' }, [ 'Ошибки: ', E('b', {}, String(counts.err)) ]),
 				E('span', { class: 'nfm-log-count warn' }, [ 'Предупреждения: ', E('b', {}, String(counts.warn)) ]),
 				E('span', { class: 'nfm-log-count info' }, [ 'Информация: ', E('b', {}, String(counts.info)) ]),
+				E('span', { class: 'nfm-log-count' }, [ 'Без уровня: ', E('b', {}, String(counts.unknown)) ]),
 				S.rlDiag ? E('button', { type: 'button', class: 'nfm-btn', click: () => { S.rlDiag = ''; renderRouterLog(); } }, 'Сбросить диагностику') : ''
 			);
 			const logScrollTop = rlBox.scrollTop;
