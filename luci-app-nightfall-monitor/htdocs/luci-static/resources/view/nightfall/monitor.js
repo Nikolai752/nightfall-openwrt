@@ -903,20 +903,8 @@ html #view .nfm-card.nfm-cfg-settings-card:focus-within { border-color:var(--nfm
 .nfm-log-text { min-width: 0; overflow-wrap: anywhere; }
 .nfm-log-summary, .nfm-log-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin: 8px 0; }
 .nfm-log-summary { color: var(--nfm-dim); font-size: 11px; }
-.nfm-log-diagnostics { margin:10px 0 12px; padding:10px; border:1px solid var(--nfm-border); border-radius:9px; background:color-mix(in srgb,var(--nfm-card2) 55%,transparent); }
-.nfm-log-diagnostics-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px 12px; margin-bottom:8px; font-size:12px; }
-.nfm-log-diagnostics-head span, .nfm-log-diagnostic small { color:var(--nfm-dim); font-size:11px; font-weight:400; }
-.nfm-log-diagnostic-list { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:7px; }
-.nfm-log-diagnostic { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:3px 8px; align-items:center; padding:8px 10px; border:1px solid var(--nfm-border); border-radius:7px; text-align:left; color:var(--nfm-text); background:var(--nfm-card); cursor:pointer; }
-.nfm-log-diagnostic:hover, .nfm-log-diagnostic.on { border-color:var(--nfm-accent); background:var(--nfm-card2); }
-.nfm-log-diagnostic b { font-size:13px; font-variant-numeric:tabular-nums; }
-.nfm-log-diagnostic small { grid-column:1/-1; }
-.nfm-log-diagnostic.crit b { color:#ff777b; } .nfm-log-diagnostic.warn b { color:#ffc44d; }
-.nfm-log-diagnostics-empty { color:var(--nfm-dim); font-size:11px; }
-.nfm-log-repeat { flex:0 0 auto; padding:2px 7px; border:1px solid var(--nfm-border); border-radius:999px; color:var(--nfm-text); background:var(--nfm-card2); font-size:10px; font-weight:700; }
-.nfm-log-occurrences { display:grid; gap:5px; margin:0 0 8px; }
-.nfm-log-occurrences > div { display:grid; grid-template-columns:150px 110px minmax(0,1fr); gap:8px; padding:5px 7px; border-radius:5px; background:color-mix(in srgb,var(--nfm-card) 75%,transparent); font-size:11px; }
-.nfm-log-occurrences time, .nfm-log-occurrences > div > span:nth-child(2) { color:var(--nfm-dim); }
+
+
 @media (max-width:720px) { .nfm-log-occurrences > div { grid-template-columns:1fr; gap:2px; } .nfm-log-diagnostic-list { grid-template-columns:1fr 1fr; } }
 @media (max-width:420px) { .nfm-log-diagnostic-list { grid-template-columns:1fr; } }
 
