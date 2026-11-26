@@ -9,6 +9,12 @@ include $(TOPDIR)/rules.mk
 LUCI_TITLE:=Nightfall Theme
 LUCI_DEPENDS:=+luci-base
 
+# csstidy drops every CSS custom property (--nf-*, var() refs) and modern
+# layout props (grid, gap) this theme relies on; jsmin corrupts JS that
+# embeds CSS/data-URIs in template literals. Ship assets verbatim.
+LUCI_MINIFY_CSS:=0
+LUCI_MINIFY_JS:=0
+
 PKG_LICENSE:=Apache-2.0
 
 define Package/luci-theme-nightfall/postrm
@@ -21,6 +27,6 @@ define Package/luci-theme-nightfall/postrm
 }
 endef
 
-include ../../luci.mk
+include $(TOPDIR)/feeds/luci/luci.mk
 
 # call BuildPackage - OpenWrt buildroot signature

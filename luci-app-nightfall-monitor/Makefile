@@ -9,8 +9,13 @@ LUCI_TITLE:=Nightfall resource monitor (CPU, memory, temperature, network, histo
 LUCI_DEPENDS:=+luci-base +coreutils-base64
 LUCI_PKGARCH:=all
 
+# monitor.js embeds ~480 lines of CSS in template literals; jsmin does not
+# understand backtick strings and mangles them. Ship assets verbatim.
+LUCI_MINIFY_JS:=0
+LUCI_MINIFY_CSS:=0
+
 PKG_LICENSE:=Apache-2.0
 
-include ../../luci.mk
+include $(TOPDIR)/feeds/luci/luci.mk
 
 # call BuildPackage - OpenWrt buildroot signature
