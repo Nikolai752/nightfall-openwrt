@@ -103,8 +103,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          find sdk/bin/packages -type f -name 'luci-theme-nightfall_*.apk' -exec cp -v {} dist/ \\;
-          find sdk/bin/packages -type f -name 'luci-app-nightfall-monitor_*.apk' -exec cp -v {} dist/ \\;
+          find sdk/bin/packages -type f -name 'luci-theme-nightfall_*.apk' -print0 | xargs -0 -r -I{} cp -v "{}" dist/
+          find sdk/bin/packages -type f -name 'luci-app-nightfall-monitor_*.apk' -print0 | xargs -0 -r -I{} cp -v "{}" dist/
           test "$(find dist -maxdepth 1 -type f -name 'luci-theme-nightfall_*.apk' | wc -l)" -eq 1
           test "$(find dist -maxdepth 1 -type f -name 'luci-app-nightfall-monitor_*.apk' | wc -l)" -eq 1
           file dist/*.apk
