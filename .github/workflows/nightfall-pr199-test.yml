@@ -10,11 +10,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build installable archive
+      - name: Checkout matching LuCI translation compiler and base catalog
+        uses: actions/checkout@v4
+        with:
+          repository: openwrt/luci
+          ref: openwrt-25.12
+          path: luci-src
+          sparse-checkout: |
+            modules/luci-base/src
+            modules/luci-base/po/zh_Hans
+      - name: Build LuCI po2lmo host utility
+        run: make -C luci-src/modules/luci-base/src po2lmo
+      - name: Build installable archive with Chinese translations
         env:
-          VERSION: v1.29.0-pr199-latest-test
+          VERSION: v1.29.0-pr199-i18n-test
+          PO2LMO: ${{ github.workspace }}/luci-src/modules/luci-base/src/po2lmo
+          LUCI_BASE_PO: ${{ github.workspace }}/luci-src/modules/luci-base/po/zh_Hans/base.po
         run: sh ./build-release.sh
-      - name: Verify archive and checksum
+      - name: Verify archive, checksum and all Chinese LMO catalogs
         run: |
           test -s dist/nightfall-root.tar.gz
           test -s dist/nightfall-root.tar.gz.sha256
@@ -22,13 +35,21 @@ jobs:
           tar -tzf dist/nightfall-root.tar.gz | grep -q 'www/luci-static/nightfall/version.json'
           tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json
           tar -tzf dist/nightfall-root.tar.gz | grep -q 'usr/libexec/nightfall-collector'
+          tar -tzf dist/nightfall-root.tar.gz | grep -q 'usr/lib/lua/luci/i18n/base.zh-cn.lmo'
+          tar -tzf dist/nightfall-root.tar.gz | grep -q 'usr/lib/lua/luci/i18n/nightfall.zh-cn.lmo'
+          tar -tzf dist/nightfall-root.tar.gz | grep -q 'usr/lib/lua/luci/i18n/nightfall-monitor.zh-cn.lmo'
+          mkdir -p /tmp/nightfall-verify
+          tar -xzf dist/nightfall-root.tar.gz -C /tmp/nightfall-verify
+          test -s /tmp/nightfall-verify/usr/lib/lua/luci/i18n/base.zh-cn.lmo
+          test -s /tmp/nightfall-verify/usr/lib/lua/luci/i18n/nightfall.zh-cn.lmo
+          test -s /tmp/nightfall-verify/usr/lib/lua/luci/i18n/nightfall-monitor.zh-cn.lmo
       - uses: actions/upload-artifact@v4
         with:
-          name: nightfall-v1.29.0-pr199-latest-test
+          name: nightfall-v1.29.0-pr199-i18n-test
           path: |
             dist/nightfall-root.tar.gz
             dist/nightfall-root.tar.gz.sha256
           if-no-files-found: error
           retention-days: 7
 
-# Trigger a fresh isolated PR199 test build.
+# Build an isolated PR199 test archive with compiled zh-cn LuCI and Nightfall catalogs.
