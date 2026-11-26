@@ -1,0 +1,79 @@
+name: PR #199 - OpenWrt 25.12.6 SDK packages
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - test/pr-199-build
+
+permissions:
+  contents: read
+
+jobs:
+  sdk-build:
+    name: Build LuCI packages for mediatek/filogic
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout test branch
+        uses: actions/checkout@v4
+
+      - name: Install host tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gettext zstd build-essential libncurses-dev gawk git unzip file rsync python3
+
+      - name: Download and verify OpenWrt 25.12.6 SDK
+        run: |
+          set -eu
+          SDK_URL="https://downloads.openwrt.org/releases/25.12.6/targets/mediatek/filogic/openwrt-sdk-25.12.6-mediatek-filogic_gcc-14.3.0_musl.Linux-x86_64.tar.zst"
+          SDK_SHA256="1c04ac47bdfc361d6aab299eb520d570e368013dedcb8d29cf39dc7168ae642e"
+          curl -fL "$SDK_URL" -o /tmp/openwrt-sdk.tar.zst
+          echo "$SDK_SHA256  /tmp/openwrt-sdk.tar.zst" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/openwrt-sdk"
+          tar --zstd -xf /tmp/openwrt-sdk.tar.zst -C "$RUNNER_TEMP/openwrt-sdk" --strip-components=1
+
+      - name: Validate Chinese PO catalogs
+        run: |
+          set -eu
+          msgfmt --check --check-format -o /dev/null luci-theme-nightfall/po/zh_Hans/nightfall.po
+          msgfmt --check --check-format -o /dev/null luci-app-nightfall-monitor/po/zh_Hans/nightfall-monitor.po
+
+      - name: Prepare SDK feeds and Nightfall packages
+        working-directory: ${{ runner.temp }}/openwrt-sdk
+        run: |
+          set -eu
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          mkdir -p package/luci-theme-nightfall package/luci-app-nightfall-monitor
+          rsync -a --delete "$GITHUB_WORKSPACE/luci-theme-nightfall/" package/luci-theme-nightfall/
+          rsync -a --delete "$GITHUB_WORKSPACE/luci-app-nightfall-monitor/" package/luci-app-nightfall-monitor/
+          make defconfig
+
+      - name: Build Nightfall theme package
+        working-directory: ${{ runner.temp }}/openwrt-sdk
+        run: make package/luci-theme-nightfall/compile V=s
+
+      - name: Build Nightfall monitor package
+        working-directory: ${{ runner.temp }}/openwrt-sdk
+        run: make package/luci-app-nightfall-monitor/compile V=s
+
+      - name: Verify generated packages
+        working-directory: ${{ runner.temp }}/openwrt-sdk
+        run: |
+          set -eu
+          find bin/packages -type f \\( -name 'luci-theme-nightfall*.apk' -o -name 'luci-app-nightfall-monitor*.apk' -o -name 'luci-theme-nightfall*.ipk' -o -name 'luci-app-nightfall-monitor*.ipk' \\) -print
+          find bin/packages -type f \\( -name 'luci-theme-nightfall*.apk' -o -name 'luci-app-nightfall-monitor*.apk' -o -name 'luci-theme-nightfall*.ipk' -o -name 'luci-app-nightfall-monitor*.ipk' \\) | grep -q 'luci-theme-nightfall'
+          find bin/packages -type f \\( -name 'luci-theme-nightfall*.apk' -o -name 'luci-app-nightfall-monitor*.apk' -o -name 'luci-theme-nightfall*.ipk' -o -name 'luci-app-nightfall-monitor*.ipk' \\) | grep -q 'luci-app-nightfall-monitor'
+
+      - name: Upload SDK packages and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightfall-pr199-openwrt-25.12.6-sdk
+          path: |
+            ${{ runner.temp }}/openwrt-sdk/bin/packages/**/*.apk
+            ${{ runner.temp }}/openwrt-sdk/bin/packages/**/*.ipk
+            ${{ runner.temp }}/openwrt-sdk/logs/
+          if-no-files-found: warn
+          retention-days: 7
