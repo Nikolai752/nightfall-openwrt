@@ -2389,6 +2389,44 @@ function wifiCard() {
 	return { el, contains: n => el.contains(n), start() { load(); timer = window.setInterval(load, 8000); } };
 }
 
+/* Collector event texts are written backend-side in Russian; rebuild the
+   known shapes through catalog templates at display time. Unknown texts pass
+   through unchanged. */
+function trDur(s) {
+	let m;
+	if ((m = /^(\d+) ч (\d+) мин$/.exec(s))) return tr('%s ч %s мин').format(m[1], m[2]);
+	if ((m = /^(\d+) мин (\d+) с$/.exec(s))) return tr('%s мин %s с').format(m[1], m[2]);
+	if ((m = /^(\d+) с$/.exec(s))) return tr('%s с').format(m[1]);
+	return s;
+}
+
+function trEvent(tx) {
+	if (typeof tx !== 'string') return tx;
+	let m;
+	if (tx === 'Сборщик истории запущен') return tr('Сборщик истории запущен');
+	if (tx === 'Нет доступа в интернет') return tr('Нет доступа в интернет');
+	if (tx === 'Постоянное хранение Nightfall снова работает') return tr('Постоянное хранение Nightfall снова работает');
+	if ((m = /^Нет связи со шлюзом (\S+)$/.exec(tx))) return tr('Нет связи со шлюзом %s').format(m[1]);
+	if ((m = /^Процессор перегрет: ([\d.]+) °C \(порог (\d+) °C\)$/.exec(tx))) return tr('Процессор перегрет: %s °C (порог %s °C)').format(m[1], m[2]);
+	if ((m = /^Критическая температура процессора: ([\d.]+) °C$/.exec(tx))) return tr('Критическая температура процессора: %s °C').format(m[1]);
+	if ((m = /^Мало свободной памяти: занято (\d+)%$/.exec(tx))) return tr('Мало свободной памяти: занято %s%').format(m[1]);
+	if ((m = /^Флеш-память почти заполнена: (\d+)%$/.exec(tx))) return tr('Флеш-память почти заполнена: %s%').format(m[1]);
+	if ((m = /^Таблица соединений заполнена на (\d+)%$/.exec(tx))) return tr('Таблица соединений заполнена на %s%').format(m[1]);
+	if ((m = /^Процессор загружен на (\d+)% дольше (\d+) мин$/.exec(tx))) return tr('Процессор загружен на %s% дольше %s мин').format(m[1], m[2]);
+	if ((m = /^Снова в норме: (.+) \(длилось (\d+.*)\)$/.exec(tx))) return tr('Снова в норме: %s (длилось %s)').format(trEvent(m[1]), trDur(m[2]));
+	if ((m = /^Новое устройство в сети: (.+)$/.exec(tx))) {
+		let rest = m[1], priv = '';
+		const pm = / \(частный адрес Wi-Fi, у телефона он может меняться\)$/.exec(rest);
+		if (pm) { priv = ' ' + tr('(частный адрес Wi-Fi, у телефона он может меняться)'); rest = rest.slice(0, pm.index); }
+		rest = rest.replace(/^без имени,/, tr('без имени') + ',');
+		return tr('Новое устройство в сети:') + ' ' + rest + priv;
+	}
+	if (/^Сохранение во внутреннюю флеш-память запрещено\./.exec(tx)) return tr('Сохранение во внутреннюю флеш-память запрещено. Включите «Разрешить запись во внутреннюю флеш-память» и учитывайте износ и свободное место');
+	if ((m = /^Постоянная история недоступна: (\S+) не находится/.exec(tx))) return tr('Постоянная история недоступна: %s не находится на подключённом накопителе с разрешённым типом хранения. Сбор данных продолжается в RAM').format(m[1]);
+	if ((m = /^Недостаточно свободного места во внутренней флеш-памяти \(нужно не менее (\d+) КБ\)/.exec(tx))) return tr('Недостаточно свободного места во внутренней флеш-памяти (нужно не менее %s КБ). История продолжает собираться в RAM').format(m[1]);
+	return tx;
+}
+
 function eventsCard() {
 	const body = E('div', { class: 'nf-ev-b' }, E('div', { class: 'nf-empty' }, tr('Читаю журнал…')));
 	const el = xcard('nf-events', tr('Лента событий'), body);
@@ -2417,7 +2455,7 @@ function eventsCard() {
 				if (list.length >= 8 && !(last && last[2] === e[2])) break;
 			}
 			if (!list.length) { body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, tr('Всё спокойно')), E('span', {}, tr('Событий пока не было.')) ])); return; }
-			body.replaceChildren(...list.map(e => E('div', { class: 'nf-ev', 'data-l': LV[String(e[1]).toLowerCase()] || 'info' }, [ E('div', {}, e[3] > 1 ? e[2] + ' ×' + e[3] : e[2]), E('span', {}, when(e[0])) ])));
+			body.replaceChildren(...list.map(e => E('div', { class: 'nf-ev', 'data-l': LV[String(e[1]).toLowerCase()] || 'info' }, [ E('div', {}, e[3] > 1 ? trEvent(e[2]) + ' ×' + e[3] : trEvent(e[2])), E('span', {}, when(e[0])) ])));
 		}).catch(() => {});
 	}
 
