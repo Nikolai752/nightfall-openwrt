@@ -2496,6 +2496,32 @@ return view.extend({
 			return s;
 		}
 
+		/* Security audit texts are generated backend-side in Russian with
+		   «level|text» prefixes stripped before display; rebuild the known
+		   shapes through catalog templates. Unknown texts pass through. */
+		function trSec(tx) {
+			if (typeof tx !== 'string') return tx;
+			let m;
+			const exact = {
+				'Пароль root задан.': 1, 'Пароль root не задан: зайти в роутер может любой из вашей сети.': 1,
+				'SSH: парольный вход root включён (PasswordAuth и RootPasswordAuth). Для защиты отключите парольную аутентификацию и используйте SSH-ключи.': 1,
+				'SSH: парольная аутентификация для непривилегированных пользователей разрешена; для root запрещена.': 1,
+				'LuCI доступен по http (пароль идёт открытым текстом внутри сети). Включите «Redirect all HTTP to HTTPS».': 1,
+				'LuCI: http перенаправляется на https.': 1,
+				'Можно закрывать только внешние адреса (не локальные, не адрес самого роутера).': 1,
+				'На роутере нет nft: закрытие адресов недоступно.': 1,
+				'Некорректный адрес.': 1, 'Не удалось закрыть адрес.': 1, 'Не удалось подготовить правила nft.': 1
+			};
+			if (exact[tx]) return _(tx);
+			if ((m = /^SSH: парольный вход root выключен \((.*)\); вход по ключу остаётся доступен\.$/.exec(tx))) return _('SSH: парольный вход root выключен (%s); вход по ключу остаётся доступен.').format(m[1]);
+			if ((m = /^Сеть «(.+)» без пароля: подключиться может любой\.$/.exec(tx))) return _('Сеть «%s» без пароля: подключиться может любой.').format(m[1]);
+			if ((m = /^Сеть «(.+)» использует WEP: он взламывается за минуты, включите WPA2 или WPA3\.$/.exec(tx))) return _('Сеть «%s» использует WEP: он взламывается за минуты, включите WPA2 или WPA3.').format(m[1]);
+			if ((m = /^Сеть «(.+)»: шифрование (.+)\.$/.exec(tx))) return _('Сеть «%s»: шифрование %s.').format(m[1], m[2]);
+			if ((m = /^Сеть «(.+)» допускает устаревшее шифрование \((.+)\): оставьте WPA2 \(psk2\+ccmp\) или WPA3 \(sae\)\.$/.exec(tx))) return _('Сеть «%s» допускает устаревшее шифрование (%s): оставьте WPA2 (psk2+ccmp) или WPA3 (sae).').format(m[1], m[2]);
+			if ((m = /^Много неудачных входов в роутер: (\d+) за последнее время \(SSH и LuCI\)\. Откройте «Монитор → Безопасность»: там можно закрыть адрес нарушителя\.$/.exec(tx))) return _('Много неудачных входов в роутер: %s за последнее время (SSH и LuCI). Откройте «Монитор → Безопасность»: там можно закрыть адрес нарушителя.').format(m[1]);
+			return tx;
+		}
+
 		function trEv(tx) {
 			if (typeof tx !== 'string') return tx;
 			let m;
@@ -3338,7 +3364,7 @@ return view.extend({
 		}
 		const SECBIN = '/usr/libexec/nightfall-sec';
 		const isExternalIp = ip => !/^(10\.|127\.|0\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|(fe[89ab]|f[cd])[0-9a-f]*:|::1?$)/i.test(ip) && /^[0-9a-f:.]+$/i.test(ip);
-		const secAct = (args, msg) => fs.exec(SECBIN, args).then(r => { let j = null; try { j = JSON.parse(r.stdout); } catch (e) { /* ignore */ } if (!j || !j.ok) window.alert((j && j.error) || _('Не получилось.'));
+		const secAct = (args, msg) => fs.exec(SECBIN, args).then(r => { let j = null; try { j = JSON.parse(r.stdout); } catch (e) { /* ignore */ } if (!j || !j.ok) window.alert(trSec((j && j.error) || '') || _('Не получилось.'));
 			S.at.sec = 0; S.at.bans = 0; })
 			.catch(() => window.alert(_('Не получилось выполнить команду на роутере.')));
 		const banBtn = ip => isExternalIp(ip) ? E('button', { type: 'button', class: 'nfm-btn', title: _('Роутер перестанет принимать пакеты с этого адреса на 24 часа (до перезагрузки роутера)'),
@@ -3604,9 +3630,9 @@ return view.extend({
 			else if (reds.length) { msg = _('Из интернета проброшено портов: ') + reds.length + _('. Проверьте, что они нужны.'); cls = 'warn'; }
 			else msg = _('Явных проблем не видно: входящие из интернета закрыты') + (fw.wan_input ? ' (' + fw.wan_input + ')' : '') + _(', проброшенных портов нет.');
 			const chk = R.checks || [], badChk = chk.filter(c => c[0] === 'bad');
-			if (badChk.length && cls === 'ok') { msg = _('Есть что исправить: ') + badChk[0][1]; cls = 'bad'; }
+			if (badChk.length && cls === 'ok') { msg = _('Есть что исправить: ') + trSec(badChk[0][1]); cls = 'bad'; }
 			secVerdict.className = 'nfm-hint sec-' + cls; secVerdict.textContent = msg;
-			secChecks.replaceChildren(...(chk.length ? chk.map(c => E('div', { class: 'nfm-ev-i nt ' + ({ bad: 'crit', warn: 'warn', ok: 'info' })[c[0]] }, [ E('i'), E('span', {}, c[1]) ])) : [ E('div', { class: 'nfm-empty' }, _('Нет данных: обновите тему на роутере.')) ]));
+			secChecks.replaceChildren(...(chk.length ? chk.map(c => E('div', { class: 'nfm-ev-i nt ' + ({ bad: 'crit', warn: 'warn', ok: 'info' })[c[0]] }, [ E('i'), E('span', {}, trSec(c[1])) ])) : [ E('div', { class: 'nfm-empty' }, _('Нет данных: обновите тему на роутере.')) ]));
 
 			const ago = fmtSyslogDay;
 			secLogins.replaceChildren(
