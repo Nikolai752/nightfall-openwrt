@@ -2948,3 +2948,6 @@ msgstr "过曝深色"
 
 msgid "Solarized Light"
 msgstr "过曝浅色"
+
+msgid "Liquid Glass"
+msgstr "液体玻璃"
