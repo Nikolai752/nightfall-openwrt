@@ -153,7 +153,11 @@ apps)
 	rips=" $(router_ips) "; rnets=$(router_nets)   # трафик самого роутера (VPN, прокси) повторяет трафик устройств, в приложениях его не считаем
 	[ -r "$DIR/apps.day" ] && awk -F'|' -v rips="$rips" -v nets="$rnets" "$AWKR"'NF >= 5 && !mine($1) { gsub(/["\\]/, "", $2); gsub(/["\\]/, "", $3); printf "%s[\"%s\",\"%s\",\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3, $4, $5 }' "$DIR/apps.day"
 	printf '],"hist":['
-	[ -r "$DIR/apps.hist" ] && awk -F'|' -v rips="$rips" -v nets="$rnets" "$AWKR"'NF >= 6 && !mine($2) { gsub(/["\\]/, "", $3); gsub(/["\\]/, "", $4); printf "%s[\"%s\",\"%s\",\"%s\",\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3, $4, $5, $6 }' "$DIR/apps.hist"
+	# UI supports up to 30 days. Keep the RPC response below rpcd-mod-file's
+	# 256 KiB stdout limit: return only the newest 30 days and at most 900 rows.
+	app_from=$(date -d "@$((now - 2592000))" +%Y%m%d 2>/dev/null)
+	[ -n "$app_from" ] || app_from=00000000
+	[ -r "$DIR/apps.hist" ] && awk -F'|' -v from="$app_from" '$1 >= from' "$DIR/apps.hist" | tail -n 900 | awk -F'|' -v rips="$rips" -v nets="$rnets" "$AWKR"'NF >= 6 && !mine($2) { gsub(/["\\]/, "", $3); gsub(/["\\]/, "", $4); printf "%s[\"%s\",\"%s\",\"%s\",\"%s\",%d,%d]", (n++ ? "," : ""), $1, $2, $3, $4, $5, $6 }'
 	printf ']}\n' ;;
 journal)
 	printf '{"now":%s,"rows":' "$now"; journal_json
