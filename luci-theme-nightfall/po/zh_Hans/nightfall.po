@@ -9,9 +9,6 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-msgid ""
-msgstr ""
-
 msgid "Архив проверен. Нажмите «Восстановить настройки», когда будете готовы."
 msgstr "\n归档已验证。准备好后请点击“恢复设置”。"
 
