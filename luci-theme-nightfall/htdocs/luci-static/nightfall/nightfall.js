@@ -1406,7 +1406,7 @@
 			seg2('radius', tr('Скругление углов'), [ [ 'sharp', tr('Острые') ], [ 'md', tr('Средние') ], [ 'round', tr('Круглые') ] ]),
 			seg2('glass', tr('Стекло и размытие'), [ [ 'on', tr('Включено') ], [ 'off', tr('Выключено') ] ]),
 			seg2('chart', tr('Графики'), [ [ 'area', tr('Заливка') ], [ 'line', tr('Линия') ], [ 'bars', tr('Столбики') ], [ 'step', tr('Ступени') ] ], true),
-			seg2('chartPal', tr('Цвета графиков'), [ [ 'accent', tr('Акцент') ], [ 'vivid', tr('Яркие') ], [ 'mono', tr('Моно') ], [ 'warm', tr('Тёплые') ], [ 'cool', tr('Холодные') ], [ 'sunset', tr('Закат') ], [ 'neon', tr('Неон') ], [ 'pastel', tr('Пастель') ], [ 'nord', 'Nord' ], [ 'dracula', 'Dracula' ] ], true),
+			seg2('chartPal', tr('Цвета графиков'), [ [ 'accent', tr('Акцент') ], [ 'vivid', tr('Яркие') ], [ 'mono', tr('Моно') ], [ 'warm', tr('Тёплые') ], [ 'cool', tr('Холодные') ], [ 'sunset', tr('Закат') ], [ 'neon', tr('Неон') ], [ 'pastel', tr('Пастель') ], [ 'nord', tr('Nord') ], [ 'dracula', tr('Dracula') ] ], true),
 			[ sw('chartSmooth', tr('Сглаживать линии графиков')), sw('chartGrid', tr('Сетка на графиках')), sw('ovRing', tr('Кольца на плитках Обзора')), sw('chartThr', tr('Цвет линии по нагрузке (зелёный, жёлтый, красный)')), sw('chartShine', tr('Бегущий блик по линии')) ],
 			seg2('chartW', tr('Толщина линии'), [ [ '1', tr('Тонкая') ], [ '2', tr('Обычная') ], [ '3', tr('Толстая') ] ]),
 			seg2('glassTone', tr('Тон стекла'), [ [ 'auto', tr('Авто') ], [ 'light', tr('Светлое') ], [ 'dark', tr('Тёмное') ] ]),

@@ -2924,3 +2924,27 @@ msgstr "%s 分钟 %s 秒"
 
 msgid "%s с"
 msgstr "%s 秒"
+
+msgid "Catppuccin"
+msgstr "猫布奇诺"
+
+msgid "Catppuccin Latte"
+msgstr "猫布奇诺拿铁"
+
+msgid "Dracula"
+msgstr "德古拉"
+
+msgid "Gruvbox"
+msgstr "复古暖色"
+
+msgid "Tokyo Night"
+msgstr "东京之夜"
+
+msgid "Rosé Pine"
+msgstr "玫瑰松木"
+
+msgid "Solarized Dark"
+msgstr "过曝深色"
+
+msgid "Solarized Light"
+msgstr "过曝浅色"
