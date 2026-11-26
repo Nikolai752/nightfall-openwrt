@@ -2137,7 +2137,7 @@ return view.extend({
 		const pinToggle = id => { try { const l = pinLoad(), i = l.indexOf(id); if (i >= 0) l.splice(i, 1); else l.unshift(id); window.localStorage.setItem('nfm_pins', JSON.stringify(l.slice(0, 100))); } catch (e) { /* без закрепления */ } renderLogTools(); };
 		const logCsv = E('button', { type: 'button', class: 'nfm-btn', title: _('Скачать показанные записи в файл CSV'), click: () => {
 			const q = v => '"' + String(v).replace(/"/g, '""') + '"';
-			const txt = '\ufeff' + _('время;тип;событие\n') + logShown.map(x => [ new Date(x.t * 1000).toLocaleString(NF_LOC), ({ ev: _('событие'), jr: _('обрыв/перезагрузка'), bl: _('блокировка') })[x.k] || x.k, x.txt ].map(q).join(';')).join('\n');
+			const txt = '\ufeff' + _('время;тип;событие\n') + logShown.map(x => [ new Date(x.t * 1000).toLocaleString(NF_LOC), ({ ev: _('событие'), jr: _('обрыв/перезагрузка'), bl: _('блокировка') })[x.k] || x.k, trEv(x.txt) ].map(q).join(';')).join('\n');
 			const a = E('a', { href: URL.createObjectURL(new Blob([ txt ], { type: 'text/csv;charset=utf-8' })), download: _('nightfall-журнал.csv') }); document.body.appendChild(a); a.click(); a.remove();
 		} }, _('Скачать CSV'));
 		/* ---- журнал самого роутера (logread): поиск, уровень, служба ---- */
@@ -2483,6 +2483,44 @@ return view.extend({
 		function fmtDur(sec) {
 			const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60);
 			return h ? _('%s ч %s мин').format(h, m) : (m ? _('%s мин').format(m) : _('%s с').format(Math.floor(sec)));
+		}
+
+		/* Collector event texts are written backend-side in Russian; rebuild the
+		   known shapes through catalog templates at display time. Unknown texts
+		   pass through unchanged. */
+		function trEvDur(s) {
+			let m;
+			if ((m = /^(\d+) ч (\d+) мин$/.exec(s))) return _('%s ч %s мин').format(m[1], m[2]);
+			if ((m = /^(\d+) мин (\d+) с$/.exec(s))) return _('%s мин %s с').format(m[1], m[2]);
+			if ((m = /^(\d+) с$/.exec(s))) return _('%s с').format(m[1]);
+			return s;
+		}
+
+		function trEv(tx) {
+			if (typeof tx !== 'string') return tx;
+			let m;
+			if (tx === 'Сборщик истории запущен') return _('Сборщик истории запущен');
+			if (tx === 'Нет доступа в интернет') return _('Нет доступа в интернет');
+			if (tx === 'Постоянное хранение Nightfall снова работает') return _('Постоянное хранение Nightfall снова работает');
+			if ((m = /^Нет связи со шлюзом (\S+)$/.exec(tx))) return _('Нет связи со шлюзом %s').format(m[1]);
+			if ((m = /^Процессор перегрет: ([\d.]+) °C \(порог (\d+) °C\)$/.exec(tx))) return _('Процессор перегрет: %s °C (порог %s °C)').format(m[1], m[2]);
+			if ((m = /^Критическая температура процессора: ([\d.]+) °C$/.exec(tx))) return _('Критическая температура процессора: %s °C').format(m[1]);
+			if ((m = /^Мало свободной памяти: занято (\d+)%$/.exec(tx))) return _('Мало свободной памяти: занято %s%').format(m[1]);
+			if ((m = /^Флеш-память почти заполнена: (\d+)%$/.exec(tx))) return _('Флеш-память почти заполнена: %s%').format(m[1]);
+			if ((m = /^Таблица соединений заполнена на (\d+)%$/.exec(tx))) return _('Таблица соединений заполнена на %s%').format(m[1]);
+			if ((m = /^Процессор загружен на (\d+)% дольше (\d+) мин$/.exec(tx))) return _('Процессор загружен на %s% дольше %s мин').format(m[1], m[2]);
+			if ((m = /^Снова в норме: (.+) \(длилось (\d+.*)\)$/.exec(tx))) return _('Снова в норме: %s (длилось %s)').format(trEv(m[1]), trEvDur(m[2]));
+			if ((m = /^Новое устройство в сети: (.+)$/.exec(tx))) {
+				let rest = m[1], priv = '';
+				const pm = / \(частный адрес Wi-Fi, у телефона он может меняться\)$/.exec(rest);
+				if (pm) { priv = ' ' + _('(частный адрес Wi-Fi, у телефона он может меняться)'); rest = rest.slice(0, pm.index); }
+				rest = rest.replace(/^без имени,/, _('без имени') + ',');
+				return _('Новое устройство в сети:') + ' ' + rest + priv;
+			}
+			if (/^Сохранение во внутреннюю флеш-память запрещено\./.exec(tx)) return _('Сохранение во внутреннюю флеш-память запрещено. Включите «Разрешить запись во внутреннюю флеш-память» и учитывайте износ и свободное место');
+			if ((m = /^Постоянная история недоступна: (\S+) не находится/.exec(tx))) return _('Постоянная история недоступна: %s не находится на подключённом накопителе с разрешённым типом хранения. Сбор данных продолжается в RAM').format(m[1]);
+			if ((m = /^Недостаточно свободного места во внутренней флеш-памяти \(нужно не менее (\d+) КБ\)/.exec(tx))) return _('Недостаточно свободного места во внутренней флеш-памяти (нужно не менее %s КБ). История продолжает собираться в RAM').format(m[1]);
+			return tx;
 		}
 
 		function hotInfo() {
@@ -2904,7 +2942,7 @@ return view.extend({
 			T.pCut.textContent = String(evs.filter(e => e[1] === 'crit' && /^Нет /.test(e[2])).length);
 
 			const list = (h.events || []).slice().reverse().slice(0, 40);
-			evBox.replaceChildren(...(list.length ? list.map(e => E('div', { class: 'nfm-ev-i ' + e[1] }, [ E('i'), E('time', {}, fmtTs(e[0])), E('span', {}, e[2]) ]))
+			evBox.replaceChildren(...(list.length ? list.map(e => E('div', { class: 'nfm-ev-i ' + e[1] }, [ E('i'), E('time', {}, fmtTs(e[0])), E('span', {}, trEv(e[2])) ]))
 				: [ E('div', { class: 'nfm-empty' }, _('Событий пока нет — это хорошо.')) ]));
 
 			const i = h.info || {};
@@ -3292,10 +3330,10 @@ return view.extend({
 			const seen = new Set();
 			const since = S.logP ? Date.now() / 1000 - S.logP : 0;
 			const pins = pinLoad(), pid = x => x.t + '|' + x.txt;
-			const list = items.filter(x => (k === 'all' || x.k === k || (k === 'pin' && pins.includes(pid(x)))) && (k === 'pin' || x.t >= since || pins.includes(pid(x))) && (!q || x.txt.toLowerCase().includes(q)))
+			const list = items.filter(x => (k === 'all' || x.k === k || (k === 'pin' && pins.includes(pid(x)))) && (k === 'pin' || x.t >= since || pins.includes(pid(x))) && (!q || x.txt.toLowerCase().includes(q) || trEv(x.txt).toLowerCase().includes(q)))
 				.sort((a, b) => (pins.includes(pid(b)) - pins.includes(pid(a))) || b.t - a.t).filter(x => { const id = x.t + '|' + x.txt; if (seen.has(id)) return false; seen.add(id); return true; })				.slice(0, 2000);
 			logShown = list;
-			logBox.replaceChildren(...(list.length ? list.slice(0, 200).map(x => E('div', { class: 'nfm-ev-i ' + x.cls }, [ E('i'), E('time', {}, fmtTs(x.t)), E('span', {}, [ x.txt, E('button', { type: 'button', class: 'nfm-pin' + (pins.includes(pid(x)) ? ' on' : ''), title: pins.includes(pid(x)) ? _('Открепить') : _('Закрепить: запись останется сверху'), click: () => pinToggle(pid(x)) }, pins.includes(pid(x)) ? '★' : '☆') ]) ]))
+			logBox.replaceChildren(...(list.length ? list.slice(0, 200).map(x => E('div', { class: 'nfm-ev-i ' + x.cls }, [ E('i'), E('time', {}, fmtTs(x.t)), E('span', {}, [ trEv(x.txt), E('button', { type: 'button', class: 'nfm-pin' + (pins.includes(pid(x)) ? ' on' : ''), title: pins.includes(pid(x)) ? _('Открепить') : _('Закрепить: запись останется сверху'), click: () => pinToggle(pid(x)) }, pins.includes(pid(x)) ? '★' : '☆') ]) ]))
 				: [ E('div', { class: 'nfm-empty' }, q || k !== 'all' ? _('Ничего не найдено. Измените фильтр или запрос.') : _('Записей пока нет.')) ]));
 		}
 		const SECBIN = '/usr/libexec/nightfall-sec';
