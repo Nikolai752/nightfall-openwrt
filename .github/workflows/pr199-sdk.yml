@@ -62,9 +62,22 @@ jobs:
         working-directory: ${{ runner.temp }}/openwrt-sdk
         run: |
           set -eu
-          find bin/packages -type f \\( -name 'luci-theme-nightfall*.apk' -o -name 'luci-app-nightfall-monitor*.apk' -o -name 'luci-theme-nightfall*.ipk' -o -name 'luci-app-nightfall-monitor*.ipk' \\) -print
-          find bin/packages -type f \\( -name 'luci-theme-nightfall*.apk' -o -name 'luci-app-nightfall-monitor*.apk' -o -name 'luci-theme-nightfall*.ipk' -o -name 'luci-app-nightfall-monitor*.ipk' \\) | grep -q 'luci-theme-nightfall'
-          find bin/packages -type f \\( -name 'luci-theme-nightfall*.apk' -o -name 'luci-app-nightfall-monitor*.apk' -o -name 'luci-theme-nightfall*.ipk' -o -name 'luci-app-nightfall-monitor*.ipk' \\) | grep -q 'luci-app-nightfall-monitor'
+          find bin/packages -type f | grep -E '/(luci-theme-nightfall|luci-app-nightfall-monitor)[^/]*\\.(apk|ipk)
+
+      - name: Upload SDK packages and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightfall-pr199-openwrt-25.12.6-sdk
+          path: |
+            ${{ runner.temp }}/openwrt-sdk/bin/packages/**/*.apk
+            ${{ runner.temp }}/openwrt-sdk/bin/packages/**/*.ipk
+            ${{ runner.temp }}/openwrt-sdk/logs/
+          if-no-files-found: warn
+          retention-days: 7
+ | tee /tmp/nightfall-packages.txt
+          grep -q 'luci-theme-nightfall' /tmp/nightfall-packages.txt
+          grep -q 'luci-app-nightfall-monitor' /tmp/nightfall-packages.txt
 
       - name: Upload SDK packages and logs
         if: always()
