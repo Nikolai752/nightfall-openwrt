@@ -1,4 +1,4 @@
-name: PR #199 - OpenWrt 25.12.6 SDK packages
+name: PR #199 - OpenWrt 25.12.6 monitor APK
 
 on:
   workflow_dispatch:
@@ -33,10 +33,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/openwrt-sdk"
           tar --zstd -xf /tmp/openwrt-sdk.tar.zst -C "$RUNNER_TEMP/openwrt-sdk" --strip-components=1
 
-      - name: Validate Chinese PO catalogs
+      - name: Validate monitor PO catalog
         run: |
           set -eu
-          msgfmt --check --check-format -o /dev/null luci-theme-nightfall/po/zh_Hans/nightfall.po
           msgfmt --check --check-format -o /dev/null luci-app-nightfall-monitor/po/zh_Hans/nightfall-monitor.po
 
       - name: Prepare SDK feeds and Nightfall packages
@@ -45,14 +44,9 @@ jobs:
           set -eu
           ./scripts/feeds update -a
           ./scripts/feeds install -a
-          mkdir -p package/luci-theme-nightfall package/luci-app-nightfall-monitor
-          rsync -a --delete "$GITHUB_WORKSPACE/luci-theme-nightfall/" package/luci-theme-nightfall/
+          mkdir -p package/luci-app-nightfall-monitor
           rsync -a --delete "$GITHUB_WORKSPACE/luci-app-nightfall-monitor/" package/luci-app-nightfall-monitor/
           make defconfig
-
-      - name: Build Nightfall theme package
-        working-directory: ${{ runner.temp }}/openwrt-sdk
-        run: make package/luci-theme-nightfall/compile V=s
 
       - name: Build Nightfall monitor package
         working-directory: ${{ runner.temp }}/openwrt-sdk
@@ -62,15 +56,14 @@ jobs:
         working-directory: ${{ runner.temp }}/openwrt-sdk
         run: |
           set -eu
-          find bin/packages -type f \( -name 'luci-theme-nightfall*.apk' -o -name 'luci-app-nightfall-monitor*.apk' -o -name 'luci-theme-nightfall*.ipk' -o -name 'luci-app-nightfall-monitor*.ipk' \) -print | tee /tmp/nightfall-packages.txt
-          grep -q 'luci-theme-nightfall' /tmp/nightfall-packages.txt
+          find bin/packages -type f \( -name 'luci-app-nightfall-monitor*.apk' -o -name 'luci-app-nightfall-monitor*.ipk' \) -print | tee /tmp/nightfall-packages.txt
           grep -q 'luci-app-nightfall-monitor' /tmp/nightfall-packages.txt
 
       - name: Upload SDK packages and logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: nightfall-pr199-openwrt-25.12.6-sdk
+          name: nightfall-pr199-monitor-only
           path: |
             ${{ runner.temp }}/openwrt-sdk/bin/packages/**/*.apk
             ${{ runner.temp }}/openwrt-sdk/bin/packages/**/*.ipk
