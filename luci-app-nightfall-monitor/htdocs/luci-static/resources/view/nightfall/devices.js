@@ -19,16 +19,16 @@ const callIwDevs = rpc.declare({ object: 'iwinfo', method: 'devices', expect: { 
 const callAssoc = rpc.declare({ object: 'iwinfo', method: 'assoclist', params: [ 'device' ], expect: { results: [] } });
 
 const ICONS = [
-	[ 'phone', '📱', 'Телефон' ], [ 'laptop', '💻', 'Ноутбук' ], [ 'pc', '🖥️', 'Компьютер' ], [ 'tablet', '📲', 'Планшет' ],
-	[ 'tv', '📺', 'Телевизор' ], [ 'console', '🎮', 'Приставка' ], [ 'speaker', '🔊', 'Колонка' ], [ 'camera', '📷', 'Камера' ],
-	[ 'printer', '🖨️', 'Принтер' ], [ 'iot', '💡', 'Умный дом' ], [ 'watch', '⌚', 'Часы' ], [ 'router', '📡', 'Роутер/точка' ], [ 'other', '❔', 'Другое' ]
+	[ 'phone', '📱', _('Телефон') ], [ 'laptop', '💻', _('Ноутбук') ], [ 'pc', '🖥️', _('Компьютер') ], [ 'tablet', '📲', _('Планшет') ],
+	[ 'tv', '📺', _('Телевизор') ], [ 'console', '🎮', _('Приставка') ], [ 'speaker', '🔊', _('Колонка') ], [ 'camera', '📷', _('Камера') ],
+	[ 'printer', '🖨️', _('Принтер') ], [ 'iot', '💡', _('Умный дом') ], [ 'watch', '⌚', _('Часы') ], [ 'router', '📡', _('Роутер/точка') ], [ 'other', '❔', _('Другое') ]
 ];
 const ICON = {}; ICONS.forEach(i => { ICON[i[0]] = i[1]; });
 const GUESS = [
-	[ /iphone|android|galaxy|pixel|redmi|xiaomi|poco|honor|huawei|oppo|realme|phone|телефон/i, 'phone' ], [ /ipad|tablet|планшет/i, 'tablet' ],
-	[ /macbook|laptop|notebook|thinkpad|ноутбук/i, 'laptop' ], [ /desktop|\bpc\b|imac|компьют/i, 'pc' ], [ /tv|телев|bravia|webos|roku|chromecast|appletv/i, 'tv' ],
-	[ /playstation|ps[345]|xbox|nintendo|switch|steam/i, 'console' ], [ /echo|alice|алиса|speaker|sonos|колонк/i, 'speaker' ], [ /cam|камер|ipc|reolink|hikvision/i, 'camera' ],
-	[ /printer|принтер|epson|canon|brother|hp.?laser/i, 'printer' ], [ /watch|часы|band/i, 'watch' ], [ /esp|tasmota|shelly|plug|lamp|bulb|sensor|tuya|zigbee|hue/i, 'iot' ],
+	[ /iphone|android|galaxy|pixel|redmi|xiaomi|poco|honor|huawei|oppo|realme|phone|телефон|手机|电话/i, 'phone' ], [ /ipad|tablet|планшет|平板/i, 'tablet' ],
+	[ /macbook|laptop|notebook|thinkpad|ноутбук|笔记本/i, 'laptop' ], [ /desktop|\bpc\b|imac|компьют|电脑/i, 'pc' ], [ /tv|телев|bravia|webos|roku|chromecast|appletv|电视/i, 'tv' ],
+	[ /playstation|ps[345]|xbox|nintendo|switch|steam/i, 'console' ], [ /echo|alice|алиса|speaker|sonos|колонк|音箱|音响/i, 'speaker' ], [ /cam|камер|ipc|reolink|hikvision|摄像头|相机/i, 'camera' ],
+	[ /printer|принтер|epson|canon|brother|hp.?laser|打印机/i, 'printer' ], [ /watch|часы|band|手表/i, 'watch' ], [ /esp|tasmota|shelly|plug|lamp|bulb|sensor|tuya|zigbee|hue/i, 'iot' ],
 	[ /ap|wifi|repeater|extender|mesh|router/i, 'router' ]
 ];
 
@@ -56,16 +56,17 @@ function glyph(name, size, x, y) {
 	return svgEl('svg', a, (SHAPES[name] || SHAPES.other).map(sh => svgEl(sh[0], sh[1])));
 }
 
-const nf1 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
-const nf0 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
+const NF_LOC = (document.documentElement.lang || 'en').replace(/_/g, '-');
+const nf1 = new Intl.NumberFormat(NF_LOC, { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+const nf0 = new Intl.NumberFormat(NF_LOC, { maximumFractionDigits: 0 });
 
 function bytes(b) {
-	if (b >= 1073741824) return nf1.format(b / 1073741824) + ' ГБ';
-	if (b >= 1048576) return nf1.format(b / 1048576) + ' МБ';
-	if (b >= 1024) return nf0.format(b / 1024) + ' КБ';
-	return nf0.format(b) + ' Б';
+	if (b >= 1073741824) return nf1.format(b / 1073741824) + _(' ГБ');
+	if (b >= 1048576) return nf1.format(b / 1048576) + _(' МБ');
+	if (b >= 1024) return nf0.format(b / 1024) + _(' КБ');
+	return nf0.format(b) + _(' Б');
 }
-function mbit(bps) { const m = bps * 8 / 1e6; return (m >= 10 ? nf0.format(m) : nf1.format(m)) + ' Мбит/с'; }
+function mbit(bps) { const m = bps * 8 / 1e6; return (m >= 10 ? nf0.format(m) : nf1.format(m)) + _(' Мбит/с'); }
 const iconOf = d => (SHAPES[d.icon] ? d.icon : (GUESS.find(g => g[0].test(d.name || '')) || [ 0, 'other' ])[1]);
 const show = d => d.name || d.ip || d.mac;
 const parse = r => { try { return JSON.parse(r.stdout); } catch (e) { return null; } };
@@ -97,9 +98,9 @@ return view.extend({
 			S.busy = true;
 			run(args).then(r => {
 				S.busy = false;
-				S.note = r && r.ok ? ok : ((r && r.error) || 'Нет ответа от роутера. Выйдите и войдите в LuCI снова (права обновляются при входе).');
+				S.note = r && r.ok ? ok : ((r && r.error) || _('Нет ответа от роутера. Выйдите и войдите в LuCI снова (права обновляются при входе).'));
 				refresh();
-			}).catch(() => { S.busy = false; S.note = 'Не получилось выполнить команду.'; refresh(); });
+			}).catch(() => { S.busy = false; S.note = _('Не получилось выполнить команду.'); refresh(); });
 		}
 
 		const shown = () => S.devs.filter(d => !S.filter || (S.filter === '-' ? !d.group : d.group === S.filter));
@@ -108,7 +109,7 @@ return view.extend({
 		function drawMap() {
 			const list = shown().filter(d => d.online || d.active).sort((a, b) => (a.group || '').localeCompare(b.group || '') || show(a).localeCompare(show(b)));
 			const W = 520, cx = W / 2, n = list.length, rad = n > 14 ? 205 : 165, H = n > 14 ? 500 : 420, cy = H / 2;
-			const svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'nf-dv-svg', role: 'img', 'aria-label': 'Карта сети' });
+			const svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'nf-dv-svg', role: 'img', 'aria-label': _('Карта сети') });
 			const links = svgEl('g'), nodes = svgEl('g');
 			svg.appendChild(links); svg.appendChild(nodes);
 			list.forEach((d, i) => {
@@ -132,16 +133,16 @@ return view.extend({
 			});
 			const hub = svgEl('g', { class: 'nf-dv-hub' }, [ svgEl('circle', { cx: cx, cy: cy, r: 38 }), glyph('router', 34, cx - 17, cy - 17) ]);
 			svg.appendChild(hub);
-			mapBox.replaceChildren(svg, n ? '' : E('div', { class: 'nf-dv-empty' }, 'Сейчас в этой группе нет устройств в сети.'));
+			mapBox.replaceChildren(svg, n ? '' : E('div', { class: 'nf-dv-empty' }, _('Сейчас в этой группе нет устройств в сети.')));
 		}
 
 		/* ---- карточка выбранного устройства ---- */
 		/* ---- расписание: несколько окон, у каждого свои дни недели ---- */
-		const DAYN = [ 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс' ];
+		const DAYN = [ _('Пн'), _('Вт'), _('Ср'), _('Чт'), _('Пт'), _('Сб'), _('Вс') ];
 		function daysText(dy) {
-			if (!dy) return 'каждый день';
-			if (dy === '12345') return 'будни';
-			if (dy === '67') return 'выходные';
+			if (!dy) return _('каждый день');
+			if (dy === '12345') return _('будни');
+			if (dy === '67') return _('выходные');
 			return dy.split('').map(x => DAYN[+x - 1]).join(', ');
 		}
 		function winsOf(o) {   // окна объекта: первое лежит в from/to/days, остальные в rules «с-до@дни;…»
@@ -152,8 +153,8 @@ return view.extend({
 		}
 		function schedBox(o, cmd) {   // cmd: [ 'sadd', mac ] или [ 'gsadd', группа ]
 			const grp = cmd[0] === 'gsadd', pre = grp ? 'gs' : 's';
-			const f = E('input', { type: 'time', value: '23:00', 'aria-label': 'Отключать с' });
-			const t = E('input', { type: 'time', value: '07:00', 'aria-label': 'Включать в' });
+			const f = E('input', { type: 'time', value: '23:00', 'aria-label': _('Отключать с') });
+			const t = E('input', { type: 'time', value: '07:00', 'aria-label': _('Включать в') });
 			const chk = DAYN.map((n, i) => E('input', { type: 'checkbox', value: String(i + 1), checked: true, 'aria-label': n }));
 			const setDays = set => chk.forEach(c => { c.checked = set.indexOf(c.value) >= 0; });
 			const picked = () => { const v = chk.filter(c => c.checked).map(c => c.value).join(''); return v === '1234567' ? '' : v; };
@@ -161,92 +162,92 @@ return view.extend({
 			const wins = winsOf(o);
 			const list = wins.map((w, i) => E('div', { class: 'nf-dv-row nf-dv-win' }, [
 				E('span', {}, w.from + '–' + w.to + ' · ' + daysText(w.days)),
-				E('button', { class: 'cbi-button', click: () => act([ pre + 'del', cmd[1], String(i + 1) ], 'Окно убрано.') }, 'Убрать') ]));
-			if (wins.length > 1) list.push(E('div', { class: 'nf-dv-row' }, [ E('button', { class: 'cbi-button', click: () => act([ grp ? 'gsched' : 'sched', cmd[1], 'off' ], 'Расписание убрано.') }, 'Убрать всё расписание') ]));
+				E('button', { class: 'cbi-button', click: () => act([ pre + 'del', cmd[1], String(i + 1) ], _('Окно убрано.')) }, _('Убрать')) ]));
+			if (wins.length > 1) list.push(E('div', { class: 'nf-dv-row' }, [ E('button', { class: 'cbi-button', click: () => act([ grp ? 'gsched' : 'sched', cmd[1], 'off' ], _('Расписание убрано.')) }, _('Убрать всё расписание')) ]));
 			const add = () => {
-				if (!chk.some(c => c.checked)) { window.alert('Отметьте хотя бы один день недели.'); return; }
-				act([ cmd[0], cmd[1], f.value, t.value, picked() ], 'Окно добавлено.');
+				if (!chk.some(c => c.checked)) { window.alert(_('Отметьте хотя бы один день недели.')); return; }
+				act([ cmd[0], cmd[1], f.value, t.value, picked() ], _('Окно добавлено.'));
 			};
 			return E('div', { class: 'nf-dv-sched' }, [
-				E('small', {}, wins.length ? 'Отключать интернет по расписанию' : 'Расписание не задано'),
+				E('small', {}, wins.length ? _('Отключать интернет по расписанию') : _('Расписание не задано')),
 				E('div', {}, list),
-				E('div', { class: 'nf-dv-row' }, [ E('span', {}, 'Отключать с'), f, E('span', {}, 'до'), t ]),
+				E('div', { class: 'nf-dv-row' }, [ E('span', {}, _('Отключать с')), f, E('span', {}, _('до')), t ]),
 				E('div', { class: 'nf-dv-row nf-dv-days' }, chk.map((c, i) => E('label', {}, [ c, DAYN[i] ]))),
-				E('div', { class: 'nf-dv-row' }, [ preset('Каждый день', '1234567'), preset('Будни', '12345'), preset('Выходные', '67'),
-					E('button', { class: 'cbi-button cbi-button-action', click: add }, 'Добавить окно') ]) ]);
+				E('div', { class: 'nf-dv-row' }, [ preset(_('Каждый день'), '1234567'), preset(_('Будни'), '12345'), preset(_('Выходные'), '67'),
+					E('button', { class: 'cbi-button cbi-button-action', click: add }, _('Добавить окно')) ]) ]);
 		}
 		function sched(d) { return schedBox(d, [ 'sadd', d.mac ]); }
 		function quota(d) {
-			const q = E('input', { type: 'number', min: '1', max: '1000000', value: d.quota || '', placeholder: 'МБ в сутки', 'aria-label': 'Лимит в сутки, МБ' });
-			return E('div', { class: 'nf-dv-row' }, [ E('span', {}, 'Лимит в сутки'), q, E('span', {}, 'МБ'),
-				E('button', { class: 'cbi-button cbi-button-action', click: () => act([ 'quota', d.mac, q.value || 'off', d.name || '' ], q.value ? 'Лимит сохранён.' : 'Лимит убран.') }, 'Сохранить') ]);
+			const q = E('input', { type: 'number', min: '1', max: '1000000', value: d.quota || '', placeholder: _('МБ в сутки'), 'aria-label': _('Лимит в сутки, МБ') });
+			return E('div', { class: 'nf-dv-row' }, [ E('span', {}, _('Лимит в сутки')), q, E('span', {}, _('МБ')),
+				E('button', { class: 'cbi-button cbi-button-action', click: () => act([ 'quota', d.mac, q.value || 'off', d.name || '' ], q.value ? _('Лимит сохранён.') : _('Лимит убран.')) }, _('Сохранить')) ]);
 		}
 		function detail(d) {
 			const day = S.day[d.ip], sig = S.sig[d.mac], r = S.rate[d.ip] || [ 0, 0 ];
-			const name = E('input', { type: 'text', value: d.name || '', maxlength: '40', placeholder: 'Имя устройства', 'aria-label': 'Имя устройства' });
-			const icon = E('select', { 'aria-label': 'Значок' }, ICONS.map(i => opt(i[0], i[1] + ' ' + i[2], (d.icon || '') === i[0])));
-			if (!d.icon) icon.insertBefore(opt('', 'Авто', true), icon.firstChild);
-			const grp = E('select', { 'aria-label': 'Группа' }, [ opt('', 'Без группы', !d.group) ].concat(S.groups.map(g => opt(g.name, g.name, g.name === d.group))));
-			const state = d.active ? ({ manual: 'Отключено вручную', gmanual: 'Отключено группой', quota: 'Лимит исчерпан', sched: 'Отключено по расписанию' }[d.reason] || 'Отключено') : (d.online ? 'В сети' : 'Не в сети');
+			const name = E('input', { type: 'text', value: d.name || '', maxlength: '40', placeholder: _('Имя устройства'), 'aria-label': _('Имя устройства') });
+			const icon = E('select', { 'aria-label': _('Значок') }, ICONS.map(i => opt(i[0], i[1] + ' ' + i[2], (d.icon || '') === i[0])));
+			if (!d.icon) icon.insertBefore(opt('', _('Авто'), true), icon.firstChild);
+			const grp = E('select', { 'aria-label': _('Группа') }, [ opt('', _('Без группы'), !d.group) ].concat(S.groups.map(g => opt(g.name, g.name, g.name === d.group))));
+			const state = d.active ? ({ manual: _('Отключено вручную'), gmanual: _('Отключено группой'), quota: _('Лимит исчерпан'), sched: _('Отключено по расписанию') }[d.reason] || _('Отключено')) : (d.online ? _('В сети') : _('Не в сети'));
 			return E('div', { class: 'nf-dv-card' }, [
 				E('div', { class: 'nf-dv-h' }, [ E('span', { class: 'ic' }, glyph(iconOf(d), 26)), E('div', {}, [ E('b', {}, show(d)), E('small', {}, state + (d.ip ? ' · ' + d.ip : '')) ]),
-					E('button', { class: 'nf-dv-x', 'aria-label': 'Закрыть', click: () => { S.sel = null; draw(); } }, '✕') ]),
+					E('button', { class: 'nf-dv-x', 'aria-label': _('Закрыть'), click: () => { S.sel = null; draw(); } }, '✕') ]),
 				E('div', { class: 'nf-dv-kv' }, [
-					E('div', {}, [ E('small', {}, 'Сегодня'), E('b', {}, day ? '↓ ' + bytes(day[0]) + ' ↑ ' + bytes(day[1]) : '—') ]),
-					E('div', {}, [ E('small', {}, 'Сейчас'), E('b', {}, d.online ? '↓ ' + mbit(r[0] || 0) + ' ↑ ' + mbit(r[1] || 0) : '—') ]),
-					E('div', {}, [ E('small', {}, 'Подключение'), E('b', {}, S.wifi[d.mac] ? 'Wi-Fi' + (sig ? ', ' + sig + ' дБм' : '') : (d.online ? 'Кабель' : '—')) ]),
+					E('div', {}, [ E('small', {}, _('Сегодня')), E('b', {}, day ? '↓ ' + bytes(day[0]) + ' ↑ ' + bytes(day[1]) : '—') ]),
+					E('div', {}, [ E('small', {}, _('Сейчас')), E('b', {}, d.online ? '↓ ' + mbit(r[0] || 0) + ' ↑ ' + mbit(r[1] || 0) : '—') ]),
+					E('div', {}, [ E('small', {}, _('Подключение')), E('b', {}, S.wifi[d.mac] ? 'Wi-Fi' + (sig ? ', ' + sig + _(' дБм') : '') : (d.online ? _('Кабель') : '—')) ]),
 					E('div', {}, [ E('small', {}, 'MAC'), E('b', { class: 'mono' }, d.mac) ]) ]),
-				d.quota ? E('div', { class: 'nf-dv-bar', title: 'Лимит' }, [ E('i', { style: 'width:' + Math.min(100, Math.round(100 * d.used / (d.quota * 1048576))) + '%' }), E('span', {}, bytes(d.used) + ' из ' + d.quota + ' МБ') ]) : '',
+				d.quota ? E('div', { class: 'nf-dv-bar', title: _('Лимит') }, [ E('i', { style: 'width:' + Math.min(100, Math.round(100 * d.used / (d.quota * 1048576))) + '%' }), E('span', {}, bytes(d.used) + _(' из ') + d.quota + _(' МБ')) ]) : '',
 				E('div', { class: 'nf-dv-row' }, [ name, icon, grp,
-					E('button', { class: 'cbi-button cbi-button-action', click: () => act([ 'meta', d.mac, name.value.trim(), icon.value, grp.value ], 'Сохранено.') }, 'Сохранить') ]),
+					E('button', { class: 'cbi-button cbi-button-action', click: () => act([ 'meta', d.mac, name.value.trim(), icon.value, grp.value ], _('Сохранено.')) }, _('Сохранить')) ]),
 				E('div', { class: 'nf-dv-row' }, [ d.manual || d.reason === 'gmanual' || d.active
-					? E('button', { class: 'cbi-button cbi-button-positive', click: () => act([ 'unblock', d.mac ], 'Интернет возвращён.') }, d.manual ? 'Вернуть интернет' : 'Вернуть на сегодня')
-					: E('button', { class: 'cbi-button cbi-button-negative', click: () => act([ 'block', d.mac, d.name || '' ], 'Интернет отключён.') }, 'Отключить интернет') ]),
+					? E('button', { class: 'cbi-button cbi-button-positive', click: () => act([ 'unblock', d.mac ], _('Интернет возвращён.')) }, d.manual ? _('Вернуть интернет') : _('Вернуть на сегодня'))
+					: E('button', { class: 'cbi-button cbi-button-negative', click: () => act([ 'block', d.mac, d.name || '' ], _('Интернет отключён.')) }, _('Отключить интернет')) ]),
 				sched(d), quota(d) ]);
 		}
 
 		/* ---- группы ---- */
 		function groupRow(g) {
 			const members = S.devs.filter(d => d.group === g.name);
-			const q = E('input', { type: 'number', min: '1', max: '1000000', value: g.quota || '', placeholder: 'МБ', 'aria-label': 'Лимит каждому в сутки, МБ' });
-			const rules = [ g.manual ? 'отключена' : '', winsOf(g).length ? winsOf(g).map(w => w.from + '–' + w.to + ' ' + daysText(w.days)).join('; ') : '', g.quota ? 'лимит ' + g.quota + ' МБ' : '' ].filter(Boolean).join(' · ') || 'без правил';
+			const q = E('input', { type: 'number', min: '1', max: '1000000', value: g.quota || '', placeholder: _('МБ'), 'aria-label': _('Лимит каждому в сутки, МБ') });
+			const rules = [ g.manual ? _('отключена') : '', winsOf(g).length ? winsOf(g).map(w => w.from + '–' + w.to + ' ' + daysText(w.days)).join('; ') : '', g.quota ? _('лимит ') + g.quota + _(' МБ') : '' ].filter(Boolean).join(' · ') || _('без правил');
 			return E('div', { class: 'nf-dv-grp' + (S.filter === g.name ? ' on' : '') }, [
-				E('div', { class: 'nf-dv-h' }, [ E('span', { class: 'ic' }, glyph('group', 26)), E('div', {}, [ E('b', {}, g.name), E('small', {}, members.length + ' устр. · ' + rules) ]),
-					E('button', { class: 'cbi-button', click: () => { S.filter = S.filter === g.name ? '' : g.name; draw(); } }, S.filter === g.name ? 'Все устройства' : 'Показать') ]),
+				E('div', { class: 'nf-dv-h' }, [ E('span', { class: 'ic' }, glyph('group', 26)), E('div', {}, [ E('b', {}, g.name), E('small', {}, members.length + _(' устр. · ') + rules) ]),
+					E('button', { class: 'cbi-button', click: () => { S.filter = S.filter === g.name ? '' : g.name; draw(); } }, S.filter === g.name ? _('Все устройства') : _('Показать')) ]),
 				E('div', { class: 'nf-dv-row' }, [ g.manual
-					? E('button', { class: 'cbi-button cbi-button-positive', click: () => act([ 'gunblock', g.name ], 'Группа «' + g.name + '» снова в интернете.') }, 'Вернуть интернет группе')
-					: E('button', { class: 'cbi-button cbi-button-negative', click: () => act([ 'gblock', g.name ], 'Группа «' + g.name + '» отключена.') }, 'Отключить всю группу') ]),
+					? E('button', { class: 'cbi-button cbi-button-positive', click: () => act([ 'gunblock', g.name ], _('Группа «') + g.name + _('» снова в интернете.')) }, _('Вернуть интернет группе'))
+					: E('button', { class: 'cbi-button cbi-button-negative', click: () => act([ 'gblock', g.name ], _('Группа «') + g.name + _('» отключена.')) }, _('Отключить всю группу')) ]),
 					schedBox(g, [ 'gsadd', g.name ]),
-				E('div', { class: 'nf-dv-row' }, [ E('span', {}, 'Лимит каждому'), q, E('span', {}, 'МБ/сутки'),
-					E('button', { class: 'cbi-button cbi-button-action', click: () => act([ 'gquota', g.name, q.value || 'off' ], q.value ? 'Лимит группы сохранён.' : 'Лимит убран.') }, 'Сохранить') ]),
-				E('div', { class: 'nf-dv-row' }, [ E('button', { class: 'cbi-button cbi-button-remove', click: () => { if (window.confirm('Удалить группу «' + g.name + '»? Устройства останутся без группы.')) { if (S.filter === g.name) S.filter = ''; act([ 'gdel', g.name ], 'Группа удалена.'); } } }, 'Удалить группу') ]) ]);
+				E('div', { class: 'nf-dv-row' }, [ E('span', {}, _('Лимит каждому')), q, E('span', {}, _('МБ/сутки')),
+					E('button', { class: 'cbi-button cbi-button-action', click: () => act([ 'gquota', g.name, q.value || 'off' ], q.value ? _('Лимит группы сохранён.') : _('Лимит убран.')) }, _('Сохранить')) ]),
+				E('div', { class: 'nf-dv-row' }, [ E('button', { class: 'cbi-button cbi-button-remove', click: () => { if (window.confirm(_('Удалить группу «') + g.name + _('»? Устройства останутся без группы.'))) { if (S.filter === g.name) S.filter = ''; act([ 'gdel', g.name ], _('Группа удалена.')); } } }, _('Удалить группу')) ]) ]);
 		}
 		function groupsPane() {
-			const nm = E('input', { type: 'text', maxlength: '30', placeholder: 'Новая группа: Дети, Гости, Умный дом…', 'aria-label': 'Название группы' });
-			const add = () => { const v = nm.value.trim(); if (v) act([ 'gadd', v ], 'Группа «' + v + '» создана. Добавьте в неё устройства в их карточках.'); };
+			const nm = E('input', { type: 'text', maxlength: '30', placeholder: _('Новая группа: Дети, Гости, Умный дом…'), 'aria-label': _('Название группы') });
+			const add = () => { const v = nm.value.trim(); if (v) act([ 'gadd', v ], _('Группа «') + v + _('» создана. Добавьте в неё устройства в их карточках.')); };
 			nm.addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
-			return [ E('div', { class: 'nf-dv-row nf-dv-add' }, [ nm, E('button', { class: 'cbi-button cbi-button-action', click: add }, 'Создать группу') ]) ]
-				.concat(S.groups.length ? S.groups.map(groupRow) : [ E('div', { class: 'nf-dv-empty' }, 'Групп пока нет. Создайте группу, например «Дети»: расписание и лимит будут действовать на все её устройства сразу.') ]);
+			return [ E('div', { class: 'nf-dv-row nf-dv-add' }, [ nm, E('button', { class: 'cbi-button cbi-button-action', click: add }, _('Создать группу')) ]) ]
+				.concat(S.groups.length ? S.groups.map(groupRow) : [ E('div', { class: 'nf-dv-empty' }, _('Групп пока нет. Создайте группу, например «Дети»: расписание и лимит будут действовать на все её устройства сразу.')) ]);
 		}
 
 		/* ---- список устройств ---- */
 		function listPane() {
 			const rows = shown().slice().sort((a, b) => ((b.online ? 1 : 0) - (a.online ? 1 : 0)) || show(a).localeCompare(show(b)));
-			if (!rows.length) return E('div', { class: 'nf-dv-empty' }, 'Устройств нет.');
+			if (!rows.length) return E('div', { class: 'nf-dv-empty' }, _('Устройств нет.'));
 			return E('div', { class: 'nf-dv-list' }, rows.map(d => {
 				const r = S.rate[d.ip] || [ 0, 0 ], day = S.day[d.ip];
 				return E('button', { type: 'button', class: 'nf-dv-item' + (S.sel === d.mac ? ' sel' : '') + (d.active ? ' off' : '') + (d.online ? '' : ' gone'), click: () => { S.sel = S.sel === d.mac ? null : d.mac; draw(); } }, [
 					E('span', { class: 'ic' }, glyph(iconOf(d), 22)),
-					E('span', { class: 'tx' }, [ E('b', {}, show(d)), E('small', {}, [ d.group ? d.group + ' · ' : '', d.active ? 'отключено' : (d.online ? (S.wifi[d.mac] ? 'Wi-Fi' : 'кабель') : 'не в сети'), day ? ' · ' + bytes(day[0] + day[1]) + ' сегодня' : '' ].join('')) ]),
+					E('span', { class: 'tx' }, [ E('b', {}, show(d)), E('small', {}, [ d.group ? d.group + ' · ' : '', d.active ? _('отключено') : (d.online ? (S.wifi[d.mac] ? 'Wi-Fi' : _('кабель')) : _('не в сети')), day ? ' · ' + bytes(day[0] + day[1]) + _(' сегодня') : '' ].join('')) ]),
 					E('span', { class: 'sp' }, d.online && (r[0] + r[1]) > 2000 ? mbit(r[0] + r[1]) : '') ]);
 			}));
 		}
 
 		function draw() {
-			chips.replaceChildren(...[ [ '', 'Все' ] ].concat(S.groups.map(g => [ g.name, g.name ]), [ [ '-', 'Без группы' ] ]).map(c =>
+			chips.replaceChildren(...[ [ '', _('Все') ] ].concat(S.groups.map(g => [ g.name, g.name ]), [ [ '-', _('Без группы') ] ]).map(c =>
 				E('button', { type: 'button', class: 'nf-dv-chip', 'aria-pressed': String(S.filter === c[0]), click: () => { S.filter = c[0]; draw(); } }, c[1])));
 			noteEl.textContent = S.note || '';
-			if (S.ok === false) { mapBox.replaceChildren(E('div', { class: 'nf-dv-empty' }, 'Нет ответа от роутера. Выйдите и войдите в LuCI снова: права доступа обновляются при входе.')); }
+			if (S.ok === false) { mapBox.replaceChildren(E('div', { class: 'nf-dv-empty' }, _('Нет ответа от роутера. Выйдите и войдите в LuCI снова: права доступа обновляются при входе.'))); }
 			else drawMap();
 			const sel = S.devs.find(d => d.mac === S.sel);
 			side.replaceChildren(...(sel ? [ detail(sel) ] : []), listPane());
@@ -274,10 +275,10 @@ return view.extend({
 			});
 		}
 
-		root.appendChild(E('div', { class: 'nf-dv-top' }, [ E('h2', {}, 'Устройства'), chips ]));
+		root.appendChild(E('div', { class: 'nf-dv-top' }, [ E('h2', {}, _('Устройства')), chips ]));
 		root.appendChild(noteEl);
 		root.appendChild(E('div', { class: 'nf-dv-grid' }, [ E('div', { class: 'nf-dv-col' }, [ mapBox ]), side ]));
-		root.appendChild(E('h3', { class: 'nf-dv-gh' }, 'Группы'));
+		root.appendChild(E('h3', { class: 'nf-dv-gh' }, _('Группы')));
 		root.appendChild(grpBox);
 		draw();
 		refresh();

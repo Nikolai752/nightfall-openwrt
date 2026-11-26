@@ -36,12 +36,12 @@ function table(cols, rows, cls) {
 }
 
 function clientsTable(jitter) {
-	return table([ 'Сеть', 'MAC-адрес', 'Хост', 'Сигнал / Шум', 'Скорость приёма / Скорость передачи', '' ],
+	return table([ _( 'Сеть' ), _( 'MAC-адрес' ), _( 'Хост' ), _( 'Сигнал / Шум' ), _( 'Скорость приёма / Скорость передачи' ), '' ],
 		CLIENTS.map(c => [
-			E('span', { 'class': 'ifacebadge' }, c[0]), c[1], c[2],
-			E('span', { 'class': 'ifacebadge' }, (c[3] + (jitter ? Math.round(Math.random() * 6 - 3) : 0)) + ' / -92 дБм'),
-			c[4],
-			E('button', { 'class': 'cbi-button cbi-button-remove' }, 'Отключить')
+			E('span', { 'class': 'ifacebadge' }, _( c[0] )), c[1], c[2],
+			E('span', { 'class': 'ifacebadge' }, (c[3] + (jitter ? Math.round(Math.random() * 6 - 3) : 0)) + _( ' / -92 дБм' )),
+			_( c[4] ),
+			E('button', { 'class': 'cbi-button cbi-button-remove' }, _( 'Отключить' ))
 		]), 'assoclist');
 }
 
@@ -52,24 +52,24 @@ return view.extend({
 
 		const simTick = () => {
 			simTicks++;
-			simInfo.textContent = 'Обновлений: ' + simTicks + '. Если страница дёргается, значит, что-то перерисовывается заметно.';
+			simInfo.textContent = _( 'Обновлений: %s. Если страница дёргается, значит, что-то перерисовывается заметно.' ).format( simTicks );
 			/* как у LuCI: каждый раз новые узлы, включая класс fade-in и заголовки таблицы */
-			simBox.replaceChildren(E('div', { 'class': 'cbi-section fade-in' }, [ E('h3', {}, 'Подключённые клиенты (имитация опроса)'), clientsTable(true) ]));
+			simBox.replaceChildren(E('div', { 'class': 'cbi-section fade-in' }, [ E('h3', {}, _( 'Подключённые клиенты (имитация опроса)' )), clientsTable(true) ]));
 		};
 		const simToggle = on => {
 			window.clearInterval(simTimer); simTimer = null;
 			if (on) { simTick(); simTimer = window.setInterval(simTick, 5000); }
-			else { simBox.replaceChildren(); simInfo.textContent = 'Выключено.'; }
+			else { simBox.replaceChildren(); simInfo.textContent = _( 'Выключено.' ); }
 		};
 		const simCb = E('input', { type: 'checkbox', change: ev => simToggle(ev.target.checked) });
 
 		const tabs = E('ul', { 'class': 'cbi-tabmenu' }, [
-			E('li', { 'class': 'cbi-tab' }, E('a', { href: '#' }, 'Активная')),
-			E('li', { 'class': 'cbi-tab-disabled' }, E('a', { href: '#' }, 'Вторая')),
-			E('li', { 'class': 'cbi-tab-disabled' }, E('a', { href: '#' }, 'Блокировка рекламы')),
+			E('li', { 'class': 'cbi-tab' }, E('a', { href: '#' }, _( 'Активная' ))),
+			E('li', { 'class': 'cbi-tab-disabled' }, E('a', { href: '#' }, _( 'Вторая' ))),
+			E('li', { 'class': 'cbi-tab-disabled' }, E('a', { href: '#' }, _( 'Блокировка рекламы' ))),
 			E('li', { 'class': 'cbi-tab-disabled' }, E('a', { href: '#' }, 'DNS over HTTPS')),
-			E('li', { 'class': 'cbi-tab-disabled' }, E('a', { href: '#' }, 'Удалённый доступ')),
-			E('li', { 'class': 'cbi-tab-disabled' }, E('a', { href: '#' }, 'Монитор ресурсов'))
+			E('li', { 'class': 'cbi-tab-disabled' }, E('a', { href: '#' }, _( 'Удалённый доступ' ))),
+			E('li', { 'class': 'cbi-tab-disabled' }, E('a', { href: '#' }, _( 'Монитор ресурсов' )))
 		]);
 		tabs.addEventListener('click', ev => {
 			const li = ev.target.closest && ev.target.closest('li');
@@ -78,59 +78,59 @@ return view.extend({
 			tabs.querySelectorAll('li').forEach(x => { x.className = x === li ? 'cbi-tab' : 'cbi-tab-disabled'; });
 		});
 
-		const dd = new ui.Dropdown('b', { a: 'Первый вариант', b: 'Второй вариант', c: 'Третий вариант, подлиннее' }, {});
-		const sel = new ui.Select('b', { a: 'Автоматически', b: '2.4 ГГц', c: '5 ГГц' }, {});
+		const dd = new ui.Dropdown('b', { a: _( 'Первый вариант' ), b: _( 'Второй вариант' ), c: _( 'Третий вариант, подлиннее' ) }, {});
+		const sel = new ui.Select('b', { a: _( 'Автоматически' ), b: _( '2.4 ГГц' ), c: _( '5 ГГц' ) }, {});
 
 		return E('div', {}, [
-			E('h2', { name: 'content' }, 'Nightfall: все элементы интерфейса'),
-			E('div', { 'class': 'cbi-map-descr' }, 'Откройте эту страницу на телефоне и на компьютере, в светлой и тёмной теме, и прокрутите до конца. Всё должно быть читаемо, без обрезанных и налезающих элементов.'),
+			E('h2', { name: 'content' }, _( 'Nightfall: все элементы интерфейса' )),
+			E('div', { 'class': 'cbi-map-descr' }, _( 'Откройте эту страницу на телефоне и на компьютере, в светлой и тёмной теме, и прокрутите до конца. Всё должно быть читаемо, без обрезанных и налезающих элементов.' )),
 
-			section('Вкладки', [ tabs, E('p', {}, 'Нажмите на вкладку: активная подсвечивается акцентным цветом.') ]),
+			section( _( 'Вкладки' ), [ tabs, E('p', {}, _( 'Нажмите на вкладку: активная подсвечивается акцентным цветом.' )) ]),
 
-			section('Уведомления', [
-				E('div', { 'class': 'alert-message info' }, [ E('h4', {}, 'Информация'), E('p', {}, 'Обычное сообщение для пользователя.') ]),
-				E('div', { 'class': 'alert-message warning' }, [ E('h4', {}, 'Предупреждение'), E('p', {}, 'Что-то требует внимания, но не критично.') ]),
-				E('div', { 'class': 'alert-message danger' }, [ E('h4', {}, 'Ошибка'), E('p', {}, 'Действие не удалось выполнить.') ]),
+			section( _( 'Уведомления' ), [
+				E('div', { 'class': 'alert-message info' }, [ E('h4', {}, _( 'Информация' )), E('p', {}, _( 'Обычное сообщение для пользователя.' )) ]),
+				E('div', { 'class': 'alert-message warning' }, [ E('h4', {}, _( 'Предупреждение' )), E('p', {}, _( 'Что-то требует внимания, но не критично.' )) ]),
+				E('div', { 'class': 'alert-message danger' }, [ E('h4', {}, _( 'Ошибка' )), E('p', {}, _( 'Действие не удалось выполнить.' )) ]),
 				E('div', {}, [
-					E('button', { 'class': 'cbi-button', click: () => ui.addNotification(null, E('p', {}, 'Тестовое уведомление'), 'info') }, 'Показать уведомление'),
+					E('button', { 'class': 'cbi-button', click: () => ui.addNotification(null, E('p', {}, _( 'Тестовое уведомление' )), 'info') }, _( 'Показать уведомление' )),
 					' ',
-					E('button', { 'class': 'cbi-button', click: () => ui.showModal('Тестовое окно', [ E('p', {}, 'Так выглядят модальные окна.'), E('div', { 'class': 'right' }, E('button', { 'class': 'btn', click: ui.hideModal }, 'Закрыть')) ]) }, 'Показать окно')
+					E('button', { 'class': 'cbi-button', click: () => ui.showModal( _( 'Тестовое окно' ), [ E('p', {}, _( 'Так выглядят модальные окна.' )), E('div', { 'class': 'right' }, E('button', { 'class': 'btn', click: ui.hideModal }, _( 'Закрыть' ) )) ]) }, _( 'Показать окно' ))
 				])
 			]),
 
-			section('Кнопки', [
+			section( _( 'Кнопки' ), [
 				E('div', {}, [
-					E('button', { 'class': 'cbi-button' }, 'Обычная'), ' ',
-					E('button', { 'class': 'cbi-button cbi-button-action important' }, 'Главная'), ' ',
-					E('button', { 'class': 'cbi-button cbi-button-positive' }, 'Сохранить'), ' ',
-					E('button', { 'class': 'cbi-button cbi-button-negative' }, 'Удалить'), ' ',
-					E('button', { 'class': 'cbi-button', disabled: true }, 'Недоступна')
+					E('button', { 'class': 'cbi-button' }, _( 'Обычная' )), ' ',
+					E('button', { 'class': 'cbi-button cbi-button-action important' }, _( 'Главная' )), ' ',
+					E('button', { 'class': 'cbi-button cbi-button-positive' }, _( 'Сохранить' )), ' ',
+					E('button', { 'class': 'cbi-button cbi-button-negative' }, _( 'Удалить' )), ' ',
+					E('button', { 'class': 'cbi-button', disabled: true }, _( 'Недоступна' ))
 				])
 			]),
 
-			section('Форма', [
-				row('Текстовое поле', new ui.Textfield('значение', { placeholder: 'Введите текст' }).render(), 'Подпись под полем.'),
-				row('Пароль', new ui.Textfield('secret', { password: true }).render()),
-				row('Список (select)', sel.render()),
-				row('Выпадающий список', dd.render()),
-				row('Переключатель', new ui.Checkbox(true, { value_enabled: '1', value_disabled: '0' }).render()),
-				row('Выбор одного', E('label', {}, [ E('input', { type: 'radio', name: 'g', checked: true }), ' Один  ', E('input', { type: 'radio', name: 'g' }), ' Два' ])),
-				row('Многострочное поле', new ui.Textarea('строка 1\nстрока 2', { rows: 3 }).render()),
-				row('Полоса', E('div', { 'class': 'cbi-progressbar', title: '42%' }, E('div', { style: 'width:42%' })))
+			section( _( 'Форма' ), [
+				row( _( 'Текстовое поле' ), new ui.Textfield( _( 'значение' ), { placeholder: _( 'Введите текст' ) } ).render(), _( 'Подпись под полем.' )),
+				row( _( 'Пароль' ), new ui.Textfield('secret', { password: true }).render()),
+				row( _( 'Список (select)' ), sel.render()),
+				row( _( 'Выпадающий список' ), dd.render()),
+				row( _( 'Переключатель' ), new ui.Checkbox(true, { value_enabled: '1', value_disabled: '0' }).render()),
+				row( _( 'Выбор одного' ), E('label', {}, [ E('input', { type: 'radio', name: 'g', checked: true }), _( ' Один  ' ), E('input', { type: 'radio', name: 'g' }), _( ' Два' ) ])),
+				row( _( 'Многострочное поле' ), new ui.Textarea( _( 'строка 1\nстрока 2' ), { rows: 3 } ).render()),
+				row( _( 'Полоса' ), E('div', { 'class': 'cbi-progressbar', title: '42%' }, E('div', { style: 'width:42%' })))
 			]),
 
-			section('Таблица', [
-				table([ 'Имя', 'Адрес', 'Состояние' ], [
-					[ 'lan', '192.168.1.1/24', 'работает' ],
-					[ 'wan', 'очень-длинное-имя-устройства-без-пробелов.example.org', 'нет связи' ],
-					[ 'wg0', 'fd61:bde8:2d8d:0:2d8:4d03:f7b:da35', 'работает' ]
+			section( _( 'Таблица' ), [
+				table([ _( 'Имя' ), _( 'Адрес' ), _( 'Состояние' ) ], [
+					[ 'lan', '192.168.1.1/24', _( 'работает' ) ],
+					[ 'wan', _( 'очень-длинное-имя-устройства-без-пробелов.example.org' ), _( 'нет связи' ) ],
+					[ 'wg0', 'fd61:bde8:2d8d:0:2d8:4d03:f7b:da35', _( 'работает' ) ]
 				])
 			]),
 
-			section('Подключённые клиенты (как на странице Wi-Fi)', [ clientsTable(false) ]),
+			section( _( 'Подключённые клиенты (как на странице Wi-Fi)' ), [ clientsTable(false) ]),
 
-			section('Имитация опроса (проверка дёргания)', [
-				row('Обновлять каждые 5 секунд', simCb, 'Включите и наблюдайте 20–30 секунд: страница не должна мигать и подпрыгивать.'),
+			section( _( 'Имитация опроса (проверка дёргания)' ), [
+				row( _( 'Обновлять каждые 5 секунд' ), simCb, _( 'Включите и наблюдайте 20–30 секунд: страница не должна мигать и подпрыгивать.' )),
 				simInfo, simBox
 			])
 		]);

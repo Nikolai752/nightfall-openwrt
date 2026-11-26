@@ -164,7 +164,7 @@ return baseclass.extend({
 		if (!input || !menu)
 			return;
 
-		const none = E('li', { 'class': 'nf-nores', 'hidden': '' }, [ 'Ничего не найдено' ]);
+		const none = E('li', { 'class': 'nf-nores', 'hidden': '' }, [ _( 'Ничего не найдено' ) ]);
 		menu.appendChild(none);
 
 		const run = () => {
