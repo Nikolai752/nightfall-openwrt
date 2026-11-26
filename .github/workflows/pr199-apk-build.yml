@@ -32,8 +32,8 @@ jobs:
       - name: Checkout exact PR 199 source commit
         uses: actions/checkout@v4
         with:
-          repository: ${{ env.SOURCE_REPO }}
-          ref: ${{ env.SOURCE_REF }}
+          repository: ntbowen/nightfall-openwrt
+          ref: 8c18704ae226799bdf101248a8f5ee9287da393b
           path: source
           persist-credentials: false
 
