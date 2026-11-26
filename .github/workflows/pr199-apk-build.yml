@@ -62,11 +62,13 @@ jobs:
           test -d sdk/staging_dir/target-aarch64_cortex-a53_musl
           echo "SDK target architecture: aarch64_cortex-a53"
 
-      - name: Prepare LuCI feed
+      - name: Prepare OpenWrt feeds and LuCI dependencies
         working-directory: sdk
         run: |
           set -euo pipefail
-          ./scripts/feeds update luci packages
+          # lucihttp's ucode binding needs development headers from the base feed.
+          ./scripts/feeds update base luci packages
+          ./scripts/feeds install -p base ucode
           ./scripts/feeds install -p luci luci-base
           ./scripts/feeds install -p packages coreutils
 
@@ -101,8 +103,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          find sdk/bin/packages -type f -name 'luci-theme-nightfall_*.apk' -exec cp -v {} dist/ \;
-          find sdk/bin/packages -type f -name 'luci-app-nightfall-monitor_*.apk' -exec cp -v {} dist/ \;
+          find sdk/bin/packages -type f -name 'luci-theme-nightfall_*.apk' -exec cp -v {} dist/ \\;
+          find sdk/bin/packages -type f -name 'luci-app-nightfall-monitor_*.apk' -exec cp -v {} dist/ \\;
           test "$(find dist -maxdepth 1 -type f -name 'luci-theme-nightfall_*.apk' | wc -l)" -eq 1
           test "$(find dist -maxdepth 1 -type f -name 'luci-app-nightfall-monitor_*.apk' | wc -l)" -eq 1
           file dist/*.apk
