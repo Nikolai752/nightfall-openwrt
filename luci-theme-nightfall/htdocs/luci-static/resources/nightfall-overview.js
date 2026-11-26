@@ -1541,7 +1541,7 @@ function newDevBanner() {
 				fs.exec(BLOCKBIN, [ 'block', mac, name === 'без имени' ? '' : name ]).then(() => { mark(Math.ceil(lastEv[0])); el.hidden = true; }).catch(() => { b.disabled = false; });
 			} }, tr('Отключить интернет')));
 			el.replaceChildren(E('span', { class: 'nf-newdev-i', 'aria-hidden': 'true' }, '🆕'),
-				E('div', { class: 'nf-newdev-t' }, [ E('b', {}, ev.length > 1 ? tr('Новых устройств: %s. Последнее:').format(ev.length) : tr('Новое устройство в сети')), E('span', {}, txt.replace(/\s*\(частный.*$/, '')) , priv ? E('span', { class: 'nf-newdev-n' }, tr('Частный адрес Wi-Fi: у телефона он может меняться.')) : '' ]),
+				E('div', { class: 'nf-newdev-t' }, [ E('b', {}, ev.length > 1 ? tr('Новых устройств: %s. Последнее:').format(ev.length) : tr('Новое устройство в сети')), E('span', {}, txt.replace(/\s*\(частный.*$/, '').replace(/^без имени,/, tr('без имени') + ',')) , priv ? E('span', { class: 'nf-newdev-n' }, tr('Частный адрес Wi-Fi: у телефона он может меняться.')) : '' ]),
 				E('div', { class: 'nf-newdev-a' }, acts));
 			el.hidden = false;
 		}).catch(() => {});

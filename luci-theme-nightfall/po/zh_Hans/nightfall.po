@@ -2864,3 +2864,6 @@ msgstr "🎨 自定义主题编辑器"
 
 msgid "Show password"
 msgstr "显示密码"
+
+msgid "без имени"
+msgstr "未命名"
