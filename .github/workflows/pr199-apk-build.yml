@@ -103,16 +103,27 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          find sdk/bin/packages -type f -name 'luci-theme-nightfall_*.apk' -print0 | xargs -0 -r -I{} cp -v "{}" dist/
-          find sdk/bin/packages -type f -name 'luci-app-nightfall-monitor_*.apk' -print0 | xargs -0 -r -I{} cp -v "{}" dist/
-          test "$(find dist -maxdepth 1 -type f -name 'luci-theme-nightfall_*.apk' | wc -l)" -eq 1
-          test "$(find dist -maxdepth 1 -type f -name 'luci-app-nightfall-monitor_*.apk' | wc -l)" -eq 1
+          # OpenWrt APK filenames use NAME-VERSION.apk (not NAME_VERSION.apk).
+          find sdk/bin/packages -type f \( \
+            -name 'luci-theme-nightfall-*.apk' -o \
+            -name 'luci-app-nightfall-monitor-*.apk' -o \
+            -name 'luci-i18n-nightfall-zh-cn-*.apk' -o \
+            -name 'luci-i18n-nightfall-monitor-zh-cn-*.apk' \
+          \) -exec cp -v {} dist/ \;
+          for pkg in \
+            luci-theme-nightfall \
+            luci-app-nightfall-monitor \
+            luci-i18n-nightfall-zh-cn \
+            luci-i18n-nightfall-monitor-zh-cn; do
+            count=$(find dist -maxdepth 1 -type f -name "${pkg}-*.apk" | wc -l)
+            test "$count" -eq 1 || { echo "Expected one APK for $pkg, found $count"; exit 1; }
+          done
           file dist/*.apk
           sha256sum dist/*.apk > dist/SHA256SUMS
           {
             echo "OpenWrt: $OPENWRT_VERSION"
             echo "Target: $TARGET"
-            echo "Architecture: aarch64_cortex-a53"
+            echo "Architecture: aarch64_cortex-a53 (packages are noarch)"
             echo "Source: $SOURCE_REPO@$SOURCE_REF"
             echo "PR: https://github.com/Nikolai752/nightfall-openwrt/pull/199"
           } > dist/BUILD-INFO.txt
