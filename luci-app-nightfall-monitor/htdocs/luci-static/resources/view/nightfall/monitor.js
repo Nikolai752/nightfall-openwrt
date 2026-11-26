@@ -588,15 +588,49 @@ function legendDot(cls, text) {
 	return E('span', { class: 'nfm-leg' }, [ E('i', { class: 'nfm-dot ' + cls }), text ]);
 }
 
+/* Dark/light detection for non-nightfall themes: --nf-* and --background-color-*
+   are absent there, so the fallbacks must match the host theme. Walk the
+   ancestors of the monitor root — the first opaque background is what sits
+   behind the cards; if everything is transparent (background-image themes
+   like kucat), fall back to body text luminance, then prefers-color-scheme. */
+function nfmParseRgb(s) {
+	const m = /^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)/.exec(s || '');
+	if (!m) return null;
+	let a = 1;
+	if (m[4] !== undefined) a = m[4].endsWith('%') ? parseFloat(m[4]) / 100 : parseFloat(m[4]);
+	return { r: +m[1], g: +m[2], b: +m[3], a: a };
+}
+
+function nfmLum(c) { return (0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b) / 255; }
+
+function nfmDetectDark(root) {
+	const de = document.documentElement;
+	if (de.dataset.darkmode === 'true') return true;
+	if (de.dataset.darkmode === 'false') return false;
+	for (let el = root; el; el = el.parentElement) {
+		const c = nfmParseRgb(getComputedStyle(el).backgroundColor);
+		if (c && c.a > 0.5) return nfmLum(c) < 0.45;
+		if (el === de) break;
+	}
+	const fg = nfmParseRgb(getComputedStyle(document.body).color);
+	if (fg && fg.a > 0.5) return nfmLum(fg) > 0.6;
+	return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+}
+
+function nfmApplyTheme(root) {
+	root.classList.toggle('nfm-dark', nfmDetectDark(root));
+}
+
 const CSS = `
-.nfm { --nfm-card: var(--nf-card, var(--background-color-medium, #fff)); --nfm-card2: var(--nf-card-alt, var(--background-color-low, #f4f4f4));
-  --nfm-border: var(--nf-stroke, rgba(128,128,128,.22)); --nfm-text: var(--text-color-highest, inherit); --nfm-dim: var(--text-color-medium, #666);
+.nfm { --nfm-card: var(--nf-card, var(--background-color-medium, var(--nfm-fb-card, #fff))); --nfm-card2: var(--nf-card-alt, var(--background-color-low, var(--nfm-fb-card2, #f4f4f4)));
+  --nfm-border: var(--nf-stroke, var(--nfm-fb-border, rgba(128,128,128,.22))); --nfm-text: var(--text-color-highest, var(--nfm-fb-text, inherit)); --nfm-dim: var(--text-color-medium, var(--nfm-fb-dim, #666));
   --nfm-accent: var(--nf-accent, var(--primary-color-high, #0067c0)); --nfm-r: var(--nf-radius, 8px);
   --c-cpu: var(--nf-accent, #0078d4); --c-mem: #7a5cc7; --c-temp: #e8710a; --c-flash: #00a0b0; --c-down: var(--nf-accent, #0078d4); --c-up: #13a10e;
   --g1:#00a3b5; --g2:#7a5cc7; --g3:#d6479b; --g4:#e8a30a; --g5:#0f8ee9; --g6:#2fa64a; --g7:#7d8aa0; --gx:#9aa5b4;
   color: var(--nfm-text); }
-:root[data-darkmode="true"] .nfm { --c-cpu:var(--nf-accent, #4cc2ff); --c-mem:#b39bff; --c-temp:#ffa94d; --c-flash:#4fd8e6; --c-down:var(--nf-accent, #4cc2ff); --c-up:#6ccb5f;
+:root[data-darkmode="true"] .nfm, .nfm.nfm-dark { --c-cpu:var(--nf-accent, #4cc2ff); --c-mem:#b39bff; --c-temp:#ffa94d; --c-flash:#4fd8e6; --c-down:var(--nf-accent, #4cc2ff); --c-up:#6ccb5f;
   --g1:#3dd0e0; --g2:#b39bff; --g3:#ff7fbf; --g4:#ffc552; --g5:#5cb7ff; --g6:#6ccb5f; --g7:#9aa7bf; --gx:#7d8798; }
+.nfm.nfm-dark { --nfm-fb-card:#24262d; --nfm-fb-card2:#1b1d23; --nfm-fb-text:#e4e6ea; --nfm-fb-dim:#969da8; --nfm-fb-border:rgba(255,255,255,.14); }
 .nfm *, .nfm *::before, .nfm *::after { box-sizing: border-box; }
 .nfm .c-cpu { --c: var(--c-cpu); } .nfm .c-mem { --c: var(--c-mem); } .nfm .c-temp { --c: var(--c-temp); }
 .nfm .c-base { --c: var(--nfm-dim); }
@@ -2332,6 +2366,15 @@ return view.extend({
 				E('span', { class: 'nfm-spacer' }), modeBadge, pill, pauseBtn, tabs ]),
 			overview, net, wifiTab, devsTab, appsTab, procs, svcs, diagTab, secTab, logTab, hist
 		]);
+
+		/* host-theme dark/light adaptation: re-check after insertion, on theme
+		   attribute toggles and on system scheme changes */
+		requestAnimationFrame(() => {
+			nfmApplyTheme(root);
+			new MutationObserver(() => nfmApplyTheme(root)).observe(document.documentElement, { attributes: true, attributeFilter: [ 'data-darkmode', 'data-theme', 'class', 'style' ] });
+			if (window.matchMedia)
+				window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => nfmApplyTheme(root));
+		});
 
 		/* ---------- quick actions ---------- */
 		function runChecked(fn) {
