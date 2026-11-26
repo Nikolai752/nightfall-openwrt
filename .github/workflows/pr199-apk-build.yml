@@ -79,7 +79,15 @@ jobs:
 
       - name: Configure SDK
         working-directory: sdk
-        run: make defconfig
+        run: |
+          set -euo pipefail
+          # Nightfall only needs the modern ucode LuCI runtime. Avoid building
+          # the optional Lua binding, whose headers are not part of this SDK's
+          # selected package configuration.
+          ./scripts/config --disable PACKAGE_liblucihttp-lua
+          make defconfig
+          grep -q '^# CONFIG_PACKAGE_liblucihttp-lua is not set$' .config
+          echo "Optional liblucihttp Lua binding disabled; ucode binding remains selected by LuCI."
 
       - name: Build theme APK
         working-directory: sdk
