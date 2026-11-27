@@ -1,121 +1,21 @@
-{
-	"luci-app-nightfall-monitor": {
-		"description": "Grant access to the Nightfall resource monitor",
-		"read": {
-			"file": {
-				"/usr/libexec/nightfall-stats": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-history": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-guest": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-wol": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-config": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-update": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-apps": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-notify": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-block": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-diag": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-sec": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-log": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-dns": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-backup": [
-					"exec"
-				]
-			},
-			"uci": [
-				"wireless"
-			],
-			"ubus": {
-				"system": [
-					"board"
-				],
-				"network.interface": [
-					"dump"
-				],
-				"luci-rpc": [
-					"getHostHints"
-				],
-				"network.wireless": [
-					"status"
-				],
-				"iwinfo": [
-					"assoclist",
-					"devices",
-					"info"
-				],
-				"luci": [
-					"getInitList"
-				],
-				"service": [
-					"list"
-				]
-			}
-		},
-		"write": {
-			"file": {
-				"/sbin/wifi": [
-					"exec"
-				],
-				"/etc/init.d/network": [
-					"exec"
-				],
-				"/usr/bin/etherwake": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-config": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-speed": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-update": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-apps": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-notify": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-block": [
-					"exec"
-				],
-				"/usr/libexec/nightfall-backup": [
-					"exec"
-				]
-			},
-			"ubus": {
-				"system": [
-					"reboot"
-				],
-				"luci": [
-					"setInitAction"
-				]
-			}
-		}
-	}
-}
+#
+# Nightfall resource monitor for LuCI (OpenWrt 25.12+)
+# Licensed under the Apache License, Version 2.0
+#
+
+include $(TOPDIR)/rules.mk
+
+LUCI_TITLE:=Nightfall resource monitor (CPU, memory, temperature, network, history)
+LUCI_DEPENDS:=+luci-base +coreutils-base64
+LUCI_PKGARCH:=all
+
+# monitor.js embeds ~480 lines of CSS in template literals; jsmin does not
+# understand backtick strings and mangles them. Ship assets verbatim.
+LUCI_MINIFY_JS:=0
+LUCI_MINIFY_CSS:=0
+
+PKG_LICENSE:=Apache-2.0
+
+include $(TOPDIR)/feeds/luci/luci.mk
+
+# call BuildPackage - OpenWrt buildroot signature
