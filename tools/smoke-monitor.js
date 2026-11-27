@@ -232,7 +232,7 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				});
 				if (!tgIcon || tgIcon === 'none') bad(vn + ': у вкладки TG Bot отсутствует SVG-значок');
 				if (!tt.includes('Маршрут ядра активен')) bad(vn + ': не показано фактическое состояние активного маршрута');
-				if (!tt.includes('Работает · Steer') || !tt.includes('Не готов')) bad(vn + ': список VPN-выходов не показывает их фактическую готовность');
+				if (!tt.includes('Готов · Steer') || !tt.includes('Не готов')) bad(vn + ': список VPN-выходов не показывает их фактическую готовность');
 				const unavailable = await p.locator('.nfm-tg-output-choice:disabled').count();
 				if (unavailable !== 1) bad(vn + ': неготовый VPN-выход должен быть видимым и недоступным для выбора');
 				const tgSwitches = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-tg-page .nfm-cfg-toggle input.nfm-toggle'))
