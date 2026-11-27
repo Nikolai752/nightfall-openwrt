@@ -1,14 +1,16 @@
 # Nightfall for OpenWrt
 
-[Русский](README.md) | **English** | [FAQ (in Russian)](FAQ.md)
+[Русский](README.md) | **English** | [简体中文](README.zh-CN.md) | [FAQ (in Russian)](FAQ.md)
 
 [![Latest Release](https://img.shields.io/github/v/release/Nikolai752/nightfall-openwrt?style=flat-square&color=0078d4&label=release)](https://github.com/Nikolai752/nightfall-openwrt/releases)
 [![OpenWrt 25.12.6](https://img.shields.io/badge/OpenWrt-25.12.6-00a3b5?style=flat-square&logo=openwrt)](https://openwrt.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](https://opensource.org/licenses/MIT)
 
+**Current stable release: [Nightfall v1.30.0](https://github.com/Nikolai752/nightfall-openwrt/releases/tag/v1.30.0).** This release fixes release packaging, safely handles the expected symbolic links, and delivers Simplified Chinese (`zh_Hans`) catalogs for the theme and Resource Monitor. The catalogs are compiled into LuCI `.lmo` files; installation registers `zh_cn` as an available language but does not change the user's current language.
+
 A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Monitor** page with history, charts, traffic accounting by device and by application, Telegram notifications and one-click updates. For **OpenWrt 25.12**. The installer checks for `base64` and installs `coreutils-base64` if the BusyBox applet is missing; `curl` is needed only for updates and Telegram.
 
-> **Language note.** The theme's own interface (personalization panel, Overview widgets, Resource Monitor, login screen, notifications) is currently **in Russian only**. Standard LuCI pages (Network, Firewall, etc.) are still translated by LuCI as usual. Contributions are welcome via [Issues](https://github.com/Nikolai752/nightfall-openwrt/issues).
+> **Language note.** The theme and Resource Monitor currently include Russian and Simplified Chinese (`zh_Hans`) translations, but the Overview dashboard and Resource Monitor interface are not yet translated into English. We are looking for volunteers to help with the English UI translation; contributions are welcome via [Issues](https://github.com/Nikolai752/nightfall-openwrt/issues). Standard LuCI pages (Network, Firewall, etc.) continue to use the translations supplied by LuCI. To switch to Simplified Chinese, use System → System → Language and Style after installing v1.30.0; installation registers `zh_cn` but does not change the selected language automatically.
 
 ## Screenshots
 
@@ -213,7 +215,7 @@ If LuCI will not open at all: `uci set luci.main.mediaurlbase=/luci-static/boots
 
 ## Requirements and compatibility
 
-- **Target platform: OpenWrt 25.12 with LuCI.** The current release line has been hardware-tested on a Cudy WR3000U-256MB running OpenWrt 25.12.6. LuCI templates and menus may differ on 23.05 and 24.10; compatibility there is not confirmed. OpenWrt 21.02 and older are unsupported.
+- **Target platform: OpenWrt 25.12 with LuCI.** v1.30.0 passed CI, including functional and browser smoke tests. The project's primary hardware-test reference is a Cudy WR3000U-256MB 1.0 (WR3000U v1) running OpenWrt 25.12.6; the listed hardware scenarios were exercised on this model during earlier test builds, which is not a full on-router certification of every v1.30.0 feature. LuCI templates and menus may differ on 23.05 and 24.10; compatibility there is not confirmed. OpenWrt 21.02 and older are unsupported.
 - **CPU architecture does not matter:** there are no compiled programs, only CSS, JS, templates and shell scripts.
 - **Storage:** the installed theme takes about 1.4 MB. That can be a lot on routers with 4–8 MB of flash; 16 MB and more is fine. If space is tight, you can delete the iPhone splash images (`/www/luci-static/nightfall/splash`).
 - **RAM:** history is kept in `/tmp`. On routers with 64 MB or less it takes a noticeable share of memory.
@@ -222,7 +224,7 @@ If LuCI will not open at all: `uci set luci.main.mediaurlbase=/luci-static/boots
 
 ## Status
 
-**Confirmed hardware baseline:** Cudy WR3000U-256MB running OpenWrt 25.12.6. On this device, the collector and Telegram bot, notifications, device and application statistics, USB history persistence, and backup creation and restore were tested. This does not mean every third-party LuCI page or add-on package (such as adblock or sqm) was validated. Other router models and OpenWrt versions do not yet have confirmed hardware results; treat their compatibility as unverified until test reports are available.
+**Primary hardware-test reference:** Cudy WR3000U-256MB 1.0 (WR3000U v1) running OpenWrt 25.12.6. During earlier test builds, the collector and Telegram bot, notifications, device and application statistics, USB history persistence, and backup creation and restore were exercised on this device. This does not mean every v1.30.0 feature, third-party LuCI page, or add-on package (such as adblock or sqm) received a separate on-router test. Nightfall is not limited to Cudy devices, but hardware results for other router models are not yet confirmed.
 
 If you installed the theme on another router, please tell us in [Issues](https://github.com/Nikolai752/nightfall-openwrt/issues) how it went: model, OpenWrt version, what works and what does not. That helps build a list of tested devices. Found a bug or want an improvement? Same place.
 
@@ -242,4 +244,4 @@ The theme version lives in `luci-theme-nightfall/htdocs/luci-static/nightfall/ve
 
 Then create a release with a tag like `vX.Y.Z` (on the Releases page or with `gh release create`). GitHub Actions builds `nightfall-root.tar.gz`, signs it, attaches the `.sha256` and `.sig` files and updates `latest.json`. Remember to add an entry to `CHANGELOG.md`.
 
-The repository contains no symbolic links (`nightfall-light`, `nightfall-dark`, `prefs.json`): `build-release.sh` creates them. To build an `.apk` with the SDK, create them manually.
+The source tree already contains the expected symbolic links for theme variants and configuration files. `build-release.sh` preserves them when staging files, validates their targets, creates only missing links, and stops rather than overwriting a conflicting path. The signed TAR.GZ is the primary supported release and update format; APK packages are an additional manual-installation option and are not used by the standard installer or updater.
