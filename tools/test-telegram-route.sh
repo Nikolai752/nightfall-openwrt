@@ -56,6 +56,9 @@ case "$args" in
 	*"-o link show dev wg1"*)
 		echo '9: wg1: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420'
 		;;
+	*"-o link show dev wg2"*)
+		echo '10: wg2: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420'
+		;;
 	*"-o link show dev eth0"*)
 		echo '2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500'
 		;;
@@ -67,13 +70,21 @@ case "$args" in
 		;;
 	"-o link show"*)
 		echo '9: wg1: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420 qdisc noqueue state UNKNOWN mode DEFAULT group default'
+		echo '10: wg2: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420 qdisc noqueue state UNKNOWN mode DEFAULT group default'
 		echo '2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP mode DEFAULT group default'
 		;;
-	*"-4 route show table 300 default"*|*"-4 route show table 42000 default"*)
+	*"-4 route show table 300 default"*)
+		echo 'default dev wg1 scope link'
+		;;
+	*"-4 route show table 304 default"*)
+		echo 'default dev wg2 scope link'
+		;;
+	*"-4 route show table 42000 default"*)
 		echo 'default dev wg1 scope link'
 		;;
 	*"-4 route get 149.154.167.220"*)
 		case "$args" in
+			*0x40500000*) echo '149.154.167.220 dev wg2 table steer_zm_vpn2 src 10.10.0.2 mark 0x40500000' ;;
 			*mark*) echo '149.154.167.220 dev wg1 table steer_groupvpn src 10.9.0.2 mark 0x40400000' ;;
 			*) echo '149.154.167.220 dev wg1 table 42000 src 10.9.0.2' ;;
 		esac
@@ -123,7 +134,9 @@ export NF_TG_STATE="$T/route.state" NF_TG_LOCK="$T/route.lock"
 cat > "$NF_TG_TEST_STATUS" <<'JSON'
 {"schema":1,"outputs":{
   "groupvpn":{"kind":"group","device":"","up":true,"mark":"0x00400000","table":300,"failed":false,"group":{"selected":"wg1"}},
-  "wg1":{"kind":"interface","device":"wg1","up":true,"mark":"0x00400000","table":300,"failed":false}
+  "zm_vpn2":{"kind":"group","device":"","up":true,"mark":"0x00500000","table":304,"failed":false,"group":{"selected":"wg2"}},
+  "wg1":{"kind":"interface","device":"wg1","up":true,"mark":"0x00400000","table":300,"failed":false},
+  "wg2":{"kind":"interface","device":"wg2","up":true,"mark":"0x00500000","table":304,"failed":false}
 }}
 JSON
 printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:groupvpn\n' > "$T/conf"
@@ -164,6 +177,34 @@ out=$("$H" status) || bad "Steer route status failed: $out"
 printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.active || d.source!=="steer" || d.device!=="wg1") process.exit(1)' ||
 	bad "Steer route status did not confirm the active route"
 ok "Steer route status confirms device with symbolic table alias"
+
+# Switching between Steer outputs must replace only Nightfall's Telegram
+# selector/guard while leaving both Steer-owned routing tables untouched.
+printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:zm_vpn2\n' > "$T/conf"
+out=$("$H" apply) || bad "switch to proven zm_vpn2 failed: $out"
+case "$out" in *'"ok":true'*'"source":"steer"'*'"device":"wg2"'*) ;; *) bad "zm_vpn2 switch resolved to an unexpected route: $out" ;; esac
+grep -Fq 'route_output meta skuid 104 meta mark set 0x40500000' "$NF_TG_TEST_NFT" ||
+	bad "switch to zm_vpn2 did not install its own Steer mark"
+grep -Fq 'egress_guard meta skuid 104 oifname != "wg2" drop' "$NF_TG_TEST_NFT" ||
+	bad "switch to zm_vpn2 did not replace the egress guard"
+out=$("$H" status) || bad "zm_vpn2 status failed: $out"
+printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.active || d.source!=="steer" || d.output!=="steer:zm_vpn2" || d.device!=="wg2" || d.table!==304) process.exit(1)' ||
+	bad "status did not confirm the selected zm_vpn2 route"
+ok "switch to zm_vpn2 selects its Steer mark/table and confirms active status"
+
+# Return to the original group output. This is the critical regression guard:
+# the already-verified Steer route must still work after another output was used.
+printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:groupvpn\n' > "$T/conf"
+out=$("$H" apply) || bad "return from zm_vpn2 to original Steer output failed: $out"
+case "$out" in *'"ok":true'*'"source":"steer"'*'"device":"wg1"'*) ;; *) bad "return to original Steer output resolved incorrectly: $out" ;; esac
+grep -Fq 'route_output meta skuid 104 meta mark set 0x40400000' "$NF_TG_TEST_NFT" ||
+	bad "return to original output did not restore its original Steer mark"
+grep -Fq 'egress_guard meta skuid 104 oifname != "wg1" drop' "$NF_TG_TEST_NFT" ||
+	bad "return to original output did not restore its original egress guard"
+out=$("$H" status) || bad "original output status failed after round trip: $out"
+printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.active || d.source!=="steer" || d.output!=="steer:groupvpn" || d.device!=="wg1" || d.table!==300) process.exit(1)' ||
+	bad "original Steer route was not active after switching back"
+ok "return to original Steer output works after zm_vpn2 round trip"
 
 # A failed Steer output must replace the route with a hard block.
 cat > "$NF_TG_TEST_STATUS" <<'JSON'
