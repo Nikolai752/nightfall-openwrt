@@ -291,7 +291,7 @@ fi
 chmod 755 "$ROOT"/usr/libexec/nightfall-* "$ROOT"/etc/init.d/nightfall-collector 2>/dev/null
 rm -f "$ROOT/www/luci-static/resources/view/nightfall/sysauth.js"
 if [ -z "$ROOT" ]; then
-	for f in /etc/uci-defaults/30_luci-theme-nightfall /etc/uci-defaults/40_nightfall-collector; do
+	for f in /etc/uci-defaults/30_luci-theme-nightfall /etc/uci-defaults/40_nightfall-collector /etc/uci-defaults/41_luci-i18n-nightfall-zh-cn; do
 		[ -f "$f" ] && { sh "$f"; rm -f "$f"; }
 	done
 	if [ "$ACTIVATE" = 1 ]; then
