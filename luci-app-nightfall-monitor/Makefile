@@ -6,7 +6,7 @@
 include $(TOPDIR)/rules.mk
 
 LUCI_TITLE:=Nightfall resource monitor (CPU, memory, temperature, network, history)
-LUCI_DEPENDS:=+luci-base +coreutils-base64 +ip-full
+LUCI_DEPENDS:=+luci-base +coreutils-base64 +ip-full +shadow-su
 LUCI_PKGARCH:=all
 
 # monitor.js embeds ~480 lines of CSS in template literals; jsmin does not
