@@ -39,10 +39,10 @@ guard_ready() {
 	[ -n "$UID_TG" ] && table_exists || return 1
 	case "$MODE" in
 		steer)
-			"$NFT" list chain inet nightfall_telegram route_output 2>/dev/null | grep -Fq "meta skuid $UID_TG" &&
-			"$NFT" list chain inet nightfall_telegram egress_guard 2>/dev/null | grep -Fq "meta skuid $UID_TG" ;;
+			"$NFT" list chain inet nightfall_telegram route_output 2>/dev/null | grep -Fq "meta skuid $UID_TG meta mark set $MARK" &&
+			"$NFT" list chain inet nightfall_telegram egress_guard 2>/dev/null | grep -Fq "meta skuid $UID_TG oifname != \"$DEV\" drop" ;;
 		iface)
-			"$NFT" list chain inet nightfall_telegram egress_guard 2>/dev/null | grep -Fq "meta skuid $UID_TG" ;;
+			"$NFT" list chain inet nightfall_telegram egress_guard 2>/dev/null | grep -Fq "meta skuid $UID_TG oifname != \"$DEV\" drop" ;;
 		*) return 1 ;;
 	esac
 }
@@ -358,15 +358,45 @@ apply_route() {
 case "$1" in
 	inspect) inspect ;;
 	apply) apply_route ;;
-	status)
-		if read_state; then
-			if [ "$S_FAIL" = 1 ]; then
-				printf '{"ok":true,"active":false,"blocked":true,"output":"%s"}\n' "$(esc "$S_OUTPUT")"
-			elif table_exists; then
-				table_out=$S_TABLE; [ -n "$table_out" ] || table_out=0
-				printf '{"ok":true,"active":true,"mode":"%s","uid":%s,"table":%s,"device":"%s","output":"%s"}\n' \
-					"$S_MODE" "$S_UID" "$table_out" "$(esc "$S_DEVICE")" "$(esc "$S_OUTPUT")"
-			else printf '{"ok":true,"active":false}\n'; fi
-		else printf '{"ok":true,"active":false}\n'; fi ;;
+	route_status() {
+		if ! read_state; then
+			printf '{"ok":true,"active":false}\n'
+			return 0
+		fi
+		MODE=$S_MODE; UID_TG=$S_UID; DEV=$S_DEVICE; MARK=$S_MARK
+		TABLE=$S_TABLE; OUTPUT=$S_OUTPUT
+		if [ "$S_FAIL" = 1 ] || ! guard_ready; then
+			printf '{"ok":true,"active":false,"blocked":true,"mode":"vpn","output":"%s"}\n' "$(esc "$S_OUTPUT")"
+			return 0
+		fi
+		if [ "$MODE" = steer ]; then
+			OUT_NAME=$(printf '%s' "$S_OUTPUT" | sed 's/^steer://')
+			if ! load_status || ! read_steer_output; then
+				printf '{"ok":true,"active":false,"blocked":true,"mode":"vpn","output":"%s"}\n' "$(esc "$S_OUTPUT")"
+				return 0
+			fi
+			json_select .. >/dev/null 2>&1 || :
+			mark_num=$((MARK | 0x40000000))
+			current_mark=$(printf '0x%08x' "$mark_num")
+			if [ "$READY" != true ] || [ "$DEV" != "$S_DEVICE" ] || [ "$TABLE" != "$S_TABLE" ] || [ "$current_mark" != "$S_MARK" ]; then
+				printf '{"ok":true,"active":false,"blocked":true,"mode":"vpn","output":"%s","device":"%s"}\n' "$(esc "$S_OUTPUT")" "$(esc "$S_DEVICE")"
+				return 0
+			fi
+			lookup=$("$IP" -4 route get 149.154.167.220 mark "$S_MARK" uid "$S_UID" 2>/dev/null)
+		else
+			lookup=$("$IP" -4 route get 149.154.167.220 uid "$S_UID" 2>/dev/null)
+		fi
+		if ! printf '%s\n' "$lookup" | grep -Fq "table $S_TABLE" ||
+		   ! printf '%s\n' "$lookup" | grep -Fq "dev $S_DEVICE"; then
+			printf '{"ok":true,"active":false,"blocked":true,"mode":"vpn","output":"%s","device":"%s"}\n' "$(esc "$S_OUTPUT")" "$(esc "$S_DEVICE")"
+			return 0
+		fi
+		printf '{"ok":true,"active":true,"mode":"vpn","source":"%s","uid":%s,"table":%s,"device":"%s","output":"%s"}\n' \
+			"$MODE" "$S_UID" "$S_TABLE" "$(esc "$S_DEVICE")" "$(esc "$S_OUTPUT")"
+	}
+	case "$1" in
+		inspect) inspect ;;
+		apply) apply_route ;;
+		status) route_status ;;
 	*) err "Использование: nightfall-telegram-route inspect|apply|status" ;;
 esac
