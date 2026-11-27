@@ -141,16 +141,22 @@ read_steer_output() {
 	KIND=$kind; DEV=$device; TABLE=$table; MARK=$mark
 	if [ -z "$DEV" ] && json_select group >/dev/null 2>&1; then
 		json_get_var selected selected
-		# Re-load at the root so group-member lookup is independent of the
-		# current jshn cursor and always leaves it at the outputs object.
-		json_load "$STATUS_JSON" >/dev/null 2>&1 || return 1
-		json_select outputs >/dev/null 2>&1 || return 1
+		# Current object -> outputs map -> selected member. Keep the jshn cursor
+		# on the selected output when returning to the caller.
+		json_select ..
+		json_select ..
 		if outname "$selected" && json_select "$selected" >/dev/null 2>&1; then
-			json_get_var DEV device
+			json_get_var member_device device
+			json_get_var member_table table
+			json_get_var member_mark mark
+			[ -n "$DEV" ] || DEV=$member_device
+			[ -n "$TABLE" ] || TABLE=$member_table
+			[ -n "$MARK" ] || MARK=$member_mark
 			json_select ..
+			json_select "$OUT_NAME" >/dev/null 2>&1 || return 1
+		else
+			json_select "$OUT_NAME" >/dev/null 2>&1 || return 1
 		fi
-	else
-		json_select .. >/dev/null 2>&1 || :
 	fi
 	case "$up:$failed" in true:|true:false) READY=true ;; esac
 	devname "$DEV" || READY=false
