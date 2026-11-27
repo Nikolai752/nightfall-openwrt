@@ -1805,7 +1805,7 @@ return view.extend({
 					}, [
 						E('span', { class: 'nfm-tg-output-name' }, item.label || item.id),
 						E('span', { class: 'nfm-tg-output-state' + (ready ? ' is-ready' : ' is-unavailable') },
-							ready ? (item.id.startsWith('steer:') ? _('Работает · Steer') : _('Работает · VPN')) : _('Не готов'))
+							ready ? (item.id.startsWith('steer:') ? _('Готов · Steer') : _('Готов · VPN')) : _('Не готов'))
 					]);
 				});
 				tgOutputList.replaceChildren(...(choices.length ? choices : [ E('div', { class: 'nfm-note-s' }, _('VPN-выходы не обнаружены. Проверьте состояние Steer или VPN-интерфейсов.')) ]));
