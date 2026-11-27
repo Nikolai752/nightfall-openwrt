@@ -22,6 +22,12 @@ grep -Fq 'uidrange' "$TGROUTE"
 grep -Fq 'steer:*)' "$TGROUTE"
 grep -Fq 'steer:*)' "$TGCONFIG"
 grep -Fq 'nightfall-telegram-route' "$TGACL"
+node - "$TGACL" <<'NODE'
+const fs = require('fs');
+const acl = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'))['luci-app-nightfall-monitor'];
+if (!acl.write?.ubus?.file?.includes('exec')) throw new Error('write ACL missing ubus.file.exec');
+if (!acl.write?.file?.['/usr/libexec/nightfall-notify']?.includes('exec')) throw new Error('write ACL missing nightfall-notify file.exec');
+NODE
 grep -Fq 'TG_ROUTE_MODE' "$TGCONFIG"
 
 for f in "$INIT" "$COLLECTOR" "$BACKUP" "$UPDATE" "$UNINSTALL"; do
