@@ -107,7 +107,178 @@ set)
 		TG_ROUTE_OUTPUT)
 			case "$v" in
 				table:*) n=${v#table:}; case "$n" in ''|*[!0-9]*) fail "TG_ROUTE_OUTPUT: неверный номер таблицы" ;; esac; [ "$n" -ge 1 ] && [ "$n" -le 65535 ] || fail "TG_ROUTE_OUTPUT: номер таблицы вне диапазона" ;;
-				iface:*) n=${v#iface:}; printf '%s' "$n" | grep -qE '^[A-Za-z0-9_.-]{1,15}$' || fail "TG_ROUTE_OUTPUT: неверное имя VPN-интерфейса" ;;
+				iface:*) n=${v#iface:}; printf '%s' "$n" | grep -qE '^[A-Za-z0-9_.-]{1,15}
+				'') ;;
+				*) fail "TG_ROUTE_OUTPUT: ожидался table:N или iface:NAME" ;;
+			esac ;;
+		JOURNAL|PERSIST_ANY|WIFI_HIST|APPS|LITE|NEWDEV|TG|TG_ALERTS|TG_BOT|TG_CLEAN|TG_WIDGETS|TG_UPDATES|TG_SEC) case "$v" in 0|1) ;; *) fail "$k: допустимо 0 или 1" ;; esac ;;
+		SPEED_HOURS) range "$k" "$v" 0 168 ;;
+		SPEED_STREAMS) range "$k" "$v" 1 8 ;;
+		SPEED_URL)
+			case "$v" in http://*|https://*) ;; *) fail "SPEED_URL: нужен адрес http:// или https://" ;; esac
+			case "$v" in *[!A-Za-z0-9._~:/?=%+-]*) fail "SPEED_URL: недопустимые символы (разрешены буквы, цифры и . _ ~ : / ? = % + -)" ;; esac
+			[ ${#v} -le 200 ] || fail "SPEED_URL: слишком длинный адрес" ;;
+		PERSIST_DIR)
+			if [ -n "$v" ]; then
+				case "$v" in /*) ;; *) fail "PERSIST_DIR: нужен абсолютный путь" ;; esac
+				case "$v" in *[!A-Za-z0-9._/-]*|*..*) fail "PERSIST_DIR: недопустимые символы" ;; esac
+				case "$v" in /|/etc|/etc/*|/root|/root/*|/rom|/rom/*) fail "PERSIST_DIR: этот системный путь запрещён" ;; esac
+				case "$v" in /overlay|/overlay/*) [ "$allow_internal" = 1 ] || fail "PERSIST_DIR: для внутренней флеш-памяти включите «Разрешить сохранение на встроенный накопитель»" ;; esac
+				[ ${#v} -le 100 ] || fail "PERSIST_DIR: слишком длинный путь"
+			fi ;;
+		esac
+		eval "new_$k=\$v"
+	done
+	[ -f "$CONF" ] || cp "$DEF" "$CONF" 2>/dev/null || : > "$CONF"
+	tw=${new_TEMP_WARN:-$(val "$CONF" TEMP_WARN)}; tc=${new_TEMP_CRIT:-$(val "$CONF" TEMP_CRIT)}
+	[ -z "$tw" ] || [ -z "$tc" ] || [ "$tw" -lt "$tc" ] || fail "TEMP_WARN должен быть меньше TEMP_CRIT"
+	cp "$CONF" "$CONF.tmp" || fail "не удалось записать конфигурацию"
+	for kv in "$@"; do
+		k=${kv%%=*}; v=${kv#*=}
+		[ "$k" = TG_TOKEN ] && [ "$v" = "***" ] && continue
+		if grep -q "^$k=" "$CONF.tmp"; then
+			sed "s|^$k=[^ #]*|$k=$v|" "$CONF.tmp" > "$CONF.tmp2" && mv "$CONF.tmp2" "$CONF.tmp"
+		else
+			printf '%s=%s\n' "$k" "$v" >> "$CONF.tmp"
+		fi
+	done
+	chmod 600 "$CONF.tmp" 2>/dev/null     # внутри токен бота
+	mv "$CONF.tmp" "$CONF" || fail "не удалось записать конфигурацию"
+	restart
+	printf '{"ok":true}\n' ;;
+disks)
+	# подключённые USB-накопители, SD-карты и диски (не системный раздел роутера), куда можно сохранять историю
+	M=${NF_MOUNTS:-/proc/mounts}; DFB=${NF_DF:-df}
+	rd=$($DFB -P / 2>/dev/null | awk 'NR == 2 { print $1 }'); od=$($DFB -P /overlay 2>/dev/null | awk 'NR == 2 { print $1 }')
+	printf '{"disks":['; n=0
+	while read -r dev mnt fs opts _; do
+		case "$dev" in /dev/sd[a-z]*|/dev/nvme*|/dev/mmcblk*|/dev/vd[a-z]*) ;; *) continue ;; esac
+		case "$mnt" in /|/overlay|/overlay/*|/rom|/rom/*|/boot|/boot/*|/tmp|/tmp/*|/proc|/sys|/dev|/dev/*|/etc|/etc/*) continue ;; esac
+		case "$mnt" in *[!A-Za-z0-9._/-]*) continue ;; esac
+		[ "$dev" = "$rd" ] && continue
+		[ "$dev" = "$od" ] && continue
+		case ",$opts," in *,rw,*) ;; *) continue ;; esac
+		kb=$($DFB -kP "$mnt" 2>/dev/null | awk 'NR == 2 { print $2, $4 }')
+		[ -n "$kb" ] || continue
+		[ "$n" -gt 0 ] && printf ','
+		printf '{"dev":"%s","mount":"%s","fs":"%s","size_kb":%s,"free_kb":%s}' "$dev" "$mnt" "$fs" "${kb% *}" "${kb#* }"
+		n=$((n + 1))
+	done < "$M"
+	printf '],"parts":['
+	# разделы, которые видит ядро, но которые не смонтированы (для подсказки «почему список пуст»)
+	n=0
+	while read -r _ _ blocks name; do
+		case "$name" in sd[a-z][0-9]*|nvme[0-9]*n[0-9]*p[0-9]*|mmcblk[0-9]*p[0-9]*|vd[a-z][0-9]*) ;; *) continue ;; esac
+		grep -q "^/dev/$name " "$M" 2>/dev/null && continue
+		bt=; command -v blkid >/dev/null 2>&1 && bt=$(blkid -o value -s TYPE "/dev/$name" 2>/dev/null | head -n 1 | tr -cd 'A-Za-z0-9_')
+		[ "$n" -gt 0 ] && printf ','
+		printf '{"dev":"/dev/%s","size_kb":%s,"type":"%s"}' "$name" "${blocks:-0}" "$bt"
+		n=$((n + 1))
+	done < "${NF_PARTS:-/proc/partitions}"
+	printf '],"fs":['
+	n=0
+	for f in ext4 vfat exfat ntfs3 ntfs f2fs btrfs; do
+		grep -qw "$f" "${NF_FSF:-/proc/filesystems}" 2>/dev/null || continue
+		[ "$n" -gt 0 ] && printf ','
+		printf '"%s"' "$f"; n=$((n + 1))
+	done
+	us=0; { [ -d "${NF_USBMOD:-/sys/module/usb_storage}" ] || grep -q '^usb_storage ' "${NF_MODS:-/proc/modules}" 2>/dev/null; } && us=1
+	printf '],"usb_storage":%s}\n' "$us" ;;
+reset)
+	cp "$DEF" "$CONF" || fail "не удалось записать конфигурацию"
+	restart
+	printf '{"ok":true}\n' ;;
+*)
+	echo "usage: nightfall-config get | set KEY=VAL… | reset | disks" >&2
+	exit 1 ;;
+esac
+ || fail "TG_ROUTE_OUTPUT: неверное имя VPN-интерфейса" ;;
+				steer:*) n=${v#steer:}; printf '%s' "$n" | grep -qE '^[A-Za-z0-9_.-]{1,31}
+				'') ;;
+				*) fail "TG_ROUTE_OUTPUT: ожидался table:N или iface:NAME" ;;
+			esac ;;
+		JOURNAL|PERSIST_ANY|WIFI_HIST|APPS|LITE|NEWDEV|TG|TG_ALERTS|TG_BOT|TG_CLEAN|TG_WIDGETS|TG_UPDATES|TG_SEC) case "$v" in 0|1) ;; *) fail "$k: допустимо 0 или 1" ;; esac ;;
+		SPEED_HOURS) range "$k" "$v" 0 168 ;;
+		SPEED_STREAMS) range "$k" "$v" 1 8 ;;
+		SPEED_URL)
+			case "$v" in http://*|https://*) ;; *) fail "SPEED_URL: нужен адрес http:// или https://" ;; esac
+			case "$v" in *[!A-Za-z0-9._~:/?=%+-]*) fail "SPEED_URL: недопустимые символы (разрешены буквы, цифры и . _ ~ : / ? = % + -)" ;; esac
+			[ ${#v} -le 200 ] || fail "SPEED_URL: слишком длинный адрес" ;;
+		PERSIST_DIR)
+			if [ -n "$v" ]; then
+				case "$v" in /*) ;; *) fail "PERSIST_DIR: нужен абсолютный путь" ;; esac
+				case "$v" in *[!A-Za-z0-9._/-]*|*..*) fail "PERSIST_DIR: недопустимые символы" ;; esac
+				case "$v" in /|/etc|/etc/*|/root|/root/*|/rom|/rom/*) fail "PERSIST_DIR: этот системный путь запрещён" ;; esac
+				case "$v" in /overlay|/overlay/*) [ "$allow_internal" = 1 ] || fail "PERSIST_DIR: для внутренней флеш-памяти включите «Разрешить сохранение на встроенный накопитель»" ;; esac
+				[ ${#v} -le 100 ] || fail "PERSIST_DIR: слишком длинный путь"
+			fi ;;
+		esac
+		eval "new_$k=\$v"
+	done
+	[ -f "$CONF" ] || cp "$DEF" "$CONF" 2>/dev/null || : > "$CONF"
+	tw=${new_TEMP_WARN:-$(val "$CONF" TEMP_WARN)}; tc=${new_TEMP_CRIT:-$(val "$CONF" TEMP_CRIT)}
+	[ -z "$tw" ] || [ -z "$tc" ] || [ "$tw" -lt "$tc" ] || fail "TEMP_WARN должен быть меньше TEMP_CRIT"
+	cp "$CONF" "$CONF.tmp" || fail "не удалось записать конфигурацию"
+	for kv in "$@"; do
+		k=${kv%%=*}; v=${kv#*=}
+		[ "$k" = TG_TOKEN ] && [ "$v" = "***" ] && continue
+		if grep -q "^$k=" "$CONF.tmp"; then
+			sed "s|^$k=[^ #]*|$k=$v|" "$CONF.tmp" > "$CONF.tmp2" && mv "$CONF.tmp2" "$CONF.tmp"
+		else
+			printf '%s=%s\n' "$k" "$v" >> "$CONF.tmp"
+		fi
+	done
+	chmod 600 "$CONF.tmp" 2>/dev/null     # внутри токен бота
+	mv "$CONF.tmp" "$CONF" || fail "не удалось записать конфигурацию"
+	restart
+	printf '{"ok":true}\n' ;;
+disks)
+	# подключённые USB-накопители, SD-карты и диски (не системный раздел роутера), куда можно сохранять историю
+	M=${NF_MOUNTS:-/proc/mounts}; DFB=${NF_DF:-df}
+	rd=$($DFB -P / 2>/dev/null | awk 'NR == 2 { print $1 }'); od=$($DFB -P /overlay 2>/dev/null | awk 'NR == 2 { print $1 }')
+	printf '{"disks":['; n=0
+	while read -r dev mnt fs opts _; do
+		case "$dev" in /dev/sd[a-z]*|/dev/nvme*|/dev/mmcblk*|/dev/vd[a-z]*) ;; *) continue ;; esac
+		case "$mnt" in /|/overlay|/overlay/*|/rom|/rom/*|/boot|/boot/*|/tmp|/tmp/*|/proc|/sys|/dev|/dev/*|/etc|/etc/*) continue ;; esac
+		case "$mnt" in *[!A-Za-z0-9._/-]*) continue ;; esac
+		[ "$dev" = "$rd" ] && continue
+		[ "$dev" = "$od" ] && continue
+		case ",$opts," in *,rw,*) ;; *) continue ;; esac
+		kb=$($DFB -kP "$mnt" 2>/dev/null | awk 'NR == 2 { print $2, $4 }')
+		[ -n "$kb" ] || continue
+		[ "$n" -gt 0 ] && printf ','
+		printf '{"dev":"%s","mount":"%s","fs":"%s","size_kb":%s,"free_kb":%s}' "$dev" "$mnt" "$fs" "${kb% *}" "${kb#* }"
+		n=$((n + 1))
+	done < "$M"
+	printf '],"parts":['
+	# разделы, которые видит ядро, но которые не смонтированы (для подсказки «почему список пуст»)
+	n=0
+	while read -r _ _ blocks name; do
+		case "$name" in sd[a-z][0-9]*|nvme[0-9]*n[0-9]*p[0-9]*|mmcblk[0-9]*p[0-9]*|vd[a-z][0-9]*) ;; *) continue ;; esac
+		grep -q "^/dev/$name " "$M" 2>/dev/null && continue
+		bt=; command -v blkid >/dev/null 2>&1 && bt=$(blkid -o value -s TYPE "/dev/$name" 2>/dev/null | head -n 1 | tr -cd 'A-Za-z0-9_')
+		[ "$n" -gt 0 ] && printf ','
+		printf '{"dev":"/dev/%s","size_kb":%s,"type":"%s"}' "$name" "${blocks:-0}" "$bt"
+		n=$((n + 1))
+	done < "${NF_PARTS:-/proc/partitions}"
+	printf '],"fs":['
+	n=0
+	for f in ext4 vfat exfat ntfs3 ntfs f2fs btrfs; do
+		grep -qw "$f" "${NF_FSF:-/proc/filesystems}" 2>/dev/null || continue
+		[ "$n" -gt 0 ] && printf ','
+		printf '"%s"' "$f"; n=$((n + 1))
+	done
+	us=0; { [ -d "${NF_USBMOD:-/sys/module/usb_storage}" ] || grep -q '^usb_storage ' "${NF_MODS:-/proc/modules}" 2>/dev/null; } && us=1
+	printf '],"usb_storage":%s}\n' "$us" ;;
+reset)
+	cp "$DEF" "$CONF" || fail "не удалось записать конфигурацию"
+	restart
+	printf '{"ok":true}\n' ;;
+*)
+	echo "usage: nightfall-config get | set KEY=VAL… | reset | disks" >&2
+	exit 1 ;;
+esac
+ || fail "TG_ROUTE_OUTPUT: неверное имя выхода Steer" ;;
 				'') ;;
 				*) fail "TG_ROUTE_OUTPUT: ожидался table:N или iface:NAME" ;;
 			esac ;;
