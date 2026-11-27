@@ -21,6 +21,17 @@ devname() { printf '%s' "$1" | grep -qE '^[A-Za-z0-9_.-]{1,15}$'; }
 outname() { printf '%s' "$1" | grep -qE '^[A-Za-z0-9_.-]{1,31}$'; }
 updev() { "$IP" -o link show dev "$1" 2>/dev/null | grep -q '<[^>]*UP'; }
 table_exists() { "$NFT" list table inet nightfall_telegram >/dev/null 2>&1; }
+guard_ready() {
+	[ -n "$UID_TG" ] && table_exists || return 1
+	case "$MODE" in
+		steer)
+			"$NFT" list chain inet nightfall_telegram route_output 2>/dev/null | grep -Fq "meta skuid $UID_TG" &&
+			"$NFT" list chain inet nightfall_telegram egress_guard 2>/dev/null | grep -Fq "meta skuid $UID_TG" ;;
+		iface)
+			"$NFT" list chain inet nightfall_telegram egress_guard 2>/dev/null | grep -Fq "meta skuid $UID_TG" ;;
+		*) return 1 ;;
+	esac
+}
 
 lock() {
 	mkdir -p "$(dirname "$LOCK")" 2>/dev/null || return 1
@@ -250,7 +261,7 @@ apply_steer() {
 	UID_TG=$(id -u "$USER_NAME" 2>/dev/null)
 	if read_state && [ "$S_MODE" = "$MODE" ] && [ "$S_UID" = "$UID_TG" ] &&
 	   [ "$S_OUTPUT" = "$OUTPUT" ] && [ "$S_DEVICE" = "$DEV" ] &&
-	   [ "$S_TABLE" = "$TABLE" ] && [ "$S_MARK" = "$MARK" ] && [ "$S_FAIL" = 0 ] && table_exists; then
+	   [ "$S_TABLE" = "$TABLE" ] && [ "$S_MARK" = "$MARK" ] && [ "$S_FAIL" = 0 ] && guard_ready; then
 		unlock
 		printf '{"ok":true,"mode":"vpn","source":"steer","output":"%s","device":"%s","table":%s,"reused":true}\n' \
 			"$(esc "$OUTPUT")" "$(esc "$DEV")" "$TABLE"
@@ -258,6 +269,13 @@ apply_steer() {
 	fi
 	remove_previous
 	write_state && nft_install || { unlock; err "Не удалось установить метку и egress guard Steer для Telegram"; return 1; }
+	lookup=$("$IP" -4 route get 149.154.167.220 mark "$MARK" uid "$UID_TG" 2>&1)
+	if ! printf '%s\n' "$lookup" | grep -Fq "table $TABLE" ||
+	   ! printf '%s\n' "$lookup" | grep -Fq "dev $DEV"; then
+		remove_previous; install_drop; unlock
+		err "Проверка маршрута Steer не прошла; Telegram заблокирован без обхода через WAN"
+		return 1
+	fi
 	unlock
 	printf '{"ok":true,"mode":"vpn","source":"steer","output":"%s","device":"%s","table":%s}\n' \
 		"$(esc "$OUTPUT")" "$(esc "$DEV")" "$TABLE"
@@ -270,7 +288,7 @@ apply_interface() {
 	lock || { err "Не удалось получить блокировку маршрута"; return 1; }
 	UID_TG=$(id -u "$USER_NAME" 2>/dev/null)
 	if read_state && [ "$S_MODE" = "$MODE" ] && [ "$S_UID" = "$UID_TG" ] &&
-	   [ "$S_OUTPUT" = "$OUTPUT" ] && [ "$S_DEVICE" = "$DEV" ] && [ "$S_FAIL" = 0 ] && table_exists &&
+	   [ "$S_OUTPUT" = "$OUTPUT" ] && [ "$S_DEVICE" = "$DEV" ] && [ "$S_FAIL" = 0 ] && guard_ready &&
 	   "$IP" -4 route show table "$S_TABLE" default 2>/dev/null | grep -Fq "dev $DEV"; then
 		unlock
 		printf '{"ok":true,"mode":"vpn","source":"interface","device":"%s","table":%s,"reused":true}\n' "$DEV" "$S_TABLE"
@@ -301,6 +319,13 @@ apply_interface() {
 		rm -f "$STATE" "$STATE.tmp"
 		if table_exists; then "$NFT" delete table inet nightfall_telegram >/dev/null 2>&1 || :; fi
 		unlock; err "Не удалось установить egress guard для VPN-интерфейса"; return 1
+	fi
+	lookup=$("$IP" -4 route get 149.154.167.220 uid "$UID_TG" 2>&1)
+	if ! printf '%s\n' "$lookup" | grep -Fq "table $TABLE" ||
+	   ! printf '%s\n' "$lookup" | grep -Fq "dev $DEV"; then
+		remove_previous; install_drop; unlock
+		err "Проверка маршрута VPN-интерфейса не прошла; Telegram заблокирован без обхода через WAN"
+		return 1
 	fi
 	unlock
 	printf '{"ok":true,"mode":"vpn","source":"interface","device":"%s","table":%s}\n' "$DEV" "$TABLE"
