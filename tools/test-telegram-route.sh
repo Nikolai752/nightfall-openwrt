@@ -9,6 +9,8 @@ trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/bin"
 export NF_TG_TEST_STATUS="$T/steer-status.json"
 export NF_TG_TEST_NFT="$T/nft-state"
+export NF_TG_TEST_IP_LOG="$T/ip-commands.log"
+: > "$NF_TG_TEST_IP_LOG"
 export NF_TG_TEST_UID=104
 
 ok() { echo "ok: $1"; }
@@ -52,6 +54,7 @@ SH
 cat > "$T/bin/ip" <<'SH'
 #!/bin/sh
 args="$*"
+printf '%s\\n' "$args" >> "$NF_TG_TEST_IP_LOG"
 case "$args" in
 	*"-o link show dev wg1"*)
 		echo '9: wg1: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420'
@@ -131,6 +134,8 @@ export PATH="$T/bin:$PATH"
 export NF_IP="$T/bin/ip" NF_NFT="$T/bin/nft" NF_STEER="$T/bin/steer" NF_JSHN="$T/jshn.sh"
 export NF_TG_STATE="$T/route.state" NF_TG_LOCK="$T/route.lock"
 
+# Synthetic Steer status fixture: mark/table/device values below are test data.
+# The production helper must derive the real values from the live `steer status`.
 cat > "$NF_TG_TEST_STATUS" <<'JSON'
 {"schema":1,"outputs":{
   "groupvpn":{"kind":"group","device":"","up":true,"mark":"0x00400000","table":300,"failed":false,"group":{"selected":"wg1"}},
@@ -190,6 +195,10 @@ grep -Fq 'egress_guard meta skuid 104 oifname != "wg2" drop' "$NF_TG_TEST_NFT" |
 out=$("$H" status) || bad "zm_vpn2 status failed: $out"
 printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.active || d.source!=="steer" || d.output!=="steer:zm_vpn2" || d.device!=="wg2" || d.table!==304) process.exit(1)' ||
 	bad "status did not confirm the selected zm_vpn2 route"
+out=$( "$H" apply ) || bad "reapplying zm_vpn2 failed: $out"
+case "$out" in *'"reused":true'*) ;; *) bad "zm_vpn2 route was not reused idempotently: $out" ;; esac
+ok "zm_vpn2 remains active and is reused idempotently"
+
 ok "switch to zm_vpn2 selects its Steer mark/table and confirms active status"
 
 # Return to the original group output. This is the critical regression guard:
@@ -205,6 +214,12 @@ out=$("$H" status) || bad "original output status failed after round trip: $out"
 printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.active || d.source!=="steer" || d.output!=="steer:groupvpn" || d.device!=="wg1" || d.table!==300) process.exit(1)' ||
 	bad "original Steer route was not active after switching back"
 ok "return to original Steer output works after zm_vpn2 round trip"
+# The Steer-mode round trip must not add/delete/flush/replace any kernel
+# route or policy rule. Only Nightfall's private nft table is managed here.
+if grep -E '(^| )(-4|-6) (route (add|change|del|delete|flush|replace)|rule (add|del|delete))' "$NF_TG_TEST_IP_LOG" >/dev/null; then
+	bad "Steer output switching modified kernel routes or policy rules"
+fi
+ok "Steer output switching leaves all kernel routing rules and tables untouched"
 
 # A failed Steer output must replace the route with a hard block.
 cat > "$NF_TG_TEST_STATUS" <<'JSON'
