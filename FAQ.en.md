@@ -183,7 +183,7 @@ The value must be **1**.
 Fixed in v1.15.0. Update Nightfall.
 
 ### History disappeared after reboot
-By default, current history is stored in RAM (**/tmp**) and is cleared on reboot. To keep it, set **PERSIST_DIR** to a mounted USB/SD storage path in the monitor settings. If the drive is disconnected, the collector continues in RAM and resumes saving after the drive is mounted; it should not write data to the underlying **/overlay**. See the [README](README.en.md) and the [backup and restore guide](docs/backup-restore.md) for details.
+By default, current history is stored in RAM (**/tmp**) and is cleared on reboot. To keep it, set **PERSIST_DIR** to a mounted USB/SD storage path in the monitor settings. If the drive is disconnected, the collector continues in RAM and resumes saving after the drive is mounted; it should not write data to the underlying **/overlay**. See the [README](README.en.md) and the [backup and restore guide (in Russian)](docs/backup-restore.md) for details.
 
 ---
 
