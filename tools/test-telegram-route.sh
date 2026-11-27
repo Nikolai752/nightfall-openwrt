@@ -54,7 +54,7 @@ SH
 cat > "$T/bin/ip" <<'SH'
 #!/bin/sh
 args="$*"
-printf '%s\\n' "$args" >> "$NF_TG_TEST_IP_LOG"
+printf '%s\n' "$args" >> "$NF_TG_TEST_IP_LOG"
 case "$args" in
 	*"-o link show dev wg1"*)
 		echo '9: wg1: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420'
