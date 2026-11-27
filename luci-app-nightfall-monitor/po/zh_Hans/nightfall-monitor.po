@@ -3974,3 +3974,51 @@ msgstr "%s：值过长"
 
 msgid "неизвестный параметр: %s"
 msgstr "未知参数：%s"
+
+msgid "Бот пока ничего не получал. Откройте бота в Telegram, нажмите Start или напишите ему любое сообщение и повторите."
+msgstr "机器人还没收到任何消息。请在 Telegram 中打开机器人，点击 Start 或随意发一条消息后重试。"
+
+msgid "не найден nightfall-backup"
+msgstr "未找到 nightfall-backup"
+
+msgid "не удалось подготовить каталог состояния"
+msgstr "无法准备状态目录"
+
+msgid "не удалось сохранить ссылку на архив"
+msgstr "无法保存归档链接"
+
+msgid "не указан chat id"
+msgstr "未指定 chat id"
+
+msgid "не указан токен бота"
+msgstr "未指定机器人令牌"
+
+msgid "резервная копия создана, но архив не найден"
+msgstr "备份已创建但未找到归档文件"
+
+msgid "неверный MAC-адрес"
+msgstr "MAC 地址无效"
+
+msgid "нет способа отправить пакет: установите пакет etherwake (opkg install etherwake или apk add etherwake)"
+msgstr "无法发送数据包：请安装 etherwake（opkg install etherwake 或 apk add etherwake）"
+
+msgid "не удалось записать список"
+msgstr "无法写入列表"
+
+msgid "не удалось записать список групп"
+msgstr "无法写入分组列表"
+
+msgid "не удалось записать список устройств"
+msgstr "无法写入设备列表"
+
+msgid "вручную"
+msgstr "手动"
+
+msgid "группа отключена вручную"
+msgstr "分组已被手动禁用"
+
+msgid "достигнут суточный лимит трафика"
+msgstr "已达每日流量上限"
+
+msgid "расписание"
+msgstr "计划任务"

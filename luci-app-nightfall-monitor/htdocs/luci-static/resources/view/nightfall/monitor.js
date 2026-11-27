@@ -1392,7 +1392,7 @@ return view.extend({
 			tgMsg.textContent = _('Выполняю…');
 			const save = [ 'set' ].concat([ 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY', 'TG_IFACE' ].map(k => k + '=' + cfgInputs[k].value.trim()));
 			return callCfg(save).then(r => {
-				if (!(r && r.ok)) { tgMsg.textContent = _('Не сохранено: ') + ((r && r.error) || _('нет ответа')); return null; }
+				if (!(r && r.ok)) { tgMsg.textContent = _('Не сохранено: ') + (trCfgErr((r && r.error) || '') || _('нет ответа')); return null; }
 				return fs.exec(NOTIFYBIN, [ cmd ]).then(res => { try { return JSON.parse(res.stdout); } catch (e) { return { ok: false, error: _('нет ответа от роутера') }; } }).catch(() => ({ ok: false, error: _('нет прав на запуск (выйдите из LuCI и войдите снова; права обновляются при входе) или не найден /usr/libexec/nightfall-notify') }));
 			});
 		};
@@ -1400,8 +1400,8 @@ return view.extend({
 			E('div', { class: 'nfm-note-s' }, _('Как настроить: 1) в Telegram найдите @BotFather, создайте бота командой /newbot и вставьте токен выше; 2) откройте своего бота и нажмите Start; 3) нажмите «Определить chat id», затем «Отправить проверку»; 4) включите переключатель «Отправлять уведомления» и сохраните. После этого боту можно писать команды: /status, /clients, /traffic, /apps, /speed, /help (отвечает только вам).')),
 			E('div', { class: 'nfm-actions', style: 'margin:8px 0 0' }, [
 				E('button', { class: 'nfm-act', click: () => tgRun('chatid').then(r => { if (!r) return; if (r.ok) { cfgInputs.TG_CHAT.value = r.chat; callCfg([ 'set', 'TG_CHAT=' + r.chat ]); tgMsg.textContent = _('Chat id найден: ') + r.chat; } else tgMsg.textContent = trCfgErr(r.error); }) }, _('Определить chat id')),
-				E('button', { class: 'nfm-act', click: () => tgRun('test').then(r => { if (r) tgMsg.textContent = r.ok ? _('Сообщение отправлено, проверьте Telegram.') : _('Не отправлено: ') + r.error; }) }, _('Отправить проверку')),
-				E('button', { class: 'nfm-act', click: () => tgRun('backup').then(r => { if (r) tgMsg.textContent = r.ok ? _('Резервная копия отправлена в Telegram файлом (без токена бота).') : _('Не отправлено: ') + r.error; }) }, _('Резервная копия в Telegram')) ]),
+				E('button', { class: 'nfm-act', click: () => tgRun('test').then(r => { if (r) tgMsg.textContent = r.ok ? _('Сообщение отправлено, проверьте Telegram.') : _('Не отправлено: ') + trCfgErr(r.error); }) }, _('Отправить проверку')),
+				E('button', { class: 'nfm-act', click: () => tgRun('backup').then(r => { if (r) tgMsg.textContent = r.ok ? _('Резервная копия отправлена в Telegram файлом (без токена бота).') : _('Не отправлено: ') + trCfgErr(r.error); }) }, _('Резервная копия в Telegram')) ]),
 			tgMsg ]);
 		/* ---- Накопители: найти флешку / SD-карту и одним нажатием хранить на ней историю ---- */
 		const dskBody = E('div', {}, E('div', { class: 'nfm-empty' }, _('Ищу накопители…')));
@@ -1410,7 +1410,7 @@ return view.extend({
 		function setPersist(dir, hours, msg) {
 			dskMsg.textContent = _('Применяю…');
 			callCfg(dir ? [ 'set', 'PERSIST_DIR=' + dir, 'PERSIST_HOURS=' + hours ] : [ 'set', 'PERSIST_DIR=' ]).then(r => {
-				if (!(r && r.ok)) { dskMsg.textContent = _('Не сохранено: ') + ((r && r.error) || _('нет ответа')); return; }
+				if (!(r && r.ok)) { dskMsg.textContent = _('Не сохранено: ') + (trCfgErr((r && r.error) || '') || _('нет ответа')); return; }
 				dskMsg.textContent = msg; S.at.alerts = 0; S.at.hist = 0;
 				callCfg([ 'get' ]).then(c => { S.cfg = c; if (c) fillCfg(c.values); renderDisks(); });
 			});
@@ -1559,7 +1559,7 @@ return view.extend({
 		const spdList = E('div', { class: 'nfm-lst', style: 'margin-top:12px' });
 		const spdNote = E('div', { class: 'nfm-note-s', style: 'margin-top:8px' });
 		const spdSel = E('select', { class: 'nfm-sel', title: _('Автоматический замер'), change: ev => {
-			callCfg([ 'set', 'SPEED_HOURS=' + ev.target.value ]).then(r => { if (!(r && r.ok)) ui.addNotification(null, E('p', {}, _('Не сохранено: ') + ((r && r.error) || _('нет ответа'))), 'danger'); S.at.spd = 0; }); } },
+			callCfg([ 'set', 'SPEED_HOURS=' + ev.target.value ]).then(r => { if (!(r && r.ok)) ui.addNotification(null, E('p', {}, _('Не сохранено: ') + (trCfgErr((r && r.error) || '') || _('нет ответа'))), 'danger'); S.at.spd = 0; }); } },
 			[ [ '0', _('Автозамер выключен') ], [ '1', _('Каждый час') ], [ '3', _('Каждые 3 часа') ], [ '6', _('Каждые 6 часов') ], [ '12', _('Каждые 12 часов') ], [ '24', _('Раз в сутки') ] ].map(([ v, l ]) => E('option', { value: v }, l)));
 		const SPEED_PRESETS = [
 			[ 'https://speed.cloudflare.com/__down?bytes=25000000', _('Cloudflare (25 МБ на поток)') ],
@@ -1570,7 +1570,7 @@ return view.extend({
 			if (!ev.target.value) { ui.addNotification(null, E('p', {}, _('Свой адрес впишите в поле «Файл для замера скорости» в настройках ниже.')), 'info'); return; }
 			callCfg([ 'set', 'SPEED_URL=' + ev.target.value ]).then(r => {
 				if (r && r.ok) { if (S.cfg && S.cfg.values) S.cfg.values.SPEED_URL = ev.target.value; if (cfgInputs.SPEED_URL) cfgInputs.SPEED_URL.value = ev.target.value; }
-				else ui.addNotification(null, E('p', {}, _('Не сохранено: ') + ((r && r.error) || _('нет ответа'))), 'danger'); }); } },
+				else ui.addNotification(null, E('p', {}, _('Не сохранено: ') + (trCfgErr((r && r.error) || '') || _('нет ответа'))), 'danger'); }); } },
 			SPEED_PRESETS.map(([ v, l ]) => E('option', { value: v }, l)).concat([ E('option', { value: '' }, _('Свой адрес (в настройках)')) ]));
 		const spdBtn = E('button', { class: 'nfm-btn', click: () => startSpeed() }, _('Измерить сейчас'));
 		const flashBox = E('div');
@@ -2562,6 +2562,11 @@ return view.extend({
 		return tx.split('\n').map(trDiag).join('\n');
 	}
 
+	function trBlkReason(tx) {
+		var m = { manual: _('вручную'), gmanual: _('группа отключена вручную'), quota: _('достигнут суточный лимит трафика'), sched: _('расписание') };
+		return m[tx] || tx;
+	}
+
 	function trCfgErr(tx) {
 		if (typeof tx !== 'string') return tx;
 		var m;
@@ -2582,7 +2587,14 @@ return view.extend({
 			'не удалось записать картинку': 1, 'не удалось записать конфигурацию': 1,
 			'не удалось записать настройки темы': 1, 'не удалось записать фото': 1,
 			'нужна картинка png, webp или jpeg': 1, 'нужно фото webp или jpeg': 1,
-			'ожидался JSON-объект': 1, 'фото пустое или слишком большое': 1
+			'ожидался JSON-объект': 1, 'фото пустое или слишком большое': 1,
+			'Бот пока ничего не получал. Откройте бота в Telegram, нажмите Start или напишите ему любое сообщение и повторите.': 1,
+			'не найден nightfall-backup': 1, 'не удалось подготовить каталог состояния': 1,
+			'не удалось сохранить ссылку на архив': 1, 'не указан chat id': 1, 'не указан токен бота': 1,
+			'резервная копия создана, но архив не найден': 1,
+			'неверный MAC-адрес': 1,
+			'нет способа отправить пакет: установите пакет etherwake (opkg install etherwake или apk add etherwake)': 1,
+			'не удалось записать список': 1, 'не удалось записать список групп': 1, 'не удалось записать список устройств': 1
 		};
 		if (exact[tx]) return _(tx);
 		if ((m = /^(\S+): допустимо от (\S+) до (\S+)$/.exec(tx))) return _('%s: допустимо от %s до %s').format(m[1], m[2], m[3]);
@@ -3492,7 +3504,7 @@ return view.extend({
 			const j = S.jrn;
 			if (j && j.rows) for (const r of j.rows) items.push(r[1] === 'outage' ? { t: r[0], k: 'jr', cls: 'crit', txt: _('Обрыв связи: ') + trEv(r[3]) + (r[2] ? ' (' + fmtDur(r[2]) + ')' : '') } : { t: r[0], k: 'jr', cls: 'info', txt: _('Перезагрузка: ') + trEv(r[3]) });
 			const bl = S.blog;
-			if (bl && bl.log) for (const r of bl.log) items.push({ t: r[0], k: 'bl', cls: r[3] === 'on' ? 'warn' : 'info', txt: (r[2] || r[1]) + (r[3] === 'on' ? _(': доступ закрыт') : _(': доступ открыт')) + (r[4] ? ' · ' + r[4] : '') });
+			if (bl && bl.log) for (const r of bl.log) items.push({ t: r[0], k: 'bl', cls: r[3] === 'on' ? 'warn' : 'info', txt: (r[2] || r[1]) + (r[3] === 'on' ? _(': доступ закрыт') : _(': доступ открыт')) + (r[4] ? ' · ' + trBlkReason(r[4]) : '') });
 			if (!h && !j && !bl) { logBox.replaceChildren(E('div', { class: 'nfm-empty' }, _('Загружаю…'))); return; }
 			const seen = new Set();
 			const since = S.logP ? Date.now() / 1000 - S.logP : 0;

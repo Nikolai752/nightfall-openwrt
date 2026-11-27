@@ -3311,3 +3311,9 @@ msgstr "存储：USB/SD（%s）；保留最近 %s 份备份。"
 
 msgid "Хранилище: временное (%s); постоянный USB/SD не обнаружен или PERSIST_DIR не настроен."
 msgstr "存储：临时（%s）；未检测到持久的 USB/SD 或未配置 PERSIST_DIR。"
+
+msgid "неверный MAC-адрес"
+msgstr "MAC 地址无效"
+
+msgid "нет способа отправить пакет: установите пакет etherwake (opkg install etherwake или apk add etherwake)"
+msgstr "无法发送数据包：请安装 etherwake（opkg install etherwake 或 apk add etherwake）"
