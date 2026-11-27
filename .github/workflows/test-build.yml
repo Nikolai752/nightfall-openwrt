@@ -14,7 +14,7 @@ on:
         description: "Версия тестового архива"
         required: true
         type: string
-        default: "v1.30.0-alpha.2-tg-bot-selector"
+        default: "v1.30.0-alpha.3-tg-bot-buttons"
 
 permissions:
   contents: read
@@ -34,7 +34,7 @@ jobs:
 
       - name: Build archive
         env:
-          VERSION: ${{ inputs.version || 'v1.30.0-alpha.2-tg-bot-selector' }}
+          VERSION: ${{ inputs.version || 'v1.30.0-alpha.3-tg-bot-buttons' }}
         run: sh ./build-release.sh
 
       - name: Verify archive and checksum
@@ -48,7 +48,7 @@ jobs:
       - name: Upload installable archive
         uses: actions/upload-artifact@v7
         with:
-          name: nightfall-test-${{ inputs.version || 'v1.30.0-alpha.2-tg-bot-selector' }}
+          name: nightfall-test-${{ inputs.version || 'v1.30.0-alpha.3-tg-bot-buttons' }}
           path: |
             dist/nightfall-root.tar.gz
             dist/nightfall-root.tar.gz.sha256
