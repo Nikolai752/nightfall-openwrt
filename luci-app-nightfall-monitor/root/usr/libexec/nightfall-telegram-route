@@ -35,11 +35,15 @@ iface_kind() {
 	esac
 }
 table_exists() { "$NFT" list table inet nightfall_telegram >/dev/null 2>&1; }
+steer_mark_key() { printf '0x%08x' "$((MARK & 0x0ff00000))"; }
 guard_ready() {
 	[ -n "$UID_TG" ] && table_exists || return 1
 	case "$MODE" in
 		steer)
+			BASE_MARK=$(steer_mark_key)
 			"$NFT" list chain inet nightfall_telegram route_output 2>/dev/null | grep -Fq "meta skuid $UID_TG meta mark set $MARK" &&
+			"$NFT" list chain inet nightfall_telegram output_guard 2>/dev/null | grep -Fq "nightfall-telegram-steer-local-output-redir" &&
+			"$NFT" list chain inet nightfall_telegram egress_guard 2>/dev/null | grep -Fq "nightfall-telegram-steer-local-egress-redir" &&
 			"$NFT" list chain inet nightfall_telegram egress_guard 2>/dev/null | grep -Fq "meta skuid $UID_TG oifname != \"$DEV\" drop" ;;
 		iface)
 			"$NFT" list chain inet nightfall_telegram egress_guard 2>/dev/null | grep -Fq "meta skuid $UID_TG oifname != \"$DEV\" drop" ;;
@@ -141,9 +145,16 @@ EOF
 		if [ "$FAIL" = 1 ]; then
 			printf 'add rule inet nightfall_telegram fail_closed meta skuid %s drop comment "nightfall-telegram-fail-closed"\n' "$UID_TG"
 		elif [ "$MODE" = steer ]; then
-			printf 'add rule inet nightfall_telegram route_output meta skuid %s meta mark set %s comment "nightfall-telegram-steer-mark"\n' "$UID_TG" "$MARK"
-			printf 'add rule inet nightfall_telegram output_guard meta skuid %s oifname != "%s" drop comment "nightfall-telegram-steer-output-guard"\n' "$UID_TG" "$DEV"
-			printf 'add rule inet nightfall_telegram egress_guard meta skuid %s oifname != "%s" drop comment "nightfall-telegram-steer-guard"\n' "$UID_TG" "$DEV"
+			BASE_MARK=$(steer_mark_key)
+			printf 'add rule inet nightfall_telegram route_output meta skuid %s meta mark set %s comment "nightfall-telegram-steer-mark"\\n' "$UID_TG" "$MARK"
+			# Steer redirects marked local TCP sockets to the active plugin listener on
+			# 127.0.0.1. Its port is allocated from the live output registry (9480 + slot),
+			# so match the DNAT, loopback destination and output mark instead of hardcoding
+			# a listener port. Ordinary direct/WAN sockets do not match this exception.
+			printf 'add rule inet nightfall_telegram output_guard meta skuid %s ct status dnat meta mark & 0x0ff00000 == %s ip daddr 127.0.0.1 meta l4proto tcp accept comment "nightfall-telegram-steer-local-output-redir"\\n' "$UID_TG" "$BASE_MARK"
+			printf 'add rule inet nightfall_telegram output_guard meta skuid %s oifname != "%s" drop comment "nightfall-telegram-steer-output-guard"\\n' "$UID_TG" "$DEV"
+			printf 'add rule inet nightfall_telegram egress_guard meta skuid %s ct status dnat meta mark & 0x0ff00000 == %s ip daddr 127.0.0.1 meta l4proto tcp accept comment "nightfall-telegram-steer-local-egress-redir"\\n' "$UID_TG" "$BASE_MARK"
+			printf 'add rule inet nightfall_telegram egress_guard meta skuid %s oifname != "%s" drop comment "nightfall-telegram-steer-guard"\\n' "$UID_TG" "$DEV"
 		elif [ "$MODE" = iface ]; then
 			printf 'add rule inet nightfall_telegram output_guard meta skuid %s oifname != "%s" drop comment "nightfall-telegram-interface-output-guard"\n' "$UID_TG" "$DEV"
 			printf 'add rule inet nightfall_telegram egress_guard meta skuid %s oifname != "%s" drop comment "nightfall-telegram-interface-guard"\n' "$UID_TG" "$DEV"
