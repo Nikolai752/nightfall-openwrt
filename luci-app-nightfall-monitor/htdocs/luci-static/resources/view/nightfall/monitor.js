@@ -1399,14 +1399,27 @@ return view.extend({
 				return r;
 			});
 		};
+		const notifyExec = args => fs.exec(NOTIFYBIN, args).then(res => {
+			try { return JSON.parse(res.stdout || '{}'); }
+			catch (e) { return { ok: false, error: _('Некорректный ответ nightfall-notify') }; }
+		}).catch(err => ({ ok: false, error: _('Ошибка RPC запуска nightfall-notify: ') + ((err && err.message) || String(err)) }));
+		const runTelegramTest = () => notifyExec([ 'test-start' ]).then(started => {
+			if (!started || !started.ok) return started;
+			const wait = ms => new Promise(resolve => window.setTimeout(resolve, ms));
+			const pollResult = attempt => notifyExec([ 'test-status' ]).then(result => {
+				if (!result || result.state !== 'running') return result;
+				if (attempt >= 40)
+					return { ok: false, error: _('Проверка всё ещё выполняется. Повторите проверку позже; фоновый запрос продолжает работу.') };
+				return wait(1000).then(() => pollResult(attempt + 1));
+			});
+			return wait(500).then(() => pollResult(0));
+		});
 		const tgRun = cmd => {
 			tgMsg.textContent = _('Сохраняю настройки и проверяю подключение…');
 			return saveTelegramConfig().then(r => {
 				if (!r) return null;
-				return fs.exec(NOTIFYBIN, [ cmd ]).then(res => {
-					try { return JSON.parse(res.stdout); }
-					catch (e) { return { ok: false, error: _('нет ответа от роутера') }; }
-				}).catch(err => ({ ok: false, error: _('Ошибка RPC запуска nightfall-notify: ') + ((err && err.message) || String(err)) })).then(result => {
+				const request = cmd === 'test' ? runTelegramTest() : notifyExec([ cmd ]);
+				return request.then(result => {
 					if (tgApiState) {
 						tgApiState.textContent = result && result.ok ? _('Telegram API ответил успешно.') : _('Запрос к Telegram не выполнен: ') + ((result && result.error) || _('нет ответа'));
 						tgApiState.classList.toggle('is-good', !!(result && result.ok));
