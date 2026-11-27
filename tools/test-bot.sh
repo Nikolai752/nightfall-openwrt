@@ -373,6 +373,20 @@ printf 'LITE=1\nAPPS=1\n' > "$T/apps.conf"
 r=$(NF_CONF="$T/apps.conf" NF_DIR="$T" NF_UCI=true sh "$L/nightfall-apps" status)
 case "$r" in *'"lite":1'*) ok "учёт по приложениям: статус сообщает о режиме Lite" ;; *) bad "apps status: $r" ;; esac
 
+# 12b. Telegram API test is detached from the bounded LuCI file.exec request.
+conf 111 ""
+mkdir -p "$T/tg-test-async"
+: > "$T/calls"
+NF_CONF="$T/conf" NF_DIR="$T" NF_TG_TEST_DIR="$T/tg-test-async" NF_CURL="$T/curl" sh "$L/nightfall-notify" test-start > "$T/tg-test-start"
+grep -q '"state":"running"' "$T/tg-test-start" && ok "Telegram test: start returns immediately" || bad "Telegram test: start did not return running state"
+for n in 1 2 3 4 5 6 7 8; do
+	NF_CONF="$T/conf" NF_DIR="$T" NF_TG_TEST_DIR="$T/tg-test-async" NF_CURL="$T/curl" sh "$L/nightfall-notify" test-status > "$T/tg-test-status"
+	grep -q '"state":"running"' "$T/tg-test-status" || break
+	sleep 1
+done
+grep -q '"ok":true' "$T/tg-test-status" && ! grep -q '"state":"running"' "$T/tg-test-status" && ok "Telegram test: status returns final API result" || bad "Telegram test: no final result: $(cat "$T/tg-test-status")"
+grep -q 'METHOD sendMessage' "$T/calls" && ok "Telegram test: background worker called Telegram API" || bad "Telegram test: background worker did not call API"
+
 # 13. резервная копия: проверка, отдельное подтверждение и отмена восстановления
 cat > "$T/backupbin" <<'SH'
 #!/bin/sh
