@@ -1566,6 +1566,8 @@ return view.extend({
 		const tgOutputCount = E('b', {}, '–');
 		const tgRouteState = E('div', { class: 'nfm-tg-state' }, _('Загрузка данных маршрутизации…'));
 		const tgApiState = E('div', { class: 'nfm-tg-state' }, _('Проверка ещё не выполнялась'));
+		const tgRouteStatus = E('div', { class: 'nfm-tg-state' }, _('Маршрут ещё не применён.'));
+		const tgSettingsMsg = E('div', { class: 'nfm-tg-state' }, '');
 		const tgOutputSelect = E('select', { class: 'nfm-sel', 'aria-label': _('VPN-выход для Telegram'), change: ev => {
 			cfgInputs.TG_ROUTE_OUTPUT.value = ev.target.value;
 			renderTelegram();
@@ -1644,7 +1646,7 @@ return view.extend({
 			tgApiState
 		]));
 		const tgRouteStatusCard = card(_('Статус маршрута'), E('div', {}, [
-			tgRouteState,
+			tgRouteStatus,
 			E('div', { class: 'nfm-tg-note' }, _('При выборе VPN отдельный системный пользователь Nightfall получает собственное правило маршрутизации. Остальной трафик роутера остаётся без изменений.'))
 		]));
 		const tgAdvanced = E('details', { class: 'nfm-cfg-g nfm-tg-advanced' }, [
@@ -1664,7 +1666,21 @@ return view.extend({
 			E('div', { class: 'nfm-grid nfm-g21' }, [ tgConnectionCard, tgRouteCard ]),
 			E('div', { class: 'nfm-grid nfm-g3' }, [ tgNotifyGroup, tgBotGroup, tgIntegrationCard ]),
 			E('div', { class: 'nfm-grid nfm-g21' }, [ tgApiCard, tgRouteStatusCard ]),
-			tgAdvanced
+			tgAdvanced,
+			card(_('Применение настроек'), E('div', {}, [
+				E('div', { class: 'nfm-note-s' }, _('Сохраните параметры бота отдельно от применения VPN-маршрута. Тест отправит реальное сообщение через выбранный способ подключения.')),
+				E('div', { class: 'nfm-actions', style: 'margin-top:10px' }, [
+					E('button', { type: 'button', class: 'nfm-act', click: () => saveTelegramConfig().then(r => {
+						tgSettingsMsg.textContent = r ? _('Настройки Telegram сохранены.') : _('Не удалось сохранить настройки Telegram.');
+					}) }, _('Сохранить настройки Telegram')),
+					E('button', { type: 'button', class: 'nfm-act', click: () => tgRun('test').then(r => {
+						tgApiState.textContent = r && r.ok ? _('Telegram API ответил успешно.') : _('Проверка не пройдена: ') + ((r && r.error) || _('нет ответа'));
+						tgApiState.classList.toggle('is-good', !!(r && r.ok));
+						tgApiState.classList.toggle('is-bad', !(r && r.ok));
+					}) }, _('Тест подключения'))
+				]),
+				tgSettingsMsg
+			]))
 		]);
 
 		function renderTelegram() {
@@ -1684,6 +1700,7 @@ return view.extend({
 				tgSteerValue.textContent = S.tgInfo && S.tgInfo.error ? _('Ошибка обнаружения') : _('Не проверено');
 				tgOutputCount.textContent = '–';
 				tgRouteState.textContent = S.tgInfo && S.tgInfo.error ? _('Не удалось обнаружить выходы: ') + S.tgInfo.error : _('Нажмите «Обновить список выходов».');
+				tgRouteStatus.textContent = tgRouteState.textContent;
 				tgOutputSelect.replaceChildren(E('option', { value: '' }, _('Список выходов пока не получен')));
 				return;
 			}
@@ -1694,7 +1711,7 @@ return view.extend({
 				: _('Универсальный Linux policy routing');
 			const outputs = (info.outputs || []).concat(info.interfaces || []);
 			tgOutputCount.textContent = String(outputs.length);
-			const current = cfgInputs.TG_ROUTE_OUTPUT.value || values.TG_ROUTE_OUTPUT || '';
+			const current = cfgInputs.TG_ROUTE_OUTPUT.value || values.TG_ROUTE_OUTPUT || (values.TG_IFACE ? 'iface:' + values.TG_IFACE : '');
 			const options = [ E('option', { value: '' }, _('— выберите VPN-выход —')) ];
 			(info.outputs || []).forEach(item => {
 				options.push(E('option', { value: item.id, disabled: item.ready === false }, item.label || _('Таблица ') + item.table));
@@ -1716,6 +1733,7 @@ return view.extend({
 			} else {
 				tgRouteState.textContent = _('Telegram использует стандартную маршрутизацию OpenWrt.');
 			}
+			tgRouteStatus.textContent = tgRouteState.textContent;
 		}
 
 		function loadTelegram(force) {
@@ -1746,13 +1764,16 @@ return view.extend({
 						tgRouteState.textContent = result.mode === 'vpn'
 							? _('VPN-маршрут активен: ') + (result.device || result.output || '')
 							: result.mode === 'proxy' ? _('Прокси сохранён и готов к проверке.') : _('Используется системный маршрут OpenWrt.');
+						tgRouteStatus.textContent = tgRouteState.textContent;
 						loadTelegram(true);
 						return result;
 					}
 					tgRouteState.textContent = result && result.error ? result.error : _('Не удалось применить маршрут Telegram.');
+					tgRouteStatus.textContent = tgRouteState.textContent;
 					return null;
 				}).catch(err => {
 					tgRouteState.textContent = _('Не удалось запустить маршрутизацию: ') + (err.message || err);
+					tgRouteStatus.textContent = tgRouteState.textContent;
 					return null;
 				});
 			});
