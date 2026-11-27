@@ -146,7 +146,7 @@ check(api.appTrafficCategory('Прочее · rtcdn.ru') === 'Видео и ра
 check(api.appTrafficCategory('Прочее · apptracer.ru') === 'Реклама и аналитика', 'application telemetry is grouped with analytics');
 check(api.appTrafficDisplayName('Прочее · Нет DNS-имени') === 'IP без DNS-имени', 'missing DNS label is user friendly');
 check(api.appTrafficDisplayName('Прочее · Общий IP (CDN)') === 'Общий IP / CDN', 'shared CDN label is explicit');
-check(source.includes("[ 'apps', 'Трафик' ]"), 'monitor has the application traffic tab');
+check(source.includes("[ 'apps', _('Трафик') ]"), 'monitor has the localized application traffic tab');
 check(source.includes("if (S.tab === 'apps' && due('appTraffic', 30))"), 'application stats poll only on their tab');
 check(source.includes('show(appsTab, S.tab === \'apps\')'), 'tab panel visibility is wired');
 check(source.includes(".nfm-app-distribution { display:grid; grid-template-columns:minmax(190px,260px) minmax(0,1fr)"), 'distribution is a full-width horizontal panel on desktop');
