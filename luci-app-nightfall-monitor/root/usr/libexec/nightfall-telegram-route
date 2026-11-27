@@ -169,6 +169,7 @@ read_steer_output() {
 			json_select "$OUT_NAME" >/dev/null 2>&1 || return 1
 		fi
 	fi
+	json_select .. >/dev/null 2>&1 || :
 	case "$up:$failed" in true:|true:false) READY=true ;; esac
 	devname "$DEV" || READY=false
 	num "$TABLE" || READY=false
