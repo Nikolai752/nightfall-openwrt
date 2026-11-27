@@ -30,8 +30,9 @@ _json_value() {
 		for (const key of (process.env.JSON_PATH || "").split(".").filter(Boolean))
 			value = value == null ? undefined : value[key];
 		value = value == null ? undefined : value[process.env.JSON_KEY];
-		if (value === true) process.stdout.write("true");
-		else if (value === false) process.stdout.write("false");
+		// OpenWrt jshn writes JSON booleans to shell variables as 1/0.
+		if (value === true) process.stdout.write("1");
+		else if (value === false) process.stdout.write("0");
 		else if (value != null) process.stdout.write(String(value));
 	'
 }
