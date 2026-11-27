@@ -87,6 +87,8 @@ if [ "$THEME_ONLY" = 0 ]; then
 	       "$ROOT/usr/share/luci/menu.d/luci-app-nightfall-monitor.json" "$ROOT/usr/share/luci/menu.d/luci-theme-nightfall.json" \
 	       "$ROOT/usr/share/rpcd/acl.d/luci-app-nightfall-monitor.json" \
 	       "$ROOT/etc/uci-defaults/30_luci-theme-nightfall" "$ROOT/etc/uci-defaults/40_nightfall-collector" \
+	       "$ROOT/usr/lib/lua/luci/i18n/nightfall.zh-cn.lmo" "$ROOT/usr/lib/lua/luci/i18n/nightfall-monitor.zh-cn.lmo" \
+	       "$ROOT/etc/uci-defaults/41_luci-i18n-nightfall-zh-cn" \
 	       "$ROOT/etc/sysctl.d/99-nightfall-acct.conf" "$ROOT/etc/nightfall-apps.prev" "$ROOT"/lib/upgrade/keep.d/nightfall-* \
 	       "$ROOT/tmp/nightfall" "$ROOT"/tmp/nightfall-* 2>/dev/null
 	if [ "$WIPE" = 1 ]; then
