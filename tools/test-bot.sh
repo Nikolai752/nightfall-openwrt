@@ -92,6 +92,37 @@ conf 111 "" "socks5h://user:secret@127.0.0.1:1080"
 grep -q secret "$T/args" && bad "прокси виден в аргументах curl" || ok "прокси не в аргументах curl"
 grep -q 'STDIN.*proxy = "socks5h://user:secret@127.0.0.1:1080"' "$T/calls" && ok "прокси передан через stdin" || bad "прокси не передан"
 
+# 4b. VPN-only mode: shadow-su must stop parsing options before curl's -sS/-K args.
+cat > "$T/routebin" <<'SH'
+#!/bin/sh
+[ "$1" = apply ] && { echo '{"ok":true,"mode":"vpn","source":"steer","device":"wg1","table":300}'; exit 0; }
+exit 1
+SH
+cat > "$T/idbin" <<'SH'
+#!/bin/sh
+[ "$1" = -u ] && { echo 104; exit 0; }
+exit 0
+SH
+cat > "$T/su" <<'SH'
+#!/bin/sh
+seen=0
+while [ "$#" -gt 0 ]; do
+	if [ "$1" = -- ]; then seen=1; shift; break; fi
+	shift
+done
+[ "$seen" = 1 ] || { echo "missing --" >&2; exit 97; }
+[ "$1" = sh ] || { echo "unexpected shell argv: $*" >&2; exit 98; }
+shift
+exec "$@"
+SH
+chmod +x "$T/routebin" "$T/idbin" "$T/su"
+printf 'TG=1\\nTG_TOKEN=123456:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\\nTG_CHAT=111\\nTG_ROUTE_MODE=vpn\\nTG_ROUTE_OUTPUT=steer:wg1\\n' > "$T/conf"
+: > "$T/calls"; : > "$T/args"; : > "$T/su.args"
+PATH="$T:$PATH" NF_CONF="$T/conf" NF_DIR="$T" NF_CURL="$T/curl" NF_TG_ROUTE_BIN="$T/routebin" NF_TG_USER=nightfall-tg NF_TMO=25 sh "$L/nightfall-notify" test > "$T/vpn-result"
+grep -q '"ok":true' "$T/vpn-result" && ok "VPN: тестовый запрос проходит через отдельного пользователя" || bad "VPN: запрос не запущен: $(cat "$T/vpn-result")"
+grep -q 'doh-url = "https://cloudflare-dns.com/dns-query"' "$T/calls" && ok "VPN: DoH-конфигурация передана curl через stdin" || bad "VPN: DoH-конфигурация отсутствует"
+grep -q 'METHOD getMe' "$T/calls" && ok "VPN: curl получил команду Telegram API" || bad "VPN: curl не был запущен"
+
 # 5. настройка TG_USERS проверяется
 printf 'TG_USERS=\n' > "$T/c2"; cp "$T/c2" "$T/c3"
 r=$(NF_CONF="$T/c3" NF_DEF="$T/c2" NF_NORESTART=1 sh "$L/nightfall-config" set TG_USERS=123456789,987654321)
