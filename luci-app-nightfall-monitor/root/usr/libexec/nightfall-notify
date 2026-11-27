@@ -8,6 +8,7 @@
 # Для тестов: NF_CONF, NF_DIR, NF_CURL (команда вместо curl).
 CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
 DIR=${NF_DIR:-/tmp/nightfall}
+TG_TEST_DIR=${NF_TG_TEST_DIR:-/var/run/nightfall-telegram-test}
 CURL=${NF_CURL:-curl}
 ROUTE_BIN=${NF_TG_ROUTE_BIN:-/usr/libexec/nightfall-telegram-route}
 TG_USER=${NF_TG_USER:-nightfall-tg}
@@ -167,6 +168,45 @@ send)
 	# сразу после загрузки сеть может быть ещё не готова: до трёх попыток
 	for try in 1 2 3; do post "$HOST: $2" "$3" && exit 0; [ -n "$NF_NOSLEEP" ] || sleep 20; done
 	exit 1 ;;
+test-start)
+	[ -n "$TOKEN" ] || fail "не указан токен бота"
+	[ -n "$CHAT" ] || fail "не указан chat id"
+	[ ! -L "$TG_TEST_DIR" ] || fail "небезопасный каталог теста Telegram"
+	mkdir -p "$TG_TEST_DIR" || fail "не удалось создать каталог теста Telegram"
+	chmod 700 "$TG_TEST_DIR" 2>/dev/null || fail "не удалось защитить каталог теста Telegram"
+	if [ -s "$TG_TEST_DIR/pid" ]; then
+		p=$(cat "$TG_TEST_DIR/pid" 2>/dev/null)
+		case "$p" in *[!0-9]*|'') p= ;; esac
+		if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
+			printf '{"ok":true,"state":"running"}\n'; exit 0
+		fi
+	fi
+	rm -f "$TG_TEST_DIR/pid" "$TG_TEST_DIR/done" "$TG_TEST_DIR/result" "$TG_TEST_DIR"/*.tmp.*
+	# Run the network request outside file.exec's bounded foreground lifetime.
+	# The worker writes its PID and result atomically; only short status calls use RPC.
+	sh -c '
+		dir=$1
+		script=$2
+		umask 077
+		echo "$" > "$dir/pid.tmp.$" && mv "$dir/pid.tmp.$" "$dir/pid"
+		"$script" test > "$dir/result.tmp.$" 2>&1
+		rc=$?
+		mv "$dir/result.tmp.$" "$dir/result"
+		echo "$rc" > "$dir/done.tmp.$" && mv "$dir/done.tmp.$" "$dir/done"
+		rm -f "$dir/pid"
+	' sh "$TG_TEST_DIR" "$0" </dev/null >/dev/null 2>&1 &
+	printf '{"ok":true,"state":"running"}\n' ;;
+test-status)
+	if [ -s "$TG_TEST_DIR/done" ] && [ -s "$TG_TEST_DIR/result" ]; then
+		cat "$TG_TEST_DIR/result"
+	elif [ -s "$TG_TEST_DIR/pid" ] && kill -0 "$(cat "$TG_TEST_DIR/pid" 2>/dev/null)" 2>/dev/null; then
+		printf '{"ok":true,"state":"running"}\n'
+	elif [ ! -e "$TG_TEST_DIR/pid" ] && [ ! -e "$TG_TEST_DIR/done" ]; then
+		# The background worker may not have written its PID yet.
+		printf '{"ok":true,"state":"running"}\n'
+	else
+		fail "проверка Telegram завершилась без результата"
+	fi ;;
 test)
 	[ -n "$TOKEN" ] || fail "не указан токен бота"
 	[ -n "$CHAT" ] || fail "не указан chat id"
