@@ -143,9 +143,18 @@ out=$("$H" apply) || bad "Steer route apply failed: $out"
 case "$out" in *'"ok":true'*'"source":"steer"'*) ;; *) bad "unexpected Steer apply result: $out" ;; esac
 grep -Fq 'route_output meta skuid 104 meta mark set 0x40400000' "$NF_TG_TEST_NFT" ||
 	bad "Steer socket mark was not installed"
+grep -Fq 'output_guard meta skuid 104 ct status dnat meta mark & 0x0ff00000 == 0x00400000 ip daddr 127.0.0.1 meta l4proto tcp accept' "$NF_TG_TEST_NFT" ||
+	bad "Steer local TCP redirect exception was not installed before the output guard"
+grep -Fq 'egress_guard meta skuid 104 ct status dnat meta mark & 0x0ff00000 == 0x00400000 ip daddr 127.0.0.1 meta l4proto tcp accept' "$NF_TG_TEST_NFT" ||
+	bad "Steer local TCP redirect exception was not installed before the egress guard"
 grep -Fq 'egress_guard meta skuid 104 oifname != "wg1" drop' "$NF_TG_TEST_NFT" ||
 	bad "Steer egress guard was not installed"
-ok "Steer route applies mark and fail-closed egress guard"
+grep -Fq 'output_guard meta skuid 104 oifname != "wg1" drop' "$NF_TG_TEST_NFT" ||
+	bad "Steer output guard was not installed"
+if grep -Fq 'dport 9484' "$NF_TG_TEST_NFT"; then
+	bad "Steer local redirect exception must not hardcode a dynamic listener port"
+fi
+ok "Steer route marks sockets, permits only marked local DNAT and keeps both fail-closed guards"
 
 # Reapplying the same route must reuse the guard instead of duplicating rules.
 out=$("$H" apply) || bad "idempotent Steer apply failed: $out"
@@ -178,7 +187,10 @@ out=$("$H" apply) || bad "plain interface apply failed: $out"
 case "$out" in *'"ok":true'*'"source":"interface"'*) ;; *) bad "unexpected interface apply result: $out" ;; esac
 grep -Fq 'egress_guard meta skuid 104 oifname != "wg1" drop' "$NF_TG_TEST_NFT" ||
 	bad "plain VPN interface egress guard was not installed"
-ok "plain WireGuard interface uses private policy table and egress guard"
+if grep -Fq 'nightfall-telegram-steer-local-' "$NF_TG_TEST_NFT"; then
+	bad "plain VPN interface must not install Steer-specific local redirect exceptions"
+fi
+ok "plain WireGuard interface uses private policy table and egress guard without Steer exceptions"
 out=$("$H" status) || bad "interface route status failed: $out"
 printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.active || d.source!=="iface" || d.device!=="wg1") process.exit(1)' ||
 	bad "plain VPN interface status did not confirm the active route"
