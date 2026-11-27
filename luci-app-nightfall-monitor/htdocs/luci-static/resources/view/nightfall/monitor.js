@@ -1578,15 +1578,16 @@ return view.extend({
 		const tgApiState = E('div', { class: 'nfm-tg-state' }, _('Проверка ещё не выполнялась'));
 		const tgRouteStatus = E('div', { class: 'nfm-tg-state' }, _('Маршрут ещё не применён.'));
 		const tgSettingsMsg = E('div', { class: 'nfm-tg-state' }, '');
-		const tgOutputSelect = E('select', { class: 'nfm-sel', 'aria-label': _('VPN-выход для Telegram'), change: ev => {
-			cfgInputs.TG_ROUTE_OUTPUT.value = ev.target.value;
-			const values = S.cfg && S.cfg.values || {};
-			const outputs = (S.tgInfo && S.tgInfo.ok ? (S.tgInfo.outputs || []).concat(S.tgInfo.interfaces || []) : []);
-			const selected = outputs.find(item => item.id === ev.target.value);
-			tgRouteState.textContent = selected
-				? (selected.ready === false ? _('Выход обнаружен, но сейчас не активен: ') : _('Выбранный выход: ')) + (selected.label || selected.id)
-				: _('Выберите VPN-выход. Автоматически первый выход не выбирается.');
-		} }, [ E('option', { value: '' }, _('— выберите VPN-выход —')) ]);
+		const tgOutputList = E('div', { class: 'nfm-tg-output-list', role: 'group', 'aria-label': _('VPN-выход для Telegram') });
+		function chooseTgOutput(item) {
+			if (!item || item.ready === false) return;
+			cfgInputs.TG_ROUTE_OUTPUT.value = item.id;
+			Array.from(tgOutputList.querySelectorAll('button[data-output]')).forEach(button => {
+				button.classList.toggle('selected', button.getAttribute('data-output') === item.id);
+				button.setAttribute('aria-pressed', button.getAttribute('data-output') === item.id ? 'true' : 'false');
+			});
+			tgRouteState.textContent = _('Выбранный выход: ') + (item.label || item.id);
+		}
 		const tgProxyField = cfgField('TG_PROXY');
 		const tgProxyPane = E('div', { class: 'nfm-tg-mode-pane' }, [
 			E('div', { class: 'nfm-note-s' }, _('Прокси используется только запросами Nightfall к Telegram API. Для DNS через прокси используйте socks5h://.')),
@@ -1594,7 +1595,7 @@ return view.extend({
 		]);
 		const tgVpnPane = E('div', { class: 'nfm-tg-mode-pane' }, [
 			E('label', { class: 'nfm-cfg-label' }, _('Обнаруженные VPN-выходы и policy-routing таблицы')),
-			tgOutputSelect,
+			tgOutputList,
 			E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, _('Nightfall использует существующую таблицу Steer или создаёт собственную таблицу только для выбранного обычного VPN-интерфейса. Правила и маршруты других программ не переписываются.'))
 		]);
 		const tgModeDescription = E('div', { class: 'nfm-note-s', style: 'margin-top:10px' });
@@ -1676,7 +1677,7 @@ return view.extend({
 			])
 		]);
 		const tgTab = E('div', { hidden: true, class: 'nfm-tg-page' }, [
-			E('style', {}, [ '.nfm-tg-page{min-width:0}.nfm-tg-hero{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:16px 18px;margin-bottom:14px;border:1px solid var(--nfm-border);border-radius:14px;background:var(--nfm-card)}.nfm-tg-brand{display:flex;align-items:center;gap:14px;min-width:0}.nfm-tg-logo{width:54px;height:54px;display:grid;place-items:center;border-radius:50%;background:#168fd2;color:white;font-size:27px;font-weight:700;box-shadow:0 5px 18px #168fd233}.nfm-tg-brand h2{margin:0 0 4px}.nfm-tg-master{display:flex;align-items:center;gap:12px}.nfm-tg-mode-list{display:grid;gap:8px}.nfm-tg-mode-choice{display:flex;align-items:flex-start;gap:11px;padding:12px;border:1px solid var(--nfm-border);border-radius:11px;cursor:pointer;min-width:0}.nfm-tg-mode-choice:has(input:checked){border-color:var(--nfm-accent);background:color-mix(in srgb,var(--nfm-accent) 9%,var(--nfm-card))}.nfm-tg-mode-choice input{margin-top:3px;flex:0 0 auto}.nfm-tg-mode-copy{display:flex;flex-direction:column;gap:3px;min-width:0}.nfm-tg-mode-copy small{color:var(--nfm-dim);line-height:1.4}.nfm-tg-mode-pane{margin-top:10px;padding:12px;border:1px solid var(--nfm-border);border-radius:10px;background:var(--nfm-card2)}.nfm-tg-info-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--nfm-border)}.nfm-tg-info-row:last-of-type{border-bottom:0}.nfm-tg-note,.nfm-tg-state{margin-top:10px;padding:10px 12px;border-radius:9px;background:var(--nfm-card2);line-height:1.45}.nfm-tg-state{font-size:.94em}.nfm-tg-advanced{margin-top:12px}.nfm-tg-advanced .nfm-cfg-body{padding-top:12px}@media(max-width:700px){.nfm-tg-hero{align-items:flex-start}.nfm-tg-master{width:100%;justify-content:space-between}.nfm-tg-mode-choice{padding:10px}}' ]),
+			E('style', {}, [ '.nfm-tg-page{min-width:0}.nfm-tg-hero{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:16px 18px;margin-bottom:14px;border:1px solid var(--nfm-border);border-radius:14px;background:var(--nfm-card)}.nfm-tg-brand{display:flex;align-items:center;gap:14px;min-width:0}.nfm-tg-logo{width:54px;height:54px;display:grid;place-items:center;border-radius:50%;background:#168fd2;color:white;font-size:27px;font-weight:700;box-shadow:0 5px 18px #168fd233}.nfm-tg-brand h2{margin:0 0 4px}.nfm-tg-master{display:flex;align-items:center;gap:12px}.nfm-tg-mode-list{display:grid;gap:8px}.nfm-tg-mode-choice{display:flex;align-items:flex-start;gap:11px;padding:12px;border:1px solid var(--nfm-border);border-radius:11px;cursor:pointer;min-width:0}.nfm-tg-mode-choice:has(input:checked){border-color:var(--nfm-accent);background:color-mix(in srgb,var(--nfm-accent) 9%,var(--nfm-card))}.nfm-tg-mode-choice input{margin-top:3px;flex:0 0 auto}.nfm-tg-mode-copy{display:flex;flex-direction:column;gap:3px;min-width:0}.nfm-tg-mode-copy small{color:var(--nfm-dim);line-height:1.4}.nfm-tg-mode-pane{margin-top:10px;padding:12px;border:1px solid var(--nfm-border);border-radius:10px;background:var(--nfm-card2)}.nfm-tg-info-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--nfm-border)}.nfm-tg-info-row:last-of-type{border-bottom:0}.nfm-tg-note,.nfm-tg-state{margin-top:10px;padding:10px 12px;border-radius:9px;background:var(--nfm-card2);line-height:1.45}.nfm-tg-state{font-size:.94em}.nfm-tg-output-list{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;max-height:260px;overflow:auto;margin-top:7px;padding:1px 3px 1px 1px}.nfm-tg-output-choice{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-width:0;padding:9px 11px;border:1px solid var(--nfm-border);border-radius:9px;background:var(--nfm-card);color:var(--nfm-text);font:inherit;font-size:12px;line-height:1.35;text-align:left;cursor:pointer}.nfm-tg-output-choice:hover:not(:disabled){border-color:var(--nfm-accent)}.nfm-tg-output-choice.selected{border-color:var(--nfm-accent);background:color-mix(in srgb,var(--nfm-accent) 12%,var(--nfm-card));box-shadow:inset 0 0 0 1px var(--nfm-accent)}.nfm-tg-output-choice:disabled{opacity:.5;cursor:not-allowed}.nfm-tg-output-name{min-width:0;overflow-wrap:anywhere}.nfm-tg-output-state{flex:0 0 auto;font-size:11px;color:var(--nfm-dim)}.nfm-tg-advanced{margin-top:12px}.nfm-tg-advanced .nfm-cfg-body{padding-top:12px}@media(max-width:700px){.nfm-tg-output-list{max-height:220px}.nfm-tg-hero{align-items:flex-start}.nfm-tg-master{width:100%;justify-content:space-between}.nfm-tg-mode-choice{padding:10px}}' ]),
 			tgHero,
 			E('div', { class: 'nfm-grid nfm-g21' }, [ tgConnectionCard, tgRouteCard ]),
 			E('div', { class: 'nfm-grid nfm-g3' }, [ tgNotifyGroup, tgBotGroup, tgIntegrationCard ]),
@@ -1748,8 +1749,8 @@ return view.extend({
 				tgOutputCount.textContent = '–';
 				tgRouteState.textContent = S.tgInfo && S.tgInfo.error ? _('Не удалось обнаружить выходы: ') + S.tgInfo.error : _('Нажмите «Обновить список выходов».');
 				renderTelegramRuntime(mode);
-				if (tgOutputSignature !== 'unavailable' && document.activeElement !== tgOutputSelect) {
-					tgOutputSelect.replaceChildren(E('option', { value: '' }, _('Список выходов пока не получен')));
+				if (tgOutputSignature !== 'unavailable' && !tgOutputList.contains(document.activeElement)) {
+					tgOutputList.replaceChildren(E('div', { class: 'nfm-note-s' }, _('Список выходов пока не получен')));
 					tgOutputSignature = 'unavailable';
 				}
 				return;
@@ -1762,24 +1763,29 @@ return view.extend({
 			const outputs = (info.outputs || []).concat(info.interfaces || []);
 			tgOutputCount.textContent = String(outputs.length);
 			const current = cfgInputs.TG_ROUTE_OUTPUT.value || values.TG_ROUTE_OUTPUT || (values.TG_IFACE ? 'iface:' + values.TG_IFACE : '');
-			const options = [ E('option', { value: '' }, _('— выберите VPN-выход —')) ];
-			(info.outputs || []).forEach(item => {
-				options.push(E('option', { value: item.id, disabled: item.ready === false }, item.label || _('Таблица ') + item.table));
-			});
-			(info.interfaces || []).forEach(item => {
-				options.push(E('option', { value: item.id, disabled: item.ready === false }, item.label || item.device));
-			});
-			if (current && !outputs.some(item => item.id === current))
-				options.push(E('option', { value: current }, _('Сохранённый выход (сейчас не обнаружен): ') + current));
 			const outputSignature = JSON.stringify(outputs.map(item => [ item.id, item.label || '', item.ready !== false ]));
-			/* Rebuild options only when discovery actually changes and the control is not
-			 * focused. The next poll refreshes deferred changes after the user closes it. */
-			if (outputSignature !== tgOutputSignature && document.activeElement !== tgOutputSelect) {
-				tgOutputSelect.replaceChildren(...options);
+			/* Use real buttons instead of a native select: the LuCI page refreshes every
+			 * two seconds, and native popup menus can lose pointer selection on redraw. */
+			if (outputSignature !== tgOutputSignature && !tgOutputList.contains(document.activeElement)) {
+				const choices = outputs.map(item => E('button', {
+					type: 'button',
+					class: 'nfm-tg-output-choice' + (item.id === current ? ' selected' : ''),
+					'data-output': item.id,
+					'aria-pressed': item.id === current ? 'true' : 'false',
+					disabled: item.ready === false,
+					click: () => chooseTgOutput(item)
+				}, [
+					E('span', { class: 'nfm-tg-output-name' }, item.label || item.id),
+					E('span', { class: 'nfm-tg-output-state' }, item.ready === false ? _('Не готов') : item.kind === 'group' ? _('Группа') : _('Доступен'))
+				]));
+				tgOutputList.replaceChildren(...(choices.length ? choices : [ E('div', { class: 'nfm-note-s' }, _('VPN-выходы не обнаружены.')) ]));
 				tgOutputSignature = outputSignature;
 			}
-			if (tgOutputSelect.value !== current)
-				tgOutputSelect.value = current;
+			Array.from(tgOutputList.querySelectorAll('button[data-output]')).forEach(button => {
+				const selected = button.getAttribute('data-output') === current;
+				button.classList.toggle('selected', selected);
+				button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+			});
 			if (mode === 'vpn') {
 				const selected = outputs.find(item => item.id === current);
 				tgRouteState.textContent = selected
