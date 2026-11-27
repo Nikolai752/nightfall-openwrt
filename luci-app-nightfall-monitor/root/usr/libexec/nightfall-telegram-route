@@ -20,6 +20,20 @@ num() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; }
 devname() { printf '%s' "$1" | grep -qE '^[A-Za-z0-9_.-]{1,15}$'; }
 outname() { printf '%s' "$1" | grep -qE '^[A-Za-z0-9_.-]{1,31}$'; }
 updev() { "$IP" -o link show dev "$1" 2>/dev/null | grep -q '<[^>]*UP'; }
+iface_kind() {
+	devname "$1" || return 1
+	detail=$("$IP" -d link show dev "$1" 2>/dev/null)
+	case "$detail" in
+		*wireguard*) printf WireGuard ;;
+		*"tun type tun"*|*" tun "*) printf TUN ;;
+		*ppp*) printf PPP ;;
+		*gre*) printf GRE ;;
+		*xfrm*) printf XFRM ;;
+		*)
+			flags=$("$IP" -o link show dev "$1" 2>/dev/null | sed -n 's/^[^<]*<\([^>]*\)>.*/\1/p')
+			case ",$flags," in *,POINTOPOINT,*) printf Point-to-point ;; *) return 1 ;; esac ;;
+	esac
+}
 table_exists() { "$NFT" list table inet nightfall_telegram >/dev/null 2>&1; }
 guard_ready() {
 	[ -n "$UID_TG" ] && table_exists || return 1
@@ -198,17 +212,7 @@ discover_interfaces() {
 		[ "$name" = lo ] && continue
 		flags=$(printf '%s\n' "$line" | sed -n 's/^[^<]*<\([^>]*\)>.*/\1/p')
 		case ",$flags," in *,UP,*) ;; *) continue ;; esac
-		detail=$("$IP" -d link show dev "$name" 2>/dev/null)
-		kind=
-		case "$detail" in
-			*wireguard*) kind=WireGuard ;;
-			*"tun type tun"*|*" tun "*) kind=TUN ;;
-			*ppp*) kind=PPP ;;
-			*gre*) kind=GRE ;;
-			*xfrm*) kind=XFRM ;;
-		esac
-		case ",$flags," in *,POINTOPOINT,*) [ -n "$kind" ] || kind=Point-to-point ;; esac
-		[ -n "$kind" ] || continue
+		kind=$(iface_kind "$name") || continue
 		printf '{"id":"iface:%s","label":"%s · %s","device":"%s","ready":true},\n' "$name" "$(esc "$name")" "$kind" "$name"
 	done
 }
@@ -283,7 +287,7 @@ apply_steer() {
 }
 apply_interface() {
 	DEV=$(printf '%s' "$OUTPUT" | sed 's/^iface://')
-	devname "$DEV" || { err "Некорректное имя VPN-интерфейса"; return 1; }
+	kind=$(iface_kind "$DEV") || { err "Интерфейс $DEV не распознан как VPN-туннель или point-to-point"; return 1; }
 	updev "$DEV" || { err "Интерфейс $DEV сейчас не активен"; return 1; }
 	MODE=iface; FAIL=0; MARK=; OWN=1
 	lock || { err "Не удалось получить блокировку маршрута"; return 1; }
