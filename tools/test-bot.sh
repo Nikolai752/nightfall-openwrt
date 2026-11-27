@@ -98,7 +98,7 @@ cat > "$T/routebin" <<'SH'
 [ "$1" = apply ] && { echo '{"ok":true,"mode":"vpn","source":"steer","device":"wg1","table":300}'; exit 0; }
 exit 1
 SH
-cat > "$T/idbin" <<'SH'
+cat > "$T/id" <<'SH'
 #!/bin/sh
 [ "$1" = -u ] && { echo 104; exit 0; }
 exit 0
@@ -115,8 +115,8 @@ done
 shift
 exec "$@"
 SH
-chmod +x "$T/routebin" "$T/idbin" "$T/su"
-printf 'TG=1\\nTG_TOKEN=123456:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\\nTG_CHAT=111\\nTG_ROUTE_MODE=vpn\\nTG_ROUTE_OUTPUT=steer:wg1\\n' > "$T/conf"
+chmod +x "$T/routebin" "$T/id" "$T/su"
+printf 'TG=1\nTG_TOKEN=123456:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nTG_CHAT=111\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:wg1\n' > "$T/conf"
 : > "$T/calls"; : > "$T/args"; : > "$T/su.args"
 PATH="$T:$PATH" NF_CONF="$T/conf" NF_DIR="$T" NF_CURL="$T/curl" NF_TG_ROUTE_BIN="$T/routebin" NF_TG_USER=nightfall-tg NF_TMO=25 sh "$L/nightfall-notify" test > "$T/vpn-result"
 grep -q '"ok":true' "$T/vpn-result" && ok "VPN: тестовый запрос проходит через отдельного пользователя" || bad "VPN: запрос не запущен: $(cat "$T/vpn-result")"
