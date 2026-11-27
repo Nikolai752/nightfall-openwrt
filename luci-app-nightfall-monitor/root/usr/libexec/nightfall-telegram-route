@@ -109,6 +109,7 @@ nft_install() {
 		cat <<EOF
 add table inet nightfall_telegram
 add chain inet nightfall_telegram route_output { type route hook output priority mangle; policy accept; }
+add chain inet nightfall_telegram output_guard { type filter hook output priority filter; policy accept; }
 add chain inet nightfall_telegram fail_closed { type filter hook output priority filter; policy accept; }
 add chain inet nightfall_telegram egress_guard { type filter hook postrouting priority filter; policy accept; }
 EOF
@@ -116,8 +117,10 @@ EOF
 			printf 'add rule inet nightfall_telegram fail_closed meta skuid %s drop comment "nightfall-telegram-fail-closed"\n' "$UID_TG"
 		elif [ "$MODE" = steer ]; then
 			printf 'add rule inet nightfall_telegram route_output meta skuid %s meta mark set %s comment "nightfall-telegram-steer-mark"\n' "$UID_TG" "$MARK"
+			printf 'add rule inet nightfall_telegram output_guard meta skuid %s oifname != "%s" drop comment "nightfall-telegram-steer-output-guard"\n' "$UID_TG" "$DEV"
 			printf 'add rule inet nightfall_telegram egress_guard meta skuid %s oifname != "%s" drop comment "nightfall-telegram-steer-guard"\n' "$UID_TG" "$DEV"
 		elif [ "$MODE" = iface ]; then
+			printf 'add rule inet nightfall_telegram output_guard meta skuid %s oifname != "%s" drop comment "nightfall-telegram-interface-output-guard"\n' "$UID_TG" "$DEV"
 			printf 'add rule inet nightfall_telegram egress_guard meta skuid %s oifname != "%s" drop comment "nightfall-telegram-interface-guard"\n' "$UID_TG" "$DEV"
 		fi
 	} | "$NFT" -f - >/dev/null 2>&1
@@ -138,16 +141,17 @@ read_steer_output() {
 	KIND=$kind; DEV=$device; TABLE=$table; MARK=$mark
 	if [ -z "$DEV" ] && json_select group >/dev/null 2>&1; then
 		json_get_var selected selected
-		json_select ..
-		if outname "$selected" && json_select outputs >/dev/null 2>&1; then
-			if json_select "$selected" >/dev/null 2>&1; then
-				json_get_var DEV device
-				json_select ..
-			fi
+		# Re-load at the root so group-member lookup is independent of the
+		# current jshn cursor and always leaves it at the outputs object.
+		json_load "$STATUS_JSON" >/dev/null 2>&1 || return 1
+		json_select outputs >/dev/null 2>&1 || return 1
+		if outname "$selected" && json_select "$selected" >/dev/null 2>&1; then
+			json_get_var DEV device
 			json_select ..
 		fi
+	else
+		json_select .. >/dev/null 2>&1 || :
 	fi
-	json_select .. >/dev/null 2>&1 || :
 	case "$up:$failed" in true:|true:false) READY=true ;; esac
 	devname "$DEV" || READY=false
 	num "$TABLE" || READY=false
@@ -288,6 +292,8 @@ apply_interface() {
 		"$IP" -6 rule del priority "$PREF" uidrange "$UID_TG-$UID_TG" lookup "$TABLE" 2>/dev/null || :
 		"$IP" -6 rule del priority "$((PREF + 1))" uidrange "$UID_TG-$UID_TG" unreachable 2>/dev/null || :
 		"$IP" -4 route flush table "$TABLE" 2>/dev/null || :
+		rm -f "$STATE" "$STATE.tmp"
+		if table_exists; then "$NFT" delete table inet nightfall_telegram >/dev/null 2>&1 || :; fi
 		unlock; err "Не удалось установить egress guard для VPN-интерфейса"; return 1
 	fi
 	unlock
