@@ -224,7 +224,7 @@ If LuCI will not open at all: `uci set luci.main.mediaurlbase=/luci-static/boots
 
 ## Status
 
-**Confirmed hardware baseline:** Cudy WR3000U-256MB running OpenWrt 25.12.6. On this device, the collector and Telegram bot, notifications, device and application statistics, USB history persistence, and backup creation and restore were tested. This does not mean every third-party LuCI page or add-on package (such as adblock or sqm) was validated. Hardware testing on other router models is not yet confirmed. This does not mean Nightfall is restricted to Cudy: it is a LuCI theme intended for other devices too, but treat untested models as unverified until reports are available. Compatibility with third-party LuCI themes is a separate question from hardware compatibility.
+**Confirmed hardware baseline:** Cudy WR3000U-256MB 1.0 (WR3000U v1) running OpenWrt 25.12.6. On this device, the collector and Telegram bot, notifications, device and application statistics, USB history persistence, and backup creation and restore were tested. This does not mean every third-party LuCI page or add-on package (such as adblock or sqm) was validated. Hardware testing on other router models is not yet confirmed. This does not mean Nightfall is restricted to Cudy: it is a LuCI theme intended for other devices too, but treat untested models as unverified until reports are available. Compatibility with third-party LuCI themes is a separate question from hardware compatibility.
 
 If you installed the theme on another router, please tell us in [Issues](https://github.com/Nikolai752/nightfall-openwrt/issues) how it went: model, OpenWrt version, what works and what does not. That helps build a list of tested devices. Found a bug or want an improvement? Same place.
 
