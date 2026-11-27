@@ -1,6 +1,6 @@
 # Nightfall for OpenWrt
 
-[Русский](README.md) | **English** | [FAQ (in Russian)](FAQ.md)
+[Русский](README.md) | **English** | [简体中文](README.zh-CN.md) | [FAQ (in Russian)](FAQ.md)
 
 [![Latest Release](https://img.shields.io/github/v/release/Nikolai752/nightfall-openwrt?style=flat-square&color=0078d4&label=release)](https://github.com/Nikolai752/nightfall-openwrt/releases)
 [![OpenWrt 25.12.6](https://img.shields.io/badge/OpenWrt-25.12.6-00a3b5?style=flat-square&logo=openwrt)](https://openwrt.org)
@@ -10,7 +10,7 @@
 
 A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Monitor** page with history, charts, traffic accounting by device and by application, Telegram notifications and one-click updates. For **OpenWrt 25.12**. The installer checks for `base64` and installs `coreutils-base64` if the BusyBox applet is missing; `curl` is needed only for updates and Telegram.
 
-> **Language note.** The theme and Resource Monitor include Russian and Simplified Chinese (`zh_Hans`) translations. Standard LuCI pages (Network, Firewall, etc.) continue to use the translations supplied by LuCI. To switch languages, use System → System → Language and Style after installing v1.30.0; installation does not change the selected language automatically.
+> **Language note.** The theme and Resource Monitor currently include Russian and Simplified Chinese (`zh_Hans`) translations, but the Overview dashboard and Resource Monitor interface are not yet translated into English. We are looking for volunteers to help with the English UI translation; contributions are welcome via [Issues](https://github.com/Nikolai752/nightfall-openwrt/issues). Standard LuCI pages (Network, Firewall, etc.) continue to use the translations supplied by LuCI. To switch to Simplified Chinese, use System → System → Language and Style after installing v1.30.0; installation registers `zh_cn` but does not change the selected language automatically.
 
 ## Screenshots
 
