@@ -203,6 +203,7 @@ edit)      # edit ID_СООБЩЕНИЯ ТЕКСТ [КНОПКИ_JSON]: заме
 backup)    # создать проверенный локальный архив (USB при доступности) и отправить его в Telegram
 	[ -n "$TOKEN" ] || fail "не указан токен бота"
 	[ -n "$CHAT" ] || fail "не указан chat id"
+	route_prepare || fail "$TG_ROUTE_ERROR"
 	BACKUP_TOOL=${NF_BACKUP_TOOL:-/usr/libexec/nightfall-backup}
 	command -v "$BACKUP_TOOL" >/dev/null 2>&1 || fail "не найден nightfall-backup"
 	BR=$("$BACKUP_TOOL" create 2>&1) || fail "$(printf '%s' "$BR" | tail -n 2 | tr -d '"\\')"
@@ -220,7 +221,11 @@ backup)    # создать проверенный локальный архив
 	kb='{"inline_keyboard":[[{"text":"🔍 Проверить и восстановить","callback_data":"bk:check:'"$id"'"}]]}'
 	UPLOAD=$ARCHIVE
 	if [ "$TG_USE_UID" = 1 ]; then
-		UPLOAD="$DIR/tg-upload.$"
+		UPLOAD="$DIR/tg-upload.$$"
+		size=$(wc -c < "$ARCHIVE" 2>/dev/null | tr -d ' ')
+		free_kb=$(df -Pk "$DIR" 2>/dev/null | awk 'NR==2 {print $4}')
+		case "$size:$free_kb" in *[!0-9:]*|:*) fail "не удалось проверить свободное место для отправки резервной копии" ;; esac
+		[ "$free_kb" -gt $(( (size + 1023) / 1024 + 64 )) ] || fail "недостаточно места в /tmp для временной копии резервного архива"
 		cp "$ARCHIVE" "$UPLOAD" 2>/dev/null || fail "не удалось подготовить временную копию для отправки"
 		chmod 600 "$UPLOAD" 2>/dev/null
 		chown "$TG_UID" "$UPLOAD" 2>/dev/null || { rm -f "$UPLOAD"; fail "не удалось подготовить файл для VPN-маршрута Telegram"; }
