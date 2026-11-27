@@ -1543,6 +1543,8 @@ return view.extend({
 		]), 'nfm-cfg-settings-card');
 		/* Telegram control center. Existing TG_* settings remain stored in the
 		 * monitor config; only their presentation moves out of History. */
+		/* TG_IFACE is now edited by the discovered-interface selector, not a free-text field. */
+		cfgInputs.TG_IFACE = E('input', { type: 'hidden', value: '' });
 		const tgRouteSelect = E('select', { class: 'nfm-sel', 'aria-label': _('Интерфейс VPN для Telegram'), change: ev => {
 			cfgInputs.TG_IFACE.value = ev.target.value;
 			S.tgSelectedIface = ev.target.value;
