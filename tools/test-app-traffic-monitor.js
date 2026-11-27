@@ -10,7 +10,7 @@ const bytesEnd = source.indexOf('\n}', bytesStart) + 2;
 const start = source.indexOf('const APP_TRAFFIC_CATEGORIES =');
 const end = source.indexOf('\n/* ---------- widgets ---------- */', start);
 if (normStart < 0 || normEnd <= normStart || bytesStart < 0 || bytesEnd <= bytesStart || start < 0 || end < 0) throw new Error('application traffic classifier not found');
-const api = vm.runInNewContext(source.slice(normStart, normEnd) + '\n' + source.slice(bytesStart, bytesEnd) + '\n' + source.slice(start, end) + '\n;({ normalizeMonitorIp, trafficBytes, monitorDeviceOwnsHistoricalRow, appTrafficCategory, appTrafficDisplayName, sumMonitorAppTraffic, sumMonitorDeviceApps, sumMonitorAppDeviceTraffic, monitorBuildIpMacMap, sumMonitorDeviceDailyTraffic });');
+const api = vm.runInNewContext(source.slice(normStart, normEnd) + '\n' + source.slice(bytesStart, bytesEnd) + '\n' + source.slice(start, end) + '\n;({ normalizeMonitorIp, trafficBytes, monitorDeviceOwnsHistoricalRow, appTrafficCategory, appTrafficDisplayName, sumMonitorAppTraffic, sumMonitorDeviceApps, sumMonitorAppDeviceTraffic, monitorBuildIpMacMap, sumMonitorDeviceDailyTraffic });', { _: msgid => msgid });
 const check = (ok, message) => { if (!ok) throw new Error('FAIL: ' + message); };
 const data = {
   today: '20261118',
