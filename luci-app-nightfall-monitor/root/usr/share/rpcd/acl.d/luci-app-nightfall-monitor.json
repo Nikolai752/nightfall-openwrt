@@ -47,9 +47,6 @@
 				],
 				"/usr/libexec/nightfall-telegram-route": [
 					"exec"
-				],
-				"/usr/libexec/nightfall-telegram-route": [
-					"exec"
 				]
 			},
 			"uci": [
@@ -111,6 +108,9 @@
 					"exec"
 				],
 				"/usr/libexec/nightfall-backup": [
+					"exec"
+				],
+				"/usr/libexec/nightfall-telegram-route": [
 					"exec"
 				]
 			},
