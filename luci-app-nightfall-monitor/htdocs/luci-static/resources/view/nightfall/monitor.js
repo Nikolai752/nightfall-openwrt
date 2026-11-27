@@ -2411,7 +2411,7 @@ return view.extend({
 		const onTab = (...k) => k.indexOf(S.tab) >= 0;
 		const TAB_KEYS = [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist', 'tg' ];
 		const tabBtns = {};
-		const tabs = E('div', { class: 'nfm-tabs', role: 'tablist' }, [ [ 'overview', _('Обзор') ], [ 'net', _('Сеть') ], [ 'wifi', 'Wi‑Fi' ], [ 'devs', _('Устройства') ], [ 'apps', _('Трафик') ], [ 'procs', _('Программы') ], [ 'svcs', _('Службы') ], [ 'diag', _('Диагностика') ], [ 'sec', _('Безопасность') ], [ 'log', _('Журнал') ], [ 'hist', _('История') ], [ 'tg', 'Telegram' ] ]
+		const tabs = E('div', { class: 'nfm-tabs', role: 'tablist' }, [ [ 'overview', _('Обзор') ], [ 'net', _('Сеть') ], [ 'wifi', 'Wi‑Fi' ], [ 'devs', _('Устройства') ], [ 'apps', _('Трафик') ], [ 'procs', _('Программы') ], [ 'svcs', _('Службы') ], [ 'diag', _('Диагностика') ], [ 'sec', _('Безопасность') ], [ 'log', _('Журнал') ], [ 'hist', _('История') ], [ 'tg', 'TG bot' ] ]
 			.map(([ k, l ]) => tabBtns[k] = E('button', { class: 'nfm-tab nfm-ti', 'data-ic': k, role: 'tab', click: () => { S.tab = k; refresh(); } }, l)));
 
 		const svcFilter = E('input', { class: 'nfm-in', type: 'search', placeholder: _('Найти службу…'), input: () => renderServices() });
