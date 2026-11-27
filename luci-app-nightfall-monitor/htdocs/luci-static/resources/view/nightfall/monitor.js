@@ -1626,7 +1626,7 @@ return view.extend({
 			if (S.tgInfo && S.tgInfo.ok) {
 				const interfaces = S.tgInfo.interfaces || [];
 				tgRouteSelect.replaceChildren(
-					E('option', { value: '' }, _('Автоматически · системный маршрут')),
+					E('option', { value: '' }, _('Системный маршрут OpenWrt')),
 					...interfaces.map(x => E('option', { value: x.name }, x.name + ' · ' + (x.kind || _('туннель')) + (x.state === 'UP' ? '' : ' · ' + _('не активен'))))
 				);
 				const known = interfaces.some(x => x.name === chosen);
