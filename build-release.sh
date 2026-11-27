@@ -21,6 +21,11 @@ ensure_symlink() {
 	target=$1
 	link=$2
 
+	if [ "$target" = "nightfall" ] && [ ! -d "$(dirname "$link")/$target" ]; then
+		echo "ОШИБКА: отсутствует целевой каталог темы для ссылки $link." >&2
+		exit 1
+	fi
+
 	if [ -L "$link" ]; then
 		actual=$(readlink "$link") || {
 			echo "ОШИБКА: не удалось прочитать symlink: $link" >&2
