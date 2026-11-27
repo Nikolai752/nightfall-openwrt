@@ -5,6 +5,7 @@ on:
     branches:
       - fix/unified-device-identity
       - fix/ui-menu-save-dhcp-backup-errors
+      - feature/tg-bot-center-universal
       - feat/router-log-center
       - feat/router-log-intelligent-diagnostics
   workflow_dispatch:
@@ -13,7 +14,7 @@ on:
         description: "Версия тестового архива"
         required: true
         type: string
-        default: "v1.29.0-alpha.3-router-log-diagnostics"
+        default: "v1.30.0-alpha.1-tg-bot-center"
 
 permissions:
   contents: read
@@ -33,7 +34,7 @@ jobs:
 
       - name: Build archive
         env:
-          VERSION: ${{ inputs.version || 'v1.29.0-alpha.3-router-log-diagnostics' }}
+          VERSION: ${{ inputs.version || 'v1.30.0-alpha.1-tg-bot-center' }}
         run: sh ./build-release.sh
 
       - name: Verify archive and checksum
@@ -47,7 +48,7 @@ jobs:
       - name: Upload installable archive
         uses: actions/upload-artifact@v7
         with:
-          name: nightfall-test-v1.29.0-alpha.3-router-log-diagnostics
+          name: nightfall-test-${{ inputs.version || 'v1.30.0-alpha.1-tg-bot-center' }}
           path: |
             dist/nightfall-root.tar.gz
             dist/nightfall-root.tar.gz.sha256
