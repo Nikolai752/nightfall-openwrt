@@ -183,7 +183,7 @@ sysctl net.netfilter.nf_conntrack_acct
 该问题已在 v1.15.0 修复。请更新 Nightfall。
 
 ### 路由器重启后历史记录消失
-默认情况下，当前历史数据保存在 RAM（**/tmp**）中，路由器重启后会清空。要保留历史记录，请在监视器设置中将 **PERSIST_DIR** 指向已挂载的 USB/SD 存储路径。如果存储设备断开，采集器会继续在 RAM 中运行，并在设备重新挂载后恢复保存；它不应将数据写入底层 **/overlay**。详细信息请参阅 [README](README.zh-CN.md) 和[备份与恢复指南](docs/backup-restore.md)。
+默认情况下，当前历史数据保存在 RAM（**/tmp**）中，路由器重启后会清空。要保留历史记录，请在监视器设置中将 **PERSIST_DIR** 指向已挂载的 USB/SD 存储路径。如果存储设备断开，采集器会继续在 RAM 中运行，并在设备重新挂载后恢复保存；它不应将数据写入底层 **/overlay**。详细信息请参阅 [README](README.zh-CN.md) 和[备份与恢复指南（俄文）](docs/backup-restore.md)。
 
 ---
 
