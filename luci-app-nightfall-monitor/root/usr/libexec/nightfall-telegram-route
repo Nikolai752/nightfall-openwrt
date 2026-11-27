@@ -355,9 +355,6 @@ apply_route() {
 	prepare_user || { err "$ERR"; return 1; }
 	case "$OUTPUT" in steer:*) apply_steer ;; iface:*) apply_interface ;; *) err "Выберите доступный VPN-выход"; return 1 ;; esac
 }
-case "$1" in
-	inspect) inspect ;;
-	apply) apply_route ;;
 	route_status() {
 		if ! read_state; then
 			printf '{"ok":true,"active":false}\n'
@@ -394,9 +391,9 @@ case "$1" in
 		printf '{"ok":true,"active":true,"mode":"vpn","source":"%s","uid":%s,"table":%s,"device":"%s","output":"%s"}\n' \
 			"$MODE" "$S_UID" "$S_TABLE" "$(esc "$S_DEVICE")" "$(esc "$S_OUTPUT")"
 	}
-	case "$1" in
-		inspect) inspect ;;
-		apply) apply_route ;;
-		status) route_status ;;
+case "$1" in
+	inspect) inspect ;;
+	apply) apply_route ;;
+	status) route_status ;;
 	*) err "Использование: nightfall-telegram-route inspect|apply|status" ;;
 esac
