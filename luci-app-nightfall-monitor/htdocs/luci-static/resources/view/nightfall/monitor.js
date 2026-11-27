@@ -1562,24 +1562,49 @@ return view.extend({
 			]),
 			E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, _('Nightfall обнаруживает активные туннельные и point-to-point интерфейсы по данным ядра. Названия Steer и VPN-клиентов не зашиты в код. Выбор интерфейса передаётся curl как привязка исходящего соединения; правила маршрутизации и файрвола Steer не изменяются.'))
 		]));
-		const tgTab = E('div', { hidden: true }, [
+		const tgBotPane = E('div', { class: 'nfm-tg-pane' }, [
 			E('div', { class: 'nfm-grid' }, [ card(_('Состояние Telegram'), E('div', {}, [ tgState, tgMsg ])) ]),
 			E('div', { class: 'nfm-grid nfm-g3' }, [
 				cfgGroup(_('Уведомления'), [ 'TG', 'TG_ALERTS', 'TG_UPDATES', 'TG_SEC', 'TG_REPORT' ]),
 				cfgGroup(_('Управление ботом'), [ 'TG_BOT', 'TG_CLEAN', 'TG_WIDGETS', 'TG_USERS' ]),
 				cfgGroup(_('Подключение и инструменты'), [ 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY' ], tgTools)
 			]),
+			card(_('Применение настроек'), E('div', {}, [
+				E('div', { class: 'nfm-note-s' }, _('Существующие токен, Chat ID, уведомления и настройки бота сохраняются.')),
+				E('div', { class: 'nfm-actions', style: 'margin-top:10px' }, [
+					E('button', { class: 'nfm-act', click: () => saveCfg() }, _('✓ Сохранить и применить')),
+					E('button', { class: 'nfm-act', click: () => tgRun('test').then(r => { if (r) tgMsg.textContent = r.ok ? _('Сообщение отправлено, проверьте Telegram.') : _('Не отправлено: ') + r.error; }) }, _('Отправить тестовое сообщение'))
+				]),
+				cfgMsg
+			]))
+		]);
+		const tgRoutePane = E('div', { class: 'nfm-tg-pane', hidden: true }, [
 			E('div', { class: 'nfm-grid nfm-g21' }, [
 				tgRouteCard,
-				card(_('Применение настроек'), E('div', {}, [
-					E('div', { class: 'nfm-note-s' }, _('Существующие токен, chat id, уведомления и настройки бота сохраняются. Изменения маршрута применяются только после сохранения. Пустой выбор возвращает системную маршрутизацию.')),
+				card(_('Что делает этот выбор'), E('div', {}, [
+					E('div', { class: 'nfm-note-s' }, _('Сейчас выбор интерфейса передаётся Telegram-клиенту Nightfall как привязка исходящего соединения curl. Это не создаёт отдельные policy-routing правила и не гарантирует работу на всех схемах Steer/VPN.')),
+					E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, _('Системные маршруты, firewall и подключения других устройств не изменяются. Автоматический выбор VPN и защищённый переход при отказе туннеля будут добавлены после проверки совместимости с разными VPN-менеджерами.')),
 					E('div', { class: 'nfm-actions', style: 'margin-top:10px' }, [
-						E('button', { class: 'nfm-act', click: () => saveCfg() }, _('✓ Сохранить и применить')),
-						E('button', { class: 'nfm-act', click: () => tgRun('test').then(r => { if (r) tgMsg.textContent = r.ok ? _('Сообщение отправлено, проверьте Telegram.') : _('Не отправлено: ') + r.error; }) }, _('Отправить проверку'))
+						E('button', { class: 'nfm-act', click: () => saveCfg() }, _('Сохранить выбор интерфейса'))
 					]),
 					cfgMsg
 				]))
 			])
+		]);
+		const tgBotSubBtn = E('button', { class: 'nfm-tab on', role: 'tab', 'aria-selected': 'true', click: () => selectTgPane('bot') }, _('Бот и уведомления'));
+		const tgRouteSubBtn = E('button', { class: 'nfm-tab', role: 'tab', 'aria-selected': 'false', click: () => selectTgPane('route') }, _('Маршрутизация Telegram'));
+		function selectTgPane(which) {
+			const bot = which === 'bot';
+			tgBotPane.hidden = !bot;
+			tgRoutePane.hidden = bot;
+			tgBotSubBtn.classList.toggle('on', bot);
+			tgRouteSubBtn.classList.toggle('on', !bot);
+			tgBotSubBtn.setAttribute('aria-selected', String(bot));
+			tgRouteSubBtn.setAttribute('aria-selected', String(!bot));
+		}
+		const tgTab = E('div', { hidden: true, class: 'nfm-tg-page' }, [
+			E('div', { class: 'nfm-tabs', role: 'tablist', 'aria-label': _('Разделы TG bot') }, [ tgBotSubBtn, tgRouteSubBtn ]),
+			tgBotPane, tgRoutePane
 		]);
 		function renderTelegram() {
 			const v = S.cfg && S.cfg.values || {};
