@@ -112,7 +112,7 @@ cat /etc/openwrt_release | head -3
 向机器人发送 **/widget**。它会显示**机器人动态小组件**是否启用、当前是否为私人聊天（群组聊天不支持小组件）、模板文件是否存在，以及 Telegram 在上一次请求失败时返回的内容。常见原因包括：Telegram 客户端更新或 API 临时故障（小组件通常会自动恢复）；设置被重置（请在**监视器 → 历史记录 → 设置**中重新启用）；无法访问 **api.telegram.org**（请配置代理或 VPN 接口）。如果 **/widget** 返回 **INPUT_MEDIA_WIDGET_NOT_ALLOWED**，表示 Telegram 自身拒绝了请求：动态小组件正在逐步开放，目前并非所有账号都能使用。机器人本身没有故障，状态信息会以文本形式发送；等 Telegram 允许后，小组件会恢复。其他情况下，请将 **/widget** 的回复附在 Issue 中。
 
 ### 备份文件中没有 Telegram Token 或代理设置
-这是有意设计的：**TG_TOKEN** 和 **TG_PROXY** 不会写入备份归档。恢复时，如果路由器当前配置中已设置这两个值，就会保留当前值。将备份迁移到新路由器时，需要手动填写 Token 和代理。不要将归档直接解压覆盖到 **/etc** 或根目录 **/**。请通过 Telegram 中的检查与安全恢复流程，或使用 **/usr/libexec/nightfall-backup list** 和 **/usr/libexec/nightfall-backup restore** 命令。详细信息请参阅[备份与恢复指南](docs/backup-restore.md)。
+这是有意设计的：**TG_TOKEN** 和 **TG_PROXY** 不会写入备份归档。恢复时，如果路由器当前配置中已设置这两个值，就会保留当前值。将备份迁移到新路由器时，需要手动填写 Token 和代理。不要将归档直接解压覆盖到 **/etc** 或根目录 **/**。请通过 Telegram 中的检查与安全恢复流程，或使用 **/usr/libexec/nightfall-backup list** 和 **/usr/libexec/nightfall-backup restore** 命令。详细信息请参阅[备份与恢复指南（俄文）](docs/backup-restore.md)。
 
 ### 如何通过 Telegram 恢复备份？
 1. 在机器人菜单中点击**备份**。归档会作为单独文件消息发送，同时保留在路由器本地存储中。
