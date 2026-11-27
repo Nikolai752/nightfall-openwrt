@@ -20,6 +20,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Подготовить официальный компилятор переводов LuCI
+        run: |
+          PO2LMO_PATH="$(sh tools/prepare-po2lmo.sh)"
+          echo "PO2LMO=$PO2LMO_PATH" >> "$GITHUB_ENV"
       - name: Проверить CHANGELOG перед выпуском
         run: sh tools/check-release.sh "${GITHUB_REF_NAME}"
       - name: Убедиться, что тег выпущен из main
