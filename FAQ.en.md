@@ -168,7 +168,7 @@ Phones using a **Private Wi-Fi Address** use a randomized MAC address, so the ma
 Fixed in v1.15.1. With packet hardware acceleration (Flow Offloading), the WAN interface sees only a small part of the traffic. Therefore, if WAN traffic is significantly undercounted, the daily total is calculated from device statistics. Such days are marked in the calendar.
 
 ### Application traffic is too low or a service is not detected
-There are limitations: traffic routed through a VPN or encrypted DNS (DoH/DoT) cannot be identified reliably; counters may be lower when Flow Offloading is enabled; and domain matching is approximate. See [Application traffic in the README](README.en.md#application-traffic).
+There are limitations: traffic routed through a VPN or encrypted DNS (DoH/DoT) cannot be identified reliably; counters may be lower when Flow Offloading is enabled; and domain matching is approximate. See [README](README.en.md).
 
 ### Device traffic accounting is missing
 Check that conntrack accounting is enabled:
