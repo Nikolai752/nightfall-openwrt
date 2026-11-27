@@ -92,6 +92,43 @@ conf 111 "" "socks5h://user:secret@127.0.0.1:1080"
 grep -q secret "$T/args" && bad "прокси виден в аргументах curl" || ok "прокси не в аргументах curl"
 grep -q 'STDIN.*proxy = "socks5h://user:secret@127.0.0.1:1080"' "$T/calls" && ok "прокси передан через stdin" || bad "прокси не передан"
 
+# 4b. VPN-only mode: shadow-su must stop parsing options before curl's -sS/-K args.
+cat > "$T/routebin" <<'SH'
+#!/bin/sh
+[ "$1" = apply ] && { echo '{"ok":true,"mode":"vpn","source":"steer","device":"wg1","table":300}'; exit 0; }
+exit 1
+SH
+cat > "$T/id" <<'SH'
+#!/bin/sh
+[ "$1" = -u ] && { echo 104; exit 0; }
+exit 0
+SH
+cat > "$T/chown" <<'SH'
+#!/bin/sh
+# The CI runner is unprivileged; emulate successful ownership setup for this unit test.
+exit 0
+SH
+cat > "$T/su" <<'SH'
+#!/bin/sh
+seen=0
+while [ "$#" -gt 0 ]; do
+	if [ "$1" = -- ]; then seen=1; shift; break; fi
+	shift
+done
+[ "$seen" = 1 ] || { echo "missing --" >&2; exit 97; }
+[ "$1" = sh ] || { echo "unexpected shell argv: $*" >&2; exit 98; }
+shift
+exec "$@"
+SH
+chmod +x "$T/routebin" "$T/id" "$T/chown" "$T/su"
+printf 'TG=1\nTG_TOKEN=123456:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nTG_CHAT=111\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:wg1\n' > "$T/conf"
+: > "$T/calls"; : > "$T/args"; : > "$T/su.args"
+PATH="$T:$PATH" NF_CONF="$T/conf" NF_DIR="$T" NF_CURL="$T/curl" NF_TG_ROUTE_BIN="$T/routebin" NF_TG_USER=nightfall-tg NF_TMO=25 sh "$L/nightfall-notify" test > "$T/vpn-result"
+grep -q '"ok":true' "$T/vpn-result" && ok "VPN: тестовый запрос проходит через отдельного пользователя" || bad "VPN: запрос не запущен: $(cat "$T/vpn-result")"
+grep -q 'doh-url = "https://cloudflare-dns.com/dns-query"' "$T/calls" && ok "VPN: DoH-конфигурация передана curl через stdin" || bad "VPN: DoH-конфигурация отсутствует"
+grep -q 'METHOD sendMessage' "$T/calls" && ok "VPN: curl получил команду отправки Telegram" || bad "VPN: curl не был запущен"
+grep -q -- '-sS -m 25 -K -' "$T/args" && ok "VPN: параметры -K и -sS дошли до curl, а не до su" || bad "VPN: параметры curl не переданы корректно"
+
 # 5. настройка TG_USERS проверяется
 printf 'TG_USERS=\n' > "$T/c2"; cp "$T/c2" "$T/c3"
 r=$(NF_CONF="$T/c3" NF_DEF="$T/c2" NF_NORESTART=1 sh "$L/nightfall-config" set TG_USERS=123456789,987654321)
@@ -335,6 +372,20 @@ case "$r" in *'"ok":false'*) ok "LITE=5 отклоняется" ;; *) bad "LITE=
 printf 'LITE=1\nAPPS=1\n' > "$T/apps.conf"
 r=$(NF_CONF="$T/apps.conf" NF_DIR="$T" NF_UCI=true sh "$L/nightfall-apps" status)
 case "$r" in *'"lite":1'*) ok "учёт по приложениям: статус сообщает о режиме Lite" ;; *) bad "apps status: $r" ;; esac
+
+# 12b. Telegram API test is detached from the bounded LuCI file.exec request.
+conf 111 ""
+mkdir -p "$T/tg-test-async"
+: > "$T/calls"
+NF_CONF="$T/conf" NF_DIR="$T" NF_TG_TEST_DIR="$T/tg-test-async" NF_CURL="$T/curl" sh "$L/nightfall-notify" test-start > "$T/tg-test-start"
+grep -q '"state":"running"' "$T/tg-test-start" && ok "Telegram test: start returns immediately" || bad "Telegram test: start did not return running state"
+for n in 1 2 3 4 5 6 7 8; do
+	NF_CONF="$T/conf" NF_DIR="$T" NF_TG_TEST_DIR="$T/tg-test-async" NF_CURL="$T/curl" sh "$L/nightfall-notify" test-status > "$T/tg-test-status"
+	grep -q '"state":"running"' "$T/tg-test-status" || break
+	sleep 1
+done
+grep -q '"ok":true' "$T/tg-test-status" && ! grep -q '"state":"running"' "$T/tg-test-status" && ok "Telegram test: status returns final API result" || bad "Telegram test: no final result: $(cat "$T/tg-test-status")"
+grep -q 'METHOD sendMessage' "$T/calls" && ok "Telegram test: background worker called Telegram API" || bad "Telegram test: background worker did not call API"
 
 # 13. резервная копия: проверка, отдельное подтверждение и отмена восстановления
 cat > "$T/backupbin" <<'SH'

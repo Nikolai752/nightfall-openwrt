@@ -8,22 +8,132 @@
 # Для тестов: NF_CONF, NF_DIR, NF_CURL (команда вместо curl).
 CONF=${NF_CONF:-/etc/nightfall-monitor.conf}
 DIR=${NF_DIR:-/tmp/nightfall}
+TG_TEST_DIR=${NF_TG_TEST_DIR:-/var/run/nightfall-telegram-test}
 CURL=${NF_CURL:-curl}
+ROUTE_BIN=${NF_TG_ROUTE_BIN:-/usr/libexec/nightfall-telegram-route}
+TG_USER=${NF_TG_USER:-nightfall-tg}
 HOST=$(cat /proc/sys/kernel/hostname 2>/dev/null || echo router)
 
 cfg() { [ -r "$CONF" ] && sed -n "s/^$1=\"\{0,1\}\([^ #\"]*\).*/\1/p" "$CONF" | head -n 1; }
 TG=$(cfg TG); TOKEN=$(cfg TG_TOKEN); CHAT=$(cfg TG_CHAT); PROXY=$(cfg TG_PROXY); IFACE=$(cfg TG_IFACE)
+TG_ROUTE_READY=0
+TG_USE_UID=0
+TG_UID=
+TG_ROUTE_ERROR=
 
 fail() { printf '{"ok":false,"error":"%s"}\n' "$1"; exit 1; }
 
 # api МЕТОД [аргументы curl]: токен передаётся через stdin, чтобы не светиться в списке процессов
+json_escape() {
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/[[:cntrl:]]/ /g'
+}
+
+route_prepare() {
+	[ "$TG_ROUTE_READY" = 1 ] && return 0
+	mode=$(cfg TG_ROUTE_MODE)
+	proxy=$(cfg TG_PROXY)
+	legacy_iface=$(cfg TG_IFACE)
+	if [ -z "$mode" ]; then
+		if [ -n "$proxy" ]; then mode=proxy
+		elif [ -n "$legacy_iface" ]; then mode=vpn
+		else mode=system; fi
+	fi
+
+	if [ -x "$ROUTE_BIN" ]; then
+		route_result=$("$ROUTE_BIN" apply 2>/dev/null)
+		case "$route_result" in *'"ok":true'*) ;;
+			*)
+				TG_ROUTE_ERROR=$(printf '%s' "$route_result" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' | head -n 1)
+				[ -n "$TG_ROUTE_ERROR" ] || TG_ROUTE_ERROR="Не удалось применить маршрут Telegram"
+				return 1 ;;
+		esac
+	else
+		# Compatibility with an older package during a partial upgrade.
+		if [ -n "$(cfg TG_ROUTE_MODE)" ] || [ -n "$(cfg TG_ROUTE_OUTPUT)" ]; then
+			TG_ROUTE_ERROR="Не найден $ROUTE_BIN; обновите пакет Nightfall целиком"
+			return 1
+		fi
+		[ "$mode" != vpn ] || [ -n "$legacy_iface" ] || {
+			TG_ROUTE_ERROR="Не найден модуль маршрутизации Telegram"
+			return 1
+		}
+	fi
+
+	case "$mode" in
+		system)
+			PROXY=
+			IFACE=
+			TG_USE_UID=0 ;;
+		proxy)
+			[ -n "$proxy" ] || { TG_ROUTE_ERROR="Для подключения через прокси укажите адрес прокси"; return 1; }
+			PROXY=$proxy
+			IFACE=
+			TG_USE_UID=0 ;;
+		vpn)
+			if [ ! -x "$ROUTE_BIN" ]; then
+				# Legacy TG_IFACE compatibility only when the new helper is absent.
+				PROXY=$proxy
+				IFACE=$legacy_iface
+				TG_USE_UID=0
+			else
+				PROXY=
+				IFACE=
+				id "$TG_USER" >/dev/null 2>&1 || { TG_ROUTE_ERROR="Не создан системный пользователь Telegram"; return 1; }
+				TG_UID=$(id -u "$TG_USER" 2>/dev/null)
+				case "$TG_UID" in ''|*[!0-9]*|0|65534) TG_ROUTE_ERROR="Недопустимый UID пользователя Telegram"; return 1 ;; esac
+				command -v su >/dev/null 2>&1 || { TG_ROUTE_ERROR="Не найдена команда su для изолированного VPN-маршрута"; return 1; }
+				command -v chown >/dev/null 2>&1 || { TG_ROUTE_ERROR="Не найдена команда chown для временных файлов Telegram"; return 1; }
+				TG_USE_UID=1
+			fi ;;
+		*) TG_ROUTE_ERROR="Неизвестный режим маршрутизации Telegram"; return 1 ;;
+	esac
+	TG_ROUTE_READY=1
+	return 0
+}
+
+grant_api_files() {
+	[ "$TG_USE_UID" = 1 ] || return 0
+	for arg in "$@"; do
+		case "$arg" in *@/*)
+			file=${arg#*@}
+			file=${file%%;*}
+			case "$file" in /*) ;; *) continue ;; esac
+			[ -f "$file" ] && [ ! -L "$file" ] || continue
+			chown "$TG_UID" "$file" 2>/dev/null || {
+				TG_ROUTE_ERROR="Не удалось передать временный файл Telegram пользователю $TG_USER"
+				return 1
+			} ;;
+		esac
+	done
+	return 0
+}
+
 api() {
 	m=$1; shift
-	command -v "$CURL" >/dev/null 2>&1 || { echo '{"ok":false,"description":"не найден curl (apk add curl)"}'; return 0; }
-	# прокси (в нём может быть логин и пароль) и интерфейс тоже идут через stdin, а не аргументами
-	{ printf 'url = "https://api.telegram.org/bot%s/%s"\n' "$TOKEN" "$m"
-	  [ -n "$PROXY" ] && printf 'proxy = "%s"\n' "$PROXY"
-	  [ -n "$IFACE" ] && printf 'interface = "%s"\n' "$IFACE"; } | "$CURL" -sS -m "${NF_TMO:-25}" -K - "$@" 2>&1
+	if ! route_prepare; then
+		printf '{"ok":false,"description":"%s"}\n' "$(json_escape "$TG_ROUTE_ERROR")"
+		return 0
+	fi
+	CURL_BIN=$(command -v "$CURL" 2>/dev/null)
+	[ -n "$CURL_BIN" ] || { echo '{"ok":false,"description":"не найден curl (apk add curl)"}'; return 0; }
+	grant_api_files "$@" || {
+		printf '{"ok":false,"description":"%s"}\n' "$(json_escape "$TG_ROUTE_ERROR")"
+		return 0
+	}
+	# Token and proxy credentials remain on curl's stdin, never in argv.
+	if [ "$TG_USE_UID" = 1 ]; then
+		{ printf 'url = "https://api.telegram.org/bot%s/%s"\n' "$TOKEN" "$m"
+		  # Keep Telegram hostname resolution inside the same VPN-only UID route.
+		  # The DoH bootstrap IP avoids a resolver request via the router's WAN.
+		  printf 'doh-url = "https://cloudflare-dns.com/dns-query"\n'
+		  printf 'resolve = "cloudflare-dns.com:443:1.1.1.1"\n'; } |
+			su -s /bin/sh -c 'exec "$@"' "$TG_USER" -- sh "$CURL_BIN" -sS -m "${NF_TMO:-25}" -K - "$@" 2>&1
+	else
+		{ printf 'url = "https://api.telegram.org/bot%s/%s"\n' "$TOKEN" "$m"
+		  [ -n "$PROXY" ] && printf 'proxy = "%s"\n' "$PROXY"
+		  [ -n "$IFACE" ] && printf 'interface = "%s"\n' "$IFACE"; } |
+			"$CURL_BIN" -sS -m "${NF_TMO:-25}" -K - "$@" 2>&1
+	fi
 }
 
 explain() {  # разбор ответа Telegram: печатает текст ошибки
@@ -58,6 +168,47 @@ send)
 	# сразу после загрузки сеть может быть ещё не готова: до трёх попыток
 	for try in 1 2 3; do post "$HOST: $2" "$3" && exit 0; [ -n "$NF_NOSLEEP" ] || sleep 20; done
 	exit 1 ;;
+test-start)
+	[ -n "$TOKEN" ] || fail "не указан токен бота"
+	[ -n "$CHAT" ] || fail "не указан chat id"
+	[ ! -L "$TG_TEST_DIR" ] || fail "небезопасный каталог теста Telegram"
+	mkdir -p "$TG_TEST_DIR" || fail "не удалось создать каталог теста Telegram"
+	chmod 700 "$TG_TEST_DIR" 2>/dev/null || fail "не удалось защитить каталог теста Telegram"
+	if [ -s "$TG_TEST_DIR/done" ]; then
+		rm -f "$TG_TEST_DIR/pid" "$TG_TEST_DIR/done" "$TG_TEST_DIR/result"
+	elif [ -s "$TG_TEST_DIR/pid" ]; then
+		p=$(cat "$TG_TEST_DIR/pid" 2>/dev/null)
+		case "$p" in *[!0-9]*|'') p= ;; esac
+		if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
+			printf '{"ok":true,"state":"running"}\n'; exit 0
+		fi
+	fi
+	rm -f "$TG_TEST_DIR/pid" "$TG_TEST_DIR/done" "$TG_TEST_DIR/result" "$TG_TEST_DIR"/*.tmp.*
+	# Run the network request outside file.exec's bounded foreground lifetime.
+	# The parent records $!; the worker atomically publishes the final result.
+	(
+		umask 077
+		"$0" test > "$TG_TEST_DIR/result.tmp.$" 2>&1
+		rc=$?
+		mv "$TG_TEST_DIR/result.tmp.$" "$TG_TEST_DIR/result"
+		printf '%s\n' "$rc" > "$TG_TEST_DIR/done.tmp.$" &&
+			mv "$TG_TEST_DIR/done.tmp.$" "$TG_TEST_DIR/done"
+	) </dev/null >/dev/null 2>&1 &
+	worker_pid=$!
+	printf '%s\n' "$worker_pid" > "$TG_TEST_DIR/pid.tmp.$" &&
+		mv "$TG_TEST_DIR/pid.tmp.$" "$TG_TEST_DIR/pid"
+	printf '{"ok":true,"state":"running"}\n' ;;
+test-status)
+	if [ -s "$TG_TEST_DIR/done" ] && [ -s "$TG_TEST_DIR/result" ]; then
+		cat "$TG_TEST_DIR/result"
+	elif [ -s "$TG_TEST_DIR/pid" ] && kill -0 "$(cat "$TG_TEST_DIR/pid" 2>/dev/null)" 2>/dev/null; then
+		printf '{"ok":true,"state":"running"}\n'
+	elif [ ! -e "$TG_TEST_DIR/pid" ] && [ ! -e "$TG_TEST_DIR/done" ]; then
+		# The background worker may not have written its PID yet.
+		printf '{"ok":true,"state":"running"}\n'
+	else
+		fail "проверка Telegram завершилась без результата"
+	fi ;;
 test)
 	[ -n "$TOKEN" ] || fail "не указан токен бота"
 	[ -n "$CHAT" ] || fail "не указан chat id"
@@ -98,6 +249,7 @@ edit)      # edit ID_СООБЩЕНИЯ ТЕКСТ [КНОПКИ_JSON]: заме
 backup)    # создать проверенный локальный архив (USB при доступности) и отправить его в Telegram
 	[ -n "$TOKEN" ] || fail "не указан токен бота"
 	[ -n "$CHAT" ] || fail "не указан chat id"
+	route_prepare || fail "$TG_ROUTE_ERROR"
 	BACKUP_TOOL=${NF_BACKUP_TOOL:-/usr/libexec/nightfall-backup}
 	command -v "$BACKUP_TOOL" >/dev/null 2>&1 || fail "не найден nightfall-backup"
 	BR=$("$BACKUP_TOOL" create 2>&1) || fail "$(printf '%s' "$BR" | tail -n 2 | tr -d '"\\')"
@@ -113,7 +265,19 @@ backup)    # создать проверенный локальный архив
 	printf '%s\n' "$ARCHIVE" > "$state" || fail "не удалось сохранить ссылку на архив"
 	chmod 600 "$state" 2>/dev/null
 	kb='{"inline_keyboard":[[{"text":"🔍 Проверить и восстановить","callback_data":"bk:check:'"$id"'"}]]}'
-	RESP=$(api sendDocument -F "chat_id=$CHAT" -F "document=@$ARCHIVE;filename=$n" -F "caption=Проверенная резервная копия Nightfall. Секреты Telegram исключены. Локальная копия сохранена на роутере." -F "reply_markup=$kb")
+	UPLOAD=$ARCHIVE
+	if [ "$TG_USE_UID" = 1 ]; then
+		UPLOAD="$DIR/tg-upload.$$"
+		size=$(wc -c < "$ARCHIVE" 2>/dev/null | tr -d ' ')
+		free_kb=$(df -Pk "$DIR" 2>/dev/null | awk 'NR==2 {print $4}')
+		case "$size:$free_kb" in *[!0-9:]*|:*) fail "не удалось проверить свободное место для отправки резервной копии" ;; esac
+		[ "$free_kb" -gt $(( (size + 1023) / 1024 + 64 )) ] || fail "недостаточно места в /tmp для временной копии резервного архива"
+		cp "$ARCHIVE" "$UPLOAD" 2>/dev/null || fail "не удалось подготовить временную копию для отправки"
+		chmod 600 "$UPLOAD" 2>/dev/null
+		chown "$TG_UID" "$UPLOAD" 2>/dev/null || { rm -f "$UPLOAD"; fail "не удалось подготовить файл для VPN-маршрута Telegram"; }
+	fi
+	RESP=$(api sendDocument -F "chat_id=$CHAT" -F "document=@$UPLOAD;filename=$n" -F "caption=Проверенная резервная копия Nightfall. Секреты Telegram исключены. Локальная копия сохранена на роутере." -F "reply_markup=$kb")
+	[ "$UPLOAD" = "$ARCHIVE" ] || rm -f "$UPLOAD"
 	case "$RESP" in *'"ok":true'*) printf '{"ok":true}\n' ;; *) rm -f "$state"; fail "$(explain "$RESP")" ;; esac ;;
 *)
 	echo "usage: nightfall-notify send TEXT [KB] | test | chatid | backup" >&2

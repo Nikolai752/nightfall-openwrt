@@ -1,0 +1,422 @@
+#!/bin/sh
+# Nightfall Telegram-only route manager.
+# Steer: use the real output mark/table and a private egress guard.
+# Plain tunnel: use a private policy table and the same egress guard.
+# Never modify Steer-owned rules, routes or nft tables.
+set -f
+CONF=$NF_CONF; [ -n "$CONF" ] || CONF=/etc/nightfall-monitor.conf
+IP=$NF_IP; [ -n "$IP" ] || IP=ip
+NFT=$NF_NFT; [ -n "$NFT" ] || NFT=nft
+STEER=$NF_STEER; [ -n "$STEER" ] || STEER=steer
+USER_NAME=$NF_TG_USER; [ -n "$USER_NAME" ] || USER_NAME=nightfall-tg
+STATE=$NF_TG_STATE; [ -n "$STATE" ] || STATE=/var/run/nightfall-telegram-route.state
+LOCK=$NF_TG_LOCK; [ -n "$LOCK" ] || LOCK=/var/lock/nightfall-telegram-route.lock
+JSHN=$NF_JSHN; [ -n "$JSHN" ] || JSHN=/usr/share/libubox/jshn.sh
+
+cfg() { [ -r "$CONF" ] && sed -n "s/^$1=\"\{0,1\}\([^ #\"]*\).*/\1/p" "$CONF" | head -n 1; }
+esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/[[:cntrl:]]/ /g'; }
+err() { printf '{"ok":false,"error":"%s"}\n' "$(esc "$1")"; }
+num() { case "$1" in ''|*[!0-9]*) return 1 ;; esac; }
+devname() { printf '%s' "$1" | grep -qE '^[A-Za-z0-9_.-]{1,15}$'; }
+outname() { printf '%s' "$1" | grep -qE '^[A-Za-z0-9_.-]{1,31}$'; }
+updev() { "$IP" -o link show dev "$1" 2>/dev/null | grep -q '<[^>]*UP'; }
+iface_kind() {
+	devname "$1" || return 1
+	detail=$("$IP" -d link show dev "$1" 2>/dev/null)
+	case "$detail" in
+		*wireguard*) printf WireGuard ;;
+		*"tun type tun"*|*" tun "*) printf TUN ;;
+		*ppp*) printf PPP ;;
+		*gre*) printf GRE ;;
+		*xfrm*) printf XFRM ;;
+		*)
+			flags=$("$IP" -o link show dev "$1" 2>/dev/null | sed -n 's/^[^<]*<\([^>]*\)>.*/\1/p')
+			case ",$flags," in *,POINTOPOINT,*) printf Point-to-point ;; *) return 1 ;; esac ;;
+	esac
+}
+table_exists() { "$NFT" list table inet nightfall_telegram >/dev/null 2>&1; }
+steer_mark_key() { printf '0x%08x' "$((MARK & 0x0ff00000))"; }
+guard_ready() {
+	[ -n "$UID_TG" ] && table_exists || return 1
+	case "$MODE" in
+		steer)
+			BASE_MARK=$(steer_mark_key)
+			"$NFT" list chain inet nightfall_telegram route_output 2>/dev/null | grep -Fq "meta skuid $UID_TG meta mark set $MARK" &&
+			"$NFT" list chain inet nightfall_telegram output_guard 2>/dev/null | grep -Fq "nightfall-telegram-steer-local-output-redir" &&
+			"$NFT" list chain inet nightfall_telegram output_guard 2>/dev/null | grep -Fq "meta skuid $UID_TG oifname != \"$DEV\" drop" &&
+			"$NFT" list chain inet nightfall_telegram egress_guard 2>/dev/null | grep -Fq "nightfall-telegram-steer-local-egress-redir" &&
+			"$NFT" list chain inet nightfall_telegram egress_guard 2>/dev/null | grep -Fq "meta skuid $UID_TG oifname != \"$DEV\" drop" ;;
+		iface)
+			"$NFT" list chain inet nightfall_telegram egress_guard 2>/dev/null | grep -Fq "meta skuid $UID_TG oifname != \"$DEV\" drop" ;;
+		*) return 1 ;;
+	esac
+}
+
+lock() {
+	mkdir -p "$(dirname "$LOCK")" 2>/dev/null || return 1
+	if ! mkdir "$LOCK" 2>/dev/null; then
+		pid=$(cat "$LOCK/pid" 2>/dev/null)
+		if num "$pid" && kill -0 "$pid" 2>/dev/null; then return 1; fi
+		rm -rf "$LOCK" 2>/dev/null || return 1
+		mkdir "$LOCK" 2>/dev/null || return 1
+	fi
+	echo "$$" > "$LOCK/pid"
+}
+unlock() { rm -rf "$LOCK" 2>/dev/null; }
+
+read_state() {
+	S_MODE= S_UID= S_PREF= S_TABLE= S_OWN= S_OUTPUT= S_DEVICE= S_MARK= S_FAIL=
+	[ -r "$STATE" ] || return 1
+	while IFS='=' read -r k v; do
+		case "$k" in
+			MODE) S_MODE=$v ;; UID) S_UID=$v ;; PREF) S_PREF=$v ;;
+			TABLE) S_TABLE=$v ;; OWN) S_OWN=$v ;; OUTPUT) S_OUTPUT=$v ;;
+			DEVICE) S_DEVICE=$v ;; MARK) S_MARK=$v ;; FAIL) S_FAIL=$v ;;
+		esac
+	done < "$STATE"
+	num "$S_UID"
+}
+write_state() {
+	umask 077
+	printf 'MODE=%s\nUID=%s\nPREF=%s\nTABLE=%s\nOWN=%s\nOUTPUT=%s\nDEVICE=%s\nMARK=%s\nFAIL=%s\n' \
+		"$MODE" "$UID_TG" "$PREF" "$TABLE" "$OWN" "$OUTPUT" "$DEV" "$MARK" "$FAIL" > "$STATE.tmp" &&
+		mv "$STATE.tmp" "$STATE"
+}
+prepare_user() {
+	if ! id "$USER_NAME" >/dev/null 2>&1; then
+		command -v adduser >/dev/null 2>&1 || { ERR="adduser не найден"; return 1; }
+		adduser -S -D -H -s /bin/sh "$USER_NAME" >/dev/null 2>&1 ||
+			{ id "$USER_NAME" >/dev/null 2>&1 || { ERR="Не удалось создать пользователя Telegram"; return 1; }; }
+	fi
+	UID_TG=$(id -u "$USER_NAME" 2>/dev/null)
+	num "$UID_TG" && [ "$UID_TG" -gt 0 ] && [ "$UID_TG" -lt 65534 ] ||
+		{ ERR="Некорректный UID пользователя Telegram"; return 1; }
+	command -v su >/dev/null 2>&1 || { ERR="Команда su не найдена"; return 1; }
+}
+find_priority() {
+	used=$( { "$IP" -4 rule show; "$IP" -6 rule show; } 2>/dev/null |
+		awk -F: '/^[0-9]+:/ {gsub(/[[:space:]]/,"",$1); print $1}' | sort -u)
+	PREF=18000
+	while [ "$PREF" -lt 20000 ]; do
+		q=$((PREF + 1))
+		if ! printf '%s\n' "$used" | grep -qx "$PREF" && ! printf '%s\n' "$used" | grep -qx "$q"; then return 0; fi
+		PREF=$((PREF + 2))
+	done
+	return 1
+}
+find_table() {
+	used=$( { "$IP" -4 rule show; "$IP" -6 rule show; "$IP" -4 route show table all; "$IP" -6 route show table all; } 2>/dev/null |
+		awk '{for(i=1;i<=NF;i++) if($i=="lookup" || $i=="table") print $(i+1)}' | sort -u)
+	TABLE=42000
+	while [ "$TABLE" -le 42100 ]; do
+		if ! printf '%s\n' "$used" | grep -qx "$TABLE" &&
+		   ! "$IP" -4 route show table "$TABLE" 2>/dev/null | grep -q . &&
+		   ! "$IP" -6 route show table "$TABLE" 2>/dev/null | grep -q .; then return 0; fi
+		TABLE=$((TABLE + 1))
+	done
+	return 1
+}
+remove_previous() {
+	if read_state && num "$S_PREF" && num "$S_TABLE"; then
+		"$IP" -4 rule del priority "$S_PREF" uidrange "$S_UID-$S_UID" lookup "$S_TABLE" 2>/dev/null || :
+		"$IP" -4 rule del priority "$((S_PREF + 1))" uidrange "$S_UID-$S_UID" unreachable 2>/dev/null || :
+		"$IP" -6 rule del priority "$S_PREF" uidrange "$S_UID-$S_UID" lookup "$S_TABLE" 2>/dev/null || :
+		"$IP" -6 rule del priority "$((S_PREF + 1))" uidrange "$S_UID-$S_UID" unreachable 2>/dev/null || :
+		if [ "$S_OWN" = 1 ]; then
+			"$IP" -4 route flush table "$S_TABLE" 2>/dev/null || :
+			"$IP" -6 route flush table "$S_TABLE" 2>/dev/null || :
+		fi
+	fi
+	rm -f "$STATE" "$STATE.tmp"
+}
+clear_all() {
+	remove_previous
+	if table_exists; then "$NFT" delete table inet nightfall_telegram >/dev/null 2>&1 || :; fi
+}
+nft_install() {
+	{
+		table_exists && echo 'delete table inet nightfall_telegram'
+		cat <<EOF
+add table inet nightfall_telegram
+add chain inet nightfall_telegram route_output { type route hook output priority mangle; policy accept; }
+add chain inet nightfall_telegram output_guard { type filter hook output priority filter; policy accept; }
+add chain inet nightfall_telegram fail_closed { type filter hook output priority filter; policy accept; }
+add chain inet nightfall_telegram egress_guard { type filter hook postrouting priority filter; policy accept; }
+EOF
+		if [ "$FAIL" = 1 ]; then
+			printf 'add rule inet nightfall_telegram fail_closed meta skuid %s drop comment "nightfall-telegram-fail-closed"\n' "$UID_TG"
+		elif [ "$MODE" = steer ]; then
+			BASE_MARK=$(steer_mark_key)
+			printf 'add rule inet nightfall_telegram route_output meta skuid %s meta mark set %s comment "nightfall-telegram-steer-mark"\n' "$UID_TG" "$MARK"
+			# Steer redirects marked local TCP sockets to the active plugin listener on
+			# 127.0.0.1. Its port is allocated from the live output registry (9480 + slot),
+			# so match the DNAT, loopback destination and output mark instead of hardcoding
+			# a listener port. Ordinary direct/WAN sockets do not match this exception.
+			printf 'add rule inet nightfall_telegram output_guard meta skuid %s ct status dnat meta mark & 0x0ff00000 == %s ip daddr 127.0.0.1 meta l4proto tcp accept comment "nightfall-telegram-steer-local-output-redir"\n' "$UID_TG" "$BASE_MARK"
+			printf 'add rule inet nightfall_telegram output_guard meta skuid %s oifname != "%s" drop comment "nightfall-telegram-steer-output-guard"\n' "$UID_TG" "$DEV"
+			printf 'add rule inet nightfall_telegram egress_guard meta skuid %s ct status dnat meta mark & 0x0ff00000 == %s ip daddr 127.0.0.1 meta l4proto tcp accept comment "nightfall-telegram-steer-local-egress-redir"\n' "$UID_TG" "$BASE_MARK"
+			printf 'add rule inet nightfall_telegram egress_guard meta skuid %s oifname != "%s" drop comment "nightfall-telegram-steer-guard"\n' "$UID_TG" "$DEV"
+		elif [ "$MODE" = iface ]; then
+			printf 'add rule inet nightfall_telegram output_guard meta skuid %s oifname != "%s" drop comment "nightfall-telegram-interface-output-guard"\n' "$UID_TG" "$DEV"
+			printf 'add rule inet nightfall_telegram egress_guard meta skuid %s oifname != "%s" drop comment "nightfall-telegram-interface-guard"\n' "$UID_TG" "$DEV"
+		fi
+	} | "$NFT" -f - >/dev/null 2>&1
+}
+load_status() {
+	command -v "$STEER" >/dev/null 2>&1 || return 1
+	STATUS_JSON=$("$STEER" status 2>/dev/null) || return 1
+	[ -n "$STATUS_JSON" ] && [ -r "$JSHN" ] || return 1
+	. "$JSHN"
+	json_load "$STATUS_JSON" >/dev/null 2>&1 || return 1
+	json_select outputs >/dev/null 2>&1 || return 1
+}
+read_steer_output() {
+	KIND= DEV= TABLE= MARK= READY=false
+	outname "$OUT_NAME" || return 1
+	json_select "$OUT_NAME" >/dev/null 2>&1 || return 1
+	json_get_vars kind device table mark up failed
+	KIND=$kind; DEV=$device; TABLE=$table; MARK=$mark
+	if [ -z "$DEV" ] && json_select group >/dev/null 2>&1; then
+		json_get_var selected selected
+		# Current object -> outputs map -> selected member. Keep the jshn cursor
+		# on the selected output when returning to the caller.
+		json_select ..
+		json_select ..
+		if outname "$selected" && json_select "$selected" >/dev/null 2>&1; then
+			json_get_var member_device device
+			json_get_var member_table table
+			json_get_var member_mark mark
+			[ -n "$DEV" ] || DEV=$member_device
+			[ -n "$TABLE" ] || TABLE=$member_table
+			[ -n "$MARK" ] || MARK=$member_mark
+			json_select ..
+			json_select "$OUT_NAME" >/dev/null 2>&1 || return 1
+		else
+			json_select "$OUT_NAME" >/dev/null 2>&1 || return 1
+		fi
+	fi
+	json_select .. >/dev/null 2>&1 || :
+	# OpenWrt jshn exports JSON booleans as 1/0, not true/false.
+	case "$up:$failed" in 1:|1:0|true:|true:false) READY=true ;; esac
+	devname "$DEV" || READY=false
+	num "$TABLE" || READY=false
+	printf '%s' "$MARK" | grep -qE '^0x[0-9A-Fa-f]{1,8}$' || READY=false
+	updev "$DEV" || READY=false
+	route=$("$IP" -4 route show table "$TABLE" default 2>/dev/null | head -n 1)
+	[ -n "$route" ] && printf '%s\n' "$route" | grep -Fq "dev $DEV" || READY=false
+}
+discover_steer() {
+	load_status || return 0
+	json_get_keys OUT_NAMES
+	for OUT_NAME in $OUT_NAMES; do
+		read_steer_output
+		num "$TABLE" || continue
+		kind_label=$KIND; [ -n "$kind_label" ] || kind_label=Steer
+		dev_label=$DEV; [ -n "$dev_label" ] || dev_label=?
+		printf '{"id":"steer:%s","label":"%s","device":"%s","table":%s,"mark":"%s","ready":%s},\n' \
+			"$OUT_NAME" "$(esc "$OUT_NAME · $kind_label · $dev_label")" "$(esc "$DEV")" "$TABLE" "$MARK" "$READY"
+	done
+	json_select ..
+}
+discover_interfaces() {
+	"$IP" -o link show 2>/dev/null | while IFS= read -r line; do
+		name=$(printf '%s\n' "$line" | awk '{n=$2;sub(/:$/,"",n);sub(/@.*/,"",n);print n}')
+		devname "$name" || continue
+		[ "$name" = lo ] && continue
+		flags=$(printf '%s\n' "$line" | sed -n 's/^[^<]*<\([^>]*\)>.*/\1/p')
+		case ",$flags," in *,UP,*) ;; *) continue ;; esac
+		kind=$(iface_kind "$name") || continue
+		printf '{"id":"iface:%s","label":"%s · %s","device":"%s","ready":true},\n' "$name" "$(esc "$name")" "$kind" "$name"
+	done
+}
+inspect() {
+	command -v "$IP" >/dev/null 2>&1 || { err "Команда ip не найдена"; return 1; }
+	steer_found=false; steer_version=
+	if command -v "$STEER" >/dev/null 2>&1; then
+		steer_found=true
+		steer_version=$("$STEER" --version 2>/dev/null | head -n 1 | sed 's/^[^0-9]*//')
+		[ -n "$steer_version" ] || steer_version=detected
+	fi
+	tmp=$(mktemp /tmp/nightfall-tg-inspect.XXXXXX) || { err "Нет временного места"; return 1; }
+	discover_steer > "$tmp"
+	outputs=$(sed '$s/,$//' "$tmp" | tr -d '\n')
+	: > "$tmp"
+	discover_interfaces > "$tmp"
+	interfaces=$(sed '$s/,$//' "$tmp" | tr -d '\n')
+	rm -f "$tmp"
+	printf '{"ok":true,"steer":{"found":%s,"version":"%s"},"outputs":[%s],"interfaces":[%s],"selected_mode":"%s","selected_output":"%s"}\n' \
+		"$steer_found" "$(esc "$steer_version")" "$outputs" "$interfaces" \
+		"$(esc "$(cfg TG_ROUTE_MODE)")" "$(esc "$(cfg TG_ROUTE_OUTPUT)")"
+}
+install_drop() {
+	MODE=fail; FAIL=1; DEV=; MARK=; PREF=; TABLE=0; OWN=0
+	write_state && nft_install
+}
+apply_steer() {
+	OUT_NAME=$(printf '%s' "$OUTPUT" | sed 's/^steer://')
+	outname "$OUT_NAME" || { err "Некорректное имя выхода Steer"; return 1; }
+	load_status || {
+		lock || { err "Не удалось получить блокировку маршрута"; return 1; }
+		if prepare_user; then remove_previous; install_drop; fi
+		unlock
+		err "Не удалось получить steer status. Telegram заблокирован до восстановления маршрута."
+		return 1
+	}
+	read_steer_output || READY=false
+	json_select .. >/dev/null 2>&1 || :
+	if [ "$READY" != true ]; then
+		lock || { err "Не удалось получить блокировку маршрута"; return 1; }
+		if prepare_user; then remove_previous; install_drop; fi
+		unlock
+		err "Выход Steer сейчас не готов. Telegram заблокирован до восстановления VPN."
+		return 1
+	fi
+	# Steer output mark plus its documented ZAPRET_SKIP_MARK bit.
+	mark_num=$((MARK | 0x40000000))
+	MARK=$(printf '0x%08x' "$mark_num")
+	MODE=steer; FAIL=0; OWN=0; PREF=
+	lock || { err "Не удалось получить блокировку маршрута"; return 1; }
+	UID_TG=$(id -u "$USER_NAME" 2>/dev/null)
+	if read_state && [ "$S_MODE" = "$MODE" ] && [ "$S_UID" = "$UID_TG" ] &&
+	   [ "$S_OUTPUT" = "$OUTPUT" ] && [ "$S_DEVICE" = "$DEV" ] &&
+	   [ "$S_TABLE" = "$TABLE" ] && [ "$S_MARK" = "$MARK" ] && [ "$S_FAIL" = 0 ] && guard_ready; then
+		unlock
+		printf '{"ok":true,"mode":"vpn","source":"steer","output":"%s","device":"%s","table":%s,"reused":true}\n' \
+			"$(esc "$OUTPUT")" "$(esc "$DEV")" "$TABLE"
+		return 0
+	fi
+	remove_previous
+	write_state && nft_install || { unlock; err "Не удалось установить метку и egress guard Steer для Telegram"; return 1; }
+	lookup=$("$IP" -4 route get 149.154.167.220 mark "$MARK" uid "$UID_TG" 2>&1)
+	# "steer status" exposes a numeric table ID (e.g. 304), while iproute2
+	# may print its /etc/iproute2/rt_tables alias (e.g. steer_zm_vpn2).
+	# read_steer_output already checked that the numeric table's default route
+	# points to DEV; this marked lookup confirms the kernel selects that device.
+	if ! printf '%s\n' "$lookup" | grep -Fq "dev $DEV"; then
+		remove_previous; install_drop; unlock
+		err "Проверка маршрута Steer не прошла; Telegram заблокирован без обхода через WAN"
+		return 1
+	fi
+	unlock
+	printf '{"ok":true,"mode":"vpn","source":"steer","output":"%s","device":"%s","table":%s}\n' \
+		"$(esc "$OUTPUT")" "$(esc "$DEV")" "$TABLE"
+}
+apply_interface() {
+	DEV=$(printf '%s' "$OUTPUT" | sed 's/^iface://')
+	kind=$(iface_kind "$DEV") || { err "Интерфейс $DEV не распознан как VPN-туннель или point-to-point"; return 1; }
+	updev "$DEV" || { err "Интерфейс $DEV сейчас не активен"; return 1; }
+	MODE=iface; FAIL=0; MARK=; OWN=1
+	lock || { err "Не удалось получить блокировку маршрута"; return 1; }
+	UID_TG=$(id -u "$USER_NAME" 2>/dev/null)
+	if read_state && [ "$S_MODE" = "$MODE" ] && [ "$S_UID" = "$UID_TG" ] &&
+	   [ "$S_OUTPUT" = "$OUTPUT" ] && [ "$S_DEVICE" = "$DEV" ] && [ "$S_FAIL" = 0 ] && guard_ready &&
+	   "$IP" -4 route show table "$S_TABLE" default 2>/dev/null | grep -Fq "dev $DEV"; then
+		unlock
+		printf '{"ok":true,"mode":"vpn","source":"interface","device":"%s","table":%s,"reused":true}\n' "$DEV" "$S_TABLE"
+		return 0
+	fi
+	remove_previous
+	find_table || { unlock; err "Нет свободной таблицы маршрутизации Telegram"; return 1; }
+	find_priority || { unlock; err "Нет свободного приоритета policy routing"; return 1; }
+	"$IP" -4 route replace default dev "$DEV" table "$TABLE" 2>/dev/null || { unlock; err "Не удалось создать IPv4-маршрут через $DEV"; return 1; }
+	"$IP" -6 route replace default dev "$DEV" table "$TABLE" 2>/dev/null || :
+	if ! "$IP" -4 rule add priority "$PREF" uidrange "$UID_TG-$UID_TG" lookup "$TABLE" 2>/dev/null ||
+	   ! "$IP" -4 rule add priority "$((PREF + 1))" uidrange "$UID_TG-$UID_TG" unreachable 2>/dev/null ||
+	   ! "$IP" -6 rule add priority "$PREF" uidrange "$UID_TG-$UID_TG" lookup "$TABLE" 2>/dev/null ||
+	   ! "$IP" -6 rule add priority "$((PREF + 1))" uidrange "$UID_TG-$UID_TG" unreachable 2>/dev/null; then
+		"$IP" -4 rule del priority "$PREF" uidrange "$UID_TG-$UID_TG" lookup "$TABLE" 2>/dev/null || :
+		"$IP" -4 rule del priority "$((PREF + 1))" uidrange "$UID_TG-$UID_TG" unreachable 2>/dev/null || :
+		"$IP" -6 rule del priority "$PREF" uidrange "$UID_TG-$UID_TG" lookup "$TABLE" 2>/dev/null || :
+		"$IP" -6 rule del priority "$((PREF + 1))" uidrange "$UID_TG-$UID_TG" unreachable 2>/dev/null || :
+		"$IP" -4 route flush table "$TABLE" 2>/dev/null || :
+		unlock; err "Ядро не поддерживает uidrange policy routing"; return 1
+	fi
+	if ! write_state || ! nft_install; then
+		"$IP" -4 rule del priority "$PREF" uidrange "$UID_TG-$UID_TG" lookup "$TABLE" 2>/dev/null || :
+		"$IP" -4 rule del priority "$((PREF + 1))" uidrange "$UID_TG-$UID_TG" unreachable 2>/dev/null || :
+		"$IP" -6 rule del priority "$PREF" uidrange "$UID_TG-$UID_TG" lookup "$TABLE" 2>/dev/null || :
+		"$IP" -6 rule del priority "$((PREF + 1))" uidrange "$UID_TG-$UID_TG" unreachable 2>/dev/null || :
+		"$IP" -4 route flush table "$TABLE" 2>/dev/null || :
+		rm -f "$STATE" "$STATE.tmp"
+		if table_exists; then "$NFT" delete table inet nightfall_telegram >/dev/null 2>&1 || :; fi
+		unlock; err "Не удалось установить egress guard для VPN-интерфейса"; return 1
+	fi
+	lookup=$("$IP" -4 route get 149.154.167.220 uid "$UID_TG" 2>&1)
+	if ! printf '%s\n' "$lookup" | grep -Fq "table $TABLE" ||
+	   ! printf '%s\n' "$lookup" | grep -Fq "dev $DEV"; then
+		remove_previous; install_drop; unlock
+		err "Проверка маршрута VPN-интерфейса не прошла; Telegram заблокирован без обхода через WAN"
+		return 1
+	fi
+	unlock
+	printf '{"ok":true,"mode":"vpn","source":"interface","device":"%s","table":%s}\n' "$DEV" "$TABLE"
+}
+apply_route() {
+	mode=$(cfg TG_ROUTE_MODE); OUTPUT=$(cfg TG_ROUTE_OUTPUT)
+	proxy=$(cfg TG_PROXY); legacy=$(cfg TG_IFACE)
+	if [ -z "$mode" ]; then
+		if [ -n "$proxy" ]; then mode=proxy
+		elif [ -n "$legacy" ]; then mode=vpn; OUTPUT="iface:$legacy"
+		else mode=system; fi
+	fi
+	case "$mode" in
+		system|proxy)
+			[ "$mode" != proxy ] || [ -n "$proxy" ] || { err "Для режима через прокси укажите адрес"; return 1; }
+			lock || { err "Не удалось получить блокировку маршрута"; return 1; }
+			clear_all; unlock
+			printf '{"ok":true,"mode":"%s"}\n' "$mode"; return 0 ;;
+		vpn) ;;
+		*) err "Неизвестный режим маршрутизации Telegram"; return 1 ;;
+	esac
+	prepare_user || { err "$ERR"; return 1; }
+	case "$OUTPUT" in steer:*) apply_steer ;; iface:*) apply_interface ;; *) err "Выберите доступный VPN-выход"; return 1 ;; esac
+}
+	route_status() {
+		if ! read_state; then
+			printf '{"ok":true,"active":false}\n'
+			return 0
+		fi
+		MODE=$S_MODE; UID_TG=$S_UID; DEV=$S_DEVICE; MARK=$S_MARK
+		TABLE=$S_TABLE; OUTPUT=$S_OUTPUT
+		if [ "$S_FAIL" = 1 ] || ! guard_ready; then
+			printf '{"ok":true,"active":false,"blocked":true,"mode":"vpn","output":"%s"}\n' "$(esc "$S_OUTPUT")"
+			return 0
+		fi
+		if [ "$MODE" = steer ]; then
+			OUT_NAME=$(printf '%s' "$S_OUTPUT" | sed 's/^steer://')
+			if ! load_status || ! read_steer_output; then
+				printf '{"ok":true,"active":false,"blocked":true,"mode":"vpn","output":"%s"}\n' "$(esc "$S_OUTPUT")"
+				return 0
+			fi
+			json_select .. >/dev/null 2>&1 || :
+			mark_num=$((MARK | 0x40000000))
+			current_mark=$(printf '0x%08x' "$mark_num")
+			if [ "$READY" != true ] || [ "$DEV" != "$S_DEVICE" ] || [ "$TABLE" != "$S_TABLE" ] || [ "$current_mark" != "$S_MARK" ]; then
+				printf '{"ok":true,"active":false,"blocked":true,"mode":"vpn","output":"%s","device":"%s"}\n' "$(esc "$S_OUTPUT")" "$(esc "$S_DEVICE")"
+				return 0
+			fi
+			lookup=$("$IP" -4 route get 149.154.167.220 mark "$S_MARK" uid "$S_UID" 2>/dev/null)
+		else
+			lookup=$("$IP" -4 route get 149.154.167.220 uid "$S_UID" 2>/dev/null)
+		fi
+		if [ "$MODE" = steer ]; then
+			# A Steer numeric table may be rendered by iproute2 using its
+			# symbolic rt_tables name; the marked lookup is validated by device.
+			if ! printf '%s\n' "$lookup" | grep -Fq "dev $S_DEVICE"; then
+				printf '{"ok":true,"active":false,"blocked":true,"mode":"vpn","output":"%s","device":"%s"}\n' "$(esc "$S_OUTPUT")" "$(esc "$S_DEVICE")"
+				return 0
+			fi
+		elif ! printf '%s\n' "$lookup" | grep -Fq "table $S_TABLE" ||
+		     ! printf '%s\n' "$lookup" | grep -Fq "dev $S_DEVICE"; then
+			printf '{"ok":true,"active":false,"blocked":true,"mode":"vpn","output":"%s","device":"%s"}\n' "$(esc "$S_OUTPUT")" "$(esc "$S_DEVICE")"
+			return 0
+		fi
+		printf '{"ok":true,"active":true,"mode":"vpn","source":"%s","uid":%s,"table":%s,"device":"%s","output":"%s"}\n' \
+			"$MODE" "$S_UID" "$S_TABLE" "$(esc "$S_DEVICE")" "$(esc "$S_OUTPUT")"
+	}
+case "$1" in
+	inspect) inspect ;;
+	apply) apply_route ;;
+	status) route_status ;;
+	*) err "Использование: nightfall-telegram-route inspect|apply|status" ;;
+esac

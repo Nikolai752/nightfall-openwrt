@@ -3,7 +3,7 @@ name: check
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, feature/tg-bot-center-universal]
   workflow_call:
 
 jobs:
@@ -36,6 +36,9 @@ jobs:
 
       - name: Тесты бота без Telegram
         run: sh tools/test-bot.sh
+
+      - name: Изоляция маршрута Telegram (Steer и обычный VPN)
+        run: sh tools/test-telegram-route.sh
 
       - name: История температур по датчикам
         run: sh tools/test-temps.sh
