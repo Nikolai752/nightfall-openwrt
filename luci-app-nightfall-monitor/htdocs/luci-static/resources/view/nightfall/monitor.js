@@ -1569,6 +1569,9 @@ return view.extend({
 		cfgInputs.TG_ROUTE_OUTPUT = E('input', { type: 'hidden', value: '' });
 
 		const tgModeRadios = {};
+		/* Keep the native select's option DOM stable between 2-second monitor polls.
+		 * Replacing options while its popup is open cancels mouse selection in browsers. */
+		let tgOutputSignature = null;
 		const tgSteerValue = E('b', {}, _('Определение…'));
 		const tgOutputCount = E('b', {}, '–');
 		const tgRouteState = E('div', { class: 'nfm-tg-state' }, _('Загрузка данных маршрутизации…'));
@@ -1577,7 +1580,12 @@ return view.extend({
 		const tgSettingsMsg = E('div', { class: 'nfm-tg-state' }, '');
 		const tgOutputSelect = E('select', { class: 'nfm-sel', 'aria-label': _('VPN-выход для Telegram'), change: ev => {
 			cfgInputs.TG_ROUTE_OUTPUT.value = ev.target.value;
-			renderTelegram();
+			const values = S.cfg && S.cfg.values || {};
+			const outputs = (S.tgInfo && S.tgInfo.ok ? (S.tgInfo.outputs || []).concat(S.tgInfo.interfaces || []) : []);
+			const selected = outputs.find(item => item.id === ev.target.value);
+			tgRouteState.textContent = selected
+				? (selected.ready === false ? _('Выход обнаружен, но сейчас не активен: ') : _('Выбранный выход: ')) + (selected.label || selected.id)
+				: _('Выберите VPN-выход. Автоматически первый выход не выбирается.');
 		} }, [ E('option', { value: '' }, _('— выберите VPN-выход —')) ]);
 		const tgProxyField = cfgField('TG_PROXY');
 		const tgProxyPane = E('div', { class: 'nfm-tg-mode-pane' }, [
@@ -1740,7 +1748,10 @@ return view.extend({
 				tgOutputCount.textContent = '–';
 				tgRouteState.textContent = S.tgInfo && S.tgInfo.error ? _('Не удалось обнаружить выходы: ') + S.tgInfo.error : _('Нажмите «Обновить список выходов».');
 				renderTelegramRuntime(mode);
-				tgOutputSelect.replaceChildren(E('option', { value: '' }, _('Список выходов пока не получен')));
+				if (tgOutputSignature !== 'unavailable' && document.activeElement !== tgOutputSelect) {
+					tgOutputSelect.replaceChildren(E('option', { value: '' }, _('Список выходов пока не получен')));
+					tgOutputSignature = 'unavailable';
+				}
 				return;
 			}
 
@@ -1760,8 +1771,15 @@ return view.extend({
 			});
 			if (current && !outputs.some(item => item.id === current))
 				options.push(E('option', { value: current }, _('Сохранённый выход (сейчас не обнаружен): ') + current));
-			tgOutputSelect.replaceChildren(...options);
-			tgOutputSelect.value = current;
+			const outputSignature = JSON.stringify(outputs.map(item => [ item.id, item.label || '', item.ready !== false ]));
+			/* Rebuild options only when discovery actually changes and the control is not
+			 * focused. The next poll refreshes deferred changes after the user closes it. */
+			if (outputSignature !== tgOutputSignature && document.activeElement !== tgOutputSelect) {
+				tgOutputSelect.replaceChildren(...options);
+				tgOutputSignature = outputSignature;
+			}
+			if (tgOutputSelect.value !== current)
+				tgOutputSelect.value = current;
 			if (mode === 'vpn') {
 				const selected = outputs.find(item => item.id === current);
 				tgRouteState.textContent = selected
