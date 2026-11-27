@@ -1817,7 +1817,7 @@ return view.extend({
 				button.setAttribute('aria-pressed', selected ? 'true' : 'false');
 			});
 			if (mode === 'vpn') {
-				const selected = discoveredOutputs.find(item => item.id === current);
+				const selected = outputs.find(item => item.id === current);
 				tgRouteState.textContent = selected
 					? (selected.ready === false ? _('Сохранённый выход сейчас не готов. Выберите доступный выход.') : _('Выбранный выход: ') + (selected.label || selected.id))
 					: current ? _('Сохранённый VPN-выход не обнаружен. Выберите другой выход или восстановите подключение.') : _('Выберите VPN-выход. Автоматически первый выход не выбирается.');
