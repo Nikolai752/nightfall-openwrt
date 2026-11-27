@@ -751,7 +751,7 @@ msgid "Закрепить карточку «"
 msgstr "固定卡片“"
 
 msgid "Закрыть"
-msgstr "封禁"
+msgstr "关闭"
 
 msgid "Заливка"
 msgstr "填充"

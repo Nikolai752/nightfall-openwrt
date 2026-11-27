@@ -3521,7 +3521,7 @@ return view.extend({
 			S.at.sec = 0; S.at.bans = 0; })
 			.catch(() => window.alert(_('Не получилось выполнить команду на роутере.')));
 		const banBtn = ip => isExternalIp(ip) ? E('button', { type: 'button', class: 'nfm-btn', title: _('Роутер перестанет принимать пакеты с этого адреса на 24 часа (до перезагрузки роутера)'),
-			click: () => { if (window.confirm(_('Закрыть адрес ') + ip + _(' для роутера на 24 часа?'))) secAct([ 'ban', ip, '24' ]); } }, _('Закрыть на 24 ч')) : '';
+			click: () => { if (window.confirm(_('Закрыть адрес %s для роутера на 24 часа?').format(ip))) secAct([ 'ban', ip, '24' ]); } }, _('Закрыть на 24 ч')) : '';
 		const RISKY = { 21: _('FTP без шифрования'), 23: _('Telnet без шифрования'), 445: 'SMB', 139: 'SMB', 3389: _('удалённый рабочий стол'), 5900: 'VNC' };
 		const routerLogLevel = x => {
 			/* BusyBox crond logs a normal job dispatch at cron.err; it does not mean the job failed. */
