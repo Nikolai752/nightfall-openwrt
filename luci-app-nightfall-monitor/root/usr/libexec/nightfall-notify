@@ -174,7 +174,9 @@ test-start)
 	[ ! -L "$TG_TEST_DIR" ] || fail "небезопасный каталог теста Telegram"
 	mkdir -p "$TG_TEST_DIR" || fail "не удалось создать каталог теста Telegram"
 	chmod 700 "$TG_TEST_DIR" 2>/dev/null || fail "не удалось защитить каталог теста Telegram"
-	if [ -s "$TG_TEST_DIR/pid" ]; then
+	if [ -s "$TG_TEST_DIR/done" ]; then
+		rm -f "$TG_TEST_DIR/pid" "$TG_TEST_DIR/done" "$TG_TEST_DIR/result"
+	elif [ -s "$TG_TEST_DIR/pid" ]; then
 		p=$(cat "$TG_TEST_DIR/pid" 2>/dev/null)
 		case "$p" in *[!0-9]*|'') p= ;; esac
 		if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
@@ -183,18 +185,18 @@ test-start)
 	fi
 	rm -f "$TG_TEST_DIR/pid" "$TG_TEST_DIR/done" "$TG_TEST_DIR/result" "$TG_TEST_DIR"/*.tmp.*
 	# Run the network request outside file.exec's bounded foreground lifetime.
-	# The worker writes its PID and result atomically; only short status calls use RPC.
-	sh -c '
-		dir=$1
-		script=$2
+	# The parent records $!; the worker atomically publishes the final result.
+	(
 		umask 077
-		echo "$" > "$dir/pid.tmp.$" && mv "$dir/pid.tmp.$" "$dir/pid"
-		"$script" test > "$dir/result.tmp.$" 2>&1
+		"$0" test > "$TG_TEST_DIR/result.tmp.$" 2>&1
 		rc=$?
-		mv "$dir/result.tmp.$" "$dir/result"
-		echo "$rc" > "$dir/done.tmp.$" && mv "$dir/done.tmp.$" "$dir/done"
-		rm -f "$dir/pid"
-	' sh "$TG_TEST_DIR" "$0" </dev/null >/dev/null 2>&1 &
+		mv "$TG_TEST_DIR/result.tmp.$" "$TG_TEST_DIR/result"
+		printf '%s\n' "$rc" > "$TG_TEST_DIR/done.tmp.$" &&
+			mv "$TG_TEST_DIR/done.tmp.$" "$TG_TEST_DIR/done"
+	) </dev/null >/dev/null 2>&1 &
+	worker_pid=$!
+	printf '%s\n' "$worker_pid" > "$TG_TEST_DIR/pid.tmp.$" &&
+		mv "$TG_TEST_DIR/pid.tmp.$" "$TG_TEST_DIR/pid"
 	printf '{"ok":true,"state":"running"}\n' ;;
 test-status)
 	if [ -s "$TG_TEST_DIR/done" ] && [ -s "$TG_TEST_DIR/result" ]; then
