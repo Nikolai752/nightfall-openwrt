@@ -106,8 +106,8 @@ set)
 		TG_ROUTE_MODE) case "$v" in ''|system|proxy|vpn) ;; *) fail "TG_ROUTE_MODE: допустимы system, proxy или vpn" ;; esac ;;
 		TG_ROUTE_OUTPUT)
 			case "$v" in
-				iface:*) n=\${v#iface:}; printf '%s' "$n" | grep -qE '^[A-Za-z0-9_.-]{1,15}$' || fail "TG_ROUTE_OUTPUT: неверное имя VPN-интерфейса" ;;
-				steer:*) n=\${v#steer:}; printf '%s' "$n" | grep -qE '^[A-Za-z0-9_.-]{1,31}$' || fail "TG_ROUTE_OUTPUT: неверное имя выхода Steer" ;;
+				iface:*) n=${v#iface:}; printf '%s' "$n" | grep -qE '^[A-Za-z0-9_.-]{1,15}$' || fail "TG_ROUTE_OUTPUT: неверное имя VPN-интерфейса" ;;
+				steer:*) n=${v#steer:}; printf '%s' "$n" | grep -qE '^[A-Za-z0-9_.-]{1,31}$' || fail "TG_ROUTE_OUTPUT: неверное имя выхода Steer" ;;
 				'') ;;
 				*) fail "TG_ROUTE_OUTPUT: ожидался steer:NAME или iface:NAME" ;;
 			esac ;;
