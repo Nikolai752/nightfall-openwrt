@@ -184,7 +184,8 @@ read_steer_output() {
 		fi
 	fi
 	json_select .. >/dev/null 2>&1 || :
-	case "$up:$failed" in true:|true:false) READY=true ;; esac
+	# OpenWrt jshn exports JSON booleans as 1/0, not true/false.
+	case "$up:$failed" in 1:|1:0|true:|true:false) READY=true ;; esac
 	devname "$DEV" || READY=false
 	num "$TABLE" || READY=false
 	printf '%s' "$MARK" | grep -qE '^0x[0-9A-Fa-f]{1,8}$' || READY=false
