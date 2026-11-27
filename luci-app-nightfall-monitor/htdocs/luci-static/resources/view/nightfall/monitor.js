@@ -760,6 +760,16 @@ const CSS = `
 .nfm-tab:hover { background: color-mix(in srgb, var(--nfm-card) 70%, transparent); }
 .nfm-tab.on { background: var(--nfm-card); box-shadow: 0 1px 2px rgba(0,0,0,.14); font-weight: 600; position: relative; }
 .nfm-tab.on::after { content: ''; position: absolute; left: 50%; bottom: 1px; width: 16px; height: 3px; margin-left: -8px; border-radius: 3px; background: var(--nfm-accent); }
+.nfm-tg-page { min-width:0; }
+.nfm-tg-page > .nfm-tabs { display:flex; flex-wrap:wrap; width:max-content; max-width:100%; margin:0 0 14px; gap:4px; }
+.nfm-tg-page > .nfm-tabs .nfm-tab { min-height:38px; white-space:normal; }
+.nfm-tg-pane { min-width:0; }
+.nfm-tg-page .nfm-grid { min-width:0; }
+@media (max-width:600px) {
+ .nfm-tg-page > .nfm-tabs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); width:100%; }
+ .nfm-tg-page > .nfm-tabs .nfm-tab { padding:8px 10px; line-height:1.25; }
+ .nfm-tg-page .nfm-card { padding:13px 12px; }
+}
 
 .nfm-grid { display: grid; gap: 12px; margin-bottom: 12px; }
 .nfm-g4 { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
@@ -1548,7 +1558,7 @@ return view.extend({
 		const tgRouteSelect = E('select', { class: 'nfm-sel', 'aria-label': _('Интерфейс VPN для Telegram'), change: ev => {
 			cfgInputs.TG_IFACE.value = ev.target.value;
 			S.tgSelectedIface = ev.target.value;
-		} }, [ E('option', { value: '' }, _('Автоматически · системный маршрут')) ]);
+		} }, [ E('option', { value: '' }, _('Системный маршрут OpenWrt')) ]);
 		const tgRouteInfo = E('div', { class: 'nfm-hint', style: 'margin-top:10px' }, _('Список интерфейсов ещё не получен.'));
 		const tgState = E('div', { class: 'nfm-tiles t4' }, [
 			[ 'tgEnabled', _('Уведомления') ], [ 'tgBot', _('Бот') ], [ 'tgToken', _('Токен') ], [ 'tgChat', _('Chat ID') ]
@@ -1624,8 +1634,8 @@ return view.extend({
 					tgRouteSelect.appendChild(E('option', { value: chosen }, _('Сохранённый интерфейс (сейчас не обнаружен): ') + chosen));
 				tgRouteSelect.value = chosen;
 				tgRouteInfo.textContent = chosen
-					? (known ? _('Выбран интерфейс %s. Он найден и активен.').format(chosen) : _('Сохранённый интерфейс %s сейчас не обнаружен. Проверьте подключение VPN или выберите другой выход.').format(chosen))
-					: _('Используется обычный системный маршрут. Nightfall не выбирает VPN автоматически.');
+					? (known ? (interfaces.find(x => x.name === chosen).state === 'UP' ? _('Интерфейс %s обнаружен и поднят.').format(chosen) : _('Интерфейс %s обнаружен, но сейчас не поднят.').format(chosen)) : _('Сохранённый интерфейс %s сейчас не обнаружен. Проверьте подключение VPN или выберите другой выход.').format(chosen))
+					: _('Используется системный маршрут OpenWrt. Автоматический выбор VPN пока не реализован.');
 			} else {
 				tgRouteInfo.textContent = S.tgInfo && S.tgInfo.error ? _('Не удалось получить интерфейсы: ') + S.tgInfo.error : _('Нажмите «Обновить список интерфейсов», чтобы обнаружить доступные VPN-выходы.');
 			}
