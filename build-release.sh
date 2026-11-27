@@ -3,6 +3,7 @@
 # Запуск из корня репозитория: VERSION=v1.29.1 PO2LMO=/path/to/po2lmo sh build-release.sh
 set -eu
 cd "$(dirname "$0")"
+VERSION=${VERSION:-}
 OUT=$(pwd)/dist
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
