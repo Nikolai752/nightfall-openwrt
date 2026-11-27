@@ -1690,6 +1690,32 @@ return view.extend({
 			]))
 		]);
 
+		function renderTelegramRuntime(mode) {
+			const status = S.tgRouteRuntime;
+			if (!status || !status.ok) {
+				tgRouteStatus.textContent = status && status.error
+					? _('Не удалось получить состояние маршрута: ') + status.error
+					: _('Проверяю, установлен ли отдельный маршрут Telegram…');
+				return;
+			}
+			if (status.blocked) {
+				tgRouteStatus.textContent = _('Защитная блокировка активна: Telegram не уйдёт напрямую. Выход: ') + (status.output || cfgInputs.TG_ROUTE_OUTPUT.value || 'VPN');
+				return;
+			}
+			if (status.active) {
+				tgRouteStatus.textContent = _('Маршрут подтверждён: ') +
+					(status.source === 'steer' ? 'Steer' : _('VPN-интерфейс')) +
+					' · ' + (status.device || status.output || '') +
+					(status.table ? ' · table ' + status.table : '');
+				return;
+			}
+			tgRouteStatus.textContent = mode === 'system'
+				? _('Отдельные правила не установлены. Telegram использует системный маршрут OpenWrt.')
+				: mode === 'proxy'
+					? _('Прокси выбран. Проверка доступности Telegram появится после тестового запроса.')
+					: _('VPN выбран, но изолированный маршрут ещё не применён. Нажмите «Сохранить и применить маршрут».');
+		}
+
 		function renderTelegram() {
 			const values = S.cfg && S.cfg.values || {};
 			const mode = cfgInputs.TG_ROUTE_MODE.value || values.TG_ROUTE_MODE || (values.TG_PROXY ? 'proxy' : values.TG_IFACE ? 'vpn' : 'system');
@@ -1713,7 +1739,7 @@ return view.extend({
 				tgSteerValue.textContent = S.tgInfo && S.tgInfo.error ? _('Ошибка обнаружения') : _('Не проверено');
 				tgOutputCount.textContent = '–';
 				tgRouteState.textContent = S.tgInfo && S.tgInfo.error ? _('Не удалось обнаружить выходы: ') + S.tgInfo.error : _('Нажмите «Обновить список выходов».');
-				tgRouteStatus.textContent = tgRouteState.textContent;
+				renderTelegramRuntime(mode);
 				tgOutputSelect.replaceChildren(E('option', { value: '' }, _('Список выходов пока не получен')));
 				return;
 			}
@@ -1746,7 +1772,7 @@ return view.extend({
 			} else {
 				tgRouteState.textContent = _('Telegram использует стандартную маршрутизацию OpenWrt.');
 			}
-			tgRouteStatus.textContent = tgRouteState.textContent;
+			renderTelegramRuntime(mode);
 		}
 
 		function loadTelegram(force) {
@@ -1754,13 +1780,19 @@ return view.extend({
 				renderTelegram();
 				return Promise.resolve();
 			}
-			return fs.exec('/usr/libexec/nightfall-telegram-route', [ 'inspect' ]).then(res => {
-				try { S.tgInfo = JSON.parse(res.stdout || '{}'); }
-				catch (e) { S.tgInfo = { ok: false, error: _('Некорректный ответ службы маршрутизации') }; }
-				S.tgInfoAt = Date.now();
-				renderTelegram();
-			}).catch(err => {
-				S.tgInfo = { ok: false, error: (err && err.message) || String(err) };
+			const helper = '/usr/libexec/nightfall-telegram-route';
+			return Promise.all([
+				fs.exec(helper, [ 'inspect' ]).then(res => {
+					try { return JSON.parse(res.stdout || '{}'); }
+					catch (e) { return { ok: false, error: _('Некорректный ответ службы маршрутизации') }; }
+				}).catch(err => ({ ok: false, error: (err && err.message) || String(err) })),
+				fs.exec(helper, [ 'status' ]).then(res => {
+					try { return JSON.parse(res.stdout || '{}'); }
+					catch (e) { return { ok: false, error: _('Некорректный ответ статуса маршрута') }; }
+				}).catch(err => ({ ok: false, error: (err && err.message) || String(err) }))
+			]).then(([info, status]) => {
+				S.tgInfo = info;
+				S.tgRouteRuntime = status;
 				S.tgInfoAt = Date.now();
 				renderTelegram();
 			});
