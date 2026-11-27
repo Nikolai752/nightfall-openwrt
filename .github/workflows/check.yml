@@ -18,6 +18,11 @@ jobs:
         with:
           node-version: 20
 
+      - name: Подготовить официальный компилятор переводов LuCI
+        run: |
+          PO2LMO_PATH="$(sh tools/prepare-po2lmo.sh)"
+          echo "PO2LMO=$PO2LMO_PATH" >> "$GITHUB_ENV"
+
       # Fast static checks and focused regression tests.
       - name: Static checks and traffic regression tests
         run: ./tools/check.sh
