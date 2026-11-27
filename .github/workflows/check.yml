@@ -1,103 +1,69 @@
 name: check
+
 on:
   pull_request:
   push:
     branches: [main]
   workflow_call:
+
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - uses: actions/setup-node@v4
-        with: { node-version: 20 }
-      - run: ./tools/check.sh
-      - name: Сборка кандидата стабильного релиза
-        if: github.event_name == 'pull_request' && github.head_ref == 'release/stability-1.28.0'
-        run: |
-          set -eu
-          VERSION=$(awk -F'"' '/"version"/ { print $4; exit }' luci-theme-nightfall/htdocs/luci-static/nightfall/version.json)
-          test -n "$VERSION"
-          VERSION="v$VERSION" sh ./build-release.sh
-      - name: Проверка установочного архива
-        if: github.event_name == 'pull_request' && github.head_ref == 'release/stability-1.28.0'
-        run: |
-          set -eu
-          EXPECTED_VERSION=$(awk -F'"' '/"version"/ { print $4; exit }' luci-theme-nightfall/htdocs/luci-static/nightfall/version.json)
-          test -n "$EXPECTED_VERSION"
-          test -s dist/nightfall-root.tar.gz
-          test -s dist/nightfall-root.tar.gz.sha256
-          (cd dist && sha256sum -c nightfall-root.tar.gz.sha256)
-          ARCHIVE_VERSION=$(tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | awk -F'"' '/"version"/ { print $4; exit }')
-          test "$ARCHIVE_VERSION" = "$EXPECTED_VERSION"
-          tar -xOf dist/nightfall-root.tar.gz ./usr/share/ucode/luci/template/themes/nightfall/header.ut | grep -Fq "?v=$EXPECTED_VERSION"
-      - name: Загрузка сборки для проверки релиза
-        if: success() && github.event_name == 'pull_request' && github.head_ref == 'release/stability-1.28.0'
-        uses: actions/upload-artifact@v4
         with:
-          name: nightfall-stability-candidate
-          path: |
-            dist/nightfall-root.tar.gz
-            dist/nightfall-root.tar.gz.sha256
-          if-no-files-found: error
-          retention-days: 14
-      - name: Сборка RC с исправлениями учёта трафика и репитера
-        if: github.event_name == 'pull_request' && github.head_ref == 'fix/repeater-device-identity'
-        env:
-          VERSION: v1.28.7-rc.2
-        run: sh ./build-release.sh
-      - name: Проверка RC-архива и версии
-        if: github.event_name == 'pull_request' && github.head_ref == 'fix/repeater-device-identity'
-        env:
-          VERSION: v1.28.7-rc.2
-        run: |
-          set -eu
-          test -s dist/nightfall-root.tar.gz
-          test -s dist/nightfall-root.tar.gz.sha256
-          (cd dist && sha256sum -c nightfall-root.tar.gz.sha256)
-          EXPECTED_VERSION="${VERSION#v}"
-          ARCHIVE_VERSION=$(tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | awk -F'"' '/"version"/ { print $4; exit }')
-          test "$ARCHIVE_VERSION" = "$EXPECTED_VERSION"
-          tar -xOf dist/nightfall-root.tar.gz ./usr/share/ucode/luci/template/themes/nightfall/header.ut | grep -Fq "?v=$EXPECTED_VERSION"
-      - name: Загрузка RC для установки на роутер
-        if: success() && github.event_name == 'pull_request' && github.head_ref == 'fix/repeater-device-identity'
-        uses: actions/upload-artifact@v4
-        with:
-          name: nightfall-v1.28.7-rc.2
-          path: |
-            dist/nightfall-root.tar.gz
-            dist/nightfall-root.tar.gz.sha256
-          if-no-files-found: error
-          retention-days: 14
+          fetch-depth: 0
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Fast static checks and focused regression tests.
+      - name: Static checks and traffic regression tests
+        run: ./tools/check.sh
+
+      # Functional tests run against isolated temporary roots; no router or Telegram account required.
       - name: Проверка службы и скриптов мониторинга
         run: sh tools/test-service.sh
-      - name: "USB-хранилище: отключение и восстановление"
+
+      - name: Проверка постоянного хранилища
         run: sh tools/test-persist.sh
-      - name: Тесты бота (без Telegram)
+
+      - name: Тесты бота без Telegram
         run: sh tools/test-bot.sh
+
       - name: История температур по датчикам
         run: sh tools/test-temps.sh
+
       - name: Безопасность и диагностика
         run: sh tools/test-sec.sh
-      - name: Резервная копия и восстановление Nightfall
+
+      - name: Резервное копирование и восстановление
         run: sh tools/test-backup.sh
+
       - name: Расписание блокировки
         run: sh tools/test-block.sh
-      - name: Учёт трафика только для LAN-клиентов
+
+      - name: Учёт трафика LAN-клиентов
         run: sh tools/test-device-accounting.sh
-      - name: Test monitor device identity (repeater and direct Wi-Fi)
+
+      - name: Идентификация устройств и клиентов за репитером
         run: node tools/test-monitor-device-identity.js
-      - name: Большие счётчики трафика в JSON истории
+
+      - name: Большие счётчики в истории JSON
         run: node tools/test-history-devdaily.js
-      - name: Окно «Что нового» после обновления
+
+      - name: Окно «Что нового»
         run: sh tools/test-whats-new.sh
-      - name: Изолированные тесты LuCI updater и отката
+
+      - name: Обновление LuCI и безопасный откат
         run: sh tools/test-updater.sh
-      - name: Тесты установки, обновления и удаления
+
+      - name: Установка, обновление и удаление
         run: sh tools/test-install.sh
-      - name: Дымовой тест (Playwright)
+
+      # Browser-level checks own visual/layout assertions; avoid matching implementation strings in unit tests.
+      - name: Браузерные smoke-тесты LuCI
         run: |
           npm install --no-save playwright@1.49.0
           npx playwright install --with-deps chromium
@@ -108,82 +74,11 @@ jobs:
           node tools/smoke-monitor.js
           node tools/smoke-overview.js
           node tools/test-temp.js
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: smoke-screenshots
           path: tools/out/
-
-      - name: Build VPN-aware router test archive
-        if: github.event_name == 'pull_request' && github.head_ref == 'feature/vpn-aware-app-traffic'
-        env:
-          VERSION: v1.27.12-alpha.7-vpn-aware-test
-        run: sh ./build-release.sh
-      - name: Verify VPN-aware router test archive
-        if: github.event_name == 'pull_request' && github.head_ref == 'feature/vpn-aware-app-traffic'
-        env:
-          VERSION: v1.27.12-alpha.7-vpn-aware-test
-        run: |
-          set -eu
-          test -s dist/nightfall-root.tar.gz
-          test -s dist/nightfall-root.tar.gz.sha256
-          (cd dist && sha256sum -c nightfall-root.tar.gz.sha256)
-          EXPECTED_VERSION="${VERSION#v}"
-          ARCHIVE_VERSION=$(tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-          test -n "$ARCHIVE_VERSION"
-          test "$ARCHIVE_VERSION" = "$EXPECTED_VERSION"
-      - name: Upload VPN-aware router test archive
-        if: success() && github.event_name == 'pull_request' && github.head_ref == 'feature/vpn-aware-app-traffic'
-        uses: actions/upload-artifact@v4
-        with:
-          name: nightfall-vpn-aware-test
-          path: |
-            dist/nightfall-root.tar.gz
-            dist/nightfall-root.tar.gz.sha256
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Build v1.27.7 test archive
-        if: github.event_name == 'pull_request' && github.head_ref == 'work/v1.27.7-storage-hardening'
-        env:
-          VERSION: v1.27.7-alpha.1-test
-        run: sh ./build-release.sh
-      - name: Verify installable test archive
-        if: github.event_name == 'pull_request' && github.head_ref == 'work/v1.27.7-storage-hardening'
-        run: |
-          test -s dist/nightfall-root.tar.gz
-          test -s dist/nightfall-root.tar.gz.sha256
-          (cd dist && sha256sum -c nightfall-root.tar.gz.sha256)
-          tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | grep -q '1.27.7-alpha.1-test'
-      - name: Upload installable test archive
-        if: success() && github.event_name == 'pull_request' && github.head_ref == 'work/v1.27.7-storage-hardening'
-        uses: actions/upload-artifact@v4
-        with:
-          name: nightfall-test-v1.27.7-alpha.1-test
-          path: |
-            dist/nightfall-root.tar.gz
-            dist/nightfall-root.tar.gz.sha256
-          if-no-files-found: error
-          retention-days: 7
-      - name: Build Telegram restore test archive
-        if: github.event_name == 'pull_request' && github.head_ref == 'feat/telegram-backup-restore-buttons'
-        env:
-          VERSION: v1.27.7-alpha.2-test
-        run: sh ./build-release.sh
-      - name: Verify Telegram restore test archive
-        if: github.event_name == 'pull_request' && github.head_ref == 'feat/telegram-backup-restore-buttons'
-        run: |
-          test -s dist/nightfall-root.tar.gz
-          test -s dist/nightfall-root.tar.gz.sha256
-          (cd dist && sha256sum -c nightfall-root.tar.gz.sha256)
-          tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json | grep -q '1.27.7-alpha.2-test'
-      - name: Upload Telegram restore test archive
-        if: success() && github.event_name == 'pull_request' && github.head_ref == 'feat/telegram-backup-restore-buttons'
-        uses: actions/upload-artifact@v4
-        with:
-          name: nightfall-test-telegram-restore-v1.27.7-alpha.2-test
-          path: |
-            dist/nightfall-root.tar.gz
-            dist/nightfall-root.tar.gz.sha256
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 7

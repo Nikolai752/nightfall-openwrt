@@ -10,7 +10,7 @@ grep -q "catch(function () { /\* не отмечаем просмотренны�
 node tools/test-whats-new.js
 echo "Проверка восстановления окна «Что нового» пройдена."
 grep -q "function showWhatsNew()" "$SRC"
-grep -q "text: 'Что нового', onclick: showWhatsNew" "$SRC"
+grep -q "text: tr('Что нового'), onclick: showWhatsNew" "$SRC"
 grep -q "Не подтверждаем просмотр: возможно, CHANGELOG ещё не опубликован" "$SRC"
 VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' luci-theme-nightfall/htdocs/luci-static/nightfall/version.json)
 [ -n "$VERSION" ]

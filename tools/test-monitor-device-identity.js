@@ -15,7 +15,7 @@ const source = fs.readFileSync(path.join(root,
 const start = source.indexOf('function normalizeMonitorIp(ip)');
 const end = source.indexOf('function monitorDeviceOwnsHistoricalRow(', start);
 assert(start >= 0 && end > start, 'production identity helpers not found');
-const context = {};
+const context = { _: msgid => msgid };
 vm.runInNewContext(source.slice(start, end), context);
 
 const repeater = 'DE:0D:AB:73:AA:8E';

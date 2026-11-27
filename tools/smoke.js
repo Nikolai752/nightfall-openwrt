@@ -3,7 +3,7 @@
 const { chromium } = require('playwright'); const fs = require('fs'); const path = require('path');
 const N = path.join(__dirname, '..', 'luci-theme-nightfall/htdocs/luci-static/nightfall');
 const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
-const page = '<!doctype html><html lang="ru"><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><link rel=stylesheet href="/nightfall/cascade.css"><link rel=stylesheet href="/nightfall/mobile.css"><script>window.L={env:{sessionid:"S1",ubuspath:"/ubus/"}}</script><script src="/nightfall/nightfall.js"></script></head><body><header><div class="nf-pers"><span>P</span></div></header><div id="view"><h2>Обзор</h2></div></body></html>';
+const page = '<!doctype html><html lang="ru"><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><link rel=stylesheet href="/nightfall/cascade.css"><link rel=stylesheet href="/nightfall/mobile.css"><script>/* LuCI extends String with format(); reproduce it in this isolated browser fixture. */ String.prototype.format = function() { var args = arguments, i = 0; return String(this).replace(/%([%sdif])/g, function(m, t) { if (t === \'%\') return \'%\'; var v = args[i++]; if (v == null) return \'\'; if (t === \'d\' || t === \'i\') return parseInt(v, 10); if (t === \'f\') return parseFloat(v); return String(v); }); }; window.L={env:{sessionid:"S1",ubuspath:"/ubus/"}}</script><script src="/nightfall/nightfall.js"></script></head><body><header><div class="nf-pers"><span>P</span></div></header><div id="view"><h2>Обзор</h2></div></body></html>';
 let fail = 0; const bad = m => { console.log('ОШИБКА: ' + m); fail = 1; };
 (async () => {
 	const b = await chromium.launch();

@@ -43,6 +43,21 @@ function E(tag, attr, data) {
 	return el;
 }
 window.E = E; window._ = s => s;
+// LuCI's translate() result supports String.format(); emulate it only in this isolated test page.
+if (!String.prototype.format) Object.defineProperty(String.prototype, 'format', {
+	value: function() {
+		const args = arguments; let i = 0;
+		return String(this).replace(/%([%sdif])/g, (match, type) => {
+			if (type === '%') return '%';
+			const value = args[i++];
+			if (value == null) return '';
+			if (type === 'd' || type === 'i') return parseInt(value, 10);
+			if (type === 'f') return parseFloat(value);
+			return String(value);
+		});
+	},
+	configurable: true
+});
 function SVG(tag, attrs, children) {
 	const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
 	for (const k in (attrs || {})) if (attrs[k] != null) el.setAttribute(k, attrs[k]);

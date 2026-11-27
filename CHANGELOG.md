@@ -1,3 +1,23 @@
+## v1.29.1 · Китайская локализация и исправления совместимости
+- [Добавлено] **Упрощённый китайский язык (zh_Hans)** для темы Nightfall и монитора ресурсов, включая меню, уведомления, журнал, проверки безопасности, устройства и категории трафика.
+- [Исправлено] **Сборка и установка пакетов**: сохранение исполняемых прав скриптов, отключение повреждающей CSS/JS-минификации и добавление необходимых ссылок для вариантов темы и конфигурационных файлов.
+- [Улучшено] **Совместимость монитора с другими темами LuCI**: адаптация цветов карточек для светлых и тёмных сторонних тем.
+- [Исправлено] **Страница устройств**: стили больше не зависят от Nightfall и корректно работают с другими темами оформления.
+- [Исправлено] **Индикатор активного пункта меню**: устранено дрожание бокового индикатора.
+- [Благодарности] **@ntbowen** — за китайскую локализацию, исправления сборки и runtime, улучшения совместимости и большую работу над PR #199.
+
+
+### English
+
+## v1.29.1 · Simplified Chinese localization and compatibility fixes
+- [Added] **Simplified Chinese (zh_Hans)** localization for the Nightfall theme and resource monitor, including menus, notifications, journal, security checks, devices, and traffic categories.
+- [Fixed] **Package build and installation**: preserve executable permissions for scripts, disable CSS/JS minification that breaks assets, and include required theme-variant and configuration symlinks.
+- [Improved] **Monitor compatibility with other LuCI themes**: card colors now adapt to light and dark third-party themes.
+- [Fixed] **Devices page**: styling is self-contained and no longer depends on the Nightfall theme.
+- [Fixed] **Active menu indicator**: resolved sidebar indicator jitter.
+- [Credits] **@ntbowen** for the Simplified Chinese localization, packaging/runtime fixes, compatibility improvements, and the substantial work in PR #199.
+
+
 ## v1.29.0 · Центр журнала роутера и интеллектуальная диагностика
 - [Добавлено] **Центр журнала роутера**: распознавание уровней syslog и встроенных маркеров сообщений (err, warn, notice, info, debug) с визуальным разделением ошибок, предупреждений и уведомлений.
 - [Добавлено] **Фильтры и инструменты журнала**: быстрые фильтры по уровню, поиск по службе и тексту, ручное обновление, автообновление, копирование записей и экспорт CSV.
