@@ -126,7 +126,7 @@ api() {
 		  # The DoH bootstrap IP avoids a resolver request via the router's WAN.
 		  printf 'doh-url = "https://cloudflare-dns.com/dns-query"\n'
 		  printf 'resolve = "cloudflare-dns.com:443:1.1.1.1"\n'; } |
-			su -s /bin/sh -c 'exec "$0" "$@"' -- "$TG_USER" "$CURL_BIN" -sS -m "${NF_TMO:-25}" -K - "$@" 2>&1
+			su -s /bin/sh -c 'exec "$@"' "$TG_USER" sh "$CURL_BIN" -sS -m "${NF_TMO:-25}" -K - "$@" 2>&1
 	else
 		{ printf 'url = "https://api.telegram.org/bot%s/%s"\n' "$TOKEN" "$m"
 		  [ -n "$PROXY" ] && printf 'proxy = "%s"\n' "$PROXY"
