@@ -12,6 +12,7 @@ const CHARTS_SRC = fs.readFileSync(path.join(ROOT, 'luci-app-nightfall-monitor/h
 const CSS = path.join(ROOT, 'luci-theme-nightfall/htdocs/luci-static/nightfall/cascade.css');
 const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
 const T = fs.mkdtempSync(path.join(os.tmpdir(), 'nfmon-'));
+const CFG_SET_CALLS = [];
 const NOW = Math.floor(Date.now() / 1000);
 cp.execFileSync('sh', [path.join(__dirname, 'sec-fixtures.sh'), T]);
 const ENV = Object.assign({}, process.env, { NF_LOGREAD: path.join(T, 'logread'), NF_PROC: path.join(T, 'proc'), NF_KNOWN: path.join(T, 'known'), NF_UCI: path.join(T, 'uci'), NF_UPDATEBIN: path.join(T, 'upd'), NF_SHADOW: path.join(T, 'shadow'), NF_DIR: path.join(T, 'd'), NF_NFT: path.join(T, 'nft'), NFT_LOG: path.join(T, 'nft.log') });
@@ -22,11 +23,12 @@ const EXEC = (cmd, args) => {
 	if (n === 'nightfall-stats') return run('nightfall-stats', args);
 	if (n === 'nightfall-telegram-route') return args[0] === 'inspect'
 		? JSON.stringify({ ok: true, steer: { found: true, version: '2.1.4' }, outputs: [
-			{ id: 'steer:vpn', label: 'Steer · vpn · wg0', table: 300, mark: '0x00400000', device: 'wg0', ready: true },
-			{ id: 'steer:offline', label: 'Steer · vpn · wg1', table: 301, mark: '0x00500000', device: 'wg1', ready: false }
+			{ id: 'steer:zm_vpn2', label: 'Steer · zm_vpn2 · wg2', table: 304, mark: '0x00500000', device: 'wg2', ready: true },
+			{ id: 'steer:offline', label: 'Steer · spare · wg3', table: 305, mark: '0x00600000', device: 'wg3', ready: false }
 		], interfaces: [] })
-		: JSON.stringify({ ok: true, active: true, mode: 'vpn', source: 'steer', uid: 104, table: 300, device: 'wg0', output: 'steer:vpn' });
-	if (n === 'nightfall-config' && args[0] === 'get') return JSON.stringify({ ok: true, values: { TG: '1', TG_ALERTS: '1', TG_BOT: '1', TG_CLEAN: '0', TG_UPDATES: '1', TG_SEC: '1', TG_WIDGETS: '0', TG_REPORT: '', TG_TOKEN: '', TG_CHAT: '', TG_USERS: '', TG_PROXY: '', TG_IFACE: '', TG_ROUTE_MODE: 'vpn', TG_ROUTE_OUTPUT: 'steer:vpn' } });
+		: JSON.stringify({ ok: true, active: true, mode: 'vpn', source: 'steer', uid: 104, table: 304, device: 'wg2', output: 'steer:zm_vpn2' });
+	if (n === 'nightfall-config' && args[0] === 'set') { CFG_SET_CALLS.push(args.slice()); return '{\"ok\":true}'; }
+	if (n === 'nightfall-config' && args[0] === 'get') return JSON.stringify({ ok: true, values: { TG: '1', TG_ALERTS: '1', TG_BOT: '1', TG_CLEAN: '0', TG_UPDATES: '1', TG_SEC: '1', TG_WIDGETS: '0', TG_REPORT: '', TG_TOKEN: '', TG_CHAT: '', TG_USERS: '', TG_PROXY: '', TG_IFACE: '', TG_ROUTE_MODE: 'vpn', TG_ROUTE_OUTPUT: 'steer:zm_vpn2' } });
 	if (n === 'nightfall-sec' || n === 'nightfall-diag' || n === 'nightfall-log') return run(n, args);
 	if (n === 'nightfall-dns') return run(n, args, { NF_LOGREAD: path.join(T, 'dnslogread'), NF_UCI: path.join(T, 'uci_dns') });
 	if (n === 'nightfall-history') return args[0] === 'apps' ? JSON.stringify({ enabled: 1, lite: 0, today: '20261118', day: [["192.168.1.20", "ВКонтакте", "VPN", 1048576, 51200], ["192.168.1.20", "Прочее · okcdn.ru", "Direct", 2097152, 1024], ["192.168.1.20", "Прочее · Нет DNS-имени", "Unknown", 512000, 1000], ["192.168.1.20", "Telegram", "VPN", 256000, 1000]], hist: [] }) : args[0] === 'devices' ? JSON.stringify({ now: NOW, ts: NOW - 10, rate: [], day: [["192.168.1.20", 5000000, 1000000]], yday: [], neigh: [["192.168.1.20", "aa:bb:cc:dd:ee:01"]], info: {} }) : args[0] === 'wifi' && !args[1] ? JSON.stringify({ now: NOW, rows: [], events: [[NOW - 60, "aa:bb:cc:dd:ee:01", "join", "phy0"], [NOW - 120, "aa:bb:cc:dd:ee:01", "leave", "phy0"]] }) : args[0] === 'extip' ? JSON.stringify({ now: NOW, rows: [[NOW - 86400, "203.0.113.7", 0], [NOW - 60, "100.64.3.9", 1]] }) : args[0] === 'procmem' ? JSON.stringify({ now: NOW, rows: Array.from({ length: 8 }, (_, i) => [NOW - (7 - i) * 900, [["dnsmasq", 10000 + i * 3000], ["uhttpd", 3000]]]) }) : args[0] === 'known' ? '{"now":1794786100,"rows":[["AA:BB:CC:DD:EE:01","x",1794700000]]}' : args[0] === 'mode' ? '{"mode":"full","step":15}' : args[0] === 'journal' ? JSON.stringify({ now: NOW, rows: [[ NOW - 120, 'outage', 120, 'нет интернета' ], [ NOW - 600, 'boot', 0, 'Загрузка роутера' ]] }) : '{}';
@@ -232,6 +234,13 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				});
 				if (!tgIcon || tgIcon === 'none') bad(vn + ': у вкладки TG Bot отсутствует SVG-значок');
 				if (!tt.includes('Маршрут ядра активен')) bad(vn + ': не показано фактическое состояние активного маршрута');
+				const selectedRoute = await p.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output');
+				if (selectedRoute !== 'steer:zm_vpn2') bad(vn + ': интерфейс TG Bot не сохранил ранее выбранный steer:zm_vpn2: ' + selectedRoute);
+				await p.click('button:has-text(\"Сохранить настройки Telegram\")'); await p.waitForTimeout(200);
+				const savedTgConfig = CFG_SET_CALLS[CFG_SET_CALLS.length - 1] || [];
+				if (!savedTgConfig.includes('TG_ROUTE_MODE=vpn') || !savedTgConfig.includes('TG_ROUTE_OUTPUT=steer:zm_vpn2'))
+					bad(vn + ': сохранение настроек TG Bot перезаписало или потеряло steer:zm_vpn2: ' + savedTgConfig.filter(x => /TG_ROUTE_(MODE|OUTPUT)=/.test(x)).join(', '));
+				if (!tt.includes('zm_vpn2') || !tt.includes('wg2')) bad(vn + ': статус TG Bot не показывает активный выход zm_vpn2 / wg2');
 				if (!tt.includes('Готов · Steer') || !tt.includes('Не готов')) bad(vn + ': список VPN-выходов не показывает их фактическую готовность');
 				const unavailable = await p.locator('.nfm-tg-output-choice:disabled').count();
 				if (unavailable !== 1) bad(vn + ': неготовый VPN-выход должен быть видимым и недоступным для выбора');
