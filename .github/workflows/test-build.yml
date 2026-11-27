@@ -14,7 +14,7 @@ on:
         description: "Версия тестового архива"
         required: true
         type: string
-        default: "v1.30.0-alpha.4-tg-ready-outputs"
+        default: "v1.30.0-alpha.5-steer-table-alias"
 
 permissions:
   contents: read
@@ -34,7 +34,7 @@ jobs:
 
       - name: Build archive
         env:
-          VERSION: ${{ inputs.version || 'v1.30.0-alpha.4-tg-ready-outputs' }}
+          VERSION: ${{ inputs.version || 'v1.30.0-alpha.5-steer-table-alias' }}
         run: sh ./build-release.sh
 
       - name: Verify archive and checksum
@@ -48,7 +48,7 @@ jobs:
       - name: Upload installable archive
         uses: actions/upload-artifact@v7
         with:
-          name: nightfall-test-${{ inputs.version || 'v1.30.0-alpha.4-tg-ready-outputs' }}
+          name: nightfall-test-${{ inputs.version || 'v1.30.0-alpha.5-steer-table-alias' }}
           path: |
             dist/nightfall-root.tar.gz
             dist/nightfall-root.tar.gz.sha256
