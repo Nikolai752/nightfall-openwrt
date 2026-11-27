@@ -52,14 +52,21 @@ cat > "$T/bin/ip" <<'SH'
 #!/bin/sh
 args="$*"
 case "$args" in
-	"-o link show"*)
-		echo '9: wg1: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420 qdisc noqueue state UNKNOWN mode DEFAULT group default'
-		;;
 	*"-o link show dev wg1"*)
 		echo '9: wg1: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420'
 		;;
+	*"-o link show dev eth0"*)
+		echo '2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500'
+		;;
 	*"-d link show dev wg1"*)
 		echo '9: wg1: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420 wireguard'
+		;;
+	*"-d link show dev eth0"*)
+		echo '2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 ether'
+		;;
+	"-o link show"*)
+		echo '9: wg1: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420 qdisc noqueue state UNKNOWN mode DEFAULT group default'
+		echo '2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP mode DEFAULT group default'
 		;;
 	*"-4 route show table 300 default"*|*"-4 route show table 42000 default"*)
 		echo 'default dev wg1 scope link'
@@ -163,5 +170,12 @@ case "$out" in *'"ok":true'*'"source":"interface"'*) ;; *) bad "unexpected inter
 grep -Fq 'egress_guard meta skuid 104 oifname != "wg1" drop' "$NF_TG_TEST_NFT" ||
 	bad "plain VPN interface egress guard was not installed"
 ok "plain WireGuard interface uses private policy table and egress guard"
+
+# A physical Ethernet interface is not accepted as a VPN tunnel target.
+printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=iface:eth0\n' > "$T/conf"
+if "$H" apply > "$T/eth-result"; then bad "physical Ethernet interface was accepted as VPN" ; fi
+grep -Fq 'не распознан как VPN-туннель' "$T/eth-result" ||
+	bad "physical Ethernet rejection did not explain the invalid interface"
+ok "physical Ethernet interface is rejected"
 
 echo "Telegram route regression tests passed"
