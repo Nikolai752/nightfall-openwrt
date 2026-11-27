@@ -1719,6 +1719,7 @@ return view.extend({
 				tgRouteStatus.textContent = status && status.error
 					? _('Не удалось получить состояние маршрута: ') + status.error
 					: _('Проверяю, установлен ли отдельный маршрут Telegram…');
+				tgRouteStatus.classList.remove('is-good', 'is-bad');
 				return;
 			}
 			if (status.blocked) {
@@ -1741,6 +1742,7 @@ return view.extend({
 				: mode === 'proxy'
 					? _('Прокси выбран. Проверка доступности Telegram появится после тестового запроса.')
 					: _('VPN выбран, но изолированный маршрут ещё не применён. Нажмите «Сохранить и применить маршрут».');
+			tgRouteStatus.classList.remove('is-good', 'is-bad');
 		}
 
 		function renderTelegram() {
