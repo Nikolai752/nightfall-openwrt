@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout selected branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Подготовить официальный компилятор переводов LuCI
         run: |
@@ -45,7 +45,7 @@ jobs:
           tar -xOf dist/nightfall-root.tar.gz ./www/luci-static/nightfall/version.json
 
       - name: Upload installable archive
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nightfall-test-v1.29.0-alpha.3-router-log-diagnostics
           path: |
