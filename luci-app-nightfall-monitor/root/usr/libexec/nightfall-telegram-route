@@ -276,8 +276,11 @@ apply_steer() {
 	remove_previous
 	write_state && nft_install || { unlock; err "Не удалось установить метку и egress guard Steer для Telegram"; return 1; }
 	lookup=$("$IP" -4 route get 149.154.167.220 mark "$MARK" uid "$UID_TG" 2>&1)
-	if ! printf '%s\n' "$lookup" | grep -Fq "table $TABLE" ||
-	   ! printf '%s\n' "$lookup" | grep -Fq "dev $DEV"; then
+	# "steer status" exposes a numeric table ID (e.g. 304), while iproute2
+	# may print its /etc/iproute2/rt_tables alias (e.g. steer_zm_vpn2).
+	# read_steer_output already checked that the numeric table's default route
+	# points to DEV; this marked lookup confirms the kernel selects that device.
+	if ! printf '%s\n' "$lookup" | grep -Fq "dev $DEV"; then
 		remove_previous; install_drop; unlock
 		err "Проверка маршрута Steer не прошла; Telegram заблокирован без обхода через WAN"
 		return 1
@@ -384,8 +387,15 @@ apply_route() {
 		else
 			lookup=$("$IP" -4 route get 149.154.167.220 uid "$S_UID" 2>/dev/null)
 		fi
-		if ! printf '%s\n' "$lookup" | grep -Fq "table $S_TABLE" ||
-		   ! printf '%s\n' "$lookup" | grep -Fq "dev $S_DEVICE"; then
+		if [ "$MODE" = steer ]; then
+			# A Steer numeric table may be rendered by iproute2 using its
+			# symbolic rt_tables name; the marked lookup is validated by device.
+			if ! printf '%s\n' "$lookup" | grep -Fq "dev $S_DEVICE"; then
+				printf '{"ok":true,"active":false,"blocked":true,"mode":"vpn","output":"%s","device":"%s"}\n' "$(esc "$S_OUTPUT")" "$(esc "$S_DEVICE")"
+				return 0
+			fi
+		elif ! printf '%s\n' "$lookup" | grep -Fq "table $S_TABLE" ||
+		     ! printf '%s\n' "$lookup" | grep -Fq "dev $S_DEVICE"; then
 			printf '{"ok":true,"active":false,"blocked":true,"mode":"vpn","output":"%s","device":"%s"}\n' "$(esc "$S_OUTPUT")" "$(esc "$S_DEVICE")"
 			return 0
 		fi
