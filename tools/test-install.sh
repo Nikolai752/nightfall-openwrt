@@ -25,6 +25,10 @@ mkrel() { # версия [версия_внутри_архива]
 	printf '#!/bin/sh\n' > "$s/etc/init.d/nightfall-collector"
 	echo '{}' > "$s/usr/share/luci/menu.d/luci-theme-nightfall.json"
 	mkdir -p "$s/usr/share/ucode/luci/template/themes" "$s/www/luci-static"
+	mkdir -p "$s/usr/lib/lua/luci/i18n" "$s/etc/uci-defaults"
+	printf "theme zh-cn catalog\\n" > "$s/usr/lib/lua/luci/i18n/nightfall.zh-cn.lmo"
+	printf "monitor zh-cn catalog\\n" > "$s/usr/lib/lua/luci/i18n/nightfall-monitor.zh-cn.lmo"
+	printf "#!/bin/sh\\nuci -q set luci.languages.zh_cn=\x27简体中文 (Simplified Chinese)\x27\\nuci -q commit luci\\n" > "$s/etc/uci-defaults/41_luci-i18n-nightfall-zh-cn"
 	ln -s nightfall "$s/usr/share/ucode/luci/template/themes/nightfall-dark"
 	ln -s nightfall "$s/usr/share/ucode/luci/template/themes/nightfall-light"
 	ln -s nightfall "$s/www/luci-static/nightfall-dark"
@@ -66,6 +70,9 @@ out=$(run "$R"); echo "$out" | sed 's/^/   | /'
 [ "$(ver "$R")" = 2.0.0 ] && pass "ставится последняя версия 2.0.0" || fail "версия после установки: $(ver "$R")"
 echo "$out" | grep -q "Установлена версия 2.0.0" && pass "в конце сказано, какая версия установлена" || fail "нет строки об установленной версии"
 [ -x "$R/usr/libexec/nightfall-config" ] && pass "скрипты исполняемые" || fail "нет прав на исполнение"
+[ -s "$R/usr/lib/lua/luci/i18n/nightfall.zh-cn.lmo" ] && pass "перевод темы zh_Hans установлен" || fail "нет LMO каталога темы"
+[ -s "$R/usr/lib/lua/luci/i18n/nightfall-monitor.zh-cn.lmo" ] && pass "перевод монитора zh_Hans установлен" || fail "нет LMO каталога монитора"
+[ -x "$R/etc/uci-defaults/41_luci-i18n-nightfall-zh-cn" ] && pass "язык zh_cn зарегистрирован для LuCI" || fail "нет uci-defaults регистрации zh_cn"
 
 echo "== старый архив в /tmp не используется (v1.0.9 из отчёта) =="
 R=$T/r2
@@ -145,6 +152,10 @@ R=$T/r9; out=$(NF_ROOT="$R" NF_TMP="$T/tmp" NF_API="$B/api.json" NF_RAW="$B" NF_
 echo "== удаление: настоящий архив релиза =="
 rm -rf dist; VERSION=v9.9.9 sh build-release.sh >/dev/null 2>&1
 ARCH=$REPO/dist/nightfall-root.tar.gz
+[ -s "$ARCH" ] || fail "не собран реальный архив"
+tar -xOf "$ARCH" ./usr/lib/lua/luci/i18n/nightfall.zh-cn.lmo >/dev/null || fail "в реальном архиве отсутствует перевод темы zh_Hans"
+tar -xOf "$ARCH" ./usr/lib/lua/luci/i18n/nightfall-monitor.zh-cn.lmo >/dev/null || fail "в реальном архиве отсутствует перевод монитора zh_Hans"
+tar -xOf "$ARCH" ./etc/uci-defaults/41_luci-i18n-nightfall-zh-cn >/dev/null || fail "в реальном архиве отсутствует регистрация zh_cn"
 mkfs() { r=$1; rm -rf "$r"; mkdir -p "$r/tmp" "$r/etc"; tar -xzf "$ARCH" -C "$r"; for f in monitor.conf prefs.json logo.json bg.json known.list block.list; do echo x > "$r/etc/nightfall-$f"; done; echo x > "$r/tmp/nightfall-root.tar.gz"; mkdir -p "$r/tmp/nightfall"; }
 un() { r=$1; shift; NF_ROOT="$r" sh uninstall.sh "$@" 2>&1; }
 left() { find "$1" -iname '*nightfall*' 2>/dev/null | grep -v '/etc/nightfall-'; }
