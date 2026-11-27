@@ -126,7 +126,8 @@ printf 'TG=1\nTG_TOKEN=123456:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nTG_CHAT=111\n
 PATH="$T:$PATH" NF_CONF="$T/conf" NF_DIR="$T" NF_CURL="$T/curl" NF_TG_ROUTE_BIN="$T/routebin" NF_TG_USER=nightfall-tg NF_TMO=25 sh "$L/nightfall-notify" test > "$T/vpn-result"
 grep -q '"ok":true' "$T/vpn-result" && ok "VPN: тестовый запрос проходит через отдельного пользователя" || bad "VPN: запрос не запущен: $(cat "$T/vpn-result")"
 grep -q 'doh-url = "https://cloudflare-dns.com/dns-query"' "$T/calls" && ok "VPN: DoH-конфигурация передана curl через stdin" || bad "VPN: DoH-конфигурация отсутствует"
-grep -q 'METHOD getMe' "$T/calls" && ok "VPN: curl получил команду Telegram API" || bad "VPN: curl не был запущен"
+grep -q 'METHOD sendMessage' "$T/calls" && ok "VPN: curl получил команду отправки Telegram" || bad "VPN: curl не был запущен"
+grep -q -- '-sS -m 25 -K -' "$T/args" && ok "VPN: параметры -K и -sS дошли до curl, а не до su" || bad "VPN: параметры curl не переданы корректно"
 
 # 5. настройка TG_USERS проверяется
 printf 'TG_USERS=\n' > "$T/c2"; cp "$T/c2" "$T/c3"
