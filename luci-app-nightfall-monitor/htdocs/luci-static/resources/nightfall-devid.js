@@ -42,22 +42,22 @@ const OUI = {
 
 /* вид устройства: [шаблон имени узла, код] — первый совпавший побеждает */
 const KIND_RE = [
-	[ /ipad|tablet|galaxy-?tab|\bsm-t\d|mi-?pad|lenovo-?tab|matepad|планшет/i, 'tablet' ],
-	[ /iphone|android|galaxy|\bsm-[a-z]\d|pixel|redmi|xiaomi|poco|huawei|honor|oneplus|realme|oppo|vivo|phone|\bmi-?\d|nothing|телефон|смартфон|мобильн/i, 'phone' ],
-	[ /watch|band|fitbit|garmin|часы|браслет/i, 'watch' ],
+	[ /ipad|tablet|galaxy-?tab|\bsm-t\d|mi-?pad|lenovo-?tab|matepad|планшет|平板/i, 'tablet' ],
+	[ /iphone|android|galaxy|\bsm-[a-z]\d|pixel|redmi|xiaomi|poco|huawei|honor|oneplus|realme|oppo|vivo|phone|\bmi-?\d|nothing|телефон|смартфон|мобильн|手机|电话/i, 'phone' ],
+	[ /watch|band|fitbit|garmin|часы|браслет|手表|手环/i, 'watch' ],
 	[ /playstation|\bps[345]\b|xbox|nintendo|switch-?\d?|steamdeck|steam-?deck/i, 'console' ],
-	[ /\btv\b|-tv|tv-|bravia|webos|roku|chromecast|firetv|fire-?stick|shield|appletv|apple-?tv|smarttv|tizen|android-?tv|mi-?box|телевизор|(?:^|[^а-яёa-z])тв(?:[^а-яёa-z]|$)/i, 'tv' ],
-	[ /print|laserjet|deskjet|officejet|epson|canon|brother|pixma|mfp|принтер|мфу/i, 'printer' ],
-	[ /cam|hikvision|ezviz|imou|reolink|dahua|tapo-?c|doorbell|камера|видеоняня|звонок/i, 'camera' ],
-	[ /echo|alexa|homepod|sonos|yandex|station|jbl|speaker|google-?home|nest-?(mini|audio)|колонка|алиса/i, 'speaker' ],
-	[ /esp[-_]?\d*|tasmota|shelly|sonoff|tuya|yeelight|zigbee|homeassistant|hass|wled|xiaomi-?(plug|gateway)|lumi|bulb|plug|relay|лампа|лампочка|розетка|датчик|реле|пылесос/i, 'iot' ],
+	[ /\btv\b|-tv|tv-|bravia|webos|roku|chromecast|firetv|fire-?stick|shield|appletv|apple-?tv|smarttv|tizen|android-?tv|mi-?box|телевизор|电视|(?:^|[^а-яёa-z])тв(?:[^а-яёa-z]|$)/i, 'tv' ],
+	[ /print|laserjet|deskjet|officejet|epson|canon|brother|pixma|mfp|принтер|мфу|打印机|复印机/i, 'printer' ],
+	[ /cam|hikvision|ezviz|imou|reolink|dahua|tapo-?c|doorbell|камера|видеоняня|звонок|摄像头|相机/i, 'camera' ],
+	[ /echo|alexa|homepod|sonos|yandex|station|jbl|speaker|google-?home|nest-?(mini|audio)|колонка|алиса|音箱|音响/i, 'speaker' ],
+	[ /esp[-_]?\d*|tasmota|shelly|sonoff|tuya|yeelight|zigbee|homeassistant|hass|wled|xiaomi-?(plug|gateway)|lumi|bulb|plug|relay|лампа|лампочка|розетка|датчик|реле|пылесос|灯泡|插座|传感器|智能/i, 'iot' ],
 	[ /openwrt|router|repeater|extender|access-?point|\bap\b|switch|mesh|tl-|tp-?link|keenetic|mikrotik|ubnt|unifi/i, 'net' ],
-	[ /macbook|imac|mac-?mini|mac-?pro|desktop|laptop|notebook|thinkpad|\bpc\b|workstation|ubuntu|debian|fedora|arch|raspberry|rpi|server|nas|synology|win-?\d|windows|ноутбук|компьютер|(?:^|[^а-яёa-z])пк(?:[^а-яёa-z]|$)|системник/i, 'pc' ]
+	[ /macbook|imac|mac-?mini|mac-?pro|desktop|laptop|notebook|thinkpad|\bpc\b|workstation|ubuntu|debian|fedora|arch|raspberry|rpi|server|nas|synology|win-?\d|windows|ноутбук|电脑|笔记本|台式|компьютер|(?:^|[^а-яёa-z])пк(?:[^а-яёa-z]|$)|системник/i, 'pc' ]
 ];
 
 const KIND_LABEL = {
-	phone: 'Телефон', tablet: 'Планшет', watch: 'Часы', console: 'Приставка', tv: 'Телевизор', printer: 'Принтер', camera: 'Камера',
-	speaker: 'Колонка', iot: 'Умный дом', net: 'Сеть', pc: 'Компьютер', vm: 'Виртуальная машина', unk: 'Устройство'
+	phone: _('Телефон'), tablet: _('Планшет'), watch: _('Часы'), console: _('Приставка'), tv: _('Телевизор'), printer: _('Принтер'), camera: _('Камера'),
+	speaker: _('Колонка'), iot: _('Умный дом'), net: _('Сеть'), pc: _('Компьютер'), vm: _('Виртуальная машина'), unk: _('Устройство')
 };
 
 /* значки: простые контуры 24×24 */
@@ -103,8 +103,8 @@ return baseclass.extend({
 		if (!vendor && /iphone|ipad|macbook|imac|mac-?mini|apple/i.test(h)) vendor = 'Apple';
 		const label = KIND_LABEL[kind] || '';
 		let hint = '';
-		if (priv) hint = 'Частный (случайный) MAC: у устройства включён «частный адрес Wi‑Fi», производителя по нему узнать нельзя';
-		else if (vendor) hint = 'Производитель по MAC: ' + vendor;
+		if (priv) hint = _('Частный (случайный) MAC: у устройства включён «частный адрес Wi‑Fi», производителя по нему узнать нельзя');
+		else if (vendor) hint = _('Производитель по MAC: ') + vendor;
 		return { vendor: vendor, kind: kind || 'unk', label: label, priv: priv, hint: hint, known: !!(vendor || kind) };
 	},
 

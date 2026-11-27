@@ -8,7 +8,7 @@ return baseclass.extend({
 	__init__() {
 		if (!document.body || document.getElementById('nf-netbar')) return;
 
-		const bar = E('div', { 'id': 'nf-netbar', 'title': 'Интернет: нет данных' });
+		const bar = E('div', { 'id': 'nf-netbar', 'title': _( 'Интернет: нет данных' ) });
 		document.body.appendChild(bar);
 
 		const tick = () => {
@@ -18,11 +18,11 @@ return baseclass.extend({
 				try { h = JSON.parse(res.stdout); } catch (e) { /* ignore */ }
 				const last = h && h.info && h.info.started ? (h.last || [])[0] : null;
 				const fresh = last && h.now - last[0] <= 90;
-				if (!fresh) { bar.removeAttribute('data-s'); bar.title = 'Интернет: нет данных (сборщик не запущен)'; return; }
+				if (!fresh) { bar.removeAttribute('data-s'); bar.title = _( 'Интернет: нет данных (сборщик не запущен)' ); return; }
 				const wanDown = (h.active || []).some(a => a[0] === 'wan');
 				const ok = last[7] >= 0 && !wanDown;
 				bar.setAttribute('data-s', ok ? 'ok' : 'bad');
-				bar.title = ok ? 'Интернет работает, задержка ' + Math.round(last[7]) + ' мс' : 'Нет связи с интернетом';
+				bar.title = ok ? _( 'Интернет работает, задержка %s мс' ).format( Math.round(last[7]) ) : _( 'Нет связи с интернетом' );
 			}).catch(() => bar.removeAttribute('data-s'));
 		};
 

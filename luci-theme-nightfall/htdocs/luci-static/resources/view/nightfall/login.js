@@ -26,6 +26,20 @@ const TEXT = {
 			[ 'Ничего не помогло', 'Сброс к заводским настройкам кнопкой reset (около 10 секунд). Все настройки будут потеряны.' ]
 		]
 	},
+	zh: {
+		net: '互联网', up: '运行时间', fw: '固件', speed: '网速', test: '测速', mbit: 'Mbps', temp: '温度', cpu: '处理器', mem: '内存', cl: '设备', dec: '.',
+		online: '在线', offline: '无连接', nodata: '无数据', ms: '毫秒',
+		d: '天', h: '小时', m: '分',
+		remember: '记住用户名', forgot: '忘记密码？',
+		caps: '大写锁定已开启', layout: '输入了中文字符——请检查输入法',
+		bad: '用户名或密码错误。请检查输入法和大写锁定。',
+		helpTitle: '如何在没有密码的情况下登录',
+		help: [
+			[ '有 SSH 访问权限', '连接后执行：passwd' ],
+			[ '没有访问权限', '重启路由器，在启动初期指示灯快速闪烁时按下 reset（按键位置因型号而异）。用网线连接 192.168.1.1，通过 telnet 执行：mount_root; passwd; reboot' ],
+			[ '都不行', '按住 reset 按钮约 10 秒恢复出厂设置。所有设置将丢失。' ]
+		]
+	},
 	en: {
 		net: 'Internet', up: 'Uptime', fw: 'Firmware', speed: 'Speed', test: 'Speed test', mbit: 'Mbit/s', temp: 'Temperature', cpu: 'CPU', mem: 'Memory', cl: 'Devices', dec: '.',
 		online: 'online', offline: 'offline', nodata: 'no data', ms: 'ms',
@@ -51,7 +65,7 @@ return view.extend({
 		const form = document.querySelector('form');
 		const btn = document.querySelector('button');
 		const lang = document.documentElement.lang || 'en';
-		const T = /^ru|^uk|^be/i.test(lang) ? TEXT.ru : TEXT.en;
+		const T = /^zh/i.test(lang) ? TEXT.zh : /^ru|^uk|^be/i.test(lang) ? TEXT.ru : TEXT.en;
 		const info = document.getElementById('view');
 		const user = form.querySelector('input[type="text"]');
 		const failed = !!document.querySelector('section .alert-message');
@@ -85,7 +99,7 @@ return view.extend({
 		let caps = false;
 
 		const showHint = () => {
-			const msg = caps ? T.caps : /[\u0400-\u04FF]/.test(pw.value) ? T.layout : '';
+			const msg = caps ? T.caps : /[\u0400-\u04FF\u4e00-\u9fff]/.test(pw.value) ? T.layout : '';
 			hint.textContent = msg;
 			hint.classList.toggle('on', !!msg);
 		};

@@ -2,7 +2,8 @@
 'require baseclass';
 
 const WINDOW = 300;
-const nf1 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+const NF_LOC = (document.documentElement.lang || 'en').replace(/_/g, '-');
+const nf1 = new Intl.NumberFormat(NF_LOC, { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 
 function SVG(tag, attrs, children) {
 	const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
@@ -105,7 +106,7 @@ function chart(opts) {
 	let cur = { times: [], data: {}, max: {}, now: 0, win: WINDOW }, hoverF = null;
 
 	const yl = E('div', { class: 'nfm-yl' }), yr = E('div', { class: 'nfm-yr' });
-	const xl = E('div', { class: 'nfm-xl' }, [ '−5 мин', '−4 мин', '−3 мин', '−2 мин', '−1 мин', 'сейчас' ].map(t => E('span', {}, t)));
+	const xl = E('div', { class: 'nfm-xl' }, [ '−5 мин', '−4 мин', '−3 мин', '−2 мин', '−1 мин', 'сейчас' ].map(t => E('span', {}, _(t))));
 	let xKey = '';
 	const el = E('div', { class: 'nfm-chart' + (opts.right ? ' has-right' : '') , style: opts.height ? `--h:${opts.height}px` : '' }, [
 		yl,

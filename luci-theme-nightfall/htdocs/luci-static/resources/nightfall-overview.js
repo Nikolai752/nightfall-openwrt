@@ -41,27 +41,30 @@ const callUci = rpc.declare({ object: 'uci', method: 'get', params: [ 'config' ]
 const callReboot = rpc.declare({ object: 'system', method: 'reboot' });
 const callBoard = rpc.declare({ object: 'system', method: 'board' });
 
+function tr(s) { var t = window._; return t ? t(s) : s; }
+
 /* shared live numbers (filled by the live strip, read by the health card) */
 const SHARED = { mode: null, t: null, cpu: null, mem: null, temp: null, online: null, ping: null, loss: null };
 let DRAG = false;           /* true while a card is being dragged: the DOM observer must not re-sort */
 
-const nf0 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
-const nf1 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1, minimumFractionDigits: 1 });
-const nf2 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+const NFLOC = /^zh/i.test(document.documentElement.lang || '') ? 'zh-CN' : 'ru-RU';
+const nf0 = new Intl.NumberFormat(NFLOC, { maximumFractionDigits: 0 });
+const nf1 = new Intl.NumberFormat(NFLOC, { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+const nf2 = new Intl.NumberFormat(NFLOC, { maximumFractionDigits: 2, minimumFractionDigits: 2 });
 
 /* card priority: lower goes first; unknown cards keep their order after the known ones */
 const PRIORITY = [
-	/Интернет|Internet/i, /^(Сеть|Network)$/i, /порт|Port/i, /Беспровод|Wireless|Wi-?Fi/i, /Топ клиентов/i, /Трафик по приложениям/i, /Доступ в интернет/,
-	/Состояние роутера/, /сейчас$/, /Лента событий/, /Быстрые действия/,
-	/^(Система|System)$/i, /Температур|Temperature/i, /Память|Memory/i, /Хранилищ|Storage/i, /DHCP|Аренд/i, /DSL/i
+	/Интернет|Internet|互联网/i, /^(Сеть|Network|网络|网口)$/i, /порт|Port|端口/i, /Беспровод|Wireless|Wi-?Fi|无线/i, /Топ клиентов|最多客户端|客户端排行/i, /Трафик по приложениям|应用流量/i, /Доступ в интернет|互联网连接/i,
+	/Состояние роутера|路由器状态/, /сейчас$|^现在$|^当前/, /Лента событий|事件动态|事件流/, /Быстрые действия|快捷操作|快速操作/,
+	/^(Система|System|系统)$/i, /Температур|Temperature|温度/i, /Память|Memory|内存/i, /Хранилищ|Storage|存储/i, /DHCP|Аренд|租约/i, /DSL/i
 ];
 
 function fmtRate(bps) {
 	const bits = bps * 8;
-	if (bits >= 1e9) return [ nf2.format(bits / 1e9), 'Гбит/с' ];
-	if (bits >= 1e6) return [ (bits >= 1e8 ? nf0 : nf1).format(bits / 1e6), 'Мбит/с' ];
-	if (bits >= 1e3) return [ nf0.format(bits / 1e3), 'Кбит/с' ];
-	return [ nf0.format(bits), 'бит/с' ];
+	if (bits >= 1e9) return [ nf2.format(bits / 1e9), tr('Гбит/с') ];
+	if (bits >= 1e6) return [ (bits >= 1e8 ? nf0 : nf1).format(bits / 1e6), tr('Мбит/с') ];
+	if (bits >= 1e3) return [ nf0.format(bits / 1e3), tr('Кбит/с') ];
+	return [ nf0.format(bits), tr('бит/с') ];
 }
 
 function niceCeil(v) {
@@ -166,7 +169,7 @@ function badge(kind, text) {
 /* ---------- tile details: a dialog with a longer history chart ---------- */
 
 const DETAIL = {
-	net: { title: 'Интернет', cols: [ [ 7, 'Интернет', 'nf-c-down' ], [ 6, 'До шлюза', 'nf-c-up' ] ], fmt: v => nf0.format(v) + ' мс', ceil: v => niceCeil(Math.max(20, v)) },
+	net: { title: 'Интернет', cols: [ [ 7, 'Интернет', 'nf-c-down' ], [ 6, 'До шлюза', 'nf-c-up' ] ], fmt: v => nf0.format(v) + ' ' + tr('мс'), ceil: v => niceCeil(Math.max(20, v)) },
 	wan: { title: 'Трафик WAN', cols: [ [ 4, 'Загрузка', 'nf-c-down' ], [ 5, 'Отдача', 'nf-c-up' ] ], fmt: v => fmtRate(v).join(' '), ceil: v => niceCeil(Math.max(12500, v)) },
 	cpu: { title: 'Процессор', cols: [ [ 1, 'Загрузка', 'nf-c-cpu' ] ], fmt: v => nf0.format(v) + '%', ceil: () => 100 },
 	temp: { title: 'Температура', cols: [ [ 3, 'Процессор', 'nf-c-temp' ] ], fmt: v => nf1.format(v) + ' °C', ceil: v => Math.max(100, niceCeil(v)), floor: 30 },
@@ -174,7 +177,7 @@ const DETAIL = {
 	ct: { title: 'Соединения', cols: [ [ 9, 'Соединений', 'nf-c-mem' ] ], fmt: v => nf0.format(v), ceil: v => niceCeil(Math.max(50, v)) },
 	loss: { title: 'Потери пакетов', icon: 'net', cols: [ [ 8, 'Потери', 'nf-c-temp' ] ], fmt: v => nf1.format(v) + '%', ceil: v => niceCeil(Math.max(5, v)) },
 	/* сигнал Wi‑Fi: средний и худший по всем клиентам; за час, сутки и неделю из «wifi», за месяц и больше из почасовых «wifi-hr» */
-	sig: { title: 'Сигнал Wi‑Fi', icon: 'wifi', neg: true, cols: [ [ 1, 'Средний', 'nf-c-down' ], [ 2, 'Худший', 'nf-c-up' ] ], fmt: v => nf0.format(v) + ' дБм', ceil: () => -30, floor: -95,
+	sig: { title: 'Сигнал Wi‑Fi', icon: 'wifi', neg: true, cols: [ [ 1, 'Средний', 'nf-c-down' ], [ 2, 'Худший', 'nf-c-up' ] ], fmt: v => nf0.format(v) + ' ' + tr('дБм'), ceil: () => -30, floor: -95,
 		load: range => fs.exec(HIST, [ range === 'm' || range === 'q' ? 'wifi-hr' : 'wifi' ]).then(res => {
 			const h = JSON.parse(res.stdout), step = range === 'm' || range === 'q' ? 3600 : 60, g = new Map();
 			for (const r of h.rows || []) {
@@ -206,15 +209,15 @@ function openDetail(key, from) {
 	const note = E('div', { class: 'nf-dnote' });
 	const tabs = {};
 	const seg = E('div', { class: 'nf-dseg', role: 'tablist' }, Object.keys(DRANGE).map(k =>
-		tabs[k] = E('button', { type: 'button', click: () => { range = k; load(); } }, DRANGE[k][2])));
-	const legend = E('div', { class: 'nf-dleg' }, cfg.cols.map(x => E('span', {}, [ E('i', { class: x[2] }), x[1] ])));
+		tabs[k] = E('button', { type: 'button', click: () => { range = k; load(); } }, tr(DRANGE[k][2]))));
+	const legend = E('div', { class: 'nf-dleg' }, cfg.cols.map(x => E('span', {}, [ E('i', { class: x[2] }), tr(x[1]) ])));
 
 	const bg = E('div', { class: 'nf-dlg-bg' });
 	const close = () => { document.removeEventListener('keydown', onKey); bg.classList.remove('on'); window.setTimeout(() => { bg.remove(); if (from && from.focus) from.focus(); }, 200); };
 	const onKey = ev => { if (ev.key === 'Escape') close(); };
-	const dlg = E('div', { class: 'nf-dlg', role: 'dialog', 'aria-modal': 'true', 'aria-label': cfg.title }, [
-		E('div', { class: 'nf-dlg-h' }, [ E('h4', {}, [ E('i', { class: 'nf-ci', 'data-i': cfg.icon || (key === 'wan' || key === 'net' ? 'net' : key === 'cpu' ? 'system' : key) }), cfg.title ]), seg,
-			E('button', { type: 'button', class: 'nf-dlg-x', 'aria-label': 'Закрыть', click: close }, '×') ]),
+	const dlg = E('div', { class: 'nf-dlg', role: 'dialog', 'aria-modal': 'true', 'aria-label': tr(cfg.title) }, [
+		E('div', { class: 'nf-dlg-h' }, [ E('h4', {}, [ E('i', { class: 'nf-ci', 'data-i': cfg.icon || (key === 'wan' || key === 'net' ? 'net' : key === 'cpu' ? 'system' : key) }), tr(cfg.title) ]), seg,
+			E('button', { type: 'button', class: 'nf-dlg-x', 'aria-label': tr('Закрыть'), click: close }, '×') ]),
 		stats, legend, wrap, xl, note ]);
 	bg.appendChild(dlg);
 	bg.addEventListener('mousedown', ev => { if (ev.target === bg) close(); });
@@ -227,10 +230,10 @@ function openDetail(key, from) {
 		const R = DRANGE[range];
 		Object.keys(tabs).forEach(k => tabs[k].setAttribute('aria-pressed', String(k === range)));
 		svg.replaceChildren(); xl.replaceChildren(); tip.hidden = true;
-		if (!data || !data.rows) { note.textContent = data === false ? 'Сборщик истории не запущен: графика нет.' : 'Загружаю…'; stats.replaceChildren(); return; }
+		if (!data || !data.rows) { note.textContent = data === false ? tr('Сборщик истории не запущен: графика нет.') : tr('Загружаю…'); stats.replaceChildren(); return; }
 		const end = data.now, win = R[1];
 		const rows = data.rows.filter(r => end - r[0] <= win);
-		if (rows.length < 2) { note.textContent = 'Пока мало данных за этот период.'; stats.replaceChildren(); return; }
+		if (rows.length < 2) { note.textContent = tr('Пока мало данных за этот период.'); stats.replaceChildren(); return; }
 		note.textContent = '';
 		const series = cfg.cols.map(x => rows.map(r => r[x[0]] != null && (cfg.neg ? isFinite(r[x[0]]) : r[x[0]] >= 0) ? r[x[0]] : null));
 		const all = [].concat(...series).filter(v => v != null);
@@ -261,9 +264,9 @@ function openDetail(key, from) {
 			return v.length ? [ x[1], v[v.length - 1], Math.min(...v), v.reduce((s, q) => s + q, 0) / v.length, Math.max(...v) ] : null;
 		}).filter(Boolean);
 		const loss = key === 'net' ? rows.map(r => r[8]).filter(v => v != null && v >= 0) : [];
-		const cells = [].concat(...st.map(s => [ [ s[0] + (st.length > 1 ? ' · сейчас' : ': сейчас'), s[1] ], [ st.length > 1 ? s[0] + ' · мин' : 'мин', s[2] ], [ st.length > 1 ? s[0] + ' · средн.' : 'средн.', s[3] ], [ st.length > 1 ? s[0] + ' · макс' : 'макс', s[4] ] ]
+		const cells = [].concat(...st.map(s => [ [ s[0] + (st.length > 1 ? tr(' · сейчас') : tr(': сейчас')), s[1] ], [ st.length > 1 ? s[0] + tr(' · мин') : tr('мин'), s[2] ], [ st.length > 1 ? s[0] + tr(' · средн.') : tr('средн.'), s[3] ], [ st.length > 1 ? s[0] + tr(' · макс') : tr('макс'), s[4] ] ]
 			.map(x => E('div', { class: 'nf-ds' }, [ E('span', {}, x[0]), E('b', {}, cfg.fmt(x[1])) ]))));
-		if (loss.length) cells.push(E('div', { class: 'nf-ds' }, [ E('span', {}, 'потери в среднем'), E('b', {}, nf1.format(loss.reduce((s, q) => s + q, 0) / loss.length) + '%') ]));
+		if (loss.length) cells.push(E('div', { class: 'nf-ds' }, [ E('span', {}, tr('потери в среднем')), E('b', {}, nf1.format(loss.reduce((s, q) => s + q, 0) / loss.length) + '%') ]));
 		stats.replaceChildren(...cells);
 
 		const move = ev => {
@@ -272,7 +275,7 @@ function openDetail(key, from) {
 			rows.forEach((q, k) => { const dd = Math.abs(q[0] - t); if (dd < bd) { bd = dd; bi = k; } });
 			const x = X(rows[bi][0]);
 			cur.setAttribute('x1', x); cur.setAttribute('x2', x); cur.setAttribute('visibility', 'visible');
-			tip.replaceChildren(E('span', {}, clock(rows[bi][0], win > 86400)), ...cfg.cols.map((cc, si) => E('div', {}, [ E('i', { class: cc[2] }), cc[1] + ' ', E('b', {}, series[si][bi] != null ? cfg.fmt(series[si][bi]) : '–') ])));
+			tip.replaceChildren(E('span', {}, clock(rows[bi][0], win > 86400)), ...cfg.cols.map((cc, si) => E('div', {}, [ E('i', { class: cc[2] }), tr(cc[1]) + ' ', E('b', {}, series[si][bi] != null ? cfg.fmt(series[si][bi]) : '–') ])));
 			tip.hidden = false;
 			const px = x / W * r.width;
 			tip.style.left = Math.min(r.width - tip.offsetWidth - 4, Math.max(4, px + 12)) + 'px';
@@ -291,13 +294,13 @@ function openDetail(key, from) {
 
 /* ---------- окна без графика: аптайм, Wi‑Fi клиенты, трафик за сутки, хранилище ---------- */
 function openInfo(key, from) {
-	const T = { up: [ 'Аптайм и перезагрузки', 'system' ], cli: [ 'Wi‑Fi клиенты', 'wifi' ], day: [ 'Трафик за сутки', 'net' ], stor: [ 'Хранилище', 'system' ] }[key];
-	const body = E('div', { class: 'nf-info' }, E('div', { class: 'nf-empty' }, 'Загружаю…'));
+	const T = { up: [ tr('Аптайм и перезагрузки'), 'system' ], cli: [ tr('Wi‑Fi клиенты'), 'wifi' ], day: [ tr('Трафик за сутки'), 'net' ], stor: [ tr('Хранилище'), 'system' ] }[key];
+	const body = E('div', { class: 'nf-info' }, E('div', { class: 'nf-empty' }, tr('Загружаю…')));
 	const bg = E('div', { class: 'nf-dlg-bg' });
 	const onKey = ev => { if (ev.key === 'Escape') close(); };
 	const close = () => { document.removeEventListener('keydown', onKey); bg.classList.remove('on'); window.setTimeout(() => { bg.remove(); if (from && from.focus) from.focus(); }, 200); };
 	bg.appendChild(E('div', { class: 'nf-dlg nf-dlg-info', role: 'dialog', 'aria-modal': 'true', 'aria-label': T[0] }, [
-		E('div', { class: 'nf-dlg-h' }, [ E('h4', {}, [ E('i', { class: 'nf-ci', 'data-i': T[1] }), T[0] ]), E('button', { type: 'button', class: 'nf-dlg-x', 'aria-label': 'Закрыть', click: close }, '×') ]),
+		E('div', { class: 'nf-dlg-h' }, [ E('h4', {}, [ E('i', { class: 'nf-ci', 'data-i': T[1] }), T[0] ]), E('button', { type: 'button', class: 'nf-dlg-x', 'aria-label': tr('Закрыть'), click: close }, '×') ]),
 		body ]));
 	bg.addEventListener('mousedown', ev => { if (ev.target === bg) close(); });
 	document.addEventListener('keydown', onKey);
@@ -309,58 +312,58 @@ function openInfo(key, from) {
 	const row = (a, b, bar) => E('div', { class: 'nf-info-row' }, [ E('span', {}, a), bar != null ? E('span', { class: 'nf-info-bar' }, E('i', { class: bar > 90 ? 'low' : bar > 75 ? 'mid' : '', style: 'width:' + Math.max(2, Math.min(100, bar)) + '%' })) : '', E('b', {}, b) ]);
 	const head = t => E('div', { class: 'nf-info-h' }, t);
 	const fill = (...n) => body.replaceChildren(...n.flat().filter(Boolean));
-	const dur = sec => { const d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60); return (d ? d + ' д ' : '') + (d || h ? h + ' ч ' : '') + m + ' мин'; };
+	const dur = sec => { const d = Math.floor(sec / 86400), h = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60); return (d ? d + tr(' д ') : '') + (d || h ? h + tr(' ч ') : '') + m + tr(' мин'); };
 	const J = f => fs.exec(HIST, f).then(r => JSON.parse(r.stdout)).catch(() => null);
 
 	if (key === 'up') {
 		Promise.all([ fs.exec(STATS, []).then(r => JSON.parse(r.stdout)).catch(() => null), J([ 'journal' ]) ]).then(([ d, j ]) => {
-			if (!d) { fill(E('div', { class: 'nf-empty' }, 'Нет данных.')); return; }
+			if (!d) { fill(E('div', { class: 'nf-empty' }, tr('Нет данных.'))); return; }
 			const boots = ((j && j.rows) || []).filter(r => r[1] === 'boot').sort((a, b) => b[0] - a[0]).slice(0, 8);
-			fill(row('Работает без перезагрузки', dur(d.up)), row('Включён', when(Date.now() / 1000 - d.up)),
-				row('Нагрузка за 1 / 5 / 15 минут', d.load.map(v => nf2.format(v)).join(' · ')),
-				head('Последние перезагрузки'),
-				boots.length ? boots.map(r => row(when(r[0]), 'перезагрузка')) : E('div', { class: 'nf-info-row' }, 'Журнал пока пуст: сборщик записывает перезагрузки с момента установки.'),
-				E('div', { class: 'nf-dnote' }, 'Полный журнал обрывов и перезагрузок: Монитор ресурсов → История.'));
+			fill(row(tr('Работает без перезагрузки'), dur(d.up)), row(tr('Включён'), when(Date.now() / 1000 - d.up)),
+				row(tr('Нагрузка за 1 / 5 / 15 минут'), d.load.map(v => nf2.format(v)).join(' · ')),
+				head(tr('Последние перезагрузки')),
+				boots.length ? boots.map(r => row(when(r[0]), tr('перезагрузка'))) : E('div', { class: 'nf-info-row' }, tr('Журнал пока пуст: сборщик записывает перезагрузки с момента установки.')),
+				E('div', { class: 'nf-dnote' }, tr('Полный журнал обрывов и перезагрузок: Монитор ресурсов → История.')));
 		});
 	}
 	else if (key === 'cli') {
 		Promise.all([ L.resolveDefault(callIwDevs(), []), L.resolveDefault(callHints(), {}), L.require('nightfall-devid').catch(() => null) ]).then(([ devs, hints, DEVID ]) =>
 			Promise.all((devs || []).map(dv => L.resolveDefault(callAssoc(dv), []).then(l => (Array.isArray(l) ? l : []).map(c => Object.assign({ dev: dv }, c))))).then(lists => {
 				const cl = [].concat(...lists).sort((a, b) => (a.signal || -200) - (b.signal || -200));
-				if (!cl.length) { fill(E('div', { class: 'nf-empty' }, 'Сейчас по Wi‑Fi никто не подключён.')); return; }
-				const q = v => v >= -60 ? 'отлично' : v >= -67 ? 'хорошо' : v >= -75 ? 'слабовато' : 'плохо';
+				if (!cl.length) { fill(E('div', { class: 'nf-empty' }, tr('Сейчас по Wi‑Fi никто не подключён.'))); return; }
+				const q = v => v >= -60 ? tr('отлично') : v >= -67 ? tr('хорошо') : v >= -75 ? tr('слабовато') : tr('плохо');
 				fill(cl.map(c => {
 					const mac = String(c.mac || '').toUpperCase(), h = hints[mac] || {}, id = DEVID && mac ? DEVID.identify(mac, h.name || '') : null;
-					const name = h.name || (id && id.known ? [ id.label || 'Устройство', id.vendor && id.vendor !== id.label ? id.vendor : '' ].filter(Boolean).join(' ') : '') || (h.ipaddrs || [])[0] || mac;
-					const rate = c.rx && c.rx.rate ? ' · ↓ ' + nf0.format(c.rx.rate / 1000) + ' Мбит/с' : '';
-					return row(name + ' · ' + c.dev + (id && id.priv ? ' · частный MAC' : ''), (c.signal != null ? c.signal + ' дБм · ' + q(c.signal) : '–') + rate, c.signal != null ? Math.max(0, Math.min(100, (c.signal + 95) * 100 / 50)) : null);
-				}), E('div', { class: 'nf-dnote' }, 'Сверху самые слабые. Цвет полосы: чем длиннее, тем лучше сигнал. График по часам: Монитор → История → «Сигнал Wi‑Fi по часам».'));
+					const name = h.name || (id && id.known ? [ id.label || tr('Устройство'), id.vendor && id.vendor !== id.label ? id.vendor : '' ].filter(Boolean).join(' ') : '') || (h.ipaddrs || [])[0] || mac;
+					const rate = c.rx && c.rx.rate ? ' · ↓ ' + nf0.format(c.rx.rate / 1000) + tr(' Мбит/с') : '';
+					return row(name + ' · ' + c.dev + (id && id.priv ? tr(' · частный MAC') : ''), (c.signal != null ? c.signal + tr(' дБм · ') + q(c.signal) : '–') + rate, c.signal != null ? Math.max(0, Math.min(100, (c.signal + 95) * 100 / 50)) : null);
+				}), E('div', { class: 'nf-dnote' }, tr('Сверху самые слабые. Цвет полосы: чем длиннее, тем лучше сигнал. График по часам: Монитор → История → «Сигнал Wi‑Fi по часам».')));
 			}));
 	}
 	else if (key === 'day') {
 		J([ 'traffic' ]).then(t => {
 			const rows = ((t && t.rows) || []).slice().sort((a, b) => a[0].localeCompare(b[0]));
-			if (!rows.length) { fill(E('div', { class: 'nf-empty' }, 'Счётчики пока не накопились.')); return; }
+			if (!rows.length) { fill(E('div', { class: 'nf-empty' }, tr('Счётчики пока не накопились.'))); return; }
 			const d0 = new Date(), key0 = d => d.getFullYear() + two(d.getMonth() + 1) + two(d.getDate());
 			const by = {}; rows.forEach(r => { by[r[0]] = r; });
 			const days = []; for (let i = 0; i < 14; i++) { const d = new Date(d0.getTime() - i * 86400000), r = by[key0(d)]; days.push([ d, r ? r[1] : 0, r ? r[2] : 0 ]); }
 			const sum = (n, k) => days.slice(0, n).reduce((a, x) => a + x[k], 0), mx = Math.max(1, ...days.map(x => x[1] + x[2]));
-			fill(row('Сегодня', '↓ ' + fmtBytes(days[0][1]) + ' · ↑ ' + fmtBytes(days[0][2])), row('Вчера', '↓ ' + fmtBytes(days[1][1]) + ' · ↑ ' + fmtBytes(days[1][2])),
-				row('За 7 дней', '↓ ' + fmtBytes(sum(7, 1)) + ' · ↑ ' + fmtBytes(sum(7, 2))), row('За 14 дней', '↓ ' + fmtBytes(sum(14, 1)) + ' · ↑ ' + fmtBytes(sum(14, 2))),
-				head('По дням (скачано + отдано)'),
-				days.map(x => row(x[0].toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' }), fmtBytes(x[1] + x[2]), 100 * (x[1] + x[2]) / mx)),
-				E('div', { class: 'nf-dnote' }, 'Итоги по счётчикам порта WAN, а если они занижены (аппаратное ускорение), по данным устройств. Разбивка по устройствам и месяцам: Монитор → История → «Трафик по месяцам».'));
+			fill(row(tr('Сегодня'), '↓ ' + fmtBytes(days[0][1]) + ' · ↑ ' + fmtBytes(days[0][2])), row(tr('Вчера'), '↓ ' + fmtBytes(days[1][1]) + ' · ↑ ' + fmtBytes(days[1][2])),
+				row(tr('За 7 дней'), '↓ ' + fmtBytes(sum(7, 1)) + ' · ↑ ' + fmtBytes(sum(7, 2))), row(tr('За 14 дней'), '↓ ' + fmtBytes(sum(14, 1)) + ' · ↑ ' + fmtBytes(sum(14, 2))),
+				head(tr('По дням (скачано + отдано)')),
+				days.map(x => row(x[0].toLocaleDateString(NFLOC, { weekday: 'short', day: 'numeric', month: 'short' }), fmtBytes(x[1] + x[2]), 100 * (x[1] + x[2]) / mx)),
+				E('div', { class: 'nf-dnote' }, tr('Итоги по счётчикам порта WAN, а если они занижены (аппаратное ускорение), по данным устройств. Разбивка по устройствам и месяцам: Монитор → История → «Трафик по месяцам».')));
 		});
 	}
 	else {
 		fs.exec(STATS, []).then(r => JSON.parse(r.stdout)).then(d => {
 			const m = d.mem, used = m.total - m.avail, fm = kb => fmtBytes(kb * 1024);
-			fill(d.flash ? row('Флеш-память (настройки и пакеты)', fm(d.flash[1]) + ' из ' + fm(d.flash[0]), 100 * d.flash[1] / d.flash[0]) : '',
-				d.flash ? row('Свободно во флеш-памяти', fm(d.flash[0] - d.flash[1])) : '',
-				d.tmp ? row('/tmp (оперативная память: история, журналы)', fm(d.tmp[1]) + ' из ' + fm(d.tmp[0]), 100 * d.tmp[1] / d.tmp[0]) : '',
-				row('Оперативная память', fm(used) + ' из ' + fm(m.total), 100 * used / m.total),
-				E('div', { class: 'nf-dnote' }, 'Подключённые флешки и SD-карты, на которые можно сохранять историю: Монитор → История → «Накопители».'));
-		}).catch(() => fill(E('div', { class: 'nf-empty' }, 'Нет данных.')));
+			fill(d.flash ? row(tr('Флеш-память (настройки и пакеты)'), fm(d.flash[1]) + tr(' из ') + fm(d.flash[0]), 100 * d.flash[1] / d.flash[0]) : '',
+				d.flash ? row(tr('Свободно во флеш-памяти'), fm(d.flash[0] - d.flash[1])) : '',
+				d.tmp ? row(tr('/tmp (оперативная память: история, журналы)'), fm(d.tmp[1]) + tr(' из ') + fm(d.tmp[0]), 100 * d.tmp[1] / d.tmp[0]) : '',
+				row(tr('Оперативная память'), fm(used) + tr(' из ') + fm(m.total), 100 * used / m.total),
+				E('div', { class: 'nf-dnote' }, tr('Подключённые флешки и SD-карты, на которые можно сохранять историю: Монитор → История → «Накопители».')));
+		}).catch(() => fill(E('div', { class: 'nf-empty' }, tr('Нет данных.'))));
 	}
 }
 
@@ -383,16 +386,16 @@ function liveStrip() {
 
 	R.netBadge = E('span', {}, badge('off', '—'));
 	R.tempBadge = E('span');
-	R.vdT = E('b', {}, 'Загружаю…'); R.vdS = E('small');
+	R.vdT = E('b', {}, tr('Загружаю…')); R.vdS = E('small');
 	R.verdict = E('div', { class: 'nf-verdict', 'data-k': 'ok' }, [
 		E('i', { class: 'nf-vd' }),
 		E('div', { class: 'nf-vd-t' }, [ R.vdT, R.vdS ]),
-		R.vdDismiss = E('button', { type: 'button', class: 'nf-vd-dismiss', title: 'Скрыть это замечание до изменения состояния', 'aria-label': 'Скрыть замечание' }, '×')
+		R.vdDismiss = E('button', { type: 'button', class: 'nf-vd-dismiss', title: tr('Скрыть это замечание до изменения состояния'), 'aria-label': tr('Скрыть замечание') }, '×')
 	]);
 	const verdictDismissKey = 'nightfall-overview-verdict-dismissed';
 	let dismissedVerdictSignature = '';
-	R.vdDismiss.textContent = 'Понятно';
-	R.vdDismiss.setAttribute('aria-label', 'Понятно');
+	R.vdDismiss.textContent = tr('Понятно');
+	R.vdDismiss.setAttribute('aria-label', tr('Понятно'));
 	R.vdDismiss.addEventListener('click', ev => {
 		ev.preventDefault();
 		ev.stopPropagation();
@@ -402,45 +405,45 @@ function liveStrip() {
 	});
 	const strip = E('div', { class: 'nf-live' }, [
 		R.verdict,
-		E('div', { class: 'nf-editnote' }, 'Режим раскладки: потяните ⋮⋮ за заголовок карточки, чтобы переместить её; значки рядом закрепляют карточку и меняют её размер; уголок растягивает. Закончив, нажмите «Вид → Готово».'),
+		E('div', { class: 'nf-editnote' }, tr('Режим раскладки: потяните ⋮⋮ за заголовок карточки, чтобы переместить её; значки рядом закрепляют карточку и меняют её размер; уголок растягивает. Закончив, нажмите «Вид → Готово».')),
 		E('div', { class: 'nf-live-h' }, [
-			E('span', {}, 'Сейчас'),
+			E('span', {}, tr('Сейчас')),
 			E('span', { class: 'nf-live-acts' }, [
-				E('details', { class: 'nf-viewmenu' }, [ E('summary', { class: 'nf-linkbtn', title: 'Столбцы, раскладка, порядок карточек, QR Wi-Fi' }, '⚙ Вид ▾'),
+				E('details', { class: 'nf-viewmenu' }, [ E('summary', { class: 'nf-linkbtn', title: tr('Столбцы, раскладка, порядок карточек, QR Wi-Fi') }, tr('⚙ Вид ▾')),
 					E('div', { class: 'nf-viewlist' }, [
-				R.cols = E('span', { class: 'nf-colsel', title: 'Сколько столбцов карточек на «Обзоре»; карточки плотно, без пустых мест' }, [ E('span', {}, 'Столбцы:') ].concat([ [ '0', 'Авто' ], [ '1', '1' ], [ '2', '2' ], [ '3', '3' ] ].map(c => E('button', { type: 'button', class: 'nf-linkbtn', 'data-c': c[0] }, c[1])))),
-				R.lay = E('span', { class: 'nf-colsel nf-laysel', title: 'Какие плитки показывать и как расположить карточки: одной кнопкой' }, [ E('span', {}, 'Раскладка:') ].concat([ [ 'std', 'Стандарт' ], [ 'home', 'Дом' ], [ 'min', 'Минимал' ], [ 'admin', 'Админ' ] ].map(c => E('button', { type: 'button', class: 'nf-linkbtn', 'data-l': c[0] }, c[1])))),
-				R.edit = E('button', { type: 'button', class: 'nf-linkbtn nf-editbtn', title: 'Показать значки перемещения, закрепления и размера на карточках', 'aria-pressed': 'false' }, 'Изменить раскладку'),
-				R.reset = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Вернуть порядок карточек по умолчанию' }, 'Сбросить порядок карточек'),
-				R.qrBtn = E('button', { type: 'button', class: 'nf-linkbtn', title: 'QR-код для подключения к Wi-Fi' }, 'QR Wi-Fi')
+				R.cols = E('span', { class: 'nf-colsel', title: tr('Сколько столбцов карточек на «Обзоре»; карточки плотно, без пустых мест') }, [ E('span', {}, tr('Столбцы:')) ].concat([ [ '0', tr('Авто') ], [ '1', '1' ], [ '2', '2' ], [ '3', '3' ] ].map(c => E('button', { type: 'button', class: 'nf-linkbtn', 'data-c': c[0] }, c[1])))),
+				R.lay = E('span', { class: 'nf-colsel nf-laysel', title: tr('Какие плитки показывать и как расположить карточки: одной кнопкой') }, [ E('span', {}, tr('Раскладка:')) ].concat([ [ 'std', tr('Стандарт') ], [ 'home', tr('Дом') ], [ 'min', tr('Минимал') ], [ 'admin', tr('Админ') ] ].map(c => E('button', { type: 'button', class: 'nf-linkbtn', 'data-l': c[0] }, c[1])))),
+				R.edit = E('button', { type: 'button', class: 'nf-linkbtn nf-editbtn', title: tr('Показать значки перемещения, закрепления и размера на карточках'), 'aria-pressed': 'false' }, tr('Изменить раскладку')),
+				R.reset = E('button', { type: 'button', class: 'nf-linkbtn', title: tr('Вернуть порядок карточек по умолчанию') }, tr('Сбросить порядок карточек')),
+				R.qrBtn = E('button', { type: 'button', class: 'nf-linkbtn', title: tr('QR-код для подключения к Wi-Fi') }, 'QR Wi-Fi')
 					]) ]),
-				R.boardBtn = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Полноэкранное табло: время, скорость, пинг, нагрузка' }, 'Табло')
+				R.boardBtn = E('button', { type: 'button', class: 'nf-linkbtn', title: tr('Полноэкранное табло: время, скорость, пинг, нагрузка') }, tr('Табло'))
 			])
 		]),
 		E('div', { class: 'nf-live-grid' }, [
-			tile('net', 'Интернет', R.netBadge,
+			tile('net', tr('Интернет'), R.netBadge,
 				R.netV = E('div', { class: 'nf-tile-v' }, '–'), R.netS = E('div', { class: 'nf-tile-s' }, ' '), sp.net.el),
-			tile('wan', 'Трафик WAN', null,
+			tile('wan', tr('Трафик WAN'), null,
 				R.wanV = E('div', { class: 'nf-tile-v' }, '–'), R.wanS = E('div', { class: 'nf-tile-s' }, ' '), sp.wan.el),
-			tile('cpu', 'Процессор', null,
+			tile('cpu', tr('Процессор'), null,
 				R.cpuV = E('div', { class: 'nf-tile-v' }, '–'), R.cpuS = E('div', { class: 'nf-tile-s' }, ' '), sp.cpu.el),
-			tile('temp', 'Температура', R.tempBadge,
+			tile('temp', tr('Температура'), R.tempBadge,
 				R.tempV = E('div', { class: 'nf-tile-v' }, '–'), R.tempS = E('div', { class: 'nf-tile-s' }, ' '), sp.temp.el),
-			tile('mem', 'Память', null,
+			tile('mem', tr('Память'), null,
 				R.memV = E('div', { class: 'nf-tile-v' }, '–'), R.memS = E('div', { class: 'nf-tile-s' }, ' '), sp.mem.el),
-			tile('ct', 'Соединения', null,
+			tile('ct', tr('Соединения'), null,
 				R.ctV = E('div', { class: 'nf-tile-v' }, '–'), R.ctS = E('div', { class: 'nf-tile-s' }, ' '), sp.ct.el),
-			tile('up', 'Аптайм', null,
+			tile('up', tr('Аптайм'), null,
 				R.upV = E('div', { class: 'nf-tile-v' }, '–'), R.upS = E('div', { class: 'nf-tile-s' }, ' ')),
-			tile('cli', 'Wi‑Fi клиенты', null,
+			tile('cli', tr('Wi‑Fi клиенты'), null,
 				R.cliV = E('div', { class: 'nf-tile-v' }, '–'), R.cliS = E('div', { class: 'nf-tile-s' }, ' ')),
-			tile('loss', 'Потери пакетов', null,
+			tile('loss', tr('Потери пакетов'), null,
 				R.lossV = E('div', { class: 'nf-tile-v' }, '–'), R.lossS = E('div', { class: 'nf-tile-s' }, ' '), sp.lo.el),
-			tile('sig', 'Сигнал Wi‑Fi', null,
+			tile('sig', tr('Сигнал Wi‑Fi'), null,
 				R.sigV = E('div', { class: 'nf-tile-v' }, '–'), R.sigS = E('div', { class: 'nf-tile-s' }, ' ')),
-			tile('day', 'Трафик за сутки', null,
+			tile('day', tr('Трафик за сутки'), null,
 				R.dayV = E('div', { class: 'nf-tile-v' }, '–'), R.dayS = E('div', { class: 'nf-tile-s' }, ' ')),
-			tile('stor', 'Хранилище', null,
+			tile('stor', tr('Хранилище'), null,
 				R.storV = E('div', { class: 'nf-tile-v' }, '–'), R.storS = E('div', { class: 'nf-tile-s' }, ' '))
 		])
 	]);
@@ -457,14 +460,14 @@ function liveStrip() {
 		if (boardEl) return;
 		const val = E('div', { class: 'nf-bd-v' }), clock = E('div', { class: 'nf-bd-clock' }), date = E('div', { class: 'nf-bd-date' });
 		const cell = (k, title) => { const v = E('div', { class: 'nf-bd-n' }), s = E('div', { class: 'nf-bd-s' }); return { k, v, s, el: E('div', { class: 'nf-bd-c', 'data-k': k }, [ E('div', { class: 'nf-bd-t' }, title), v, s ]) }; };
-		const cells = [ cell('net', 'Интернет'), cell('wan', 'Трафик'), cell('cpu', 'Процессор'), cell('temp', 'Температура'), cell('mem', 'Память') ];
-		boardEl = E('div', { class: 'nf-board', role: 'dialog', 'aria-label': 'Табло' }, [
-			E('button', { type: 'button', class: 'nf-bd-x', 'aria-label': 'Закрыть' }, '✕'), clock, date,
+		const cells = [ cell('net', tr('Интернет')), cell('wan', tr('Трафик')), cell('cpu', tr('Процессор')), cell('temp', tr('Температура')), cell('mem', tr('Память')) ];
+		boardEl = E('div', { class: 'nf-board', role: 'dialog', 'aria-label': tr('Табло') }, [
+			E('button', { type: 'button', class: 'nf-bd-x', 'aria-label': tr('Закрыть') }, '✕'), clock, date,
 			E('div', { class: 'nf-bd-grid' }, cells.map(c => c.el)) ]);
 		const tick = () => {
 			const d = new Date();
-			clock.textContent = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-			date.textContent = d.toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
+			clock.textContent = d.toLocaleTimeString(NFLOC, { hour: '2-digit', minute: '2-digit' });
+			date.textContent = d.toLocaleDateString(NFLOC, { weekday: 'long', day: 'numeric', month: 'long' });
 			const src = { net: [ R.netV, R.netS ], wan: [ R.wanV, R.wanS ], cpu: [ R.cpuV, R.cpuS ], temp: [ R.tempV, R.tempS ], mem: [ R.memV, R.memS ] };
 			cells.forEach(c => {
 				c.v.textContent = txt(src[c.k][0]); c.s.textContent = txt(src[c.k][1]) === '–' ? '' : txt(src[c.k][1]);
@@ -484,18 +487,18 @@ function liveStrip() {
 	function openQr() {
 		if (document.querySelector('.nf-qr-ov')) return;
 		const esc = v => String(v).replace(/([\\;,:"])/g, '\\$1');
-		const body = E('div', { class: 'nf-qr-body' }, 'Загрузка…');
+		const body = E('div', { class: 'nf-qr-body' }, tr('Загрузка…'));
 		const ov = E('div', { class: 'nf-qr-ov' }, E('div', { class: 'nf-qr-box' }, [
-			E('div', { class: 'nf-qr-h' }, [ E('b', {}, 'QR-код Wi-Fi'), E('button', { type: 'button', class: 'nf-linkbtn', 'data-close': '1' }, 'Закрыть') ]),
+			E('div', { class: 'nf-qr-h' }, [ E('b', {}, tr('QR-код Wi-Fi')), E('button', { type: 'button', class: 'nf-linkbtn', 'data-close': '1' }, tr('Закрыть')) ]),
 			body,
-			E('div', { class: 'nf-qr-note' }, 'Наведите камеру телефона — он предложит подключиться. Пароль виден только вам и не покидает роутер.')
+			E('div', { class: 'nf-qr-note' }, tr('Наведите камеру телефона — он предложит подключиться. Пароль виден только вам и не покидает роутер.'))
 		]));
 		ov.addEventListener('click', ev => { if (ev.target === ov || (ev.target.getAttribute && ev.target.getAttribute('data-close'))) ov.remove(); });
 		document.body.appendChild(ov);
 		callUci('wireless').then(v => {
 			const list = Object.keys(v).map(k => v[k]).filter(x => x['.type'] === 'wifi-iface' && x.mode !== 'sta' && x.ssid);
 			body.textContent = '';
-			if (!list.length) { body.textContent = 'Сети Wi-Fi не найдены.'; return; }
+			if (!list.length) { body.textContent = tr('Сети Wi-Fi не найдены.'); return; }
 			const seen = {};
 			list.forEach(x => {
 				const open = !x.encryption || x.encryption === 'none';
@@ -505,8 +508,8 @@ function liveStrip() {
 				const txt = 'WIFI:T:' + (open ? 'nopass' : (sae ? 'SAE' : 'WPA')) + ';S:' + esc(x.ssid) + ';' + (open ? '' : 'P:' + esc(key) + ';') + (x.hidden === '1' ? 'H:true;' : '') + ';';
 				const m = NfQr.encode(txt);
 				const card = E('div', { class: 'nf-qr-card' });
-				if (!m) card.appendChild(E('div', {}, 'Слишком длинные данные'));
-				else if (!open && !key) card.appendChild(E('div', {}, 'Пароль не задан в настройках (возможно, радиус-сервер).'));
+				if (!m) card.appendChild(E('div', {}, tr('Слишком длинные данные')));
+				else if (!open && !key) card.appendChild(E('div', {}, tr('Пароль не задан в настройках (возможно, радиус-сервер).')));
 				else {
 					const n = m.length, q = 3, NS = 'http://www.w3.org/2000/svg';
 					const svg = document.createElementNS(NS, 'svg');
@@ -517,41 +520,41 @@ function liveStrip() {
 					card.appendChild(svg);
 				}
 				card.appendChild(E('div', { class: 'nf-qr-ssid' }, x.ssid));
-				card.appendChild(E('div', { class: 'nf-qr-sub' }, open ? 'без пароля' : (x.encryption || '') + (x.disabled === '1' ? ' · выключена' : '')));
+				card.appendChild(E('div', { class: 'nf-qr-sub' }, open ? tr('без пароля') : (x.encryption || '') + (x.disabled === '1' ? tr(' · выключена') : '')));
 				body.appendChild(card);
 			});
 			/* гостевая сеть по таймеру: сети с «guest/гост» в названии и выключенные сети */
-			const cands = Object.keys(v).filter(k => v[k]['.type'] === 'wifi-iface' && v[k].mode !== 'sta' && v[k].ssid && (v[k].disabled === '1' || /guest|гост/i.test((v[k].network || '') + ' ' + v[k].ssid)));
+			const cands = Object.keys(v).filter(k => v[k]['.type'] === 'wifi-iface' && v[k].mode !== 'sta' && v[k].ssid && (v[k].disabled === '1' || /guest|гост|访客/i.test((v[k].network || '') + ' ' + v[k].ssid)));
 			const gbox = E('div', { class: 'nf-qr-guest' });
 			if (!cands.length) {
-				gbox.appendChild(E('div', { class: 'nf-qr-sub' }, 'Гостевая сеть по таймеру: создайте отдельную сеть Wi-Fi (например, guest) в Сеть → Беспроводная сеть, и здесь появятся кнопки включения.'));
+				gbox.appendChild(E('div', { class: 'nf-qr-sub' }, tr('Гостевая сеть по таймеру: создайте отдельную сеть Wi-Fi (например, guest) в Сеть → Беспроводная сеть, и здесь появятся кнопки включения.')));
 			} else {
 				fs.exec(GUESTBIN, [ 'status' ]).then(r => { let st = null; try { st = JSON.parse(r.stdout); } catch (e) { /* ignore */ } return st; }).catch(() => null).then(st => {
 					const until = {}; ((st && st.list) || []).forEach(x => { until[x[0]] = x[1]; });
 					const hm = t => { const d = new Date(t * 1000); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
 					const reopen = () => { ov.remove(); window.setTimeout(openQr, 400); };
 					const act = (b, args) => { b.disabled = true; fs.exec(GUESTBIN, args).then(reopen).catch(() => { b.disabled = false; }); };
-					gbox.appendChild(E('div', { class: 'nf-qr-gh' }, 'Гостевая сеть по таймеру'));
+					gbox.appendChild(E('div', { class: 'nf-qr-gh' }, tr('Гостевая сеть по таймеру')));
 					cands.forEach(id => {
 						const x = v[id], on = x.disabled !== '1';
-						const btns = on ? [ E('button', { type: 'button', class: 'nf-linkbtn nf-bad', click: ev => act(ev.currentTarget, [ 'off', id ]) }, 'Выключить') ]
-							: [ [ 30, '30 мин' ], [ 60, '1 час' ], [ 240, '4 часа' ], [ 1440, 'Сутки' ] ].map(([ m, t ]) => E('button', { type: 'button', class: 'nf-linkbtn', click: ev => act(ev.currentTarget, [ 'on', id, String(m) ]) }, t));
+						const btns = on ? [ E('button', { type: 'button', class: 'nf-linkbtn nf-bad', click: ev => act(ev.currentTarget, [ 'off', id ]) }, tr('Выключить')) ]
+							: [ [ 30, tr('30 мин') ], [ 60, tr('1 час') ], [ 240, tr('4 часа') ], [ 1440, tr('Сутки') ] ].map(([ m, t ]) => E('button', { type: 'button', class: 'nf-linkbtn', click: ev => act(ev.currentTarget, [ 'on', id, String(m) ]) }, t));
 						gbox.appendChild(E('div', { class: 'nf-qr-gr' }, [
-							E('div', { class: 'nf-qr-gn' }, [ E('b', {}, x.ssid), E('span', { class: 'nf-qr-sub' }, on ? (until[id] ? 'включена до ' + hm(until[id]) : 'включена, без таймера') : 'выключена') ]),
+							E('div', { class: 'nf-qr-gn' }, [ E('b', {}, x.ssid), E('span', { class: 'nf-qr-sub' }, on ? (until[id] ? tr('включена до ') + hm(until[id]) : tr('включена, без таймера')) : tr('выключена')) ]),
 							E('div', { class: 'nf-qr-ga' }, btns) ]));
 					});
-					if (cands.some(id => v[id].disabled === '1')) gbox.appendChild(E('div', { class: 'nf-qr-note' }, 'После включения сеть появится через несколько секунд. Сама выключится по таймеру.'));
+					if (cands.some(id => v[id].disabled === '1')) gbox.appendChild(E('div', { class: 'nf-qr-note' }, tr('После включения сеть появится через несколько секунд. Сама выключится по таймеру.')));
 				});
 			}
 			body.appendChild(gbox);
-		}).catch(() => { body.textContent = 'Нет доступа к настройкам Wi-Fi. Обновите пакет и перезайдите в LuCI.'; });
+		}).catch(() => { body.textContent = tr('Нет доступа к настройкам Wi-Fi. Обновите пакет и перезайдите в LuCI.'); });
 	}
 	document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { const o = document.querySelector('.nf-qr-ov'); if (o) o.remove(); } });
 	R.qrBtn.addEventListener('click', openQr);
 	R.edit.addEventListener('click', () => {
 		const root = document.documentElement, on = !root.hasAttribute('data-nf-edit');
 		root.toggleAttribute('data-nf-edit', on);
-		R.edit.textContent = on ? 'Готово' : 'Изменить раскладку'; R.edit.setAttribute('aria-pressed', String(on));
+		R.edit.textContent = on ? tr('Готово') : tr('Изменить раскладку'); R.edit.setAttribute('aria-pressed', String(on));
 		const m = R.edit.closest('details'); if (m) m.open = false;
 		window.setTimeout(() => window.dispatchEvent(new Event('resize')), 60);
 	});
@@ -572,7 +575,7 @@ function liveStrip() {
 		const t = ev.target.closest && ev.target.closest('.nf-tile[data-tile]');
 		if (t && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); openDetail(t.getAttribute('data-tile'), t); }
 	});
-	strip.querySelectorAll('.nf-tile').forEach(t => { const k = t.getAttribute('data-tile'); if (!DETAIL[k] && !INFO[k]) return; t.setAttribute('tabindex', '0'); t.setAttribute('role', 'button'); t.setAttribute('title', 'Нажмите, чтобы открыть график'); });
+	strip.querySelectorAll('.nf-tile').forEach(t => { const k = t.getAttribute('data-tile'); if (!DETAIL[k] && !INFO[k]) return; t.setAttribute('tabindex', '0'); t.setAttribute('role', 'button'); t.setAttribute('title', tr('Нажмите, чтобы открыть график')); });
 
 	function trim(now) {
 		while (S.t.length && S.t[0] < now - WIN) {
@@ -629,9 +632,9 @@ function liveStrip() {
 		const lastOf = a => { for (let i = a.length - 1; i >= 0; i--) if (a[i] != null) return a[i]; return null; };
 
 		/* internet */
-		R.netBadge.replaceChildren(S.online === true ? badge('ok', 'Онлайн') : S.online === false ? badge('bad', 'Нет связи') : badge('off', 'Нет данных'));
-		setNum(R.netV, S.net != null && S.net >= 0 ? nf0.format(S.net) + ' мс' : (S.online === false ? '—' : '–'));
-		R.netS.textContent = S.gw != null && S.gw >= 0 ? 'до шлюза ' + nf1.format(S.gw) + ' мс' : (S.online == null ? 'история не собирается' : ' ');
+		R.netBadge.replaceChildren(S.online === true ? badge('ok', tr('Онлайн')) : S.online === false ? badge('bad', tr('Нет связи')) : badge('off', tr('Нет данных')));
+		setNum(R.netV, S.net != null && S.net >= 0 ? nf0.format(S.net) + tr(' мс') : (S.online === false ? '—' : '–'));
+		R.netS.textContent = S.gw != null && S.gw >= 0 ? tr('до шлюза ') + nf1.format(S.gw) + tr(' мс') : (S.online == null ? tr('история не собирается') : ' ');
 		sp.net.update(S.t, [ S.ping ], niceCeil(Math.max(20, ...S.ping.filter(v => v != null))));
 
 		/* WAN speed */
@@ -641,13 +644,13 @@ function liveStrip() {
 			setNum(R.wanV, '↓ ' + r[0] + ' ' + r[1]);
 			setNum(R.wanS, '↑ ' + u[0] + ' ' + u[1]);
 		}
-		else R.wanV.textContent = S.wan ? '–' : 'WAN не найден';
+		else R.wanV.textContent = S.wan ? '–' : tr('WAN не найден');
 		sp.wan.update(S.t, [ S.rx, S.tx ], niceCeil(Math.max(12500, ...S.rx.filter(v => v != null), ...S.tx.filter(v => v != null))));
 
 		/* CPU */
 		const cpu = lastOf(S.cpu);
 		setNum(R.cpuV, cpu != null ? nf0.format(cpu) + '%' : '–');
-		R.cpuS.textContent = 'нагрузка ' + d.load.map(v => nf2.format(v)).join(' · ');
+		R.cpuS.textContent = tr('нагрузка ') + d.load.map(v => nf2.format(v)).join(' · ');
 		setLvl(R.cpuV, cpu, ...thr('cpu', 60, 85));
 		sp.cpu.update(S.t, [ S.cpu ], 100);
 
@@ -656,29 +659,29 @@ function liveStrip() {
 		if (t != null) {
 			setNum(R.tempV, nf1.format(t) + ' °C');
 			const [ tempMid, tempBad ] = thr('temp', 70, 85);
-			R.tempBadge.replaceChildren(t >= tempBad ? badge('bad', 'Жарко') : t >= tempMid ? badge('warn', 'Тепло') : badge('ok', 'Норма'));
-			R.tempS.textContent = 'процессор';
+			R.tempBadge.replaceChildren(t >= tempBad ? badge('bad', tr('Жарко')) : t >= tempMid ? badge('warn', tr('Тепло')) : badge('ok', tr('Норма')));
+			R.tempS.textContent = tr('процессор');
 		}
-		else { R.tempV.textContent = '–'; R.tempS.textContent = 'нет датчика'; R.tempBadge.replaceChildren(); }
+		else { R.tempV.textContent = '–'; R.tempS.textContent = tr('нет датчика'); R.tempBadge.replaceChildren(); }
 		setLvl(R.tempV, t, ...thr('temp', 70, 85));
 		sp.temp.update(S.t, [ S.temp ], 100, 30);
 
 		/* memory */
 		const m = d.mem, used = m.total - m.avail;
 		setNum(R.memV, nf0.format(100 * used / m.total) + '%');
-		R.memS.textContent = nf0.format(used / 1024) + ' МБ из ' + nf0.format(m.total / 1024) + ' МБ';
+		R.memS.textContent = nf0.format(used / 1024) + tr(' МБ из ') + nf0.format(m.total / 1024) + tr(' МБ');
 		setLvl(R.memV, 100 * used / m.total, ...thr('mem', 70, 88));
 		sp.mem.update(S.t, [ S.mem ], 100);
 
 		/* строка-вывод: одно слово вместо россыпи бейджей */
 		{
 			const bad = [], warn = [], memP = 100 * used / m.total, loss = S.loss != null ? S.loss : null;
-			if (S.online === false) bad.push('нет связи с интернетом');
+			if (S.online === false) bad.push(tr('нет связи с интернетом'));
 			const [ tempMid, tempBad ] = thr('temp', 70, 85), [ memMid, memBad ] = thr('mem', 70, 88), [ cpuMid, cpuBad ] = thr('cpu', 60, 85);
-			if (t != null && t >= tempBad) bad.push('перегрев ' + nf0.format(t) + ' °C'); else if (t != null && t >= tempMid) warn.push('температура ' + nf0.format(t) + ' °C');
-			if (memP >= memBad) bad.push('память заполнена на ' + nf0.format(memP) + '%'); else if (memP >= memMid) warn.push('память ' + nf0.format(memP) + '%');
-			if (cpu != null && cpu >= cpuBad) bad.push('высокая нагрузка процессора ' + nf0.format(cpu) + '%'); else if (cpu != null && cpu >= cpuMid) warn.push('процессор ' + nf0.format(cpu) + '%');
-			if (loss != null && loss >= 5) warn.push('потери пакетов ' + nf1.format(loss) + '%');
+			if (t != null && t >= tempBad) bad.push(tr('перегрев ') + nf0.format(t) + ' °C'); else if (t != null && t >= tempMid) warn.push(tr('температура ') + nf0.format(t) + ' °C');
+			if (memP >= memBad) bad.push(tr('память заполнена на ') + nf0.format(memP) + '%'); else if (memP >= memMid) warn.push(tr('память ') + nf0.format(memP) + '%');
+			if (cpu != null && cpu >= cpuBad) bad.push(tr('высокая нагрузка процессора ') + nf0.format(cpu) + '%'); else if (cpu != null && cpu >= cpuMid) warn.push(tr('процессор ') + nf0.format(cpu) + '%');
+			if (loss != null && loss >= 5) warn.push(tr('потери пакетов ') + nf1.format(loss) + '%');
 			const k = bad.length ? 'bad' : warn.length ? 'warn' : 'ok', all = bad.concat(warn);
 			const signature = k + '|' + all.join('|');
 			R.verdict.setAttribute('data-k', k);
@@ -696,41 +699,41 @@ function liveStrip() {
 			if (k === 'ok') {
 				try { localStorage.removeItem(verdictDismissKey); } catch (e) {}
 			}
-			R.vdT.textContent = k === 'ok' ? 'Всё в порядке' : k === 'bad' ? 'Требует внимания' : 'Есть замечания';
-			R.vdS.textContent = k === 'ok' ? [ S.online === true ? 'интернет работает' : '', t != null ? 'температура ' + nf0.format(t) + ' °C' : '', 'память ' + nf0.format(memP) + '%' ].filter(Boolean).join(' · ') : all.join(' · ');
+			R.vdT.textContent = k === 'ok' ? tr('Всё в порядке') : k === 'bad' ? tr('Требует внимания') : tr('Есть замечания');
+			R.vdS.textContent = k === 'ok' ? [ S.online === true ? tr('интернет работает') : '', t != null ? tr('температура ') + nf0.format(t) + ' °C' : '', tr('память ') + nf0.format(memP) + '%' ].filter(Boolean).join(' · ') : all.join(' · ');
 		}
 
 		/* соединения, аптайм, клиенты Wi‑Fi: необязательные плитки (включаются в настройках «Сейчас») */
 		const ct = d.ct && d.ct[1] > 0 ? d.ct : null;
 		setNum(R.ctV, ct ? nf0.format(ct[0]) : '–');
-		R.ctS.textContent = ct ? 'из ' + nf0.format(ct[1]) + ' (' + nf0.format(100 * ct[0] / ct[1]) + '%)' : 'нет данных';
+		R.ctS.textContent = ct ? tr('из ') + nf0.format(ct[1]) + ' (' + nf0.format(100 * ct[0] / ct[1]) + '%)' : tr('нет данных');
 		setLvl(R.ctV, ct ? 100 * ct[0] / ct[1] : null, 70, 90);
 		sp.ct.update(S.t, [ S.ct ], niceCeil(Math.max(50, ...S.ct.filter(v => v != null))));
 		const us = d.up || 0, ud = Math.floor(us / 86400), uh = Math.floor(us % 86400 / 3600), um = Math.floor(us % 3600 / 60);
-		R.upV.textContent = ud > 0 ? ud + ' д ' + uh + ' ч' : uh > 0 ? uh + ' ч ' + um + ' мин' : um + ' мин';
-		R.upS.textContent = 'нагрузка ' + d.load.map(v => nf2.format(v)).join(' · ');
+		R.upV.textContent = ud > 0 ? ud + tr(' д ') + uh + tr(' ч') : uh > 0 ? uh + tr(' ч ') + um + tr(' мин') : um + tr(' мин');
+		R.upS.textContent = tr('нагрузка ') + d.load.map(v => nf2.format(v)).join(' · ');
 		setNum(R.cliV, S.cli != null ? String(S.cli) : '–');
-		R.cliS.textContent = S.cli == null ? 'считаю…' : 'подключено по Wi‑Fi';
+		R.cliS.textContent = S.cli == null ? tr('считаю…') : tr('подключено по Wi‑Fi');
 
 		/* потери, сигнал Wi‑Fi, трафик за сутки, хранилище */
 		setNum(R.lossV, S.loss != null ? nf1.format(S.loss) + '%' : '–');
-		R.lossS.textContent = S.net != null && S.net >= 0 ? 'пинг ' + nf0.format(S.net) + ' мс' : 'нет данных';
+		R.lossS.textContent = S.net != null && S.net >= 0 ? tr('пинг ') + nf0.format(S.net) + tr(' мс') : tr('нет данных');
 		setLvl(R.lossV, S.loss, 2, 5);
 		sp.lo.update(S.t, [ S.lo ], niceCeil(Math.max(5, ...S.lo.filter(v => v != null))));
 		if (S.sig) {
-			setNum(R.sigV, nf0.format(S.sig.avg) + ' дБм');
-			R.sigS.textContent = 'худший ' + nf0.format(S.sig.worst) + ' дБм · клиентов ' + S.sig.n;
+			setNum(R.sigV, nf0.format(S.sig.avg) + tr(' дБм'));
+			R.sigS.textContent = tr('худший ') + nf0.format(S.sig.worst) + tr(' дБм · клиентов ') + S.sig.n;
 			setLvl(R.sigV, S.sig.avg >= -67 ? 0 : 100 - Math.max(0, S.sig.avg + 100) * 1.2, 40, 70);
 		}
-		else { R.sigV.textContent = '–'; R.sigS.textContent = S.cli === 0 ? 'нет клиентов Wi‑Fi' : 'считаю…'; setLvl(R.sigV, null, 40, 70); }
+		else { R.sigV.textContent = '–'; R.sigS.textContent = S.cli === 0 ? tr('нет клиентов Wi‑Fi') : tr('считаю…'); setLvl(R.sigV, null, 40, 70); }
 		if (S.day) { setNum(R.dayV, '↓ ' + fmtBytes(S.day[0])); R.dayS.textContent = '↑ ' + fmtBytes(S.day[1]); }
-		else { R.dayV.textContent = '–'; R.dayS.textContent = 'счётчики не накоплены'; }
+		else { R.dayV.textContent = '–'; R.dayS.textContent = tr('счётчики не накоплены'); }
 		if (d.flash && d.flash[0] > 0) {
 			const fp = 100 * d.flash[1] / d.flash[0], fr = (d.flash[0] - d.flash[1]) / 1048576;
-			setNum(R.storV, nf0.format(fp) + '%'); R.storS.textContent = 'свободно ' + (fr >= 1 ? nf1.format(fr) + ' ГБ' : nf0.format(fr * 1024) + ' МБ');
+			setNum(R.storV, nf0.format(fp) + '%'); R.storS.textContent = tr('свободно ') + (fr >= 1 ? nf1.format(fr) + tr(' ГБ') : nf0.format(fr * 1024) + tr(' МБ'));
 			setLvl(R.storV, fp, 75, 90);
 		}
-		else { R.storV.textContent = '–'; R.storS.textContent = 'нет данных'; }
+		else { R.storV.textContent = '–'; R.storS.textContent = tr('нет данных'); }
 
 		SHARED.t = Date.now(); SHARED.cpu = cpu; SHARED.mem = 100 * used / m.total; SHARED.temp = t;
 		SHARED.online = S.online; SHARED.ping = S.net; SHARED.loss = S.loss;
@@ -866,7 +869,7 @@ const nameKey = k => String(k || '').toUpperCase();
 
 /* inline rename: swaps the title box for an input; Enter or leaving the field saves, Esc cancels, empty text restores the automatic name */
 function editName(box, key, auto, done) {
-	const inp = E('input', { class: 'nf-rename', type: 'text', maxlength: '40', placeholder: auto, 'aria-label': 'Своё имя устройства' });
+	const inp = E('input', { class: 'nf-rename', type: 'text', maxlength: '40', placeholder: auto, 'aria-label': tr('Своё имя устройства') });
 	inp.value = loadNames()[nameKey(key)] || '';
 	box.replaceChildren(inp);
 	EDITING = true;
@@ -1035,9 +1038,9 @@ function startDrag(view, sec, ev, persist) {
 }
 
 const ICONS = [
-	[ /Интернет|Internet/i, 'net' ], [ /^(Сеть|Network)$/i, 'network' ], [ /порт|Port/i, 'ports' ], [ /Беспровод|Wireless|Wi.?Fi/i, 'wifi' ],
-	[ /Топ клиентов/i, 'top' ], [ /Состояние роутера/i, 'health' ], [ /Лента|событ/i, 'events' ], [ /Быстрые/i, 'quick' ],
-	[ /^(Система|System)$/i, 'system' ], [ /Температур/i, 'temp' ], [ /Память|Memory/i, 'mem' ], [ /Хранилищ|Storage/i, 'disk' ], [ /DHCP|Аренд/i, 'dhcp' ]
+	[ /Интернет|Internet|互联网/i, 'net' ], [ /^(Сеть|Network|网络|网口)$/i, 'network' ], [ /порт|Port|端口/i, 'ports' ], [ /Беспровод|Wireless|Wi.?Fi|无线/i, 'wifi' ],
+	[ /Топ клиентов|最多客户端|客户端排行/i, 'top' ], [ /Состояние роутера|路由器状态/i, 'health' ], [ /Лента|событ|事件/i, 'events' ], [ /Быстрые|快捷|快速/i, 'quick' ],
+	[ /^(Система|System|系统)$/i, 'system' ], [ /Температур|温度/i, 'temp' ], [ /Память|Memory|内存/i, 'mem' ], [ /Хранилищ|Storage|存储/i, 'disk' ], [ /DHCP|Аренд|租约/i, 'dhcp' ]
 ];
 const iconFor = title => (ICONS.find(x => x[0].test(title)) || [ 0, 'generic' ])[1];
 
@@ -1143,10 +1146,10 @@ function levelFree(view) {
 		const t = (lab.textContent || '').trim(), title = pb.getAttribute('title') || '';
 		const m = /\((\d+(?:[.,]\d+)?)%\)\s*$/.exec(title); if (!m) return;
 		const f = parseFloat(m[1].replace(',', '.'));
-		if (/^(свободно|free|available|доступно)$/i.test(t)) pb.setAttribute('data-nf-free', f >= 30 ? 'ok' : f >= 12 ? 'mid' : 'low');
-		else if (/^(занято|used|в\s+использовании)$/i.test(t)) {
+		if (/^(свободно|free|available|доступно|可用|空闲|剩余)$/i.test(t)) pb.setAttribute('data-nf-free', f >= 30 ? 'ok' : f >= 12 ? 'mid' : 'low');
+		else if (/^(занято|used|в\s+использовании|已用|占用|使用中|使用)$/i.test(t)) {
 			/* «Занято» = всё, что не свободно (вместе с кэшем): 67% свободно → 33% занято */
-			const fr = Array.from((row.closest('.table, table') || view).querySelectorAll('.cbi-progressbar')).find(x => { const r = x.closest('.tr, tr'), l = r && r.querySelector('.td, td'); return l && /^(свободно|free|available|доступно)$/i.test((l.textContent || '').trim()) && x !== pb; });
+			const fr = Array.from((row.closest('.table, table') || view).querySelectorAll('.cbi-progressbar')).find(x => { const r = x.closest('.tr, tr'), l = r && r.querySelector('.td, td'); return l && /^(свободно|free|available|доступно|可用|空闲|剩余)$/i.test((l.textContent || '').trim()) && x !== pb; });
 			const fm = fr && /([\d.,]+)\s*([KMGT]?i?B)\s*\/\s*([\d.,]+)\s*([KMGT]?i?B)\s*\((\d+(?:[.,]\d+)?)%\)/.exec(fr.getAttribute('title') || '');
 			let u = f;
 			if (fm && fm[2] === fm[4]) {
@@ -1210,7 +1213,7 @@ function syncSizes(view, relayoutNow) {
 		sec.style.minHeight = hh && v !== 'min' ? hh + 'px' : '';
 		sec.classList.toggle('nf-fixh', !!hh && v !== 'min');
 		const b = sec.querySelector(':scope > .cbi-title .nf-size');
-		if (b) { b.setAttribute('data-s', v); b.title = v === 'wide' ? 'Широкая. Нажмите, чтобы свернуть' : v === 'min' ? 'Свёрнута. Нажмите, чтобы вернуть обычный размер' : 'Обычный размер. Нажмите, чтобы растянуть на всю ширину'; }
+		if (b) { b.setAttribute('data-s', v); b.title = v === 'wide' ? tr('Широкая. Нажмите, чтобы свернуть') : v === 'min' ? tr('Свёрнута. Нажмите, чтобы вернуть обычный размер') : tr('Обычный размер. Нажмите, чтобы растянуть на всю ширину'); }
 	});
 	if (relayoutNow) window.dispatchEvent(new Event('resize'));
 }
@@ -1221,7 +1224,7 @@ function syncPins(view) {
 		const on = pins.includes(titleOf(sec));
 		sec.classList.toggle('nf-pinned', on);
 		const b = sec.querySelector(':scope > .cbi-title .nf-pin');
-		if (b) { b.setAttribute('aria-pressed', String(on)); b.title = on ? 'Открепить' : 'Закрепить вверху'; }
+		if (b) { b.setAttribute('aria-pressed', String(on)); b.title = on ? tr('Открепить') : tr('Закрепить вверху'); }
 	});
 }
 
@@ -1239,10 +1242,10 @@ function decorateCards(view) {
 		const title = tn.data.trim();
 		h3.setAttribute('data-nf-title', title);
 		const grip = E('span', {
-			class: 'nf-grip', role: 'button', tabindex: '0', title: 'Потяните, чтобы переместить карточку (или нажмите ↑ ↓ на этом значке)',
-			'aria-label': 'Переместить карточку «' + title + '»'
+			class: 'nf-grip', role: 'button', tabindex: '0', title: tr('Потяните, чтобы переместить карточку (или нажмите ↑ ↓ на этом значке)'),
+			'aria-label': tr('Переместить карточку «') + title + '»'
 		}, '⋮⋮');
-		const pin = E('button', { type: 'button', class: 'nf-pin', title: 'Закрепить вверху', 'aria-label': 'Закрепить карточку «' + title + '»', 'aria-pressed': 'false' });
+		const pin = E('button', { type: 'button', class: 'nf-pin', title: tr('Закрепить вверху'), 'aria-label': tr('Закрепить карточку «') + title + '»', 'aria-pressed': 'false' });
 		pin.addEventListener('click', ev => {
 			ev.preventDefault(); ev.stopPropagation();
 			const pins = loadPins().filter(t => t !== title);
@@ -1251,7 +1254,7 @@ function decorateCards(view) {
 			syncPins(view);
 			flip(cardsOf(view), () => sortCards(view, loadOrder()));
 		});
-		const size = E('button', { type: 'button', class: 'nf-size', 'data-s': '', 'aria-label': 'Размер карточки «' + title + '»' });
+		const size = E('button', { type: 'button', class: 'nf-size', 'data-s': '', 'aria-label': tr('Размер карточки «') + title + '»' });
 		size.addEventListener('click', ev => {
 			ev.preventDefault(); ev.stopPropagation();
 			const m = Object.assign({}, loadSizes()), cur = m[title] || '';
@@ -1289,8 +1292,8 @@ function decorateCards(view) {
 		});
 
 		/* уголок для растягивания: вправо/влево меняет ширину (одна колонка или вся ширина), вниз/вверх высоту */
-		const rs = E('span', { class: 'nf-rs', role: 'slider', tabindex: '0', 'aria-label': 'Размер карточки «' + title + '»: стрелки меняют ширину и высоту, Delete сбрасывает',
-			title: 'Потяните, чтобы изменить размер. Двойное нажатие сбрасывает.' });
+		const rs = E('span', { class: 'nf-rs', role: 'slider', tabindex: '0', 'aria-label': tr('Размер карточки «') + title + tr('»: стрелки меняют ширину и высоту, Delete сбрасывает'),
+			title: tr('Потяните, чтобы изменить размер. Двойное нажатие сбрасывает.') });
 		sec.appendChild(rs); sec.__nfRs = rs;
 		const setH = (px, save) => {
 			const m = Object.assign({}, loadHeights());
@@ -1367,10 +1370,10 @@ function decorateCards(view) {
 /* ---------- status badges ---------- */
 
 function signalLevel(dbm) {
-	if (dbm >= -60) return [ 'ok', 'Отличный' ];
-	if (dbm >= -70) return [ 'ok', 'Хороший' ];
-	if (dbm >= -80) return [ 'warn', 'Слабый' ];
-	return [ 'bad', 'Плохой' ];
+	if (dbm >= -60) return [ 'ok', tr('Отличный') ];
+	if (dbm >= -70) return [ 'ok', tr('Хороший') ];
+	if (dbm >= -80) return [ 'warn', tr('Слабый') ];
+	return [ 'bad', tr('Плохой') ];
 }
 
 /* Идемпотентно: вызывается синхронно из MutationObserver (до отрисовки кадра),
@@ -1418,16 +1421,16 @@ function enhanceBadges(view) {
 					if (!edit) {
 						edit = document.createElement('button');
 						edit.type = 'button'; edit.className = 'nf-port-edit'; edit.textContent = '✎'; edit.style.cssText = 'margin-left:6px;border:0;background:transparent;color:inherit;cursor:pointer;opacity:.7;padding:2px 5px;border-radius:6px;font:inherit';
-						edit.title = 'Изменить подпись карточки (только в этом браузере)';
-						edit.setAttribute('aria-label', 'Изменить подпись порта ' + key);
+						edit.title = tr('Изменить подпись карточки (только в этом браузере)');
+						edit.setAttribute('aria-label', tr('Изменить подпись порта') + ' ' + key);
 						edit.addEventListener('click', ev => {
 							ev.preventDefault(); ev.stopPropagation();
 							const current = portLabelsLoad()[key] || '';
-							const value = window.prompt('Подпись для карточки ' + key + '. Пустое поле вернёт исходное название:', current);
+							const value = window.prompt(tr('Подпись для карточки') + ' ' + key + tr('. Пустое поле вернёт исходное название:'), current);
 							if (value === null) return;
 							const next = portLabelsLoad(), label = value.trim().slice(0, 40);
 							if (label) next[key] = label; else delete next[key];
-							if (!portLabelsSave(next)) { window.alert('Не удалось сохранить подпись в браузере.'); return; }
+							if (!portLabelsSave(next)) { window.alert(tr('Не удалось сохранить подпись в браузере.')); return; }
 							titleEl.textContent = label || key;
 						});
 						head.appendChild(edit);
@@ -1444,7 +1447,7 @@ function enhanceBadges(view) {
 			const raw = node.data.trim();
 			if (!raw) return;
 			let txt = raw;
-			if (!up && /соедин|no link|not connected|disconnected|нет/i.test(txt)) txt = 'нет связи';
+			if (!up && /соедин|no link|not connected|disconnected|нет/i.test(txt)) txt = tr('нет связи');
 			const bd = badge(up ? 'ok' : 'off', txt);
 			bd.title = raw;
 			body.replaceChild(bd, node);
@@ -1532,13 +1535,13 @@ function newDevBanner() {
 			const mac = (txt.match(/([0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})/) || [])[1];
 			const priv = /частный адрес/.test(txt);
 			const name = txt.split(',')[0].trim();
-			const acts = [ E('button', { type: 'button', class: 'nf-linkbtn', click: () => { mark(Math.ceil(lastEv[0])); el.hidden = true; } }, 'Это моё') ];
+			const acts = [ E('button', { type: 'button', class: 'nf-linkbtn', click: () => { mark(Math.ceil(lastEv[0])); el.hidden = true; } }, tr('Это моё')) ];
 			if (mac) acts.push(E('button', { type: 'button', class: 'nf-linkbtn nf-bad', click: ev2 => {
 				const b = ev2.currentTarget; b.disabled = true;
 				fs.exec(BLOCKBIN, [ 'block', mac, name === 'без имени' ? '' : name ]).then(() => { mark(Math.ceil(lastEv[0])); el.hidden = true; }).catch(() => { b.disabled = false; });
-			} }, 'Отключить интернет'));
+			} }, tr('Отключить интернет')));
 			el.replaceChildren(E('span', { class: 'nf-newdev-i', 'aria-hidden': 'true' }, '🆕'),
-				E('div', { class: 'nf-newdev-t' }, [ E('b', {}, ev.length > 1 ? 'Новых устройств: ' + ev.length + '. Последнее:' : 'Новое устройство в сети'), E('span', {}, txt.replace(/\s*\(частный.*$/, '')) , priv ? E('span', { class: 'nf-newdev-n' }, 'Частный адрес Wi-Fi: у телефона он может меняться.') : '' ]),
+				E('div', { class: 'nf-newdev-t' }, [ E('b', {}, ev.length > 1 ? tr('Новых устройств: %s. Последнее:').format(ev.length) : tr('Новое устройство в сети')), E('span', {}, txt.replace(/\s*\(частный.*$/, '').replace(/^без имени,/, tr('без имени') + ',')) , priv ? E('span', { class: 'nf-newdev-n' }, tr('Частный адрес Wi-Fi: у телефона он может меняться.')) : '' ]),
 				E('div', { class: 'nf-newdev-a' }, acts));
 			el.hidden = false;
 		}).catch(() => {});
@@ -1549,7 +1552,7 @@ function newDevBanner() {
 /* ---------- top clients card ---------- */
 
 function fmtBytes(b) {
-	const u = [ 'Б', 'КБ', 'МБ', 'ГБ', 'ТБ' ];
+	const u = [ tr('Б'), tr('КБ'), tr('МБ'), tr('ГБ'), tr('ТБ') ];
 	let i = 0;
 	while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
 	return (i < 2 ? nf0 : nf2).format(b) + ' ' + u[i];
@@ -1580,13 +1583,13 @@ function syncChildren(parent, nodes) {
 }
 
 function topCard() {
-	const body = E('div', { class: 'nf-top-b' }, E('div', { class: 'nf-empty' }, 'Собираю данные…'));
+	const body = E('div', { class: 'nf-top-b' }, E('div', { class: 'nf-empty' }, tr('Собираю данные…')));
 	let mode = 'now';
 	try { mode = localStorage.getItem('nightfall-top-mode') === 'day' ? 'day' : 'now'; } catch (e) { /* ignore */ }
-	const modeBtns = [ [ 'now', 'Сейчас' ], [ 'day', 'За сутки' ] ].map(([ k, t ]) => E('button', { type: 'button', class: 'nf-linkbtn' + (k === mode ? ' on' : ''), 'data-m': k,
+	const modeBtns = [ [ 'now', tr('Сейчас') ], [ 'day', tr('За сутки') ] ].map(([ k, t ]) => E('button', { type: 'button', class: 'nf-linkbtn' + (k === mode ? ' on' : ''), 'data-m': k,
 		click: ev => { ev.stopPropagation(); mode = k; try { localStorage.setItem('nightfall-top-mode', k); } catch (e) { /* ignore */ } modeBtns.forEach(b => b.classList.toggle('on', b.getAttribute('data-m') === k)); render(last); } }, t));
 	const el = E('div', { class: 'cbi-section nf-top fade-in' }, [
-		E('div', { class: 'cbi-title nf-top-t' }, [ E('h3', {}, 'Топ клиентов'), E('span', { class: 'nf-top-m', role: 'group', 'aria-label': 'Период' }, modeBtns) ]), body ]);
+		E('div', { class: 'cbi-title nf-top-t' }, [ E('h3', {}, tr('Топ клиентов')), E('span', { class: 'nf-top-m', role: 'group', 'aria-label': tr('Период') }, modeBtns) ]), body ]);
 	let names = null, timer = null, DEVID = null, hrRows = null, hrAt = 0;
 	const live = {};            /* ключ устройства → последние замеры скорости (байт/с), для мини-графика «Сейчас» */
 	const rowsEl = new Map();   /* ключ → { el, parts }: строки живут между обновлениями */
@@ -1599,7 +1602,7 @@ function topCard() {
 		last = dv;
 		if (!dv || !Array.isArray(dv.rate)) {
 			rowsEl.clear();
-			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Нет данных'), E('span', {}, 'Сбор статистики по устройствам не запущен.') ]));
+			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, tr('Нет данных')), E('span', {}, tr('Сбор статистики по устройствам не запущен.')) ]));
 			return;
 		}
 		const ipName = {};
@@ -1622,7 +1625,7 @@ function topCard() {
 		};
 		const row = ip => {
 			const k = keyOf(ip), nm = ipName[normIp(ip)];
-			return rows[k] || (rows[k] = { k, name: k === 'router' ? 'Роутер' : nm ? nm.n : ip, host: nm ? nm.h : '', ip, rd: 0, ru: 0, dd: 0, du: 0 });
+			return rows[k] || (rows[k] = { k, name: k === 'router' ? tr('Роутер') : nm ? nm.n : ip, host: nm ? nm.h : '', ip, rd: 0, ru: 0, dd: 0, du: 0 });
 		};
 		const fresh = dv.now - dv.ts <= 60;
 		if (fresh) for (const [ ip, d, u ] of dv.rate) { const r = row(ip); r.rd += d; r.ru += u; }
@@ -1646,7 +1649,7 @@ function topCard() {
 			: all.sort((a, b) => (b.rd + b.ru) - (a.rd + a.ru) || (b.dd + b.du) - (a.dd + a.du)).slice(0, 5);
 		if (!list.length) {
 			rowsEl.clear();
-			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Пока тихо'), E('span', {}, 'Сейчас нет заметного трафика от устройств.') ]));
+			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, tr('Пока тихо')), E('span', {}, tr('Сейчас нет заметного трафика от устройств.')) ]));
 			return;
 		}
 		if (body.firstElementChild && body.firstElementChild.classList.contains('nf-empty')) body.replaceChildren();
@@ -1669,7 +1672,7 @@ function topCard() {
 			const id = DEVID && canName ? DEVID.identify(r.k, r.host) : null;
 			/* имя: своё → из DHCP → вид устройства по MAC → адрес */
 			const shown = custom || (r.name !== r.ip ? r.name : (id && id.label && id.known ? id.label : r.name));
-			const sub = [ custom ? r.name : '', shown === r.ip ? '' : r.ip, id && id.vendor ? id.vendor : '', id && id.priv ? 'частный MAC' : '' ].filter(Boolean);
+			const sub = [ custom ? r.name : '', shown === r.ip ? '' : r.ip, id && id.vendor ? id.vendor : '', id && id.priv ? tr('частный MAC') : '' ].filter(Boolean);
 			const sig = [ shown, sub.join('|'), canName ? 1 : 0, id ? id.kind : '' ].join('\n');
 			if (rw.sig !== sig || !rw.nbox.firstChild || rw.nbox.querySelector('.nf-rename')) {
 				rw.sig = sig;
@@ -1679,17 +1682,17 @@ function topCard() {
 					nameEl.insertBefore(ic, nameEl.firstChild);
 				}
 				rw.nbox.replaceChildren(nameEl, E('span', {}, sub.join(' · ')));
-				if (canName) nameEl.appendChild(E('button', { type: 'button', class: 'nf-edit', title: 'Своё имя', 'aria-label': 'Переименовать «' + shown + '»',
+				if (canName) nameEl.appendChild(E('button', { type: 'button', class: 'nf-edit', title: tr('Своё имя'), 'aria-label': tr('Переименовать «') + shown + '»',
 					click: ev => { ev.stopPropagation(); editName(rw.nbox, r.k, r.name, () => { rw.sig = ''; render(last); }); } }));
 			}
 			rw.bar.style.width = Math.max(2, Math.round(val(r) / mx * 100)) + '%';
 			const dn = fmtRate(r.rd), up = fmtRate(r.ru);
 			setNum(rw.dn, '↓ ' + dn[0] + ' ' + dn[1]); setNum(rw.up, '↑ ' + up[0] + ' ' + up[1]);
 			setNum(rw.tot, fmtBytes(r.dd + r.du));
-			rw.lbl.textContent = 'за день' + (mode === 'day' ? ' · ' + Math.max(1, Math.round((r.dd + r.du) / dayTot * 100)) + '%' : '');
+			rw.lbl.textContent = tr('за день') + (mode === 'day' ? ' · ' + Math.max(1, Math.round((r.dd + r.du) / dayTot * 100)) + '%' : '');
 			const series = mode === 'day' ? hourly[r.k] : live[r.k];
 			rw.sp.innerHTML = series && series.some(v => v > 0) ? miniSpark(series, mode === 'day' ? 'h' : 'n') : '';
-			rw.sp.title = mode === 'day' ? 'Трафик по часам за сутки' : 'Скорость за последние минуты';
+			rw.sp.title = mode === 'day' ? tr('Трафик по часам за сутки') : tr('Скорость за последние минуты');
 			return rw.el;
 		});
 		for (const k of Array.from(rowsEl.keys())) if (!seen.has(k)) rowsEl.delete(k);
@@ -1770,8 +1773,8 @@ function sumApps(data, days, ip) {
 }
 
 function appsCard() {
-	const body = E('div', { class: 'nf-apps-b' }, E('div', { class: 'nf-empty' }, 'Собираю данные…'));
-	const el = xcard('nf-apps', 'Трафик по приложениям', body);
+	const body = E('div', { class: 'nf-apps-b' }, E('div', { class: 'nf-empty' }, tr('Собираю данные…')));
+	const el = xcard('nf-apps', tr('Трафик по приложениям'), body);
 	let names = null, timer = null, data = null, period = 'day', dev = '', busy = false, showOther = false;
 
 	const run = cmd => fs.exec(APPSBIN, [ cmd ]).then(r => { try { return JSON.parse(r.stdout); } catch (e) { return null; } });
@@ -1788,10 +1791,10 @@ function appsCard() {
 	function toggle(cmd, ask) {
 		if (busy || (ask && !window.confirm(ask))) return;
 		busy = true;
-		body.replaceChildren(E('div', { class: 'nf-empty' }, cmd === 'enable' ? 'Включаю…' : 'Выключаю…'));
+		body.replaceChildren(E('div', { class: 'nf-empty' }, cmd === 'enable' ? tr('Включаю…') : tr('Выключаю…')));
 		run(cmd).then(r => {
 			busy = false;
-			if (!r || !r.ok) { body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Не получилось'), E('span', {}, (r && r.error) || 'Нет ответа от роутера. Выйдите и войдите снова (права обновляются при входе).') ])); return; }
+			if (!r || !r.ok) { body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, tr('Не получилось')), E('span', {}, (r && r.error) || tr('Нет ответа от роутера. Выйдите и войдите снова (права обновляются при входе).')) ])); return; }
 			window.setTimeout(load, cmd === 'enable' ? 2500 : 500);
 		}).catch(() => { busy = false; load(); });
 	}
@@ -1799,18 +1802,18 @@ function appsCard() {
 	function render() {
 		if (EDITING || busy) return;
 		if (!data || typeof data.enabled === 'undefined') {
-			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Нет данных'), E('span', {}, 'Сборщик статистики не запущен или не обновлён до версии с учётом приложений.') ]));
+			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, tr('Нет данных')), E('span', {}, tr('Сборщик статистики не запущен или не обновлён до версии с учётом приложений.')) ]));
 			return;
 		}
 		if (data.lite) {
-			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Учёт по приложениям выключен режимом Lite'), E('span', {}, 'Режим Lite бережёт слабый роутер: журнал DNS и разбор по приложениям не ведутся. Чтобы вернуть учёт, выключите Lite в настройках монитора (LITE=0).') ]));
+			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, tr('Учёт по приложениям выключен режимом Lite')), E('span', {}, tr('Режим Lite бережёт слабый роутер: журнал DNS и разбор по приложениям не ведутся. Чтобы вернуть учёт, выключите Lite в настройках монитора (LITE=0).')) ]));
 			return;
 		}
 		if (!data.enabled) {
 			body.replaceChildren(E('div', { class: 'nf-apps-off' }, [
-				E('b', {}, 'Сколько трафика у YouTube, Telegram и других'),
-				E('span', {}, 'Роутер сопоставит адреса соединений с именами сайтов из DNS-запросов и покажет, кто сколько скачал. Для этого будет включён журнал DNS в dnsmasq: он пишется в память роутера (не на диск) и обрезается до 1 МБ. Выключить можно здесь же.'),
-				E('button', { type: 'button', class: 'cbi-button cbi-button-action', click: () => toggle('enable', 'Включить учёт трафика по приложениям?\n\nБудет включён журнал DNS в dnsmasq (в памяти роутера) и dnsmasq перезапустится на пару секунд.') }, 'Включить учёт')
+				E('b', {}, tr('Сколько трафика у YouTube, Telegram и других')),
+				E('span', {}, tr('Роутер сопоставит адреса соединений с именами сайтов из DNS-запросов и покажет, кто сколько скачал. Для этого будет включён журнал DNS в dnsmasq: он пишется в память роутера (не на диск) и обрезается до 1 МБ. Выключить можно здесь же.')),
+				E('button', { type: 'button', class: 'cbi-button cbi-button-action', click: () => toggle('enable', tr('Включить учёт трафика по приложениям?\n\nБудет включён журнал DNS в dnsmasq (в памяти роутера) и dnsmasq перезапустится на пару секунд.')) }, tr('Включить учёт'))
 			]));
 			return;
 		}
@@ -1818,12 +1821,12 @@ function appsCard() {
 		const ips = {};
 		for (const r of (data.day || [])) ips[r[0]] = 1;
 		for (const r of (data.hist || [])) ips[r[1]] = 1;
-		const sel = E('select', { class: 'nf-apps-dev', 'aria-label': 'Устройство', change: ev => { dev = ev.target.value; render(); } },
-			[ E('option', { value: '' }, 'Все устройства') ].concat(Object.keys(ips).sort().map(ip => E('option', { value: ip }, label(ip) + (label(ip) === ip ? '' : ' · ' + ip)))));
+		const sel = E('select', { class: 'nf-apps-dev', 'aria-label': tr('Устройство'), change: ev => { dev = ev.target.value; render(); } },
+			[ E('option', { value: '' }, tr('Все устройства')) ].concat(Object.keys(ips).sort().map(ip => E('option', { value: ip }, label(ip) + (label(ip) === ip ? '' : ' · ' + ip)))));
 		sel.value = dev && ips[dev] ? dev : '';
 		if (sel.value !== dev) dev = sel.value;
-		const seg = E('div', { class: 'nf-apps-seg', role: 'group', 'aria-label': 'Период' }, PERIODS.map(x =>
-			E('button', { type: 'button', 'aria-pressed': String(x[0] === period), click: () => { period = x[0]; render(); } }, x[1])));
+		const seg = E('div', { class: 'nf-apps-seg', role: 'group', 'aria-label': tr('Период') }, PERIODS.map(x =>
+			E('button', { type: 'button', 'aria-pressed': String(x[0] === period), click: () => { period = x[0]; render(); } }, tr(x[1]))));
 
 		const { tot, other, routes } = sumApps(data, p[2], dev);
 		const byApp = {};
@@ -1838,22 +1841,22 @@ function appsCard() {
 		const list = rows.filter(r => r.a !== 'Прочее').slice(0, 8).concat(rows.filter(r => r.a === 'Прочее').slice(0, 1));
 		const content = [];
 		if (sum > 0) {
-			const routeCards = [ [ 'VPN', routes.VPN, 'vpn' ], [ 'Напрямую', routes.Direct, 'direct' ], [ 'Не определено', routes.Unknown, 'unknown' ] ];
+			const routeCards = [ [ 'VPN', routes.VPN, 'vpn' ], [ tr('Напрямую'), routes.Direct, 'direct' ], [ tr('Не определено'), routes.Unknown, 'unknown' ] ];
 			content.push(E('div', { class: 'nf-apps-summary' }, routeCards.map(x => E('div', { class: 'nf-apps-summary-item ' + x[2] }, [ E('span', {}, x[0]), E('b', {}, fmtBytes(x[1])), E('small', {}, nf1.format(x[1] / sum * 100) + '%') ]))));
 		}
 		if (!list.length) {
-			content.push(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Пока пусто'), E('span', {}, data.dnsmap > 0 ? 'Данных за этот период ещё нет.' : 'Журнал DNS пока пуст. Подождите несколько минут, пока устройства сделают запросы. Если ничего не появляется, проверьте, что устройства используют DNS роутера (а не DoH/DoT в браузере или телефоне).') ]));
+			content.push(E('div', { class: 'nf-empty' }, [ E('b', {}, tr('Пока пусто')), E('span', {}, data.dnsmap > 0 ? tr('Данных за этот период ещё нет.') : tr('Журнал DNS пока пуст. Подождите несколько минут, пока устройства сделают запросы. Если ничего не появляется, проверьте, что устройства используют DNS роутера (а не DoH/DoT в браузере или телефоне).')) ]));
 		}
 		else {
 			const mx = Math.max(1, ...list.map(r => r.t));
 			list.forEach(r => {
 				const routeBadges = [ 'VPN', 'Direct', 'Unknown' ].filter(route => r.routes[route] > 0).map(route => E('small', {
 						class: 'nf-apps-route nf-apps-route-' + route.toLowerCase(),
-						title: (route === 'VPN' ? 'VPN' : route === 'Direct' ? 'Напрямую' : 'Неизвестно') + ': ' + fmtBytes(r.routes[route])
-					}, (route === 'VPN' ? 'VPN' : route === 'Direct' ? 'Прямо' : 'Неизв.') + ' · ' + fmtBytes(r.routes[route])));
+						title: (route === 'VPN' ? 'VPN' : route === 'Direct' ? tr('Напрямую') : tr('Неизвестно')) + ': ' + fmtBytes(r.routes[route])
+					}, (route === 'VPN' ? 'VPN' : route === 'Direct' ? tr('Прямо') : tr('Неизв.')) + ' · ' + fmtBytes(r.routes[route])));
 				content.push(E('div', { class: 'nf-apps-r', style: '--c:' + (APP_COLORS[r.a] || 'var(--nf-text-dim)') }, [
 					E('div', { class: 'nf-apps-n' }, [
-						E('div', { class: 'nf-apps-title' }, [ r.a === 'Прочее' ? E('i') : appGlyph(r.a), E('b', {}, r.a) ]),
+						E('div', { class: 'nf-apps-title' }, [ r.a === 'Прочее' ? E('i') : appGlyph(r.a), E('b', {}, tr(r.a)) ]),
 						E('div', { class: 'nf-apps-routes' }, routeBadges)
 					]),
 					E('div', { class: 'nf-top-bar nf-apps-track' }, [ 'VPN', 'Direct', 'Unknown' ].filter(route => r.routes[route] > 0).map(route =>
@@ -1868,32 +1871,32 @@ function appsCard() {
 						const route = a[1] === 'VPN' ? 'VPN' : a[1] === 'Direct' ? 'Direct' : 'Unknown';
 						const raw = a[0] || 'Нет DNS-имени';
 						const reasons = {
-							'Нет DNS-имени': 'Для IP не найдено актуального DNS-имени. Возможны прямое IP-подключение, DoH/DoT, внешний DNS, истёкшая запись или отсутствие DNS-журнала.',
-							'Общий IP (CDN)': 'Один IP встретился у нескольких известных приложений. Трафик оставлен нераспознанным, чтобы не приписывать его неверному сервису.',
-							'Несколько доменов': 'У IP обнаружено несколько разных неизвестных доменов. Нельзя безопасно выбрать один из них.'
+							'Нет DNS-имени': tr('Для IP не найдено актуального DNS-имени. Возможны прямое IP-подключение, DoH/DoT, внешний DNS, истёкшая запись или отсутствие DNS-журнала.'),
+							'Общий IP (CDN)': tr('Один IP встретился у нескольких известных приложений. Трафик оставлен нераспознанным, чтобы не приписывать его неверному сервису.'),
+							'Несколько доменов': tr('У IP обнаружено несколько разных неизвестных доменов. Нельзя безопасно выбрать один из них.')
 						};
-						const names = { 'Нет DNS-имени': 'IP без DNS-имени', 'Общий IP (CDN)': 'Общий IP / CDN', 'Несколько доменов': 'Несколько доменов' };
+						const names = { 'Нет DNS-имени': tr('IP без DNS-имени'), 'Общий IP (CDN)': tr('Общий IP / CDN'), 'Несколько доменов': tr('Несколько доменов') };
 						return { domain: names[raw] || raw, reason: reasons[raw] || '', route, t: other[k][0] + other[k][1] };
 					}).filter(x => x.t > 0).sort((x, y) => y.t - x.t);
 					if (top.length) {
 						const otherTotal = top.reduce((n, x) => n + x.t, 0);
 						const shown = showOther ? top : top.slice(0, 6);
-						content.push(E('section', { class: 'nf-apps-other-panel', 'aria-label': 'Состав нераспознанного трафика' }, [
+						content.push(E('section', { class: 'nf-apps-other-panel', 'aria-label': tr('Состав нераспознанного трафика') }, [
 							E('div', { class: 'nf-apps-other-head' }, [
 								E('div', { class: 'nf-apps-other-heading' }, [
-									E('b', {}, 'Не распознано'),
-									E('span', {}, top.length + ' сочетаний домена и маршрута')
+									E('b', {}, tr('Не распознано')),
+									E('span', {}, top.length + tr(' сочетаний домена и маршрута'))
 								]),
 								E('strong', {}, fmtBytes(otherTotal))
 							]),
-							E('p', { class: 'nf-apps-other-note' }, 'IP без DNS-имени может означать прямое подключение, DoH/DoT, внешний DNS или истёкшую запись. Общие CDN и конфликтующие домены остаются здесь, пока приложение нельзя определить надёжно.'),
+							E('p', { class: 'nf-apps-other-note' }, tr('IP без DNS-имени может означать прямое подключение, DoH/DoT, внешний DNS или истёкшую запись. Общие CDN и конфликтующие домены остаются здесь, пока приложение нельзя определить надёжно.')),
 							E('div', { class: 'nf-apps-other-list' }, shown.map(x => E('div', { class: 'nf-apps-other-row' }, [
 								E('span', { class: 'nf-apps-other-domain', title: x.reason || x.domain }, x.domain),
-								E('small', { class: 'nf-apps-other-route nf-apps-route-' + x.route.toLowerCase() }, x.route === 'VPN' ? 'VPN' : x.route === 'Direct' ? 'Напрямую' : 'Неизв.'),
+								E('small', { class: 'nf-apps-other-route nf-apps-route-' + x.route.toLowerCase() }, x.route === 'VPN' ? 'VPN' : x.route === 'Direct' ? tr('Напрямую') : tr('Неизв.')),
 								E('b', { class: 'nf-apps-other-size' }, fmtBytes(x.t)),
 								E('span', { class: 'nf-apps-other-share' }, nf1.format(x.t / otherTotal * 100) + '%')
 							]))),
-							top.length > 6 ? E('button', { type: 'button', class: 'nf-apps-more', 'aria-expanded': String(showOther), click: () => { showOther = !showOther; render(); } }, showOther ? 'Свернуть список' : 'Показать все (' + top.length + ')') : null
+							top.length > 6 ? E('button', { type: 'button', class: 'nf-apps-more', 'aria-expanded': String(showOther), click: () => { showOther = !showOther; render(); } }, showOther ? tr('Свернуть список') : tr('Показать все (') + top.length + ')') : null
 						]));
 					}
 				}
@@ -1901,8 +1904,8 @@ function appsCard() {
 		}
 		body.replaceChildren(E('div', { class: 'nf-apps-bar' }, [ seg, sel ]), ...content,
 			E('div', { class: 'nf-apps-f' }, [
-				E('span', {}, 'Маршрут определяется по доступным правилам маршрутизации. «Не определено» означает, что данных недостаточно; DoH/DoT и сторонний DNS могут ограничивать распознавание приложений.'),
-				E('button', { type: 'button', class: 'nf-apps-stop', click: () => toggle('disable', 'Выключить учёт трафика по приложениям?\n\nЖурнал DNS в dnsmasq будет возвращён к прежним настройкам.') }, 'Выключить учёт')
+				E('span', {}, tr('Маршрут определяется по доступным правилам маршрутизации. «Не определено» означает, что данных недостаточно; DoH/DoT и сторонний DNS могут ограничивать распознавание приложений.')),
+				E('button', { type: 'button', class: 'nf-apps-stop', click: () => toggle('disable', tr('Выключить учёт трафика по приложениям?\n\nЖурнал DNS в dnsmasq будет возвращён к прежним настройкам.')) }, tr('Выключить учёт'))
 			]));
 	}
 
@@ -1925,27 +1928,27 @@ const GUESTBIN = '/usr/libexec/nightfall-guest';
 const WOLBIN = '/usr/libexec/nightfall-wol';
 
 function blockCard() {
-	const body = E('div', { class: 'nf-blk-b' }, E('div', { class: 'nf-empty' }, 'Собираю данные…'));
+	const body = E('div', { class: 'nf-blk-b' }, E('div', { class: 'nf-empty' }, tr('Собираю данные…')));
 	const head = E('div', { class: 'nf-blk-h', hidden: true });
-	const el = xcard('nf-block', 'Доступ в интернет', E('div', {}, [ head, body ]));
+	const el = xcard('nf-block', tr('Доступ в интернет'), E('div', {}, [ head, body ]));
 	let timer = null, devs = null, busy = false, open = null, note = '', logOn = false, logRows = null;
 	let tab = 'all', qs = '', more = false, checking = false, checkedAt = 0, DEVID = null;
 	try { tab = localStorage.getItem('nightfall-blk-tab') || 'all'; } catch (e) { /* ignore */ }
 	L.require('nightfall-devid').then(m => { DEVID = m; if (devs) render(); }).catch(() => { /* пакет монитора без модуля: без значков */ });
-	const search = E('input', { type: 'search', class: 'nf-blk-q', placeholder: 'Найти устройство', 'aria-label': 'Найти устройство', input: () => { qs = search.value.trim().toLowerCase(); more = false; render(); } });
-	const tabsEl = E('div', { class: 'nf-blk-tabs', role: 'group', 'aria-label': 'Показать устройства' });
-	const chkBtn = E('button', { type: 'button', class: 'nf-linkbtn', title: 'Роутер заново проверит, кто сейчас подключён: Wi-Fi по подключению к точке доступа, кабельные по ответу на запрос ARP', click: () => { if (checking) return; checking = true; renderHead(); load(true); } }, 'Проверить сейчас');
+	const search = E('input', { type: 'search', class: 'nf-blk-q', placeholder: tr('Найти устройство'), 'aria-label': tr('Найти устройство'), input: () => { qs = search.value.trim().toLowerCase(); more = false; render(); } });
+	const tabsEl = E('div', { class: 'nf-blk-tabs', role: 'group', 'aria-label': tr('Показать устройства') });
+	const chkBtn = E('button', { type: 'button', class: 'nf-linkbtn', title: tr('Роутер заново проверит, кто сейчас подключён: Wi-Fi по подключению к точке доступа, кабельные по ответу на запрос ARP'), click: () => { if (checking) return; checking = true; renderHead(); load(true); } }, tr('Проверить сейчас'));
 	const chkNote = E('span', { class: 'nf-blk-chk' });
 	head.append(tabsEl, E('div', { class: 'nf-blk-tools' }, [ search, chkBtn, chkNote ]));
 	const nmOf = d => {
 		const id = DEVID && d.mac ? DEVID.identify(d.mac, d.name) : null;
-		return { id, nm: d.name || (id && id.known ? [ id.label || 'Устройство', id.vendor && id.vendor !== id.label ? id.vendor : '' ].filter(Boolean).join(' ') : '') || d.ip || d.mac };
+		return { id, nm: d.name || (id && id.known ? [ id.label || tr('Устройство'), id.vendor && id.vendor !== id.label ? id.vendor : '' ].filter(Boolean).join(' ') : '') || d.ip || d.mac };
 	};
 	const hasRule = d => !!(d.active || d.from || d.quota || d.manual);
 	function renderHead() {
 		const all = devs || [];
 		const groups = Array.from(new Set(all.map(d => d.group).filter(Boolean))).sort();
-		const defs = [ [ 'all', 'Все', all.length ], [ 'on', 'В сети', all.filter(d => d.online).length ], [ 'off', 'Не в сети', all.filter(d => !d.online).length ], [ 'rule', 'С правилами', all.filter(hasRule).length ] ]
+		const defs = [ [ 'all', tr('Все'), all.length ], [ 'on', tr('В сети'), all.filter(d => d.online).length ], [ 'off', tr('Не в сети'), all.filter(d => !d.online).length ], [ 'rule', tr('С правилами'), all.filter(hasRule).length ] ]
 			.concat(groups.map(g => [ 'g:' + g, g, all.filter(d => d.group === g).length ]));
 		const shown = defs.filter(x => x[0] === 'all' || x[0] === tab || x[2] > 0);
 		tabsEl.replaceChildren(...shown.map(x => E('button', { type: 'button', class: 'nf-linkbtn' + (tab === x[0] ? ' on' : ''), 'aria-pressed': String(tab === x[0]),
@@ -1953,8 +1956,8 @@ function blockCard() {
 			E('span', { class: 'nf-blk-tab-label' }, x[1]), E('i', { class: 'nf-blk-tab-count' }, String(x[2]))
 		])));
 		search.hidden = all.length < 8 && !qs;
-		chkBtn.disabled = checking; chkBtn.classList.toggle('spin', checking); chkBtn.textContent = checking ? 'Проверяю…' : 'Проверить сейчас';
-		chkNote.textContent = checkedAt ? 'проверено в ' + new Date(checkedAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
+		chkBtn.disabled = checking; chkBtn.classList.toggle('spin', checking); chkBtn.textContent = checking ? tr('Проверяю…') : tr('Проверить сейчас');
+		chkNote.textContent = checkedAt ? tr('проверено в ') + new Date(checkedAt).toLocaleTimeString(NFLOC, { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '';
 		head.hidden = !all.length;
 	}
 
@@ -1965,15 +1968,15 @@ function blockCard() {
 		busy = true;
 		run(args).then(r => {
 			busy = false;
-			note = r && r.ok ? okNote : ((r && r.error) || 'Нет ответа от роутера. Выйдите и войдите в LuCI снова (права обновляются при входе).');
+			note = r && r.ok ? okNote : ((r && r.error) || tr('Нет ответа от роутера. Выйдите и войдите в LuCI снова (права обновляются при входе).'));
 			open = r && r.ok ? null : open;
 			load(true);
-		}).catch(() => { busy = false; note = 'Не получилось выполнить команду.'; load(true); });
+		}).catch(() => { busy = false; note = tr('Не получилось выполнить команду.'); load(true); });
 	}
 
 	/* расписание: несколько окон, у каждого свои дни недели (#92) */
-	const DAYN = [ 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс' ];
-	const daysText = dy => !dy ? 'каждый день' : dy === '12345' ? 'будни' : dy === '67' ? 'выходные' : dy.split('').map(x => DAYN[+x - 1]).join(', ');
+	const DAYN = [ tr('Пн'), tr('Вт'), tr('Ср'), tr('Чт'), tr('Пт'), tr('Сб'), tr('Вс') ];
+	const daysText = dy => !dy ? tr('каждый день') : dy === '12345' ? tr('будни') : dy === '67' ? tr('выходные') : dy.split('').map(x => DAYN[+x - 1]).join(', ');
 	const winsOf = o => {
 		const w = [];
 		if (o.from && o.to) w.push({ from: o.from, to: o.to, days: o.days || '' });
@@ -1983,43 +1986,43 @@ function blockCard() {
 	const winsLine = o => winsOf(o).map(w => w.from + '–' + w.to + (w.days ? ' ' + daysText(w.days) : '')).join(', ');
 
 	function sched(d) {
-		const from = E('input', { type: 'time', value: '23:00', 'aria-label': 'Отключать с' });
-		const to = E('input', { type: 'time', value: '07:00', 'aria-label': 'Включать в' });
+		const from = E('input', { type: 'time', value: '23:00', 'aria-label': tr('Отключать с') });
+		const to = E('input', { type: 'time', value: '07:00', 'aria-label': tr('Включать в') });
 		const chk = DAYN.map((n, i) => E('input', { type: 'checkbox', value: String(i + 1), checked: true, 'aria-label': n }));
 		const preset = (txt, set) => E('button', { type: 'button', class: 'cbi-button', click: () => chk.forEach(c => { c.checked = set.indexOf(c.value) >= 0; }) }, txt);
 		const picked = () => { const v = chk.filter(c => c.checked).map(c => c.value).join(''); return v === '1234567' ? '' : v; };
 		const wins = winsOf(d);
 		const list = wins.map((w, i) => E('div', { class: 'nf-blk-sched nf-blk-win' }, [
 			E('span', {}, '⏰ ' + w.from + '–' + w.to + ' · ' + daysText(w.days)),
-			E('button', { type: 'button', class: 'cbi-button', click: () => act([ 'sdel', d.mac, String(i + 1) ], 'Окно убрано.') }, 'Убрать') ]));
-		if (wins.length > 1) list.push(E('div', { class: 'nf-blk-sched' }, [ E('button', { type: 'button', class: 'cbi-button', click: () => act([ 'sched', d.mac, 'off' ], 'Расписание убрано.') }, 'Убрать всё расписание') ]));
+			E('button', { type: 'button', class: 'cbi-button', click: () => act([ 'sdel', d.mac, String(i + 1) ], tr('Окно убрано.')) }, tr('Убрать')) ]));
+		if (wins.length > 1) list.push(E('div', { class: 'nf-blk-sched' }, [ E('button', { type: 'button', class: 'cbi-button', click: () => act([ 'sched', d.mac, 'off' ], tr('Расписание убрано.')) }, tr('Убрать всё расписание')) ]));
 		return E('div', { class: 'nf-blk-sch' }, list.concat([
-			E('div', { class: 'nf-blk-sched' }, [ E('span', {}, wins.length ? 'Ещё одно окно: отключать с' : 'Отключать с'), from, E('span', {}, 'до'), to ]),
+			E('div', { class: 'nf-blk-sched' }, [ E('span', {}, wins.length ? tr('Ещё одно окно: отключать с') : tr('Отключать с')), from, E('span', {}, tr('до')), to ]),
 			E('div', { class: 'nf-blk-sched nf-blk-days' }, chk.map((c, i) => E('label', {}, [ c, DAYN[i] ]))),
-			E('div', { class: 'nf-blk-sched' }, [ preset('Каждый день', '1234567'), preset('Будни', '12345'), preset('Выходные', '67'),
+			E('div', { class: 'nf-blk-sched' }, [ preset(tr('Каждый день'), '1234567'), preset(tr('Будни'), '12345'), preset(tr('Выходные'), '67'),
 				E('button', { type: 'button', class: 'cbi-button cbi-button-action', click: () => {
-					if (!chk.some(c => c.checked)) { note = 'Отметьте хотя бы один день недели.'; render(); return; }
-					act([ 'sadd', d.mac, from.value, to.value, picked() ], 'Расписание сохранено.');
-				} }, 'Добавить') ]) ]));
+					if (!chk.some(c => c.checked)) { note = tr('Отметьте хотя бы один день недели.'); render(); return; }
+					act([ 'sadd', d.mac, from.value, to.value, picked() ], tr('Расписание сохранено.'));
+				} }, tr('Добавить')) ]) ]));
 	}
 
 	function quotaRow(d) {
-		const gb = E('input', { type: 'number', min: '0.1', step: '0.1', value: d.quota ? String(Math.round(d.quota / 102.4) / 10) : '', placeholder: 'ГБ', 'aria-label': 'Лимит в сутки, ГБ' });
+		const gb = E('input', { type: 'number', min: '0.1', step: '0.1', value: d.quota ? String(Math.round(d.quota / 102.4) / 10) : '', placeholder: tr('ГБ'), 'aria-label': tr('Лимит в сутки, ГБ') });
 		return E('div', { class: 'nf-blk-sched' }, [
-			E('span', {}, 'Лимит трафика в сутки'), gb, E('span', {}, 'ГБ'),
+			E('span', {}, tr('Лимит трафика в сутки')), gb, E('span', {}, tr('ГБ')),
 			E('button', { type: 'button', class: 'cbi-button cbi-button-action', click: () => {
 				const v = parseFloat(String(gb.value).replace(',', '.'));
-				if (!(v > 0)) { note = 'Введите лимит в гигабайтах, например 5.'; render(); return; }
-				act([ 'quota', d.mac, String(Math.round(v * 1024)), d.name || '' ], 'Лимит задан: интернет отключится до конца суток, когда устройство скачает ' + v + ' ГБ.');
-			} }, 'Задать'),
-			d.quota ? E('button', { type: 'button', class: 'cbi-button', click: () => act([ 'quota', d.mac, 'off' ], 'Лимит убран.') }, 'Убрать') : ''
+				if (!(v > 0)) { note = tr('Введите лимит в гигабайтах, например 5.'); render(); return; }
+				act([ 'quota', d.mac, String(Math.round(v * 1024)), d.name || '' ], tr('Лимит задан: интернет отключится до конца суток, когда устройство скачает ') + v + tr(' ГБ.'));
+			} }, tr('Задать')),
+			d.quota ? E('button', { type: 'button', class: 'cbi-button', click: () => act([ 'quota', d.mac, 'off' ], tr('Лимит убран.')) }, tr('Убрать')) : ''
 		]);
 	}
 
 	function render() {
 		if (EDITING || busy) return;
 		if (!devs) {
-			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Нет данных'), E('span', {}, 'Не удалось получить список устройств. Если вы только что обновили тему, выйдите и войдите в LuCI снова.') ]));
+			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, tr('Нет данных')), E('span', {}, tr('Не удалось получить список устройств. Если вы только что обновили тему, выйдите и войдите в LuCI снова.')) ]));
 			return;
 		}
 		renderHead();
@@ -2029,18 +2032,18 @@ function blockCard() {
 		const rows = more ? found : found.slice(0, 30);
 		const list = rows.map(d => {
 			const { id, nm } = nmOf(d);
-			const q = d.quota ? ' · 📉 ' + fmtBytes(d.used) + ' из ' + fmtBytes(d.quota * 1048576) : '';
-			const st = d.active ? E('span', { class: 'nf-blk-st bad' }, (d.reason === 'quota' ? 'лимит исчерпан' : d.reason === 'sched' ? 'по расписанию' : 'отключено') + q)
-				: E('span', { class: 'nf-blk-st ' + (d.online && !d.from && !d.quota ? 'ok' : '') }, (d.from ? '⏰ ' + winsLine(d) + (d.snoozed ? ' (пропуск до завтра)' : '') + ' · ' : '') + (d.online ? (d.wifi ? 'в сети · Wi-Fi' : (d.connection ? 'в сети · ' + d.connection : 'в сети')) : 'не в сети') + q);
+			const q = d.quota ? ' · 📉 ' + fmtBytes(d.used) + tr(' из ') + fmtBytes(d.quota * 1048576) : '';
+			const st = d.active ? E('span', { class: 'nf-blk-st bad' }, (d.reason === 'quota' ? tr('лимит исчерпан') : d.reason === 'sched' ? tr('по расписанию') : tr('отключено')) + q)
+				: E('span', { class: 'nf-blk-st ' + (d.online && !d.from && !d.quota ? 'ok' : '') }, (d.from ? '⏰ ' + winsLine(d) + (d.snoozed ? tr(' (пропуск до завтра)') : '') + ' · ' : '') + (d.online ? (d.wifi ? tr('в сети · Wi-Fi') : (d.connection ? tr('в сети · ') + d.connection : tr('в сети'))) : tr('не в сети')) + q);
 			const line = E('div', { class: 'nf-blk-r' + (d.active ? ' off' : '') }, [
 				E('div', { class: 'nf-blk-n' }, [ E('b', { title: id && id.hint ? id.hint : '' }, [ id ? (() => { const ic = E('i', { class: 'nf-dv-i' + (id.priv ? ' priv' : '') }); ic.innerHTML = DEVID.icon(id.kind); return ic; })() : '', E('span', { class: 'nf-dv-t' }, nm) ]),
-					E('span', {}, [ d.ip !== nm ? d.ip : '', d.mac, !d.name && id && id.vendor ? id.vendor : '', id && id.priv ? 'частный MAC' : '' ].filter(Boolean).join(' · ')) ]),
+					E('span', {}, [ d.ip !== nm ? d.ip : '', d.mac, !d.name && id && id.vendor ? id.vendor : '', id && id.priv ? tr('частный MAC') : '' ].filter(Boolean).join(' · ')) ]),
 				st,
 				E('div', { class: 'nf-blk-a' }, [
 					E('button', { type: 'button', class: 'cbi-button ' + (d.active ? 'cbi-button-action' : 'cbi-button-remove'),
-						click: () => act([ d.active ? 'unblock' : 'block', d.mac, nm ], d.active ? nm + ': интернет возвращён.' : nm + ': интернет отключён.') }, d.active ? 'Вернуть' : 'Отключить'),
-					!d.online ? E('button', { type: 'button', class: 'cbi-button nf-wol', title: 'Включить по сети (Wake-on-LAN): в компьютере или NAS должна быть включена эта функция', 'aria-label': 'Включить ' + nm,
-						click: ev => { const b = ev.currentTarget; b.disabled = true; fs.exec(WOLBIN, [ 'send', d.mac ]).then(r => { let j = null; try { j = JSON.parse(r.stdout); } catch (e) { /* пусто */ } note = j && j.ok ? nm + ': сигнал на включение отправлен. Компьютеру нужно 10–30 секунд.' : ((j && j.error) || 'Нет ответа от роутера. Обновите тему и войдите в LuCI снова.'); render(); }).catch(() => { note = 'Не получилось отправить сигнал.'; render(); }); } }, '⚡') : '',
+						click: () => act([ d.active ? 'unblock' : 'block', d.mac, nm ], d.active ? nm + tr(': интернет возвращён.') : nm + tr(': интернет отключён.')) }, d.active ? tr('Вернуть') : tr('Отключить')),
+					!d.online ? E('button', { type: 'button', class: 'cbi-button nf-wol', title: tr('Включить по сети (Wake-on-LAN): в компьютере или NAS должна быть включена эта функция'), 'aria-label': tr('Включить ') + nm,
+						click: ev => { const b = ev.currentTarget; b.disabled = true; fs.exec(WOLBIN, [ 'send', d.mac ]).then(r => { let j = null; try { j = JSON.parse(r.stdout); } catch (e) { /* пусто */ } note = j && j.ok ? nm + tr(': сигнал на включение отправлен. Компьютеру нужно 10–30 секунд.') : ((j && j.error) || tr('Нет ответа от роутера. Обновите тему и войдите в LuCI снова.')); render(); }).catch(() => { note = tr('Не получилось отправить сигнал.'); render(); }); } }, '⚡') : '',
 					E('button', { type: 'button', class: 'cbi-button', 'aria-expanded': String(open === d.mac), click: () => { open = open === d.mac ? null : d.mac; render(); } }, '⏰')
 				])
 			]);
@@ -2048,11 +2051,11 @@ function blockCard() {
 		});
 		body.replaceChildren(
 			note ? E('div', { class: 'nf-blk-note' }, note) : '',
-			...(list.length ? list : [ E('div', { class: 'nf-empty' }, devs.length ? 'В этой вкладке никого нет.' : 'Устройств не видно.') ]),
-			found.length > rows.length ? E('button', { type: 'button', class: 'nf-link nf-blk-more', click: () => { more = true; render(); } }, 'Показать ещё ' + (found.length - rows.length)) : '',
-			logOn ? E('div', { class: 'nf-blk-log' }, (logRows && logRows.length ? logRows.map(r => E('div', {}, [ E('span', {}, new Date(r[0] * 1000).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })), E('b', {}, r[2] || r[1]), E('span', { class: r[3] === 'on' ? 'bad' : 'ok' }, r[3] === 'on' ? 'отключён' : 'возвращён'), E('i', {}, r[4]) ])) : [ E('div', { class: 'nf-empty' }, 'Записей пока нет.') ])) : '',
-			E('div', { class: 'nf-apps-f' }, [ E('span', {}, 'Устройству отключается выход в интернет (по MAC-адресу). Роутер и локальная сеть остаются доступными, поэтому вернуть доступ можно всегда. Устройства со «случайным» Wi-Fi адресом лучше отключить в настройках самого телефона. То же можно делать кнопками в Telegram-боте.'),
-				E('button', { type: 'button', class: 'nf-link', click: () => { logOn = !logOn; if (logOn) run([ 'log' ]).then(r => { logRows = r && r.ok ? r.log : []; render(); }); else render(); } }, logOn ? 'Скрыть журнал' : 'Журнал блокировок') ]));
+			...(list.length ? list : [ E('div', { class: 'nf-empty' }, devs.length ? tr('В этой вкладке никого нет.') : tr('Устройств не видно.')) ]),
+			found.length > rows.length ? E('button', { type: 'button', class: 'nf-link nf-blk-more', click: () => { more = true; render(); } }, tr('Показать ещё ') + (found.length - rows.length)) : '',
+			logOn ? E('div', { class: 'nf-blk-log' }, (logRows && logRows.length ? logRows.map(r => E('div', {}, [ E('span', {}, new Date(r[0] * 1000).toLocaleString(NFLOC, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })), E('b', {}, r[2] || r[1]), E('span', { class: r[3] === 'on' ? 'bad' : 'ok' }, r[3] === 'on' ? tr('отключён') : tr('возвращён')), E('i', {}, r[4]) ])) : [ E('div', { class: 'nf-empty' }, tr('Записей пока нет.')) ])) : '',
+			E('div', { class: 'nf-apps-f' }, [ E('span', {}, tr('Устройству отключается выход в интернет (по MAC-адресу). Роутер и локальная сеть остаются доступными, поэтому вернуть доступ можно всегда. Устройства со «случайным» Wi-Fi адресом лучше отключить в настройках самого телефона. То же можно делать кнопками в Telegram-боте.')),
+				E('button', { type: 'button', class: 'nf-link', click: () => { logOn = !logOn; if (logOn) run([ 'log' ]).then(r => { logRows = r && r.ok ? r.log : []; render(); }); else render(); } }, logOn ? tr('Скрыть журнал') : tr('Журнал блокировок')) ]));
 	}
 
 	function load(force) {
@@ -2081,7 +2084,7 @@ function foldSummary(el, key) {
 			return [ label ? label.textContent.trim() : '', count ? count.textContent.trim() : '' ].filter(Boolean).join(' ');
 		}).filter(Boolean).join(' · ');
 	}
-	return (t || FOLD[key]).slice(0, 110);
+	return tr(t || FOLD[key]).slice(0, 110);
 }
 function xcard(cls, title, body) {
 	const el = E('div', { class: 'cbi-section nf-xcard ' + cls + ' fade-in' }, [ E('div', { class: 'cbi-title' }, E('h3', {}, title)), body ]);
@@ -2115,7 +2118,7 @@ const TEMP_WIFI = /phy|mt76|mt79|wifi|wlan|ath|iwlwifi/i;
 function tempLabel(raw) {
 	const b = String(raw).replace(/#\d+$/, '');
 	const ph = /phy(\d+)/i.exec(b);
-	if (TEMP_WIFI.test(b)) return ph ? 'Wi‑Fi, радио ' + (+ph[1] + 1) : 'Wi‑Fi';
+	if (TEMP_WIFI.test(b)) return ph ? tr('Wi‑Fi, радио ') + (+ph[1] + 1) : tr('Wi‑Fi');
 	if (/cpu|soc|core|a53|a73|a72|thermal/i.test(b)) return 'Процессор';
 	if (/nvme|ssd|drive|disk/i.test(b)) return 'Накопитель';
 	if (/gpu/i.test(b)) return 'Графика';
@@ -2147,11 +2150,11 @@ function tempScale(vals) {
 function tempCard() {
 	let range = '5m';
 	try { const v = localStorage.getItem(TEMP_KEY); if (TEMP_RANGES.some(r => r[0] === v)) range = v; } catch (e) { /* ignore */ }
-	const body = E('div', { class: 'nf-tt-b' }, E('div', { class: 'nf-empty' }, 'Собираю данные…'));
+	const body = E('div', { class: 'nf-tt-b' }, E('div', { class: 'nf-empty' }, tr('Собираю данные…')));
 	const btns = TEMP_RANGES.map(r => E('button', { type: 'button', class: 'nf-linkbtn' + (r[0] === range ? ' on' : ''), 'data-r': r[0],
-		click: ev => { ev.stopPropagation(); range = r[0]; try { localStorage.setItem(TEMP_KEY, range); } catch (e) { /* ignore */ } btns.forEach(b => b.classList.toggle('on', b.getAttribute('data-r') === range)); render(); load(); } }, r[1]));
+		click: ev => { ev.stopPropagation(); range = r[0]; try { localStorage.setItem(TEMP_KEY, range); } catch (e) { /* ignore */ } btns.forEach(b => b.classList.toggle('on', b.getAttribute('data-r') === range)); render(); load(); } }, tr(r[1])));
 	const el = E('div', { class: 'cbi-section nf-temps fade-in' }, [
-		E('div', { class: 'cbi-title nf-top-t' }, [ E('h3', {}, 'Температуры'), E('span', { class: 'nf-top-m', role: 'group', 'aria-label': 'Период' }, btns) ]), body ]);
+		E('div', { class: 'cbi-title nf-top-t' }, [ E('h3', {}, tr('Температуры')), E('span', { class: 'nf-top-m', role: 'group', 'aria-label': tr('Период') }, btns) ]), body ]);
 	const tiles = new Map();
 	const syncStock = () => { if (el.parentNode) hideStockTemp(el.parentNode, [ { el, isReady: () => ready } ]); };
 	let fine = null, coarse = null, coarseAt = 0, timer = null, ready = false;
@@ -2180,7 +2183,7 @@ function tempCard() {
 	function render() {
 		if (!fine || !Array.isArray(fine.names) || !fine.names.length) {
 			ready = false; tiles.clear(); syncStock();
-			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Нет данных'), E('span', {}, fine ? 'Датчики температуры не найдены или сборщик истории ещё не записал замеры.' : 'Не удалось получить данные. Если вы только что обновили тему, выйдите и войдите в LuCI снова.') ]));
+			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, tr('Нет данных')), E('span', {}, fine ? tr('Датчики температуры не найдены или сборщик истории ещё не записал замеры.') : tr('Не удалось получить данные. Если вы только что обновили тему, выйдите и войдите в LuCI снова.')) ]));
 			return;
 		}
 		ready = true; syncStock();
@@ -2194,16 +2197,17 @@ function tempCard() {
 		const nodes = order.map(([ name, i ]) => {
 			const o = tile(name), f = seriesOf(fine, i, Math.max(300, 5 * (+fine.step || 15))), s = seriesOf(src === fine ? fine : src, src === fine ? i : (src.names || []).indexOf(name), rg[2]);
 			const swin = Math.max(120, 5 * (+fine.step || 15)), cur = f.v.length ? f.v[f.v.length - 1] : null, rate = tempSlope(f.t, f.v, swin);
-			o.n.textContent = tempLabel(name);
-			o.raw.textContent = tempLabel(name) !== name ? name : '';
+			const tl = tempLabel(name);
+			o.n.textContent = tl === name ? name : tr(tl);
+			o.raw.textContent = tl !== name ? name : '';
 			o.v.textContent = cur == null ? '–' : nf1.format(cur) + ' °C';
-			o.r.textContent = rate == null ? 'считаю…' : Math.abs(rate) < 0.1 ? '→ стабильно' : (rate > 0 ? '↑ +' : '↓ ') + nf1.format(rate) + ' °C/мин';
+			o.r.textContent = rate == null ? tr('считаю…') : Math.abs(rate) < 0.1 ? tr('→ стабильно') : (rate > 0 ? '↑ +' : '↓ ') + nf1.format(rate) + tr(' °C/мин');
 			o.r.setAttribute('data-lv', rate == null ? '' : Math.abs(rate) < 0.1 ? 'ok' : tempLevel(rate));
-			o.r.title = 'Скорость изменения температуры за последние ' + (swin / 60) + ' мин';
+			o.r.title = tr('Скорость изменения температуры за последние ') + (swin / 60) + tr(' мин');
 			const [ lo, hi ] = tempScale(s.v);
 			o.sp.update(s.t, [ s.v ], hi, lo);
 			const sv = s.v.filter(x => x != null);
-			o.m.textContent = sv.length ? 'за ' + rg[1].toLowerCase() + ': мин ' + nf1.format(Math.min(...sv)) + ' · макс ' + nf1.format(Math.max(...sv)) : 'нет замеров за этот период';
+			o.m.textContent = sv.length ? tr('за ') + tr(rg[1]).toLowerCase() + tr(': мин ') + nf1.format(Math.min(...sv)) + tr(' · макс ') + nf1.format(Math.max(...sv)) : tr('нет замеров за этот период');
 			o.el.classList.toggle('nf-tt-main', nodesN === 3 && tempLabel(name) === 'Процессор');
 			return o.el;
 		});
@@ -2246,17 +2250,17 @@ function hideStockTemp(view, extras) {
 function modeChip(mode) {
 	const lite = mode === 'lite';
 	return E('span', { class: 'nf-chip nf-mode ' + (lite ? 'lite' : 'full'),
-		title: lite ? 'Режим Lite: сборщик замеряет раз в 60 секунд, без учёта по приложениям и истории Wi‑Fi. Меняется в «Монитор ресурсов» → настройки (LITE).' : 'Мощный режим: сборщик замеряет каждые 15 секунд, доступны все функции. Для слабого роутера включите Lite в настройках монитора (LITE).' },
-		'Режим: ' + (lite ? 'Lite' : 'Мощный'));
+		title: lite ? tr('Режим Lite: сборщик замеряет раз в 60 секунд, без учёта по приложениям и истории Wi‑Fi. Меняется в «Монитор ресурсов» → настройки (LITE).') : tr('Мощный режим: сборщик замеряет каждые 15 секунд, доступны все функции. Для слабого роутера включите Lite в настройках монитора (LITE).') },
+		tr('Режим: ') + (lite ? 'Lite' : tr('Мощный')));
 }
 
 function healthCard() {
 	const C = 2 * Math.PI * 38;
 	const ARC = 'M46 8a38 38 0 1 1 0 76a38 38 0 1 1 0-76';
 	const fg = SVG('path', { class: 'fg', d: ARC, 'stroke-dasharray': C.toFixed(1), 'stroke-dashoffset': C.toFixed(1) });
-	const num = E('b', {}, '–'), head = E('strong', {}, 'Собираю данные…'), chips = E('div', { class: 'nf-chips' });
+	const num = E('b', {}, '–'), head = E('strong', {}, tr('Собираю данные…')), chips = E('div', { class: 'nf-chips' });
 	const ring = E('div', { class: 'nf-ring' }, [ SVG('svg', { viewBox: '0 0 92 92' }, [ SVG('path', { class: 'bg', d: ARC }), fg ]), num ]);
-	const el = xcard('nf-health', 'Состояние роутера', E('div', { class: 'nf-health-b' }, [ ring, E('div', { class: 'nf-health-t' }, [ head, chips ]) ]));
+	const el = xcard('nf-health', tr('Состояние роутера'), E('div', { class: 'nf-health-b' }, [ ring, E('div', { class: 'nf-health-t' }, [ head, chips ]) ]));
 	let timer = null;
 
 	function render() {
@@ -2266,34 +2270,34 @@ function healthCard() {
 		const f = [];
 		const add = (pen, lvl, text) => { score -= pen; f.push([ lvl, text ]); };
 
-		if (s.online === false) add(50, 'bad', 'Нет интернета');
-		else if (s.online === true) f.push([ 'ok', 'Интернет работает' ]);
+		if (s.online === false) add(50, 'bad', tr('Нет интернета'));
+		else if (s.online === true) f.push([ 'ok', tr('Интернет работает') ]);
 		if (s.ping != null && s.ping >= 0) {
-			if (s.ping > 150) add(15, 'bad', 'Высокий пинг ' + nf0.format(s.ping) + ' мс');
-			else if (s.ping > 80) add(6, 'warn', 'Пинг ' + nf0.format(s.ping) + ' мс');
+			if (s.ping > 150) add(15, 'bad', tr('Высокий пинг ') + nf0.format(s.ping) + tr(' мс'));
+			else if (s.ping > 80) add(6, 'warn', tr('Пинг ') + nf0.format(s.ping) + tr(' мс'));
 		}
-		if (s.loss != null && s.loss > 2) add(s.loss > 10 ? 20 : 10, s.loss > 10 ? 'bad' : 'warn', 'Потери ' + nf0.format(s.loss) + '%');
+		if (s.loss != null && s.loss > 2) add(s.loss > 10 ? 20 : 10, s.loss > 10 ? 'bad' : 'warn', tr('Потери ') + nf0.format(s.loss) + '%');
 		const [ cpuMid, cpuBad ] = thr('cpu', 60, 85), [ memMid, memBad ] = thr('mem', 70, 88), [ tempMid, tempBad ] = thr('temp', 70, 85);
 		if (s.cpu != null) {
-			if (s.cpu >= cpuBad) add(20, 'bad', 'Процессор ' + nf0.format(s.cpu) + '%');
-			else if (s.cpu >= cpuMid) add(8, 'warn', 'Процессор ' + nf0.format(s.cpu) + '%');
+			if (s.cpu >= cpuBad) add(20, 'bad', tr('Процессор ') + nf0.format(s.cpu) + '%');
+			else if (s.cpu >= cpuMid) add(8, 'warn', tr('Процессор ') + nf0.format(s.cpu) + '%');
 		}
 		if (s.mem != null) {
-			if (s.mem >= memBad) add(20, 'bad', 'Память ' + nf0.format(s.mem) + '%');
-			else if (s.mem >= memMid) add(8, 'warn', 'Память ' + nf0.format(s.mem) + '%');
+			if (s.mem >= memBad) add(20, 'bad', tr('Память ') + nf0.format(s.mem) + '%');
+			else if (s.mem >= memMid) add(8, 'warn', tr('Память ') + nf0.format(s.mem) + '%');
 		}
 		if (s.temp != null) {
-			if (s.temp >= tempBad) add(25, 'bad', 'Жарко ' + nf0.format(s.temp) + ' °C');
-			else if (s.temp >= tempMid) add(12, 'warn', 'Тепло ' + nf0.format(s.temp) + ' °C');
+			if (s.temp >= tempBad) add(25, 'bad', tr('Жарко ') + nf0.format(s.temp) + ' °C');
+			else if (s.temp >= tempMid) add(12, 'warn', tr('Тепло ') + nf0.format(s.temp) + ' °C');
 		}
 		score = Math.max(0, Math.min(100, Math.round(score)));
 		const bad = f.filter(x => x[0] !== 'ok');
-		if (!bad.length) f.push([ 'ok', 'Нагрузка в норме' ]);
+		if (!bad.length) f.push([ 'ok', tr('Нагрузка в норме') ]);
 
 		num.textContent = String(score);
 		fg.setAttribute('stroke-dashoffset', (C * (1 - score / 100)).toFixed(1));
 		ring.style.setProperty('--c', score >= 85 ? 'var(--nf-g-up, #2ea043)' : score >= 65 ? '#e8a317' : 'var(--nf-g-bad, #e5484d)');
-		head.textContent = score >= 85 ? 'Всё хорошо' : score >= 65 ? 'Есть замечания' : score >= 40 ? 'Нужно внимание' : 'Проблемы';
+		head.textContent = score >= 85 ? tr('Всё хорошо') : score >= 65 ? tr('Есть замечания') : score >= 40 ? tr('Нужно внимание') : tr('Проблемы');
 		chips.replaceChildren(...f.slice(0, 6).map(x => E('span', { class: 'nf-chip ' + x[0] }, x[1])), ...(SHARED.mode ? [ modeChip(SHARED.mode) ] : []));
 	}
 
@@ -2301,20 +2305,20 @@ function healthCard() {
 }
 
 function wifiCard() {
-	const body = E('div', { class: 'nf-wifi-b' }, E('div', { class: 'nf-empty' }, 'Ищу подключённые устройства…'));
-	const el = xcard('nf-wifi', 'Wi‑Fi сейчас', body);
+	const body = E('div', { class: 'nf-wifi-b' }, E('div', { class: 'nf-empty' }, tr('Ищу подключённые устройства…')));
+	const el = xcard('nf-wifi', tr('Wi‑Fi сейчас'), body);
 	let names = null, timer = null;
-	const BAND = { '2g': '2,4 ГГц', '5g': '5 ГГц', '6g': '6 ГГц', '60g': '60 ГГц' };
+	const BAND = { '2g': tr('2,4 ГГц'), '5g': tr('5 ГГц'), '6g': tr('6 ГГц'), '60g': tr('60 ГГц') };
 
 	const open = new Set();
 	let lastList = null;
-	const dur = s => { s = +s || 0; const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return d ? d + ' д ' + h + ' ч' : h ? h + ' ч ' + m + ' мин' : m + ' мин'; };
+	const dur = s => { s = +s || 0; const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return d ? d + tr(' д ') + h + tr(' ч') : h ? h + tr(' ч ') + m + tr(' мин') : m + tr(' мин'); };
 
 	function render(list) {
 		if (EDITING) return;
 		lastList = list;
 		if (!list.length) {
-			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Никого нет'), E('span', {}, 'К Wi‑Fi сейчас не подключено ни одно устройство.') ]));
+			body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, tr('Никого нет')), E('span', {}, tr('К Wi‑Fi сейчас не подключено ни одно устройство.')) ]));
 			return;
 		}
 		list.sort((a, b) => b.signal - a.signal);
@@ -2330,24 +2334,24 @@ function wifiCard() {
 				title,
 				E('div', { class: 'nf-sig', 'data-l': lv[0] }, [
 					E('i', {}, [ 1, 2, 3, 4 ].map(k => E('s', { class: k <= n ? 'on' : '', style: 'height:' + (4 + k * 3) + 'px' }))),
-					E('span', {}, nf0.format(s.signal) + ' дБм') ]),
-				E('small', {}, [ s.ssid, s.band, '↓' + rx + ' ↑' + tx + ' Мбит/с' ].filter(Boolean).join(' · '))
+					E('span', {}, nf0.format(s.signal) + tr(' дБм')) ]),
+				E('small', {}, [ s.ssid, s.band, '↓' + rx + ' ↑' + tx + tr(' Мбит/с') ].filter(Boolean).join(' · '))
 			]);
 			const kv = (k, v) => v == null || v === '' ? null : E('div', {}, [ E('span', {}, k), E('b', {}, v) ]);
 			const snr = s.noise != null && s.noise < 0 ? s.signal - s.noise : null;
 			const det = E('div', { class: 'nf-sta-d' }, [
-				kv('MAC', s.mac), kv('IP', ((hint.ipaddrs || [])[0]) || ((hint.ip6addrs || [])[0])), kv('Сеть', [ s.ssid, s.band ].filter(Boolean).join(' · ')),
-				kv('Сигнал', nf0.format(s.signal) + ' дБм · ' + lv[1]), kv('Шум', s.noise != null && s.noise < 0 ? nf0.format(s.noise) + ' дБм' : ''), kv('Запас сигнала', snr != null ? nf0.format(snr) + ' дБ' : ''),
-				kv('Скорость ↓', s.rx && s.rx.rate ? nf0.format(s.rx.rate / 1000) + ' Мбит/с' + (s.rx.mhz ? ' · ' + s.rx.mhz + ' МГц' : '') : ''),
-				kv('Скорость ↑', s.tx && s.tx.rate ? nf0.format(s.tx.rate / 1000) + ' Мбит/с' + (s.tx.mhz ? ' · ' + s.tx.mhz + ' МГц' : '') : ''),
-				kv('Подключён', s.connected_time ? dur(s.connected_time) : ''), kv('Был тих', s.inactive != null ? nf0.format(s.inactive) + ' мс' : ''),
-				kv('Пакетов ↓/↑', s.rx && s.tx && s.rx.packets != null ? nf0.format(s.rx.packets) + ' / ' + nf0.format(s.tx.packets) : ''),
-				kv('Режим', [ s.he ? 'Wi‑Fi 6' : s.vht ? 'Wi‑Fi 5' : s.ht ? 'Wi‑Fi 4' : '' ].filter(Boolean).join(''))
+				kv('MAC', s.mac), kv('IP', ((hint.ipaddrs || [])[0]) || ((hint.ip6addrs || [])[0])), kv(tr('Сеть'), [ s.ssid, s.band ].filter(Boolean).join(' · ')),
+				kv(tr('Сигнал'), nf0.format(s.signal) + tr(' дБм · ') + lv[1]), kv(tr('Шум'), s.noise != null && s.noise < 0 ? nf0.format(s.noise) + tr(' дБм') : ''), kv(tr('Запас сигнала'), snr != null ? nf0.format(snr) + tr(' дБ') : ''),
+				kv(tr('Скорость ↓'), s.rx && s.rx.rate ? nf0.format(s.rx.rate / 1000) + tr(' Мбит/с') + (s.rx.mhz ? ' · ' + s.rx.mhz + tr(' МГц') : '') : ''),
+				kv(tr('Скорость ↑'), s.tx && s.tx.rate ? nf0.format(s.tx.rate / 1000) + tr(' Мбит/с') + (s.tx.mhz ? ' · ' + s.tx.mhz + tr(' МГц') : '') : ''),
+				kv(tr('Подключён'), s.connected_time ? dur(s.connected_time) : ''), kv(tr('Был тих'), s.inactive != null ? nf0.format(s.inactive) + tr(' мс') : ''),
+				kv(tr('Пакетов ↓/↑'), s.rx && s.tx && s.rx.packets != null ? nf0.format(s.rx.packets) + ' / ' + nf0.format(s.tx.packets) : ''),
+				kv(tr('Режим'), [ s.he ? 'Wi‑Fi 6' : s.vht ? 'Wi‑Fi 5' : s.ht ? 'Wi‑Fi 4' : '' ].filter(Boolean).join(''))
 			].filter(Boolean));
 			const rn = E('button', { type: 'button', class: 'nf-qa nf-rn', click: ev => {
 				ev.stopPropagation();
 				editName(title.parentNode.querySelector('b'), mac, auto, () => render(lastList));
-			} }, custom ? 'Изменить имя' : 'Дать имя');
+			} }, custom ? tr('Изменить имя') : tr('Дать имя'));
 			det.appendChild(E('div', { class: 'nf-sta-a' }, rn));
 			const toggle = () => { if (open.has(mac)) open.delete(mac); else open.add(mac); render(lastList); };
 			row.addEventListener('click', toggle);
@@ -2359,7 +2363,7 @@ function wifiCard() {
 	function load() {
 		if (idle(el)) return;
 		Promise.all([ callWireless().then(v => v || {}, () => null), names ? null : L.resolveDefault(callHints(), {}) ]).then(r => {
-			if (r[0] === null) { body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Нет доступа к данным Wi‑Fi'), E('span', {}, 'После обновления темы выйдите из LuCI и войдите заново, затем выполните: /etc/init.d/rpcd restart') ])); return; }
+			if (r[0] === null) { body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, tr('Нет доступа к данным Wi‑Fi')), E('span', {}, tr('После обновления темы выйдите из LuCI и войдите заново, затем выполните: /etc/init.d/rpcd restart')) ])); return; }
 			if (r[1]) names = Object.keys(r[1]).reduce((o, k) => { o[k.toUpperCase()] = r[1][k]; return o; }, {});
 			const ifs = [];
 			for (const radio in r[0] || {}) {
@@ -2372,7 +2376,7 @@ function wifiCard() {
 			}
 			const next = ifs.length ? Promise.resolve(ifs) : L.resolveDefault(callIwDevs(), []).then(d => (d || []).map(dev => ({ dev, ssid: '', band: '' })));
 			return next.then(list => {
-			if (!list.length) { body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Wi‑Fi не найден'), E('span', {}, 'Беспроводные интерфейсы не настроены или выключены.') ])); return; }
+			if (!list.length) { body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, tr('Wi‑Fi не найден')), E('span', {}, tr('Беспроводные интерфейсы не настроены или выключены.')) ])); return; }
 			return Promise.all(list.map(i => Promise.all([ L.resolveDefault(callAssoc(i.dev), []), (i.ssid && i.band) ? null : L.resolveDefault(callIwInfo(i.dev), null) ]).then(r => {
 					const inf = r[1] || {}, f = +inf.frequency || 0;
 					const band = i.band || (f ? (f < 3000 ? BAND['2g'] : f < 5925 ? BAND['5g'] : BAND['6g']) : '');
@@ -2385,9 +2389,47 @@ function wifiCard() {
 	return { el, contains: n => el.contains(n), start() { load(); timer = window.setInterval(load, 8000); } };
 }
 
+/* Collector event texts are written backend-side in Russian; rebuild the
+   known shapes through catalog templates at display time. Unknown texts pass
+   through unchanged. */
+function trDur(s) {
+	let m;
+	if ((m = /^(\d+) ч (\d+) мин$/.exec(s))) return tr('%s ч %s мин').format(m[1], m[2]);
+	if ((m = /^(\d+) мин (\d+) с$/.exec(s))) return tr('%s мин %s с').format(m[1], m[2]);
+	if ((m = /^(\d+) с$/.exec(s))) return tr('%s с').format(m[1]);
+	return s;
+}
+
+function trEvent(tx) {
+	if (typeof tx !== 'string') return tx;
+	let m;
+	if (tx === 'Сборщик истории запущен') return tr('Сборщик истории запущен');
+	if (tx === 'Нет доступа в интернет') return tr('Нет доступа в интернет');
+	if (tx === 'Постоянное хранение Nightfall снова работает') return tr('Постоянное хранение Nightfall снова работает');
+	if ((m = /^Нет связи со шлюзом (\S+)$/.exec(tx))) return tr('Нет связи со шлюзом %s').format(m[1]);
+	if ((m = /^Процессор перегрет: ([\d.]+) °C \(порог (\d+) °C\)$/.exec(tx))) return tr('Процессор перегрет: %s °C (порог %s °C)').format(m[1], m[2]);
+	if ((m = /^Критическая температура процессора: ([\d.]+) °C$/.exec(tx))) return tr('Критическая температура процессора: %s °C').format(m[1]);
+	if ((m = /^Мало свободной памяти: занято (\d+)%$/.exec(tx))) return tr('Мало свободной памяти: занято %s%').format(m[1]);
+	if ((m = /^Флеш-память почти заполнена: (\d+)%$/.exec(tx))) return tr('Флеш-память почти заполнена: %s%').format(m[1]);
+	if ((m = /^Таблица соединений заполнена на (\d+)%$/.exec(tx))) return tr('Таблица соединений заполнена на %s%').format(m[1]);
+	if ((m = /^Процессор загружен на (\d+)% дольше (\d+) мин$/.exec(tx))) return tr('Процессор загружен на %s% дольше %s мин').format(m[1], m[2]);
+	if ((m = /^Снова в норме: (.+) \(длилось (\d+.*)\)$/.exec(tx))) return tr('Снова в норме: %s (длилось %s)').format(trEvent(m[1]), trDur(m[2]));
+	if ((m = /^Новое устройство в сети: (.+)$/.exec(tx))) {
+		let rest = m[1], priv = '';
+		const pm = / \(частный адрес Wi-Fi, у телефона он может меняться\)$/.exec(rest);
+		if (pm) { priv = ' ' + tr('(частный адрес Wi-Fi, у телефона он может меняться)'); rest = rest.slice(0, pm.index); }
+		rest = rest.replace(/^без имени,/, tr('без имени') + ',');
+		return tr('Новое устройство в сети:') + ' ' + rest + priv;
+	}
+	if (/^Сохранение во внутреннюю флеш-память запрещено\./.exec(tx)) return tr('Сохранение во внутреннюю флеш-память запрещено. Включите «Разрешить запись во внутреннюю флеш-память» и учитывайте износ и свободное место');
+	if ((m = /^Постоянная история недоступна: (\S+) не находится/.exec(tx))) return tr('Постоянная история недоступна: %s не находится на подключённом накопителе с разрешённым типом хранения. Сбор данных продолжается в RAM').format(m[1]);
+	if ((m = /^Недостаточно свободного места во внутренней флеш-памяти \(нужно не менее (\d+) КБ\)/.exec(tx))) return tr('Недостаточно свободного места во внутренней флеш-памяти (нужно не менее %s КБ). История продолжает собираться в RAM').format(m[1]);
+	return tx;
+}
+
 function eventsCard() {
-	const body = E('div', { class: 'nf-ev-b' }, E('div', { class: 'nf-empty' }, 'Читаю журнал…'));
-	const el = xcard('nf-events', 'Лента событий', body);
+	const body = E('div', { class: 'nf-ev-b' }, E('div', { class: 'nf-empty' }, tr('Читаю журнал…')));
+	const el = xcard('nf-events', tr('Лента событий'), body);
 	let timer = null;
 	const LV = { ok: 'ok', info: 'info', warn: 'warn', warning: 'warn', crit: 'bad', critical: 'bad', bad: 'bad', error: 'bad', err: 'bad' };
 	const two = v => String(v).padStart(2, '0');
@@ -2403,7 +2445,7 @@ function eventsCard() {
 			let h = null;
 			try { h = JSON.parse(res.stdout); } catch (e) { /* no collector */ }
 			if (!h || !Array.isArray(h.events)) {
-				body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Нет данных'), E('span', {}, 'Сбор истории не запущен.') ]));
+				body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, tr('Нет данных')), E('span', {}, tr('Сбор истории не запущен.')) ]));
 				return;
 			}
 			const raw = h.events.slice().reverse(), list = [];
@@ -2412,8 +2454,8 @@ function eventsCard() {
 				if (last && last[2] === e[2]) last[3]++; else list.push([ e[0], e[1], e[2], 1 ]);
 				if (list.length >= 8 && !(last && last[2] === e[2])) break;
 			}
-			if (!list.length) { body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, 'Всё спокойно'), E('span', {}, 'Событий пока не было.') ])); return; }
-			body.replaceChildren(...list.map(e => E('div', { class: 'nf-ev', 'data-l': LV[String(e[1]).toLowerCase()] || 'info' }, [ E('div', {}, e[3] > 1 ? e[2] + ' ×' + e[3] : e[2]), E('span', {}, when(e[0])) ])));
+			if (!list.length) { body.replaceChildren(E('div', { class: 'nf-empty' }, [ E('b', {}, tr('Всё спокойно')), E('span', {}, tr('Событий пока не было.')) ])); return; }
+			body.replaceChildren(...list.map(e => E('div', { class: 'nf-ev', 'data-l': LV[String(e[1]).toLowerCase()] || 'info' }, [ E('div', {}, e[3] > 1 ? trEvent(e[2]) + ' ×' + e[3] : trEvent(e[2])), E('span', {}, when(e[0])) ])));
 		}).catch(() => {});
 	}
 
@@ -2423,7 +2465,7 @@ function eventsCard() {
 function quickCard() {
 	const note = E('div', { class: 'nf-qnote', role: 'status', 'aria-live': 'polite' });
 	const body = E('div', { class: 'nf-quick-b nf-quick-b-four' });
-	const el = xcard('nf-quick', 'Быстрые действия', body);
+	const el = xcard('nf-quick', tr('Быстрые действия'), body);
 
 	function icon(path) {
 		const svg = SVG('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true', focusable: 'false' });
@@ -2445,7 +2487,7 @@ function quickCard() {
 			window.clearTimeout(timer);
 			b.classList.remove('arm'); caption.textContent = label; b.disabled = true;
 			Promise.resolve(run()).catch(err => {
-				note.textContent = 'Не получилось выполнить действие: ' + (err && err.message ? err.message : err || 'нет прав');
+				note.textContent = tr('Не получилось выполнить действие: ') + (err && err.message ? err.message : err || tr('нет прав'));
 			}).then(() => { b.disabled = false; });
 		});
 		return b;
@@ -2460,37 +2502,37 @@ function quickCard() {
 		}, 3000);
 	}
 
-	const wifi = action('Перезапустить Wi‑Fi', 'Нажмите ещё раз', () => {
-		note.textContent = 'Перезапускаю Wi‑Fi… устройства переподключатся сами.';
+	const wifi = action(tr('Перезапустить Wi‑Fi'), tr('Нажмите ещё раз'), () => {
+		note.textContent = tr('Перезапускаю Wi‑Fi… устройства переподключатся сами.');
 		return fs.exec('/sbin/wifi', [ 'reload' ]).then(r => {
-			note.textContent = r.code === 0 ? 'Wi‑Fi перезапущен.' : 'Команда вернула ошибку ' + r.code;
-			if (r.code !== 0) throw new Error('код ' + r.code);
+			note.textContent = r.code === 0 ? tr('Wi‑Fi перезапущен.') : tr('Команда вернула ошибку ') + r.code;
+			if (r.code !== 0) throw new Error(tr('код ') + r.code);
 		});
 	}, '<path d="M5 13a10 10 0 0 1 14 0M8.5 16.5a5 5 0 0 1 7 0"/><circle cx="12" cy="20" r=".8"/>');
 
-	const reboot = action('Перезагрузить роутер', 'Точно перезагрузить?', () => {
-		note.textContent = 'Роутер перезагружается… страница обновится сама, когда он вернётся.';
+	const reboot = action(tr('Перезагрузить роутер'), tr('Точно перезагрузить?'), () => {
+		note.textContent = tr('Роутер перезагружается… страница обновится сама, когда он вернётся.');
 		return callReboot().then(waitBack);
 	}, '<path d="M12 3v8"/><path d="M6.5 6.5a8 8 0 1 0 11 0"/>');
 
-	const wake = action('Разбудить устройство', 'Введите MAC в окне', () => {
-		const mac = (window.prompt('Введите MAC-адрес устройства (AA:BB:CC:DD:EE:FF):') || '').trim().toUpperCase();
-		if (!mac) { note.textContent = 'Пробуждение отменено.'; return Promise.resolve(); }
-		if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) throw new Error('некорректный MAC-адрес');
-		note.textContent = 'Отправляю Wake-on-LAN пакет…';
+	const wake = action(tr('Разбудить устройство'), tr('Введите MAC в окне'), () => {
+		const mac = (window.prompt(tr('Введите MAC-адрес устройства (AA:BB:CC:DD:EE:FF):')) || '').trim().toUpperCase();
+		if (!mac) { note.textContent = tr('Пробуждение отменено.'); return Promise.resolve(); }
+		if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(mac)) throw new Error(tr('некорректный MAC-адрес'));
+		note.textContent = tr('Отправляю Wake-on-LAN пакет…');
 		return fs.exec('/usr/bin/etherwake', [ '-b', '-i', 'br-lan', mac ]).then(r => {
-			if (r.code !== 0) throw new Error(r.stderr || ('код ' + r.code));
-			note.textContent = 'Пакет пробуждения отправлен: ' + mac;
+			if (r.code !== 0) throw new Error(r.stderr || (tr('код ') + r.code));
+			note.textContent = tr('Пакет пробуждения отправлен: ') + mac;
 		});
 	}, '<path d="M3 8h13v10H3z"/><path d="M16 11h3l2 2v5h-5"/><circle cx="7" cy="19" r="1.5"/><circle cx="18" cy="19" r="1.5"/>');
 
-	const copy = action('Скопировать диагностику', 'Нажмите ещё раз', () => {
-		note.textContent = 'Собираю диагностику…';
+	const copy = action(tr('Скопировать диагностику'), tr('Нажмите ещё раз'), () => {
+		note.textContent = tr('Собираю диагностику…');
 		return Promise.all([ callBoard(), callIfaces(), callWireless() ]).then(data => {
-			const report = 'Nightfall — диагностика\n' + JSON.stringify({ board: data[0], interfaces: data[1], wireless: data[2] }, null, 2);
-			if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('браузер не разрешил доступ к буферу обмена');
+			const report = tr('Nightfall — диагностика') + '\n' + JSON.stringify({ board: data[0], interfaces: data[1], wireless: data[2] }, null, 2);
+			if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error(tr('браузер не разрешил доступ к буферу обмена'));
 			return navigator.clipboard.writeText(report);
-		}).then(() => { note.textContent = 'Диагностика скопирована в буфер обмена.'; });
+		}).then(() => { note.textContent = tr('Диагностика скопирована в буфер обмена.'); });
 	}, '<path d="M7 3h8l4 4v14H7z"/><path d="M15 3v5h4M10 13h6M10 17h6"/>');
 
 	body.append(wifi, reboot, wake, copy, note);
