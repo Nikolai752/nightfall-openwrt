@@ -1406,7 +1406,14 @@ return view.extend({
 				return fs.exec(NOTIFYBIN, [ cmd ]).then(res => {
 					try { return JSON.parse(res.stdout); }
 					catch (e) { return { ok: false, error: _('нет ответа от роутера') }; }
-				}).catch(() => ({ ok: false, error: _('нет прав на запуск (выйдите из LuCI и войдите снова; права обновляются при входе) или не найден /usr/libexec/nightfall-notify') }));
+				}).catch(() => ({ ok: false, error: _('нет прав на запуск (выйдите из LuCI и войдите снова; права обновляются при входе) или не найден /usr/libexec/nightfall-notify') })).then(result => {
+					if (tgApiState) {
+						tgApiState.textContent = result && result.ok ? _('Telegram API ответил успешно.') : _('Запрос к Telegram не выполнен: ') + ((result && result.error) || _('нет ответа'));
+						tgApiState.classList.toggle('is-good', !!(result && result.ok));
+						tgApiState.classList.toggle('is-bad', !(result && result.ok));
+					}
+					return result;
+				});
 			});
 		};
 		const tgTools = E('div', { style: 'margin-top:10px' }, [
