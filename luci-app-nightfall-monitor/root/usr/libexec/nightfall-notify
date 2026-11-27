@@ -13,7 +13,7 @@ ROUTE_BIN=${NF_TG_ROUTE_BIN:-/usr/libexec/nightfall-telegram-route}
 TG_USER=${NF_TG_USER:-nightfall-tg}
 HOST=$(cat /proc/sys/kernel/hostname 2>/dev/null || echo router)
 
-cfg() { [ -r "$CONF" ] && sed -n "s/^$1=\\"\\{0,1\\}\\([^ #\\"\\]*\\).*/\\1/p" "$CONF" | head -n 1; }
+cfg() { [ -r "$CONF" ] && sed -n "s/^$1=\"\{0,1\}\([^ #\"]*\).*/\1/p" "$CONF" | head -n 1; }
 TG=$(cfg TG); TOKEN=$(cfg TG_TOKEN); CHAT=$(cfg TG_CHAT); PROXY=$(cfg TG_PROXY); IFACE=$(cfg TG_IFACE)
 TG_ROUTE_READY=0
 TG_USE_UID=0
@@ -24,7 +24,7 @@ fail() { printf '{"ok":false,"error":"%s"}\n' "$1"; exit 1; }
 
 # api МЕТОД [аргументы curl]: токен передаётся через stdin, чтобы не светиться в списке процессов
 json_escape() {
-	printf '%s' "$1" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g; s/[[:cntrl:]]/ /g'
+	printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/[[:cntrl:]]/ /g'
 }
 
 route_prepare() {
@@ -42,7 +42,7 @@ route_prepare() {
 		route_result=$("$ROUTE_BIN" apply 2>/dev/null)
 		case "$route_result" in *'"ok":true'*) ;;
 			*)
-				TG_ROUTE_ERROR=$(printf '%s' "$route_result" | sed -n 's/.*"error":"\\([^"]*\\)".*/\\1/p' | head -n 1)
+				TG_ROUTE_ERROR=$(printf '%s' "$route_result" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' | head -n 1)
 				[ -n "$TG_ROUTE_ERROR" ] || TG_ROUTE_ERROR="Не удалось применить маршрут Telegram"
 				return 1 ;;
 		esac
