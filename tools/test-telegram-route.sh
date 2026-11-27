@@ -150,6 +150,10 @@ ok "Steer route applies mark and fail-closed egress guard"
 out=$("$H" apply) || bad "idempotent Steer apply failed: $out"
 case "$out" in *'"reused":true'*) ;; *) bad "same Steer route was not reused: $out" ;; esac
 ok "Steer route apply is idempotent"
+out=$("$H" status) || bad "Steer route status failed: $out"
+printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.active || d.source!=="steer" || d.device!=="wg1") process.exit(1)' ||
+	bad "Steer route status did not confirm the active route"
+ok "Steer route status confirms current device and table"
 
 # A failed Steer output must replace the route with a hard block.
 cat > "$NF_TG_TEST_STATUS" <<'JSON'
@@ -162,6 +166,10 @@ if "$H" apply > "$T/fail-result"; then bad "failed Steer output was accepted"; f
 grep -Fq 'fail_closed meta skuid 104 drop' "$NF_TG_TEST_NFT" ||
 	bad "failed Steer output did not install a block rule"
 ok "failed Steer output blocks Telegram instead of falling back"
+out=$("$H" status) || bad "blocked route status failed: $out"
+printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(d.active || !d.blocked) process.exit(1)' ||
+	bad "failed Steer status did not report fail-closed blocking"
+ok "route status reports the fail-closed state"
 
 # A plain WireGuard interface uses its own UID table and an egress guard.
 printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=iface:wg1\n' > "$T/conf"
@@ -170,6 +178,10 @@ case "$out" in *'"ok":true'*'"source":"interface"'*) ;; *) bad "unexpected inter
 grep -Fq 'egress_guard meta skuid 104 oifname != "wg1" drop' "$NF_TG_TEST_NFT" ||
 	bad "plain VPN interface egress guard was not installed"
 ok "plain WireGuard interface uses private policy table and egress guard"
+out=$("$H" status) || bad "interface route status failed: $out"
+printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.active || d.source!=="iface" || d.device!=="wg1") process.exit(1)' ||
+	bad "plain VPN interface status did not confirm the active route"
+ok "plain VPN interface status confirms the route"
 
 # A physical Ethernet interface is not accepted as a VPN tunnel target.
 printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=iface:eth0\n' > "$T/conf"
