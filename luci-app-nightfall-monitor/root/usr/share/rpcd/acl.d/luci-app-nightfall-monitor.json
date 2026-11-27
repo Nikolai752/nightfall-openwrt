@@ -115,6 +115,9 @@
 				]
 			},
 			"ubus": {
+				"file": [
+					"exec"
+				],
 				"system": [
 					"reboot"
 				],
