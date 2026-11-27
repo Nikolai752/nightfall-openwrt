@@ -2864,7 +2864,7 @@ return view.extend({
 		}
 
 		function saveCfg() {
-			const args = [ 'set' ].concat(Object.keys(cfgInputs).map(k => k + '=' + (cfgBoolKeys.has(k) ? (cfgInputs[k].checked ? '1' : '0') : cfgInputs[k].value.trim())));
+			const args = [ 'set' ].concat(Object.keys(cfgInputs).filter(k => !k.startsWith('TG')).map(k => k + '=' + (cfgBoolKeys.has(k) ? (cfgInputs[k].checked ? '1' : '0') : cfgInputs[k].value.trim())));
 			callCfg(args).then(r => {
 				if (r && r.ok) {
 					cfgMsg.textContent = _('Сохранено, сборщик перезапущен.');
