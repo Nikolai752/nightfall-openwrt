@@ -1,4 +1,6 @@
-## v1.29.1 · Китайская локализация и исправления совместимости
+## v1.30.0 · Надёжная сборка релиза и китайская локализация
+- [Исправлено] **Упаковщик релиза**: сохранение штатных символических ссылок без повторного создания; конфликтующие или неверные пути приводят к понятной ошибке без перезаписи.
+- [Исправлено] **Доставка локализации zh_Hans**: TAR.GZ включает скомпилированные LuCI-каталоги `.lmo` и регистрирует `zh_cn`, не меняя выбранный пользователем язык интерфейса.
 - [Добавлено] **Упрощённый китайский язык (zh_Hans)** для темы Nightfall и монитора ресурсов, включая меню, уведомления, журнал, проверки безопасности, устройства и категории трафика.
 - [Исправлено] **Сборка и установка пакетов**: сохранение исполняемых прав скриптов, отключение повреждающей CSS/JS-минификации и добавление необходимых ссылок для вариантов темы и конфигурационных файлов.
 - [Улучшено] **Совместимость монитора с другими темами LuCI**: адаптация цветов карточек для светлых и тёмных сторонних тем.
@@ -9,7 +11,9 @@
 
 ### English
 
-## v1.29.1 · Simplified Chinese localization and compatibility fixes
+## v1.30.0 · Reliable release packaging and Simplified Chinese localization
+- [Fixed] **Release packager**: preserve existing expected symlinks without recreating them; invalid or conflicting paths fail clearly without being overwritten.
+- [Fixed] **zh_Hans localization delivery**: include compiled LuCI `.lmo` catalogs in the TAR.GZ and register `zh_cn` without changing the user's selected interface language.
 - [Added] **Simplified Chinese (zh_Hans)** localization for the Nightfall theme and resource monitor, including menus, notifications, journal, security checks, devices, and traffic categories.
 - [Fixed] **Package build and installation**: preserve executable permissions for scripts, disable CSS/JS minification that breaks assets, and include required theme-variant and configuration symlinks.
 - [Improved] **Monitor compatibility with other LuCI themes**: card colors now adapt to light and dark third-party themes.
