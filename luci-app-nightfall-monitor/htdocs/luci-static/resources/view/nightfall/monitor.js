@@ -1654,7 +1654,7 @@ return view.extend({
 		]));
 		const tgRouteStatusCard = card(_('Статус маршрута'), E('div', {}, [
 			tgRouteStatus,
-			E('div', { class: 'nfm-tg-note' }, _('При выборе VPN отдельный системный пользователь Nightfall получает собственное правило маршрутизации. Остальной трафик роутера остаётся без изменений.'))
+			E('div', { class: 'nfm-tg-note' }, _('Для Steer используется метка выбранного выхода и проверка выходного интерфейса; для обычного туннеля — отдельная policy-routing таблица UID. Остальной трафик роутера остаётся без изменений.'))
 		]));
 		const tgAdvanced = E('details', { class: 'nfm-cfg-g nfm-tg-advanced' }, [
 			E('summary', { class: 'nfm-cfg-head' }, [
