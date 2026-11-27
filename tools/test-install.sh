@@ -28,7 +28,12 @@ mkrel() { # версия [версия_внутри_архива]
 	mkdir -p "$s/usr/lib/lua/luci/i18n" "$s/etc/uci-defaults"
 	printf "theme zh-cn catalog\\n" > "$s/usr/lib/lua/luci/i18n/nightfall.zh-cn.lmo"
 	printf "monitor zh-cn catalog\\n" > "$s/usr/lib/lua/luci/i18n/nightfall-monitor.zh-cn.lmo"
-	printf "#!/bin/sh\\nuci -q set luci.languages.zh_cn=\x27简体中文 (Simplified Chinese)\x27\\nuci -q commit luci\\n" > "$s/etc/uci-defaults/41_luci-i18n-nightfall-zh-cn"
+	cat > "$s/etc/uci-defaults/41_luci-i18n-nightfall-zh-cn" <<'EOF'
+#!/bin/sh
+uci -q set luci.languages.zh_cn='简体中文 (Simplified Chinese)'
+uci -q commit luci
+EOF
+	chmod 755 "$s/etc/uci-defaults/41_luci-i18n-nightfall-zh-cn"
 	ln -s nightfall "$s/usr/share/ucode/luci/template/themes/nightfall-dark"
 	ln -s nightfall "$s/usr/share/ucode/luci/template/themes/nightfall-light"
 	ln -s nightfall "$s/www/luci-static/nightfall-dark"
