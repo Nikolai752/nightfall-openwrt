@@ -74,7 +74,7 @@ case "$args" in
 		;;
 	*"-4 route get 149.154.167.220"*)
 		case "$args" in
-			*mark*) echo '149.154.167.220 dev wg1 table 300 src 10.9.0.2 mark 0x40400000' ;;
+			*mark*) echo '149.154.167.220 dev wg1 table steer_groupvpn src 10.9.0.2 mark 0x40400000' ;;
 			*) echo '149.154.167.220 dev wg1 table 42000 src 10.9.0.2' ;;
 		esac
 		;;
@@ -154,7 +154,7 @@ ok "Steer route apply is idempotent"
 out=$("$H" status) || bad "Steer route status failed: $out"
 printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.active || d.source!=="steer" || d.device!=="wg1") process.exit(1)' ||
 	bad "Steer route status did not confirm the active route"
-ok "Steer route status confirms current device and table"
+ok "Steer route status confirms device with symbolic table alias"
 
 # A failed Steer output must replace the route with a hard block.
 cat > "$NF_TG_TEST_STATUS" <<'JSON'
