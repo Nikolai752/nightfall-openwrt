@@ -1760,25 +1760,33 @@ return view.extend({
 			tgSteerValue.textContent = info.steer && info.steer.found
 				? _('Steer ') + (info.steer.version || _('обнаружен'))
 				: _('Универсальный Linux policy routing');
-			const outputs = (info.outputs || []).concat(info.interfaces || []);
+			const steerOutputs = info.outputs || [];
+			const steerDevices = new Set(steerOutputs.map(item => item.device).filter(Boolean));
+			/* Do not show the same kernel tunnel twice: Steer output entries are the
+			 * canonical choices; generic Point-to-point/TUN entries are fallbacks only. */
+			const genericInterfaces = (info.interfaces || []).filter(item => !steerDevices.has(item.device));
+			const discoveredOutputs = steerOutputs.concat(genericInterfaces);
+			const outputs = discoveredOutputs.filter(item => item.ready !== false);
+			const hiddenCount = discoveredOutputs.length - outputs.length;
 			tgOutputCount.textContent = String(outputs.length);
 			const current = cfgInputs.TG_ROUTE_OUTPUT.value || values.TG_ROUTE_OUTPUT || (values.TG_IFACE ? 'iface:' + values.TG_IFACE : '');
-			const outputSignature = JSON.stringify(outputs.map(item => [ item.id, item.label || '', item.ready !== false ]));
-			/* Use real buttons instead of a native select: the LuCI page refreshes every
-			 * two seconds, and native popup menus can lose pointer selection on redraw. */
+			const outputSignature = JSON.stringify([ outputs.map(item => [ item.id, item.label || '' ]), hiddenCount ]);
+			/* Show only ready choices. Unavailable exits stay out of the way rather
+			 * than appearing as disabled rows that look like selectable tunnels. */
 			if (outputSignature !== tgOutputSignature && !tgOutputList.contains(document.activeElement)) {
 				const choices = outputs.map(item => E('button', {
 					type: 'button',
 					class: 'nfm-tg-output-choice' + (item.id === current ? ' selected' : ''),
 					'data-output': item.id,
 					'aria-pressed': item.id === current ? 'true' : 'false',
-					disabled: item.ready === false,
 					click: () => chooseTgOutput(item)
 				}, [
 					E('span', { class: 'nfm-tg-output-name' }, item.label || item.id),
-					E('span', { class: 'nfm-tg-output-state' }, item.ready === false ? _('Не готов') : item.kind === 'group' ? _('Группа') : _('Доступен'))
+					E('span', { class: 'nfm-tg-output-state' }, item.id.startsWith('steer:') ? 'Steer' : _('VPN-интерфейс'))
 				]));
-				tgOutputList.replaceChildren(...(choices.length ? choices : [ E('div', { class: 'nfm-note-s' }, _('VPN-выходы не обнаружены.')) ]));
+				if (hiddenCount)
+					choices.push(E('div', { class: 'nfm-note-s' }, _('%d неготовых выхода скрыто.').format(hiddenCount)));
+				tgOutputList.replaceChildren(...(choices.length ? choices : [ E('div', { class: 'nfm-note-s' }, _('Нет готовых VPN-выходов. Проверьте состояние VPN в Steer.')) ]));
 				tgOutputSignature = outputSignature;
 			}
 			Array.from(tgOutputList.querySelectorAll('button[data-output]')).forEach(button => {
@@ -1787,9 +1795,9 @@ return view.extend({
 				button.setAttribute('aria-pressed', selected ? 'true' : 'false');
 			});
 			if (mode === 'vpn') {
-				const selected = outputs.find(item => item.id === current);
+				const selected = discoveredOutputs.find(item => item.id === current);
 				tgRouteState.textContent = selected
-					? (selected.ready === false ? _('Выбранный выход обнаружен, но сейчас не активен: ') : _('Выбранный выход: ')) + (selected.label || selected.id)
+					? (selected.ready === false ? _('Сохранённый выход сейчас не готов. Выберите доступный выход.') : _('Выбранный выход: ') + (selected.label || selected.id))
 					: current ? _('Сохранённый VPN-выход не обнаружен. Выберите другой выход или восстановите подключение.') : _('Выберите VPN-выход. Автоматически первый выход не выбирается.');
 			} else if (mode === 'proxy') {
 				tgRouteState.textContent = cfgInputs.TG_PROXY.value ? _('Прокси указан. После сохранения можно проверить Telegram API.') : _('Укажите адрес прокси для этого режима.');
