@@ -235,11 +235,15 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				if (!tt.includes('Готов · Steer') || !tt.includes('Не готов')) bad(vn + ': список VPN-выходов не показывает их фактическую готовность');
 				const unavailable = await p.locator('.nfm-tg-output-choice:disabled').count();
 				if (unavailable !== 1) bad(vn + ': неготовый VPN-выход должен быть видимым и недоступным для выбора');
+				/* Notification and bot controls are intentionally collapsed in the compact default view. Open them only for switch-size regression checks. */
+				await p.locator('.nfm-tg-disclosure').evaluateAll(els => els.forEach(el => { el.open = true; }));
 				const tgSwitches = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-tg-page .nfm-cfg-toggle input.nfm-toggle'))
 					.filter(el => el.getClientRects().length > 0).map(el => { const r = el.getBoundingClientRect(); return { width: r.width, height: r.height }; }));
-				if (tgSwitches.length !== 7) bad(vn + ': TG Bot должен показывать семь видимых переключателей, найдено=' + tgSwitches.length);
+				if (tgSwitches.length !== 7) bad(vn + ': TG Bot должен содержать семь переключателей в раскрытых разделах, найдено=' + tgSwitches.length);
 				if (tgSwitches.some(x => Math.abs(x.width - 40) > 1 || Math.abs(x.height - 23) > 1))
 					bad(vn + ': переключатели TG Bot имеют неправильный размер: ' + JSON.stringify(tgSwitches));
+				await p.locator('.nfm-tg-disclosure').evaluateAll(els => els.forEach(el => { el.open = false; }));
+				if (await p.locator('.nfm-tg-disclosure[open]').count()) bad(vn + ': дополнительные разделы должны быть свёрнуты по умолчанию');
 				await p.screenshot({ path: path.join(OUT, 'monitor-tg-' + vn + '.png'), fullPage: true });
 			}
 			if (k === 'hist') {
