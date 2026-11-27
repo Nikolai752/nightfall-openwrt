@@ -77,7 +77,7 @@ echo "$out" | grep -q "Установлена версия 2.0.0" && pass "в к
 [ -x "$R/usr/libexec/nightfall-config" ] && pass "скрипты исполняемые" || fail "нет прав на исполнение"
 [ -s "$R/usr/lib/lua/luci/i18n/nightfall.zh-cn.lmo" ] && pass "перевод темы zh_Hans установлен" || fail "нет LMO каталога темы"
 [ -s "$R/usr/lib/lua/luci/i18n/nightfall-monitor.zh-cn.lmo" ] && pass "перевод монитора zh_Hans установлен" || fail "нет LMO каталога монитора"
-[ -x "$R/etc/uci-defaults/41_luci-i18n-nightfall-zh-cn" ] && pass "язык zh_cn зарегистрирован для LuCI" || fail "нет uci-defaults регистрации zh_cn"
+[ -s "$R/etc/uci-defaults/41_luci-i18n-nightfall-zh-cn" ] && pass "язык zh_cn зарегистрирован для LuCI" || fail "нет uci-defaults регистрации zh_cn"
 
 echo "== старый архив в /tmp не используется (v1.0.9 из отчёта) =="
 R=$T/r2
