@@ -1692,7 +1692,13 @@ return view.extend({
 
 		function renderTelegram() {
 			const values = S.cfg && S.cfg.values || {};
-			const mode = cfgInputs.TG_ROUTE_MODE.value || (values.TG_PROXY ? 'proxy' : values.TG_IFACE ? 'vpn' : 'system');
+			const mode = cfgInputs.TG_ROUTE_MODE.value || values.TG_ROUTE_MODE || (values.TG_PROXY ? 'proxy' : values.TG_IFACE ? 'vpn' : 'system');
+			// Migrate legacy TG_IFACE/TG_PROXY values into the new route fields
+			// before any save action can overwrite the old configuration.
+			if (!cfgInputs.TG_ROUTE_MODE.value) cfgInputs.TG_ROUTE_MODE.value = mode;
+			if (!cfgInputs.TG_ROUTE_OUTPUT.value)
+				cfgInputs.TG_ROUTE_OUTPUT.value = values.TG_ROUTE_OUTPUT || (values.TG_IFACE ? 'iface:' + values.TG_IFACE : '');
+			if (!cfgInputs.TG_IFACE.value && values.TG_IFACE) cfgInputs.TG_IFACE.value = values.TG_IFACE;
 			for (const key of Object.keys(tgModeRadios))
 				tgModeRadios[key].checked = key === mode;
 			tgProxyPane.hidden = mode !== 'proxy';
