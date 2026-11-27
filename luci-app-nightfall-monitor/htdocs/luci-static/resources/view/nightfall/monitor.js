@@ -675,6 +675,7 @@ const CSS = `
 .nfm-ti[data-ic='diag'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12h4l2-6 4 12 2-6h6'/%3E%3C/svg%3E"); }
 .nfm-ti[data-ic='sec'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3l8 3v6c0 4.5-3.2 7.7-8 9-4.8-1.3-8-4.5-8-9V6z'/%3E%3Cpath d='M9 12l2 2 4-4'/%3E%3C/svg%3E"); }
 .nfm-ti[data-ic='log'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01'/%3E%3C/svg%3E"); }
+.nfm-ti[data-ic='tg'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M21.55 3.15 18.3 20.3c-.25 1.2-.95 1.5-1.95.95l-5.4-3.98-2.6 2.5c-.28.28-.52.52-1.06.52l.38-5.5 10-9.03c.44-.38-.1-.6-.68-.22L4.63 12.9l-5.2-1.63c-1.13-.35-1.15-1.13.24-1.68L20 2.1c.92-.34 1.73.22 1.55 1.05z' transform='translate(2 0) scale(.9 1)'/%3E%3C/svg%3E"); }
 .nfm-hint.sec-ok { border-color: color-mix(in srgb, #2fb36a 45%, transparent); }
 .nfm-hint.sec-warn { border-color: color-mix(in srgb, #f7a21b 55%, transparent); }
 .nfm-hint.sec-bad { border-color: color-mix(in srgb, #ef4444 60%, transparent); background: color-mix(in srgb, #ef4444 10%, transparent); }
@@ -1421,7 +1422,7 @@ return view.extend({
 				const request = cmd === 'test' ? runTelegramTest() : notifyExec([ cmd ]);
 				return request.then(result => {
 					if (tgApiState) {
-						tgApiState.textContent = result && result.ok ? _('Telegram API ответил успешно.') : _('Запрос к Telegram не выполнен: ') + ((result && result.error) || _('нет ответа'));
+						tgApiState.textContent = (result && result.ok ? _('Telegram API ответил успешно.') : _('Запрос к Telegram не выполнен: ') + ((result && result.error) || _('нет ответа'))) + ' · ' + new Date().toLocaleTimeString();
 						tgApiState.classList.toggle('is-good', !!(result && result.ok));
 						tgApiState.classList.toggle('is-bad', !(result && result.ok));
 					}
@@ -1676,7 +1677,7 @@ return view.extend({
 		]));
 		const tgRouteStatusCard = card(_('Статус маршрута'), E('div', {}, [
 			tgRouteStatus,
-			E('div', { class: 'nfm-tg-note' }, _('Для Steer используется метка выбранного выхода и проверка выходного интерфейса; для обычного туннеля — отдельная policy-routing таблица UID. Остальной трафик роутера остаётся без изменений.'))
+			E('div', { class: 'nfm-tg-note' }, _('Статус проверяется по живым данным Steer, состоянию интерфейса, policy-routing таблице, метке и фактическому выбору маршрута ядром. Это подтверждает маршрут на уровне OpenWrt; доступность Telegram API проверяется отдельно кнопкой теста. Остальной трафик роутера не перенаправляется.'))
 		]));
 		const tgAdvanced = E('details', { class: 'nfm-cfg-g nfm-tg-advanced' }, [
 			E('summary', { class: 'nfm-cfg-head' }, [
@@ -1703,7 +1704,7 @@ return view.extend({
 						tgSettingsMsg.textContent = r ? _('Настройки Telegram сохранены.') : _('Не удалось сохранить настройки Telegram.');
 					}) }, _('Сохранить настройки Telegram')),
 					E('button', { type: 'button', class: 'nfm-act', click: () => tgRun('test').then(r => {
-						tgApiState.textContent = r && r.ok ? _('Telegram API ответил успешно.') : _('Проверка не пройдена: ') + ((r && r.error) || _('нет ответа'));
+						tgApiState.textContent = (r && r.ok ? _('Telegram API ответил успешно.') : _('Проверка не пройдена: ') + ((r && r.error) || _('нет ответа'))) + ' · ' + new Date().toLocaleTimeString();
 						tgApiState.classList.toggle('is-good', !!(r && r.ok));
 						tgApiState.classList.toggle('is-bad', !(r && r.ok));
 					}) }, _('Тест подключения'))
@@ -1722,13 +1723,17 @@ return view.extend({
 			}
 			if (status.blocked) {
 				tgRouteStatus.textContent = _('Защитная блокировка активна: Telegram не уйдёт напрямую. Выход: ') + (status.output || cfgInputs.TG_ROUTE_OUTPUT.value || 'VPN');
+				tgRouteStatus.classList.add('is-bad');
+				tgRouteStatus.classList.remove('is-good');
 				return;
 			}
 			if (status.active) {
-				tgRouteStatus.textContent = _('Маршрут подтверждён: ') +
+				tgRouteStatus.textContent = _('Маршрут ядра активен: ') +
 					(status.source === 'steer' ? 'Steer' : _('VPN-интерфейс')) +
 					' · ' + (status.device || status.output || '') +
 					(status.table ? ' · table ' + status.table : '');
+				tgRouteStatus.classList.add('is-good');
+				tgRouteStatus.classList.remove('is-bad');
 				return;
 			}
 			tgRouteStatus.textContent = mode === 'system'
@@ -1778,28 +1783,30 @@ return view.extend({
 			/* Do not show the same kernel tunnel twice: Steer output entries are the
 			 * canonical choices; generic Point-to-point/TUN entries are fallbacks only. */
 			const genericInterfaces = (info.interfaces || []).filter(item => !steerDevices.has(item.device));
-			const discoveredOutputs = steerOutputs.concat(genericInterfaces);
-			const outputs = discoveredOutputs.filter(item => item.ready !== false);
-			const hiddenCount = discoveredOutputs.length - outputs.length;
-			tgOutputCount.textContent = String(outputs.length);
+			const outputs = steerOutputs.concat(genericInterfaces);
+			const readyCount = outputs.filter(item => item.ready !== false).length;
+			tgOutputCount.textContent = _('%d из %d готовы').format(readyCount, outputs.length);
 			const current = cfgInputs.TG_ROUTE_OUTPUT.value || values.TG_ROUTE_OUTPUT || (values.TG_IFACE ? 'iface:' + values.TG_IFACE : '');
-			const outputSignature = JSON.stringify([ outputs.map(item => [ item.id, item.label || '' ]), hiddenCount ]);
-			/* Show only ready choices. Unavailable exits stay out of the way rather
-			 * than appearing as disabled rows that look like selectable tunnels. */
+			const outputSignature = JSON.stringify([ outputs.map(item => [ item.id, item.label || '', item.ready !== false ]) ]);
+			/* Show all discovered routes. Their state comes from steer status plus
+			 * kernel link/table checks; unavailable routes remain visible but disabled. */
 			if (outputSignature !== tgOutputSignature && !tgOutputList.contains(document.activeElement)) {
-				const choices = outputs.map(item => E('button', {
-					type: 'button',
-					class: 'nfm-tg-output-choice' + (item.id === current ? ' selected' : ''),
-					'data-output': item.id,
-					'aria-pressed': item.id === current ? 'true' : 'false',
-					click: () => chooseTgOutput(item)
-				}, [
-					E('span', { class: 'nfm-tg-output-name' }, item.label || item.id),
-					E('span', { class: 'nfm-tg-output-state' }, item.id.startsWith('steer:') ? 'Steer' : _('VPN-интерфейс'))
-				]));
-				if (hiddenCount)
-					choices.push(E('div', { class: 'nfm-note-s' }, _('%d неготовых выхода скрыто.').format(hiddenCount)));
-				tgOutputList.replaceChildren(...(choices.length ? choices : [ E('div', { class: 'nfm-note-s' }, _('Нет готовых VPN-выходов. Проверьте состояние VPN в Steer.')) ]));
+				const choices = outputs.map(item => {
+					const ready = item.ready !== false;
+					return E('button', {
+						type: 'button',
+						class: 'nfm-tg-output-choice' + (item.id === current ? ' selected' : ''),
+						'data-output': item.id,
+						'aria-pressed': item.id === current ? 'true' : 'false',
+						disabled: !ready,
+						click: () => chooseTgOutput(item)
+					}, [
+						E('span', { class: 'nfm-tg-output-name' }, item.label || item.id),
+						E('span', { class: 'nfm-tg-output-state' + (ready ? ' is-ready' : ' is-unavailable') },
+							ready ? (item.id.startsWith('steer:') ? _('Работает · Steer') : _('Работает · VPN')) : _('Не готов'))
+					]);
+				});
+				tgOutputList.replaceChildren(...(choices.length ? choices : [ E('div', { class: 'nfm-note-s' }, _('VPN-выходы не обнаружены. Проверьте состояние Steer или VPN-интерфейсов.')) ]));
 				tgOutputSignature = outputSignature;
 			}
 			Array.from(tgOutputList.querySelectorAll('button[data-output]')).forEach(button => {
