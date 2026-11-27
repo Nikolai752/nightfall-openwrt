@@ -103,6 +103,11 @@ cat > "$T/id" <<'SH'
 [ "$1" = -u ] && { echo 104; exit 0; }
 exit 0
 SH
+cat > "$T/chown" <<'SH'
+#!/bin/sh
+# The CI runner is unprivileged; emulate successful ownership setup for this unit test.
+exit 0
+SH
 cat > "$T/su" <<'SH'
 #!/bin/sh
 seen=0
@@ -115,7 +120,7 @@ done
 shift
 exec "$@"
 SH
-chmod +x "$T/routebin" "$T/id" "$T/su"
+chmod +x "$T/routebin" "$T/id" "$T/chown" "$T/su"
 printf 'TG=1\nTG_TOKEN=123456:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\nTG_CHAT=111\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:wg1\n' > "$T/conf"
 : > "$T/calls"; : > "$T/args"; : > "$T/su.args"
 PATH="$T:$PATH" NF_CONF="$T/conf" NF_DIR="$T" NF_CURL="$T/curl" NF_TG_ROUTE_BIN="$T/routebin" NF_TG_USER=nightfall-tg NF_TMO=25 sh "$L/nightfall-notify" test > "$T/vpn-result"
