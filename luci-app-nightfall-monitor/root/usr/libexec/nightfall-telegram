@@ -1,0 +1,49 @@
+#!/bin/sh
+# Nightfall Telegram helper: discover tunnel interfaces without depending on
+# a particular VPN client, Steer release, or interface naming convention.
+set -f
+
+case "$1" in
+inspect)
+	command -v ip >/dev/null 2>&1 || {
+		printf '{"ok":false,"error":"команда ip не найдена"}\n'
+		exit 0
+	}
+	printf '{"ok":true,"interfaces":['
+	sep=
+	ip -o link show 2>/dev/null | while IFS= read -r line; do
+		name=$(printf '%s\n' "$line" | awk '{ n=$2; sub(/:$/, "", n); sub(/@.*/, "", n); print n }')
+		[ -n "$name" ] || continue
+		[ "$name" = lo ] && continue
+		case "$name" in *[!A-Za-z0-9_.-]*) continue ;; esac
+		flags=$(printf '%s\n' "$line" | sed -n 's/^[^<]*<\([^>]*\)>.*/\1/p')
+		detail=$(ip -d link show dev "$name" 2>/dev/null)
+		kind=
+		case "$detail" in
+			*'wireguard'*) kind=WireGuard ;;
+			*' tun '*) kind=TUN ;;
+			*' tap '*) kind=TAP ;;
+			*' gretap '*|*' gre '*) kind=GRE ;;
+			*' ipip '*) kind=IPIP ;;
+			*' sit '*) kind=SIT ;;
+			*' vxlan '*) kind=VXLAN ;;
+			*' xfrm '*) kind=XFRM ;;
+			*' ppp '*) kind=PPP ;;
+		esac
+		case ",$flags," in *,POINTOPOINT,*) [ -n "$kind" ] || kind="point-to-point" ;; esac
+		# Some VPN clients expose a virtual L3 device without a named link kind.
+		# Keep the test generic: only point-to-point or kernel tunnel devices.
+		[ -n "$kind" ] || continue
+		state=DOWN
+		case ",$flags," in *,UP,*) state=UP ;; esac
+		[ -n "$sep" ] && printf ','
+		printf '{"name":"%s","state":"%s","kind":"%s"}' "$name" "$state" "$kind"
+		sep=1
+	done
+	printf ']}\n'
+	;;
+*)
+	printf '{"ok":false,"error":"использование: nightfall-telegram inspect"}\n'
+	exit 0
+	;;
+esac

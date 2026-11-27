@@ -1523,14 +1523,6 @@ return view.extend({
 				cfgGroup(_('Хранение истории и резервные копии'), [ 'PERSIST_DIR', 'PERSIST_HOURS', 'HIST_DAYS', 'BACKUP_KEEP', 'PERSIST_ANY', 'JOURNAL', 'WIFI_HIST' ]),
 				cfgGroup(_('Режим и функции мониторинга'), [ 'LITE', 'APPS', 'NEWDEV' ])
 			]),
-			E('section', { class: 'nfm-cfg-g nfm-cfg-telegram' }, [
-				E('h4', {}, _('Telegram — уведомления и управление')),
-				E('div', { class: 'nfm-tg-grid' }, [
-					cfgGroup(_('Уведомления'), [ 'TG', 'TG_ALERTS', 'TG_UPDATES', 'TG_SEC', 'TG_REPORT' ]),
-					cfgGroup(_('Управление ботом'), [ 'TG_BOT', 'TG_CLEAN', 'TG_WIDGETS', 'TG_USERS' ]),
-					cfgGroup(_('Подключение и инструменты'), [ 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY', 'TG_IFACE' ], tgTools)
-				])
-			]),
 			E('div', { class: 'nfm-cfg-actions' }, [
 				E('button', { class: 'nfm-act', click: () => saveCfg() }, _('✓ Сохранить и применить')),
 				E('button', { class: 'nfm-act', click: () => (S.cfg ? Promise.resolve(S.cfg) : callCfg([ 'get' ]).then(c => (S.cfg = c))).then(c => fillCfg(c && c.defaults)) }, _('Значения по умолчанию')),
@@ -1549,6 +1541,77 @@ return view.extend({
 				E('div', {}, _('Для честного разделения трафика укажите известные VPN-серверы в формате IP:порт (через запятую): их внешний трафик будет показан как «VPN». Содержимое внутри зашифрованного туннеля определить нельзя. Пустой адрес 1 отключает проверку интернета. Историю безопаснее хранить на USB/SD. Путь внутри /overlay разрешается только при включённом переключателе внутренней флеш-памяти: это ускоряет износ и может заполнить системный раздел, поэтому оставляйте запас свободного места. Корневой / и /rom всегда запрещены. Резервные копии лежат отдельно в nightfall-backups; если USB отключён, копия временно создаётся в /tmp. После сохранения сборщик перезапускается, накопленная история не теряется.'))
 			])
 		]), 'nfm-cfg-settings-card');
+		/* Telegram control center. Existing TG_* settings remain stored in the
+		 * monitor config; only their presentation moves out of History. */
+		const tgRouteSelect = E('select', { class: 'nfm-sel', 'aria-label': _('Интерфейс VPN для Telegram'), change: ev => {
+			cfgInputs.TG_IFACE.value = ev.target.value;
+			S.tgSelectedIface = ev.target.value;
+		} }, [ E('option', { value: '' }, _('Автоматически · системный маршрут')) ]);
+		const tgRouteInfo = E('div', { class: 'nfm-hint', style: 'margin-top:10px' }, _('Список интерфейсов ещё не получен.'));
+		const tgState = E('div', { class: 'nfm-tiles t4' }, [
+			[ 'tgEnabled', _('Уведомления') ], [ 'tgBot', _('Бот') ], [ 'tgToken', _('Токен') ], [ 'tgChat', _('Chat ID') ]
+		].map(([ k, label ]) => E('div', { class: 'nfm-tile' }, [ label, T[k] = E('b', {}, '–') ])));
+		const tgRouteCard = card(_('Маршрут Telegram'), E('div', {}, [
+			E('label', { class: 'nfm-cfg-label' }, _('Выход для запросов к Telegram')),
+			tgRouteSelect,
+			tgRouteInfo,
+			E('div', { class: 'nfm-actions', style: 'margin-top:10px' }, [
+				E('button', { class: 'nfm-act', click: () => loadTelegram(true) }, _('Обновить список интерфейсов'))
+			]),
+			E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, _('Nightfall обнаруживает активные туннельные и point-to-point интерфейсы по данным ядра. Названия Steer и VPN-клиентов не зашиты в код. Выбор интерфейса передаётся curl как привязка исходящего соединения; правила маршрутизации и файрвола Steer не изменяются.'))
+		]));
+		const tgTab = E('div', { hidden: true }, [
+			E('div', { class: 'nfm-grid' }, [ card(_('Состояние Telegram'), E('div', {}, [ tgState, tgMsg ])) ]),
+			E('div', { class: 'nfm-grid nfm-g3' }, [
+				cfgGroup(_('Уведомления'), [ 'TG', 'TG_ALERTS', 'TG_UPDATES', 'TG_SEC', 'TG_REPORT' ]),
+				cfgGroup(_('Управление ботом'), [ 'TG_BOT', 'TG_CLEAN', 'TG_WIDGETS', 'TG_USERS' ]),
+				cfgGroup(_('Подключение и инструменты'), [ 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY' ], tgTools)
+			]),
+			E('div', { class: 'nfm-grid nfm-g21' }, [
+				tgRouteCard,
+				card(_('Применение настроек'), E('div', {}, [
+					E('div', { class: 'nfm-note-s' }, _('Существующие токен, chat id, уведомления и настройки бота сохраняются. Изменения маршрута применяются только после сохранения. Пустой выбор возвращает системную маршрутизацию.')),
+					E('div', { class: 'nfm-actions', style: 'margin-top:10px' }, [
+						E('button', { class: 'nfm-act', click: () => saveCfg() }, _('✓ Сохранить и применить')),
+						E('button', { class: 'nfm-act', click: () => tgRun('test').then(r => { if (r) tgMsg.textContent = r.ok ? _('Сообщение отправлено, проверьте Telegram.') : _('Не отправлено: ') + r.error; }) }, _('Отправить проверку'))
+					]),
+					cfgMsg
+				]))
+			])
+		]);
+		function renderTelegram() {
+			const v = S.cfg && S.cfg.values || {};
+			T.tgEnabled.textContent = String(v.TG || '0') === '1' ? _('Включено') : _('Выключено');
+			T.tgBot.textContent = String(v.TG_BOT || '0') === '1' ? _('Включён') : _('Выключен');
+			T.tgToken.textContent = v.TG_TOKEN && v.TG_TOKEN !== '***' ? _('Задан') : (cfgInputs.TG_TOKEN.value ? _('Задан') : _('Не задан'));
+			T.tgChat.textContent = v.TG_CHAT || cfgInputs.TG_CHAT.value || _('Не задан');
+			const chosen = cfgInputs.TG_IFACE.value || '';
+			if (S.tgInfo && S.tgInfo.ok) {
+				const interfaces = S.tgInfo.interfaces || [];
+				tgRouteSelect.replaceChildren(
+					E('option', { value: '' }, _('Автоматически · системный маршрут')),
+					...interfaces.map(x => E('option', { value: x.name }, x.name + ' · ' + (x.kind || _('туннель')) + (x.state === 'UP' ? '' : ' · ' + _('не активен'))))
+				);
+				const known = interfaces.some(x => x.name === chosen);
+				if (chosen && !known)
+					tgRouteSelect.appendChild(E('option', { value: chosen }, _('Сохранённый интерфейс (сейчас не обнаружен): ') + chosen));
+				tgRouteSelect.value = chosen;
+				tgRouteInfo.textContent = chosen
+					? (known ? _('Выбран интерфейс %s. Он найден и активен.').format(chosen) : _('Сохранённый интерфейс %s сейчас не обнаружен. Проверьте подключение VPN или выберите другой выход.').format(chosen))
+					: _('Используется обычный системный маршрут. Nightfall не выбирает VPN автоматически.');
+			} else {
+				tgRouteInfo.textContent = S.tgInfo && S.tgInfo.error ? _('Не удалось получить интерфейсы: ') + S.tgInfo.error : _('Нажмите «Обновить список интерфейсов», чтобы обнаружить доступные VPN-выходы.');
+			}
+		}
+		function loadTelegram(force) {
+			if (!force && S.tgInfo && Date.now() - (S.tgInfoAt || 0) < 30000) { renderTelegram(); return Promise.resolve(); }
+			return fs.exec('/usr/libexec/nightfall-telegram', [ 'inspect' ]).then(res => {
+				try { S.tgInfo = JSON.parse(res.stdout); } catch (e) { S.tgInfo = { ok: false, error: _('некорректный ответ службы обнаружения') }; }
+				S.tgInfoAt = Date.now();
+				renderTelegram();
+			}).catch(err => { S.tgInfo = { ok: false, error: (err && err.message) || String(err) }; renderTelegram(); });
+		}
+
 		const jrnTiles = E('div', { class: 'nfm-tiles t4', style: 'margin-bottom:10px' }, [ [ 'jCnt', _('обрывов за 7 дней') ], [ 'jSum', _('без связи суммарно') ], [ 'jAv', _('доступность') ], [ 'jBoot', _('последняя загрузка') ] ]
 			.map(([ k, l ]) => E('div', { class: 'nfm-tile' }, [ l, T[k] = E('b', {}, '–') ])));
 		const jrnBox = E('div');
@@ -2344,9 +2407,9 @@ return view.extend({
 		const pill = E('span', { class: 'nfm-pill' }, _('обновляется каждые %s с').format(INTERVAL));
 		const pauseBtn = E('button', { class: 'nfm-btn', click: () => setPaused(!S.paused) }, _('Пауза'));
 		const onTab = (...k) => k.indexOf(S.tab) >= 0;
-		const TAB_KEYS = [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist' ];
+		const TAB_KEYS = [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist', 'tg' ];
 		const tabBtns = {};
-		const tabs = E('div', { class: 'nfm-tabs', role: 'tablist' }, [ [ 'overview', _('Обзор') ], [ 'net', _('Сеть') ], [ 'wifi', 'Wi‑Fi' ], [ 'devs', _('Устройства') ], [ 'apps', _('Трафик') ], [ 'procs', _('Программы') ], [ 'svcs', _('Службы') ], [ 'diag', _('Диагностика') ], [ 'sec', _('Безопасность') ], [ 'log', _('Журнал') ], [ 'hist', _('История') ] ]
+		const tabs = E('div', { class: 'nfm-tabs', role: 'tablist' }, [ [ 'overview', _('Обзор') ], [ 'net', _('Сеть') ], [ 'wifi', 'Wi‑Fi' ], [ 'devs', _('Устройства') ], [ 'apps', _('Трафик') ], [ 'procs', _('Программы') ], [ 'svcs', _('Службы') ], [ 'diag', _('Диагностика') ], [ 'sec', _('Безопасность') ], [ 'log', _('Журнал') ], [ 'hist', _('История') ], [ 'tg', 'Telegram' ] ]
 			.map(([ k, l ]) => tabBtns[k] = E('button', { class: 'nfm-tab nfm-ti', 'data-ic': k, role: 'tab', click: () => { S.tab = k; refresh(); } }, l)));
 
 		const svcFilter = E('input', { class: 'nfm-in', type: 'search', placeholder: _('Найти службу…'), input: () => renderServices() });
@@ -2364,7 +2427,7 @@ return view.extend({
 				E('div', {}, [ E('h2', {}, _('Монитор ресурсов')),
 					E('div', { class: 'nfm-sub' }, [ (board.model || board.hostname || 'OpenWrt') + _(' · работает '), t('uptime') ]) ]),
 				E('span', { class: 'nfm-spacer' }), modeBadge, pill, pauseBtn, tabs ]),
-			overview, net, wifiTab, devsTab, appsTab, procs, svcs, diagTab, secTab, logTab, hist
+			overview, net, wifiTab, devsTab, appsTab, procs, svcs, diagTab, secTab, logTab, hist, tgTab
 		]);
 
 		/* host-theme dark/light adaptation: re-check after insertion, on theme
@@ -2604,8 +2667,9 @@ return view.extend({
 			if (onTab('hist', 'log') && due('jrn', 30)) jobs.push(callHistory([ 'journal' ]).then(r => { S.jrn = r; }));
 			if (onTab('hist', 'diag') && due('spd', S.spdRun ? 3 : 30)) jobs.push(callHistory([ 'speed' ]).then(r => { S.spd = r; if (S.spdRun && Date.now() - (S.spdT || 0) > 4000 && (!r || !r.running)) { S.spdRun = false; if (r === false) ui.addNotification(null, E('p', {}, _('Замер завершён, но результат не прочитан: ') + MISSING), 'danger'); } }));
 			if (S.tab === 'svcs' && due('svc', 6)) jobs.push(Promise.all([ L.resolveDefault(callInitList(), null), L.resolveDefault(callServiceList(), null) ]).then(r => { S.svc = { init: r[0], run: r[1] }; }));
-			if (S.tab === 'hist' && S.cfg === undefined) { S.cfg = null; jobs.push(callCfg([ 'get' ]).then(r => { S.cfg = r; fillCfg(r && r.values); renderDisks(); })); }
+			if (onTab('hist', 'tg') && S.cfg === undefined) { S.cfg = null; jobs.push(callCfg([ 'get' ]).then(r => { S.cfg = r; fillCfg(r && r.values); renderDisks(); })); }
 			if (S.tab === 'hist' && S.dsk === undefined) { S.dsk = null; jobs.push(loadDisks()); }
+			if (S.tab === 'tg' && due('tg', 30)) jobs.push(loadTelegram(false));
 			return Promise.all(jobs);
 		}
 
@@ -3685,7 +3749,7 @@ return view.extend({
 				tabBtns[k].setAttribute('aria-selected', S.tab === k);
 			}
 			show(overview, S.tab === 'overview'); show(net, S.tab === 'net'); show(procs, S.tab === 'procs'); show(svcs, S.tab === 'svcs'); show(hist, S.tab === 'hist');
-			show(wifiTab, S.tab === 'wifi'); show(devsTab, S.tab === 'devs'); show(appsTab, S.tab === 'apps'); show(diagTab, S.tab === 'diag'); show(secTab, S.tab === 'sec'); show(logTab, S.tab === 'log');
+			show(wifiTab, S.tab === 'wifi'); show(devsTab, S.tab === 'devs'); show(appsTab, S.tab === 'apps'); show(diagTab, S.tab === 'diag'); show(secTab, S.tab === 'sec'); show(logTab, S.tab === 'log'); show(tgTab, S.tab === 'tg');
 			if (!d) return;
 
 			T.uptime.textContent = fmtUptime(d.up);
@@ -3806,6 +3870,7 @@ return view.extend({
 			if (S.tab === 'log') { renderHist(); renderJournal(); renderLogTools(); renderRouterLog(); }
 			if (S.tab === 'diag') renderSpeed();
 			if (S.tab === 'sec') renderSec();
+			if (S.tab === 'tg') { renderTelegram(); if (!S.tgInfo || Date.now() - (S.tgInfoAt || 0) > 30000) loadTelegram(false); }
 			if (S.tab === 'devs') renderDevBlock();
 
 			/* overheating banner */
