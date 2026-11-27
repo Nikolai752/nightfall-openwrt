@@ -7,7 +7,9 @@
 			"path": "nightfall/monitor"
 		},
 		"depends": {
-			"acl": [ "luci-app-nightfall-monitor" ]
+			"acl": [
+				"luci-app-nightfall-monitor"
+			]
 		}
 	},
 	"admin/status/nightfall-devices": {
@@ -18,7 +20,22 @@
 			"path": "nightfall/devices"
 		},
 		"depends": {
-			"acl": [ "luci-app-nightfall-monitor" ]
+			"acl": [
+				"luci-app-nightfall-monitor"
+			]
+		}
+	},
+	"admin/status/nightfall-telegram-routing": {
+		"title": "Маршрутизация Telegram",
+		"order": 4,
+		"action": {
+			"type": "view",
+			"path": "nightfall/telegram-routing"
+		},
+		"depends": {
+			"acl": [
+				"luci-app-nightfall-monitor"
+			]
 		}
 	}
 }

@@ -1,0 +1,55 @@
+#!/bin/sh
+# Read-only discovery for the Nightfall Telegram routing page.
+# This helper never changes routes, firewall rules or VPN configuration.
+IP=${NF_IP:-ip}
+STEER=${NF_STEER:-steer}
+
+json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
+steer_json=
+if command -v "$STEER" >/dev/null 2>&1; then
+	steer_json=$("$STEER" status 2>/dev/null)
+fi
+steer_found=0
+steer_version=
+if printf '%s' "$steer_json" | grep -q '"outputs"'; then
+	steer_found=1
+	steer_version=$(printf '%s' "$steer_json" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p' | head -n 1)
+	[ -n "$steer_version" ] || steer_version="обнаружен"
+fi
+
+printf '{"ok":true,"integrations":['
+printf '{"name":"Steer","version":"%s","found":%s},' "$(json_escape "$steer_version")" "$steer_found"
+for item in "WireGuard|wg" "OpenVPN|openvpn" "ZeroTier|zerotier-cli"; do
+	name=${item%%|*}; bin=${item#*|}
+	if command -v "$bin" >/dev/null 2>&1; then
+		printf '{"name":"%s","version":"обнаружен","found":true},' "$name"
+	else
+		printf '{"name":"%s","version":"","found":false},' "$name"
+	fi
+done
+printf '{"name":"Policy routing (Linux)","version":"","found":true}],"outputs":['
+
+sep=
+"$IP" -4 rule show 2>/dev/null |
+awk '
+	/fwmark/ {
+		mark=""; table="";
+		for (i=1;i<=NF;i++) {
+			if ($i=="fwmark" && i<NF) { split($(i+1),a,"/"); mark=a[1]; }
+			if ($i=="lookup" && i<NF) table=$(i+1);
+		}
+		if (mark!="" && table!="" && table!="main" && table!="local" && table!="default")
+			print mark "|" table;
+	}' |
+while IFS='|' read -r mark table; do
+	case "$mark:$table" in *[!A-Za-z0-9_.:-]*) continue ;; esac
+	dev=$("$IP" -4 route show table "$table" 2>/dev/null | sed -n 's/^default .*dev \([^ ]*\).*/\1/p' | head -n 1)
+	[ -n "$dev" ] || continue
+	case "$dev" in lo|br-*|eth*|wan*|lan*|phy*) continue ;; esac
+	state=down
+	"$IP" link show dev "$dev" 2>/dev/null | grep -q 'UP' && state=up
+	printf '%s{"mark":"%s","table":"%s","device":"%s","up":"%s"}' "$sep" "$(json_escape "$mark")" "$(json_escape "$table")" "$(json_escape "$dev")" "$state"
+	sep=,
+done
+printf ']}\n'
