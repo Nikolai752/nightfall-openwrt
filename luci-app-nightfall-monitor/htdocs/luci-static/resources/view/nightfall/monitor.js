@@ -239,6 +239,7 @@ const XCSS = `
 .nfm-history > .nfm-grid { min-width:0; margin:0; gap:12px; }
 .nfm-history .nfm-card { min-width:0; }
 .nfm-history .nfm-card-title { min-width:0; }
+.nfm-history .nfm-card-title > .nfm-history-range-tabs { min-width:0; max-width:100%; }
 .nfm-history .nfm-chart { min-width:0; }
 .nfm-history .nfm-exp { align-items:stretch; }
 .nfm-history .nfm-exp .nfm-btn { flex:0 1 auto; min-width:0; }
@@ -253,6 +254,12 @@ const XCSS = `
  .nfm-history .nfm-card { padding:13px 12px; }
  .nfm-history .nfm-exp { display:grid; grid-template-columns:minmax(0,1fr); }
  .nfm-history .nfm-exp .nfm-btn { width:100%; justify-content:center; }
+ .nfm-history .nfm-card-title > .nfm-history-range-tabs {
+   display:flex; flex:1 1 100%; width:100%; max-width:100%; min-width:0; box-sizing:border-box;
+ }
+ .nfm-history .nfm-card-title > .nfm-history-range-tabs .nfm-tab {
+   flex:1 1 0; min-width:0; padding:5px 4px; white-space:nowrap;
+ }
  .nfm-history .nfm-cmp-t { grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr) 58px; font-size:11.5px; }
  .nfm-history .nfm-cmp-t > div { padding:7px 4px; }
 
@@ -1370,7 +1377,7 @@ return view.extend({
 
 		/* history tab */
 		const rangeBtns = {};
-		const rangeTabs = E('div', { class: 'nfm-tabs' }, Object.keys(RANGES).map(k =>
+		const rangeTabs = E('div', { class: 'nfm-tabs nfm-history-range-tabs' }, Object.keys(RANGES).map(k =>
 			rangeBtns[k] = E('button', { class: 'nfm-tab', click: () => { S.range = k; S.hist = undefined; S.at.hist = 0; refresh(); tick(); } }, RANGES[k][2])));
 		const histNote = E('div', { class: 'nfm-hint', hidden: '' });
 		const histMain = chart({ right: true, height: 240,
