@@ -129,11 +129,38 @@ win_ok() {  # win_ok С ДО ДНИ: проверка полей окна; ре�
 	norm_days "$3" || fail "дни недели: цифры от 1 (понедельник) до 7 (воскресенье)"
 }
 
-# трафик устройства за сегодня (байт): по IP из ARP и dev.day
+# Соседи IPv4/IPv6: для квоты нужен каждый адрес устройства, а не только одна ARP-запись.
+neigh_dump_all() {
+	if [ -n "$NF_NEIGH" ]; then cat "$NF_NEIGH" 2>/dev/null
+	else ${NF_IP:-ip} neigh show 2>/dev/null
+	fi
+}
+
+# трафик устройства за сегодня (байт): суммируем все его адреса из DHCP, ARP и neighbor table.
+# Учитываем IPv6 ULA и несколько адресов на одном MAC; дублирующиеся IP считаем только один раз.
 used_of() {
-	ipa=$(awk -v m="$1" 'NR > 1 && tolower($4) == m { print $1; exit }' "$PROC/net/arp" 2>/dev/null)
-	[ -n "$ipa" ] && [ -r "$DAYF" ] || { echo 0; return; }
-	awk -v ip="$ipa" '$1 == ip { s += $2 + $3 } END { printf "%d", s }' "$DAYF"
+	mac=$(lower "$1")
+	[ -r "$DAYF" ] || { echo 0; return; }
+	ips=$(
+		{
+			[ -r "$LEASES" ] && awk -v m="$mac" 'tolower($2) == m { print $3, m }' "$LEASES"
+			[ -r "$PROC/net/arp" ] && awk -v m="$mac" 'NR > 1 && $3 == "0x2" && tolower($4) == m { print $1, m }' "$PROC/net/arp"
+			neigh_dump_all | awk -v m="$mac" '/lladdr/ {
+				for (i = 1; i < NF; i++) if ($i == "lladdr" && tolower($(i + 1)) == m) {
+					print $1, m
+					break
+				}
+			}'
+		} 2>/dev/null | awk -v m="$mac" '$2 == m && $1 !~ /^fe80:/ { print $1 }' | sort -u
+	)
+	[ -n "$ips" ] || { echo 0; return; }
+	awk -v ips="$ips" 'BEGIN {
+		n = split(ips, a, "\n")
+		for (i = 1; i <= n; i++) used[a[i]] = 1
+	}
+	$1 in used { total += $2 + $3 }
+	# BusyBox awk %d is signed 32-bit and overflows above 2 GiB; %.0f preserves byte counters.
+	END { printf "%.0f", total + 0 }' "$DAYF"
 }
 
 # причина, по которой интернет отключён сейчас: manual, quota, sched или пусто
