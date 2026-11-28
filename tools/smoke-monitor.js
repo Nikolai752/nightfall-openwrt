@@ -252,33 +252,36 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				});
 				if (!tgIcon || tgIcon === 'none') bad(vn + ': у вкладки TG Bot отсутствует SVG-значок');
 				if (!tt.includes('Маршрут ядра активен')) bad(vn + ': не показано фактическое состояние активного маршрута');
-				const outputSelect = p.locator('.nfm-tg-output-select');
-				let selectedRoute = await outputSelect.inputValue();
+				const outputList = p.locator('.nfm-tg-output-list');
+				let selectedRoute = await outputList.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output');
 				if (selectedRoute !== 'steer:zm_vpn2') bad(vn + ': TG Bot должен показывать активный steer:zm_vpn2, получено: ' + selectedRoute);
-				const outputOptions = await outputSelect.locator('option').allTextContents();
-				if (!outputOptions.some(x => x.includes('АКТИВЕН')) || !outputOptions.some(x => x.includes('ПРОВЕРИТЬ')) || !outputOptions.some(x => x.includes('НЕДОСТУПЕН')))
-					bad(vn + ': список не различает активный, обнаруженный и недоступный выходы');
-				/* Select a different Steer output using the native touch-friendly control. */
-				await outputSelect.selectOption('steer:groupvpn'); await p.waitForTimeout(100);
-				if (await outputSelect.inputValue() !== 'steer:groupvpn') bad(vn + ': ручной выбор groupvpn через селектор не сработал');
+				const outputRows = outputList.locator('.nfm-tg-output-choice');
+				if (await outputRows.count() !== 3) bad(vn + ': selector cards должны показать все три тестовых выхода');
+				const outputText = await outputList.textContent();
+				if (!outputText.includes('АКТИВЕН') || !outputText.includes('ПРОВЕРИТЬ') || !outputText.includes('НЕДОСТУПЕН')) bad(vn + ': selector cards не различают активный, найденный и недоступный выходы');
+				const firstRow = await p.locator('.nfm-tg-output-choice[data-output="steer:groupvpn"]').evaluate(el => { const r=el.getBoundingClientRect(); const s=getComputedStyle(el); return {w:r.width,h:r.height,pointer:s.pointerEvents,display:s.display}; });
+				if (firstRow.w < 160 || firstRow.h < 40 || firstRow.pointer === 'none' || firstRow.display === 'none') bad(vn + ': карточка VPN-выхода не имеет удобной активной области: ' + JSON.stringify(firstRow));
+				/* Select a different Steer output with a real delegated button click (mouse/touch). */
+				await p.click('.nfm-tg-output-choice[data-output="steer:groupvpn"]'); await p.waitForTimeout(100);
+				if (await outputList.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output') !== 'steer:groupvpn') bad(vn + ': ручной выбор groupvpn нажатием не сработал');
 				await p.click('.nfm-tg-output-actions button'); await p.waitForTimeout(200);
 				if (!(await p.locator('.nfm-tg-output-selection').textContent()).includes('Проверка пройдена')) bad(vn + ': предварительная проверка groupvpn не подтвердилась');
 				await p.click('button:has-text("Применить выбранный выход")'); await p.waitForTimeout(250);
 				if (!CFG_SET_CALLS[CFG_SET_CALLS.length - 1].includes('TG_ROUTE_OUTPUT=steer:groupvpn')) bad(vn + ': применение не сохранило выбранный groupvpn');
-				if (await outputSelect.inputValue() !== 'steer:groupvpn' || !(await outputSelect.locator('option:checked').textContent()).includes('АКТИВЕН')) bad(vn + ': groupvpn не стал фактически активным после применения');
+				if (!(await p.locator('.nfm-tg-output-choice[data-output="steer:groupvpn"]').evaluate(el => el.classList.contains('is-active')))) bad(vn + ': groupvpn не стал фактически активным после применения');
 				/* Return to the known-good route and verify it remains independently selectable. */
-				await outputSelect.selectOption('steer:zm_vpn2'); await p.waitForTimeout(100);
+				await p.click('.nfm-tg-output-choice[data-output="steer:zm_vpn2"]'); await p.waitForTimeout(100);
 				await p.click('.nfm-tg-output-actions button'); await p.waitForTimeout(200);
 				if (!(await p.locator('.nfm-tg-output-selection').textContent()).includes('Проверка пройдена')) bad(vn + ': повторная проверка zm_vpn2 не прошла');
 				await p.click('button:has-text("Применить выбранный выход")'); await p.waitForTimeout(250);
-				selectedRoute = await outputSelect.inputValue();
+				selectedRoute = await outputList.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output');
 				if (selectedRoute !== 'steer:zm_vpn2') bad(vn + ': не удалось вернуть проверенный маршрут zm_vpn2');
 				await p.click('button:has-text("Сохранить настройки Telegram")'); await p.waitForTimeout(200);
 				const savedTgConfig = CFG_SET_CALLS[CFG_SET_CALLS.length - 1] || [];
 				if (!savedTgConfig.includes('TG_ROUTE_MODE=vpn') || !savedTgConfig.includes('TG_ROUTE_OUTPUT=steer:zm_vpn2')) bad(vn + ': сохранение TG Bot потеряло маршрут zm_vpn2');
 				const tgAfterSwitch = await p.evaluate(() => document.querySelector('.nfm-tg-page')?.textContent || '');
 				if (!tgAfterSwitch.includes('zm_vpn2') || !tgAfterSwitch.includes('wg2')) bad(vn + ': UI не показывает восстановленный активный zm_vpn2 / wg2');
-				const unavailable = await outputSelect.locator('option:disabled').count();
+				const unavailable = await outputList.locator('.nfm-tg-output-choice:disabled').count();
 				if (unavailable !== 1) bad(vn + ': неготовый VPN-выход должен быть видимым и недоступным для выбора');
 				/* Notification and bot controls are intentionally collapsed in the compact default view. Open them only for switch-size regression checks. */
 				await p.locator('.nfm-tg-disclosure').evaluateAll(els => els.forEach(el => { el.open = true; }));
