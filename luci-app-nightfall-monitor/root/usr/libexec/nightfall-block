@@ -159,6 +159,7 @@ used_of() {
 		for (i = 1; i <= n; i++) used[a[i]] = 1
 	}
 	$1 in used { total += $2 + $3 }
+	# BusyBox awk %d is signed 32-bit and overflows above 2 GiB; %.0f preserves byte counters.
 	END { printf "%.0f", total + 0 }' "$DAYF"
 }
 
