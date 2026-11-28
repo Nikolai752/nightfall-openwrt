@@ -1817,9 +1817,14 @@
 		return tx;
 	}
 
+	function trBackupOut(tx) {
+		if (typeof tx !== 'string') return tx;
+		return tx.split('\n').map(trBackup).join('\n');
+	}
+
 	function backupNote(text, bad) {
 		if (!refs.backupNote) return;
-		refs.backupNote.textContent = trBackup(text);
+		refs.backupNote.textContent = trBackupOut(text);
 		refs.backupNote.classList.toggle('bad', !!bad);
 	}
 	function backupExec(args) {

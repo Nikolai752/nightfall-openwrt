@@ -1538,8 +1538,8 @@ return view.extend({
 				E('button', { class: 'nfm-act', click: () => {
 					backupMsg.textContent = _('Создаю и проверяю резервную копию…');
 					fs.exec('/usr/libexec/nightfall-backup', [ 'create' ]).then(r => {
-						backupMsg.textContent = trBackup(((r.stdout || '') + (r.stderr || '')).trim()) || _('Нет ответа от архиватора.');
-					}).catch(e => { backupMsg.textContent = _('Не удалось создать копию: ') + trBackup(String((e && e.message) || e)); });
+						backupMsg.textContent = trBackupOut(((r.stdout || '') + (r.stderr || '')).trim()) || _('Нет ответа от архиватора.');
+					}).catch(e => { backupMsg.textContent = _('Не удалось создать копию: ') + trBackupOut(String((e && e.message) || e)); });
 				} }, _('Создать резервную копию сейчас'))
 			]),
 			cfgMsg,
@@ -2565,6 +2565,11 @@ return view.extend({
 	function trBlkReason(tx) {
 		var m = { manual: _('вручную'), gmanual: _('группа отключена вручную'), quota: _('достигнут суточный лимит трафика'), sched: _('расписание') };
 		return m[tx] || tx;
+	}
+
+	function trBackupOut(tx) {
+		if (typeof tx !== 'string') return tx;
+		return tx.split('\n').map(trBackup).join('\n');
 	}
 
 	function trCfgErr(tx) {
