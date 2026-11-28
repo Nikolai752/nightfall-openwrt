@@ -15,6 +15,7 @@ const T = fs.mkdtempSync(path.join(os.tmpdir(), 'nfmon-'));
 const CFG_SET_CALLS = [];
 let TG_ROUTE_OUTPUT = 'steer:zm_vpn2';
 let TG_ROUTE_ACTIVE = true;
+let TG_ROUTE_STATUS_OK = true;
 let TG_TEST_STARTS = 0;
 const NOW = Math.floor(Date.now() / 1000);
 cp.execFileSync('sh', [path.join(__dirname, 'sec-fixtures.sh'), T]);
@@ -41,6 +42,7 @@ const EXEC = (cmd, args) => {
 			return JSON.stringify({ ok: true, active: true, mode: 'vpn', source: 'steer', uid: 104, table: item.table, device: item.device, output: TG_ROUTE_OUTPUT });
 		}
 		if (args[0] === 'status') {
+			if (!TG_ROUTE_STATUS_OK) return JSON.stringify({ ok: false, error: 'fixture: route status unavailable' });
 			const item = TG_ROUTE_OUTPUT === 'steer:groupvpn' ? { device: 'wg1', table: 300 } : { device: 'wg2', table: 304 };
 			return JSON.stringify(TG_ROUTE_ACTIVE ? { ok: true, active: true, mode: 'vpn', source: 'steer', uid: 104, table: item.table, device: item.device, output: TG_ROUTE_OUTPUT } : { ok: true, active: false, mode: 'vpn', output: TG_ROUTE_OUTPUT });
 		}
@@ -135,6 +137,7 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 		p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
 		await p.exposeFunction('__exec', (c, a) => EXEC(c, a));
 		await p.exposeFunction('__setTgRouteActive', active => { TG_ROUTE_ACTIVE = !!active; });
+		await p.exposeFunction('__setTgRouteStatusOk', ok => { TG_ROUTE_STATUS_OK = !!ok; });
 		await p.exposeFunction('__getTgTestStarts', () => TG_TEST_STARTS);
 		await p.route('**/*', r => {
 			const u = new URL(r.request().url());
@@ -320,6 +323,12 @@ const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
 				await p.locator('.nfm-tg-test-button').evaluate(el => { el.disabled = false; el.click(); });
 				await p.waitForTimeout(750);
 				if (await p.evaluate(() => window.__getTgTestStarts()) !== 2) bad(vn + ': повторная проверка не возобновилась после восстановления активного маршрута');
+				await p.evaluate(() => window.__setTgRouteStatusOk(false));
+				await p.locator('.nfm-tg-test-button').evaluate(el => { el.disabled = false; el.click(); }); await p.waitForTimeout(700);
+				if (await p.evaluate(() => window.__getTgTestStarts()) !== 2) bad(vn + ': старый кэш маршрута разрешил тест при ошибке свежего route status');
+				if (!(await p.locator('.nfm-tg-test-button').isDisabled())) bad(vn + ': кнопка теста должна блокироваться при ошибке свежего route status');
+				await p.evaluate(() => window.__setTgRouteStatusOk(true));
+				await p.click('button:has-text("Обновить выходы")'); await p.waitForTimeout(200);
 				await p.locator('.nfm-tg-test-button').click(); await p.waitForTimeout(800);
 				if (await p.evaluate(() => window.__getTgTestStarts()) !== 1) bad(vn + ': тест Telegram не стартовал при подтверждённом активном zm_vpn2');
 				await p.screenshot({ path: path.join(OUT, 'monitor-tg-' + vn + '.png'), fullPage: true });
