@@ -301,7 +301,13 @@ const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
 				const tgAfterSwitch = await p.evaluate(() => document.querySelector('.nfm-tg-page')?.textContent || '');
 				if (!tgAfterSwitch.includes('zm_vpn2') || !tgAfterSwitch.includes('wg2')) bad(vn + ': UI не показывает восстановленный активный zm_vpn2 / wg2');
 				const unavailable = await outputList.locator('.nfm-tg-output-choice:disabled').count();
-				if (unavailable !== 1) bad(vn + ': неготовый VPN-выход должен быть видимым и недоступным для выбора');
+				if (unavailable !== 0) bad(vn + ': обнаруженные VPN-выходы должны оставаться выбираемыми даже при ready=false');
+				await p.click('.nfm-tg-output-choice[data-output="steer:offline"]'); await p.waitForTimeout(100);
+				if (await outputList.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output') !== 'steer:offline') bad(vn + ': не удалось выбрать обнаруженный, но неготовый VPN-выход для диагностики');
+				await p.click('.nfm-tg-output-actions button'); await p.waitForTimeout(200);
+				if (!(await p.locator('.nfm-tg-output-selection').textContent()).includes('выход недоступен')) bad(vn + ': диагностика не показала причину отказа для неготового выхода');
+				if (!(await p.locator('button:has-text("Применить выбранный выход")').isDisabled())) bad(vn + ': неготовый выход нельзя применять до успешной проверки');
+				await p.click('.nfm-tg-output-choice[data-output="steer:zm_vpn2"]'); await p.waitForTimeout(100);
 				/* Notification and bot controls are intentionally collapsed in the compact default view. Open them only for switch-size regression checks. */
 				await p.locator('.nfm-tg-disclosure').evaluateAll(els => els.forEach(el => { el.open = true; }));
 				const tgSwitches = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-tg-page .nfm-cfg-toggle input.nfm-toggle'))
