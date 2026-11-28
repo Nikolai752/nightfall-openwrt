@@ -836,6 +836,12 @@ const CSS = `
 .nfm-tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .nfm-tabs::-webkit-scrollbar { display: none; }
 .nfm-tab { white-space: nowrap; flex: none; }
+@media (min-width: 641px) {
+  /* Keep the twelve primary monitor tabs readable without clipping the last item on desktop. */
+  .nfm-main-tabs { gap: 1px; }
+  .nfm-main-tabs > .nfm-ti { padding-left: 11px; padding-right: 11px; font-size: 12.5px; }
+  .nfm-main-tabs > .nfm-ti::before { width: 13px; height: 13px; margin-right: 4px; }
+}
 @media (max-width: 640px) {
   .nfm-top .nfm-tabs { display: flex; width: 100%; order: 5; } .nfm-top .nfm-tabs .nfm-tab { flex: 1 0 auto; padding: 6px 8px; font-size: 12.5px; }
   .nfm-card-title { flex-wrap: wrap; row-gap: 8px; }
@@ -2351,7 +2357,7 @@ return view.extend({
 		const onTab = (...k) => k.indexOf(S.tab) >= 0;
 		const TAB_KEYS = [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist', 'settings' ];
 		const tabBtns = {};
-		const tabs = E('div', { class: 'nfm-tabs', role: 'tablist' }, [ [ 'overview', _('Обзор') ], [ 'net', _('Сеть') ], [ 'wifi', 'Wi‑Fi' ], [ 'devs', _('Устройства') ], [ 'apps', _('Трафик') ], [ 'procs', _('Программы') ], [ 'svcs', _('Службы') ], [ 'diag', _('Диагностика') ], [ 'sec', _('Безопасность') ], [ 'log', _('Журнал') ], [ 'hist', _('История') ], [ 'settings', _('Настройки') ] ]
+		const tabs = E('div', { class: 'nfm-tabs nfm-main-tabs', role: 'tablist' }, [ [ 'overview', _('Обзор') ], [ 'net', _('Сеть') ], [ 'wifi', 'Wi‑Fi' ], [ 'devs', _('Устройства') ], [ 'apps', _('Трафик') ], [ 'procs', _('Программы') ], [ 'svcs', _('Службы') ], [ 'diag', _('Диагностика') ], [ 'sec', _('Безопасность') ], [ 'log', _('Журнал') ], [ 'hist', _('История') ], [ 'settings', _('Настройки') ] ]
 			.map(([ k, l ]) => tabBtns[k] = E('button', { class: 'nfm-tab nfm-ti', 'data-ic': k, role: 'tab', click: () => { S.tab = k; refresh(); } }, l)));
 
 		const svcFilter = E('input', { class: 'nfm-in', type: 'search', placeholder: _('Найти службу…'), input: () => renderServices() });
