@@ -15,7 +15,7 @@ on:
         description: "Версия тестового архива"
         required: true
         type: string
-        default: "v1.30.0-alpha.16-tg-ui-input-fix"
+        default: "v1.30.0-alpha.17-tg-ui-click-fix"
 
 permissions:
   contents: read
@@ -35,7 +35,7 @@ jobs:
 
       - name: Build archive
         env:
-          VERSION: ${{ inputs.version || 'v1.30.0-alpha.16-tg-ui-input-fix' }}
+          VERSION: ${{ inputs.version || 'v1.30.0-alpha.17-tg-ui-click-fix' }}
         run: sh ./build-release.sh
 
       - name: Verify archive and checksum
@@ -49,7 +49,7 @@ jobs:
       - name: Upload installable archive
         uses: actions/upload-artifact@v7
         with:
-          name: nightfall-test-${{ inputs.version || 'v1.30.0-alpha.16-tg-ui-input-fix' }}
+          name: nightfall-test-${{ inputs.version || 'v1.30.0-alpha.17-tg-ui-click-fix' }}
           path: |
             dist/nightfall-root.tar.gz
             dist/nightfall-root.tar.gz.sha256
