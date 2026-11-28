@@ -1875,7 +1875,7 @@ tgApplyRouteButton
 			if (mode === 'vpn') {
 				if (!selectedItem) tgOutputSelection.textContent = current ? _('Сохранённый выход не найден в списке обнаружения.') : _('Выберите выход в списке.');
 				else if (activeOutput === current) tgOutputSelection.textContent = _('Сейчас реально активен: ') + (selectedItem.device || current) + (selectedItem.table ? ' · table ' + selectedItem.table : '');
-				else if (selectedItem.verified) tgOutputSelection.textContent = _('Выход проверен: ') + (selectedItem.device || current) + (selectedItem.table ? ' · table ' + selectedItem.table : '') + _(' · готов к применению');
+				else if (selectedItem.verified) tgOutputSelection.textContent = _('Проверка пройдена: ') + (selectedItem.device || current) + (selectedItem.table ? ' · table ' + selectedItem.table : '') + _(' · готов к применению');
 				else if (selectedItem.probeError) tgOutputSelection.textContent = _('Последняя проверка не пройдена: ') + selectedItem.probeError;
 				else tgOutputSelection.textContent = selectedItem.ready === false ? _('Интерфейс или таблица сейчас недоступны.') : _('Выход только обнаружен. Сначала выполните проверку маршрута.');
 			} else tgOutputSelection.textContent = _('Выбор VPN применяется только в режиме «Через VPN».');
