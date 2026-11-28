@@ -12,6 +12,11 @@ const CHARTS_SRC = fs.readFileSync(path.join(ROOT, 'luci-app-nightfall-monitor/h
 const CSS = path.join(ROOT, 'luci-theme-nightfall/htdocs/luci-static/nightfall/cascade.css');
 const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
 const T = fs.mkdtempSync(path.join(os.tmpdir(), 'nfmon-'));
+const CFG_SET_CALLS = [];
+let TG_ROUTE_OUTPUT = 'steer:zm_vpn2';
+let TG_ROUTE_ACTIVE = true;
+let TG_ROUTE_STATUS_OK = true;
+let TG_TEST_STARTS = 0;
 const NOW = Math.floor(Date.now() / 1000);
 cp.execFileSync('sh', [path.join(__dirname, 'sec-fixtures.sh'), T]);
 const ENV = Object.assign({}, process.env, { NF_LOGREAD: path.join(T, 'logread'), NF_PROC: path.join(T, 'proc'), NF_KNOWN: path.join(T, 'known'), NF_UCI: path.join(T, 'uci'), NF_UPDATEBIN: path.join(T, 'upd'), NF_SHADOW: path.join(T, 'shadow'), NF_DIR: path.join(T, 'd'), NF_NFT: path.join(T, 'nft'), NFT_LOG: path.join(T, 'nft.log') });
@@ -20,13 +25,42 @@ let fail = 0; const bad = m => { console.log('ОШИБКА: ' + m); fail = 1; };
 const EXEC = (cmd, args) => {
 	const n = path.basename(cmd);
 	if (n === 'nightfall-stats') return run('nightfall-stats', args);
-	if (n === 'nightfall-telegram-route') return args[0] === 'inspect'
-		? JSON.stringify({ ok: true, steer: { found: true, version: '2.1.4' }, outputs: [
-			{ id: 'steer:vpn', label: 'Steer · vpn · wg0', table: 300, mark: '0x00400000', device: 'wg0', ready: true },
-			{ id: 'steer:offline', label: 'Steer · vpn · wg1', table: 301, mark: '0x00500000', device: 'wg1', ready: false }
-		], interfaces: [] })
-		: JSON.stringify({ ok: true, active: true, mode: 'vpn', source: 'steer', uid: 104, table: 300, device: 'wg0', output: 'steer:vpn' });
-	if (n === 'nightfall-config' && args[0] === 'get') return JSON.stringify({ ok: true, values: { TG: '1', TG_ALERTS: '1', TG_BOT: '1', TG_CLEAN: '0', TG_UPDATES: '1', TG_SEC: '1', TG_WIDGETS: '0', TG_REPORT: '', TG_TOKEN: '', TG_CHAT: '', TG_USERS: '', TG_PROXY: '', TG_IFACE: '', TG_ROUTE_MODE: 'vpn', TG_ROUTE_OUTPUT: 'steer:vpn' } });
+	if (n === 'nightfall-telegram-route') {
+		if (args[0] === 'inspect') return JSON.stringify({ ok: true, steer: { found: true, version: '2.1.4' }, outputs: [
+			{ id: 'steer:zm_vpn2', label: 'zm_vpn2 · group · wg2', table: 304, mark: '0x00500000', device: 'wg2', ready: true },
+			{ id: 'steer:groupvpn', label: 'groupvpn · group · wg1', table: 300, mark: '0x00400000', device: 'wg1', ready: true },
+			{ id: 'steer:offline', label: 'offline · interface · wg3', table: 305, mark: '0x00600000', device: 'wg3', ready: false }
+		], interfaces: [] });
+		if (args[0] === 'probe') {
+			const candidate = args[1];
+			const item = candidate === 'steer:zm_vpn2' ? { device: 'wg2', table: 304 } : candidate === 'steer:groupvpn' ? { device: 'wg1', table: 300 } : null;
+			return JSON.stringify(item ? { ok: true, verified: true, source: 'steer', output: candidate, device: item.device, table: item.table } : { ok: false, error: 'выход недоступен' });
+		}
+		if (args[0] === 'apply') {
+			const item = TG_ROUTE_OUTPUT === 'steer:groupvpn' ? { device: 'wg1', table: 300 } : { device: 'wg2', table: 304 };
+			TG_ROUTE_ACTIVE = true;
+			return JSON.stringify({ ok: true, active: true, mode: 'vpn', source: 'steer', uid: 104, table: item.table, device: item.device, output: TG_ROUTE_OUTPUT });
+		}
+		if (args[0] === 'status') {
+			if (!TG_ROUTE_STATUS_OK) return JSON.stringify({ ok: false, error: 'fixture: route status unavailable' });
+			const item = TG_ROUTE_OUTPUT === 'steer:groupvpn' ? { device: 'wg1', table: 300 } : { device: 'wg2', table: 304 };
+			return JSON.stringify(TG_ROUTE_ACTIVE ? { ok: true, active: true, mode: 'vpn', source: 'steer', uid: 104, table: item.table, device: item.device, output: TG_ROUTE_OUTPUT } : { ok: true, active: false, mode: 'vpn', output: TG_ROUTE_OUTPUT });
+		}
+		const item = TG_ROUTE_OUTPUT === 'steer:groupvpn' ? { device: 'wg1', table: 300 } : { device: 'wg2', table: 304 };
+		return JSON.stringify({ ok: true, active: TG_ROUTE_ACTIVE, mode: 'vpn', source: 'steer', uid: 104, table: item.table, device: item.device, output: TG_ROUTE_OUTPUT });
+	}
+	if (n === 'nightfall-notify') {
+		if (args[0] === 'test-start') { TG_TEST_STARTS++; return '{"ok":true,"state":"running"}'; }
+		if (args[0] === 'test-status') return '{"ok":true}';
+		return '{"ok":true}';
+	}
+	if (n === 'nightfall-config' && args[0] === 'set') {
+		CFG_SET_CALLS.push(args.slice());
+		const value = args.find(x => x.startsWith('TG_ROUTE_OUTPUT='));
+		if (value) TG_ROUTE_OUTPUT = value.slice('TG_ROUTE_OUTPUT='.length);
+		return '{"ok":true}';
+	}
+	if (n === 'nightfall-config' && args[0] === 'get') return JSON.stringify({ ok: true, values: { TG: '1', TG_ALERTS: '1', TG_BOT: '1', TG_CLEAN: '0', TG_UPDATES: '1', TG_SEC: '1', TG_WIDGETS: '0', TG_REPORT: '', TG_TOKEN: '123456:TESTTOKEN', TG_CHAT: '123456789', TG_USERS: '', TG_PROXY: '', TG_IFACE: '', TG_ROUTE_MODE: 'vpn', TG_ROUTE_OUTPUT: 'steer:zm_vpn2' } });
 	if (n === 'nightfall-sec' || n === 'nightfall-diag' || n === 'nightfall-log') return run(n, args);
 	if (n === 'nightfall-dns') return run(n, args, { NF_LOGREAD: path.join(T, 'dnslogread'), NF_UCI: path.join(T, 'uci_dns') });
 	if (n === 'nightfall-history') return args[0] === 'apps' ? JSON.stringify({ enabled: 1, lite: 0, today: '20261118', day: [["192.168.1.20", "ВКонтакте", "VPN", 1048576, 51200], ["192.168.1.20", "Прочее · okcdn.ru", "Direct", 2097152, 1024], ["192.168.1.20", "Прочее · Нет DNS-имени", "Unknown", 512000, 1000], ["192.168.1.20", "Telegram", "VPN", 256000, 1000]], hist: [] }) : args[0] === 'devices' ? JSON.stringify({ now: NOW, ts: NOW - 10, rate: [], day: [["192.168.1.20", 5000000, 1000000]], yday: [], neigh: [["192.168.1.20", "aa:bb:cc:dd:ee:01"]], info: {} }) : args[0] === 'wifi' && !args[1] ? JSON.stringify({ now: NOW, rows: [], events: [[NOW - 60, "aa:bb:cc:dd:ee:01", "join", "phy0"], [NOW - 120, "aa:bb:cc:dd:ee:01", "leave", "phy0"]] }) : args[0] === 'extip' ? JSON.stringify({ now: NOW, rows: [[NOW - 86400, "203.0.113.7", 0], [NOW - 60, "100.64.3.9", 1]] }) : args[0] === 'procmem' ? JSON.stringify({ now: NOW, rows: Array.from({ length: 8 }, (_, i) => [NOW - (7 - i) * 900, [["dnsmasq", 10000 + i * 3000], ["uhttpd", 3000]]]) }) : args[0] === 'known' ? '{"now":1794786100,"rows":[["AA:BB:CC:DD:EE:01","x",1794700000]]}' : args[0] === 'mode' ? '{"mode":"full","step":15}' : args[0] === 'journal' ? JSON.stringify({ now: NOW, rows: [[ NOW - 120, 'outage', 120, 'нет интернета' ], [ NOW - 600, 'boot', 0, 'Загрузка роутера' ]] }) : '{}';
@@ -102,6 +136,9 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 		const errs = [];
 		p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
 		await p.exposeFunction('__exec', (c, a) => EXEC(c, a));
+		await p.exposeFunction('__setTgRouteActive', active => { TG_ROUTE_ACTIVE = !!active; });
+		await p.exposeFunction('__setTgRouteStatusOk', ok => { TG_ROUTE_STATUS_OK = !!ok; });
+		await p.exposeFunction('__getTgTestStarts', () => TG_TEST_STARTS);
 		await p.route('**/*', r => {
 			const u = new URL(r.request().url());
 			if (u.pathname === '/page') return r.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="ru"><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><link rel=stylesheet href="http://t.local/c.css"></head><body><div id=m></div></body></html>' });
@@ -224,22 +261,97 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 			}
 			if (k === 'tg') {
 				const tt = await p.evaluate(() => document.querySelector('.nfm-tg-page')?.textContent || '');
-				for (const w of [ 'Telegram-бот', 'Маршрут подключения к Telegram', 'Системный маршрут', 'Через прокси', 'Через VPN', 'Сохранить настройки Telegram' ])
+				for (const w of [ 'Telegram-бот', 'Маршрут Telegram', 'Система', 'Прокси', 'VPN', 'Сохранение настроек' ])
 					if (!tt.includes(w)) bad(vn + ': во вкладке TG Bot нет «' + w + '»');
-				const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
+								const legacyTopVisible = await p.locator('.nfm-top-device').evaluate(el => !el.hasAttribute('hidden'));
+				if (legacyTopVisible) bad(vn + ': старая строка модели и аптайма должна скрываться на вкладке TG Bot');
+const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
 					const css = getComputedStyle(el, '::before');
 					return css.maskImage || css.webkitMaskImage || css.getPropertyValue('--ic');
 				});
 				if (!tgIcon || tgIcon === 'none') bad(vn + ': у вкладки TG Bot отсутствует SVG-значок');
 				if (!tt.includes('Маршрут ядра активен')) bad(vn + ': не показано фактическое состояние активного маршрута');
-				if (!tt.includes('Готов · Steer') || !tt.includes('Не готов')) bad(vn + ': список VPN-выходов не показывает их фактическую готовность');
-				const unavailable = await p.locator('.nfm-tg-output-choice:disabled').count();
-				if (unavailable !== 1) bad(vn + ': неготовый VPN-выход должен быть видимым и недоступным для выбора');
+				const outputList = p.locator('.nfm-tg-output-list');
+				const layout = await p.evaluate(() => ({
+					left: !!document.querySelector('.nfm-tg-left-column .nfm-tg-connection-body'),
+					notificationsUnderConnection: !!document.querySelector('.nfm-tg-left-column .nfm-tg-disclosure'),
+					routeOnRight: !!document.querySelector('.nfm-tg-main-grid > .nfm-card'),
+					statusCards: document.querySelectorAll('.nfm-tg-status-grid .nfm-card').length,
+					management: !!document.querySelector('.nfm-tg-options-grid .nfm-tg-disclosure')
+				}));
+				if (!layout.left || !layout.notificationsUnderConnection || !layout.routeOnRight || layout.statusCards !== 3 || !layout.management)
+					bad(vn + ': новая компоновка Telegram Control Center нарушена: ' + JSON.stringify(layout));
+				const routeActions = await p.locator('.nfm-tg-route-actions button').count();
+				if (routeActions !== 3) bad(vn + ': в панели маршрута должны быть три действия — обновить, проверить, применить');
+				let selectedRoute = await outputList.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output');
+				if (selectedRoute !== 'steer:zm_vpn2') bad(vn + ': TG Bot должен показывать активный steer:zm_vpn2, получено: ' + selectedRoute);
+				const outputRows = outputList.locator('.nfm-tg-output-choice');
+				if (await outputRows.count() !== 3) bad(vn + ': selector cards должны показать все три тестовых выхода');
+				const outputText = await outputList.textContent();
+				if (!outputText.includes('АКТИВЕН') || !outputText.includes('ПРОВЕРИТЬ') || !outputText.includes('НЕДОСТУПЕН')) bad(vn + ': selector cards не различают активный, найденный и недоступный выходы');
+				const firstRow = await p.locator('.nfm-tg-output-choice[data-output="steer:groupvpn"]').evaluate(el => { const r=el.getBoundingClientRect(), s=getComputedStyle(el), hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2); return {w:r.width,h:r.height,pointer:s.pointerEvents,cursor:s.cursor,display:s.display,disabled:el.disabled,ariaDisabled:el.getAttribute('aria-disabled'),hit:!!hit && (hit===el || el.contains(hit)),hitTag:hit&&hit.tagName,hitClass:hit&&hit.className}; });
+				if (firstRow.w < 160 || firstRow.h < 40 || firstRow.pointer === 'none' || firstRow.cursor !== 'pointer' || firstRow.display === 'none' || firstRow.disabled || firstRow.ariaDisabled === 'true' || !firstRow.hit) bad(vn + ': карточка VPN-выхода перекрыта, заблокирована или показывает запрещающий курсор: ' + JSON.stringify(firstRow));
+				/* Select a different Steer output with a real delegated button click (mouse/touch). */
+				await p.click('.nfm-tg-output-choice[data-output="steer:groupvpn"]'); await p.waitForTimeout(100);
+				if (await outputList.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output') !== 'steer:groupvpn') bad(vn + ': ручной выбор groupvpn нажатием не сработал');
+				await p.evaluate(() => window.__runMonitorTick()); await p.waitForTimeout(100);
+				if (await outputList.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output') !== 'steer:groupvpn') bad(vn + ': выбранный VPN-выход сбросился после обычного обновления монитора');
+				await p.click('.nfm-tg-route-actions button:nth-child(2)'); await p.waitForTimeout(200);
+				if (!(await p.locator('.nfm-tg-output-selection').textContent()).includes('Проверка пройдена')) bad(vn + ': предварительная проверка groupvpn не подтвердилась');
+				await p.click('button:has-text("Применить выбранный выход")'); await p.waitForTimeout(250);
+				if (!CFG_SET_CALLS[CFG_SET_CALLS.length - 1].includes('TG_ROUTE_OUTPUT=steer:groupvpn')) bad(vn + ': применение не сохранило выбранный groupvpn');
+				if (!(await p.locator('.nfm-tg-output-choice[data-output="steer:groupvpn"]').evaluate(el => el.classList.contains('is-active')))) bad(vn + ': groupvpn не стал фактически активным после применения');
+				/* Return to the known-good route and verify it remains independently selectable. */
+				await p.click('.nfm-tg-output-choice[data-output="steer:zm_vpn2"]'); await p.waitForTimeout(100);
+				await p.click('.nfm-tg-route-actions button:nth-child(2)'); await p.waitForTimeout(200);
+				if (!(await p.locator('.nfm-tg-output-selection').textContent()).includes('Проверка пройдена')) bad(vn + ': повторная проверка zm_vpn2 не прошла');
+				await p.click('button:has-text("Применить выбранный выход")'); await p.waitForTimeout(250);
+				selectedRoute = await outputList.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output');
+				if (selectedRoute !== 'steer:zm_vpn2') bad(vn + ': не удалось вернуть проверенный маршрут zm_vpn2');
+				await p.click('button:has-text("Сохранить настройки")'); await p.waitForTimeout(200);
+				const savedTgConfig = CFG_SET_CALLS[CFG_SET_CALLS.length - 1] || [];
+				if (!savedTgConfig.includes('TG_ROUTE_MODE=vpn') || !savedTgConfig.includes('TG_ROUTE_OUTPUT=steer:zm_vpn2')) bad(vn + ': сохранение TG Bot потеряло маршрут zm_vpn2');
+				const tgAfterSwitch = await p.evaluate(() => document.querySelector('.nfm-tg-page')?.textContent || '');
+				if (!tgAfterSwitch.includes('zm_vpn2') || !tgAfterSwitch.includes('wg2')) bad(vn + ': UI не показывает восстановленный активный zm_vpn2 / wg2');
+				const unavailable = await outputList.locator('.nfm-tg-output-choice:disabled').count();
+				if (unavailable !== 0) bad(vn + ': обнаруженные VPN-выходы должны оставаться выбираемыми даже при ready=false');
+				await p.click('.nfm-tg-output-choice[data-output="steer:offline"]'); await p.waitForTimeout(100);
+				if (await outputList.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output') !== 'steer:offline') bad(vn + ': не удалось выбрать обнаруженный, но неготовый VPN-выход для диагностики');
+				await p.click('.nfm-tg-route-actions button:nth-child(2)'); await p.waitForTimeout(200);
+				if (!(await p.locator('.nfm-tg-output-selection').textContent()).includes('выход недоступен')) bad(vn + ': диагностика не показала причину отказа для неготового выхода');
+				if (!(await p.locator('button:has-text("Применить выбранный выход")').isDisabled())) bad(vn + ': неготовый выход нельзя применять до успешной проверки');
+				await p.click('.nfm-tg-output-choice[data-output="steer:zm_vpn2"]'); await p.waitForTimeout(100);
+				/* Notification and bot controls are intentionally collapsed in the compact default view. Open them only for switch-size regression checks. */
+				await p.locator('.nfm-tg-disclosure').evaluateAll(els => els.forEach(el => { el.open = true; }));
 				const tgSwitches = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm-tg-page .nfm-cfg-toggle input.nfm-toggle'))
 					.filter(el => el.getClientRects().length > 0).map(el => { const r = el.getBoundingClientRect(); return { width: r.width, height: r.height }; }));
-				if (tgSwitches.length !== 7) bad(vn + ': TG Bot должен показывать семь видимых переключателей, найдено=' + tgSwitches.length);
+				if (tgSwitches.length !== 7) bad(vn + ': TG Bot должен содержать семь переключателей в раскрытых разделах, найдено=' + tgSwitches.length);
 				if (tgSwitches.some(x => Math.abs(x.width - 40) > 1 || Math.abs(x.height - 23) > 1))
 					bad(vn + ': переключатели TG Bot имеют неправильный размер: ' + JSON.stringify(tgSwitches));
+				await p.locator('.nfm-tg-disclosure').evaluateAll(els => els.forEach(el => { el.open = false; }));
+				if (await p.locator('.nfm-tg-disclosure[open]').count()) bad(vn + ': дополнительные разделы должны быть свёрнуты по умолчанию');
+								/* A confirmed active route may send the test. A stale saved output alone may not. */
+				await p.locator('.nfm-tg-test-button').click();
+				await p.waitForFunction(() => window.__getTgTestStarts() >= 1, { timeout: 5000 }).catch(() => {});
+				if (await p.evaluate(() => window.__getTgTestStarts()) !== 1) bad(vn + ': тест Telegram не стартовал при активном zm_vpn2 (starts=' + await p.evaluate(() => window.__getTgTestStarts()) + ')');
+				await p.evaluate(() => window.__setTgRouteActive(false));
+				await p.locator('.nfm-tg-test-button').evaluate(el => { el.disabled = false; el.click(); });
+				await p.waitForTimeout(1200);
+				if (await p.evaluate(() => window.__getTgTestStarts()) !== 1) bad(vn + ': Telegram отправил тест при неактивном маршруте и только сохранённом выборе (starts=' + await p.evaluate(() => window.__getTgTestStarts()) + ')');
+				if (!(await p.locator('.nfm-tg-test-button').isDisabled())) bad(vn + ': кнопка теста должна блокироваться при неактивном VPN-маршруте');
+				await p.evaluate(() => window.__setTgRouteActive(true));
+				await p.locator('.nfm-tg-test-button').evaluate(el => { el.disabled = false; el.click(); });
+				await p.waitForFunction(() => window.__getTgTestStarts() >= 2, { timeout: 5000 }).catch(() => {});
+				if (await p.evaluate(() => window.__getTgTestStarts()) !== 2) bad(vn + ': повторная проверка не возобновилась после восстановления активного маршрута (starts=' + await p.evaluate(() => window.__getTgTestStarts()) + ')');
+				await p.evaluate(() => window.__setTgRouteStatusOk(false));
+				await p.locator('.nfm-tg-test-button').evaluate(el => { el.disabled = false; el.click(); }); await p.waitForTimeout(1200);
+				if (await p.evaluate(() => window.__getTgTestStarts()) !== 2) bad(vn + ': старый кэш маршрута разрешил тест при ошибке свежего route status (starts=' + await p.evaluate(() => window.__getTgTestStarts()) + ')');
+				if (!(await p.locator('.nfm-tg-test-button').isDisabled())) bad(vn + ': кнопка теста должна блокироваться при ошибке свежего route status');
+				await p.evaluate(() => window.__setTgRouteStatusOk(true));
+				await p.click('button:has-text("Обновить выходы")'); await p.waitForTimeout(200);
+				await p.locator('.nfm-tg-test-button').click();
+				await p.waitForFunction(() => window.__getTgTestStarts() >= 3, { timeout: 5000 }).catch(() => {});
+				if (await p.evaluate(() => window.__getTgTestStarts()) !== 3) bad(vn + ': тест Telegram не стартовал при подтверждённом активном zm_vpn2 после восстановления маршрута (starts=' + await p.evaluate(() => window.__getTgTestStarts()) + ')');
 				await p.screenshot({ path: path.join(OUT, 'monitor-tg-' + vn + '.png'), fullPage: true });
 			}
 			if (k === 'hist') {

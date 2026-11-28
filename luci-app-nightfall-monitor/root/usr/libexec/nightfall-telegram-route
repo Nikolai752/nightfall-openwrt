@@ -229,6 +229,79 @@ discover_interfaces() {
 		printf '{"id":"iface:%s","label":"%s · %s","device":"%s","ready":true},\n' "$name" "$(esc "$name")" "$kind" "$name"
 	done
 }
+probe_steer_output() {
+	OUT_NAME=$(printf '%s' "$OUTPUT" | sed 's/^steer://')
+	outname "$OUT_NAME" || { ERR="Некорректное имя выхода Steer"; return 1; }
+	load_status || { ERR="Не удалось получить steer status"; return 1; }
+	read_steer_output || READY=false
+	json_select .. >/dev/null 2>&1 || :
+	[ "$READY" = true ] || { ERR="Выход Steer не готов: интерфейс, таблица или маршрут не прошли базовую проверку"; return 1; }
+	mark_num=$((MARK | 0x40000000))
+	PROBE_MARK=$(printf '0x%08x' "$mark_num")
+	lookup=$("$IP" -4 route get 149.154.167.220 mark "$PROBE_MARK" uid "$UID_TG" 2>&1)
+	printf '%s\n' "$lookup" | grep -Fq "dev $DEV" || {
+		ERR="Проверка ядра не подтвердила выход $OUT_NAME: метка $PROBE_MARK не ведёт через $DEV"
+		return 1
+	}
+	PROBE_DEVICE=$DEV; PROBE_TABLE=$TABLE; PROBE_SOURCE=steer
+	return 0
+}
+probe_interface_output() {
+	DEV=$(printf '%s' "$OUTPUT" | sed 's/^iface://')
+	iface_kind "$DEV" >/dev/null 2>&1 || { ERR="Интерфейс $DEV не распознан как VPN-туннель или point-to-point"; return 1; }
+	updev "$DEV" || { ERR="VPN-интерфейс $DEV сейчас не поднят"; return 1; }
+	lock || { ERR="Не удалось зарезервировать временную проверку маршрута"; return 1; }
+	if ! find_table || ! find_priority; then
+		unlock; ERR="Не удалось выделить временные параметры для проверки VPN"; return 1
+	fi
+	PROBE_TABLE=$TABLE; PROBE_PREF=$PREF
+	if ! "$IP" -4 route replace default dev "$DEV" table "$PROBE_TABLE" 2>/dev/null; then
+		"$IP" -4 route flush table "$PROBE_TABLE" 2>/dev/null || :
+		unlock; ERR="Не удалось создать временный маршрут через $DEV"; return 1
+	fi
+	if ! "$IP" -4 rule add priority "$PROBE_PREF" uidrange "$UID_TG-$UID_TG" lookup "$PROBE_TABLE" 2>/dev/null; then
+		"$IP" -4 route flush table "$PROBE_TABLE" 2>/dev/null || :
+		unlock; ERR="Ядро не позволило проверить policy routing для $DEV"; return 1
+	fi
+	if ! "$IP" -4 rule add priority "$((PROBE_PREF + 1))" uidrange "$UID_TG-$UID_TG" unreachable 2>/dev/null; then
+		"$IP" -4 rule del priority "$PROBE_PREF" uidrange "$UID_TG-$UID_TG" lookup "$PROBE_TABLE" 2>/dev/null || :
+		"$IP" -4 route flush table "$PROBE_TABLE" 2>/dev/null || :
+		unlock; ERR="Не удалось установить временную защиту policy routing для $DEV"; return 1
+	fi
+	lookup=$("$IP" -4 route get 149.154.167.220 uid "$UID_TG" 2>&1)
+	"$IP" -4 rule del priority "$PROBE_PREF" uidrange "$UID_TG-$UID_TG" lookup "$PROBE_TABLE" 2>/dev/null || :
+	"$IP" -4 rule del priority "$((PROBE_PREF + 1))" uidrange "$UID_TG-$UID_TG" unreachable 2>/dev/null || :
+	"$IP" -4 route flush table "$PROBE_TABLE" 2>/dev/null || :
+	unlock
+	if ! printf '%s\n' "$lookup" | grep -Fq "table $PROBE_TABLE" ||
+	   ! printf '%s\n' "$lookup" | grep -Fq "dev $DEV"; then
+		ERR="Ядро не подтвердило временный policy route через $DEV"
+		return 1
+	fi
+	PROBE_SOURCE=interface; PROBE_DEVICE=$DEV
+	return 0
+}
+probe_output() {
+	OUTPUT=$2
+	case "$OUTPUT" in
+		steer:*) probe_steer_output ;;
+		iface:*) probe_interface_output ;;
+		*) ERR="Неизвестный тип VPN-выхода"; return 1 ;;
+	esac
+}
+probe_action() {
+	command -v "$IP" >/dev/null 2>&1 || { err "Команда ip не найдена"; return 1; }
+	case "$2" in steer:*|iface:*) ;; *) err "Укажите VPN-выход для проверки"; return 1 ;; esac
+	OUTPUT=$2
+	prepare_user || { err "$ERR"; return 1; }
+	UID_TG=$(id -u "$USER_NAME" 2>/dev/null)
+	if ! num "$UID_TG" || [ "$UID_TG" -le 0 ] || [ "$UID_TG" -ge 65534 ]; then
+		err "Некорректный UID пользователя Telegram"; return 1
+	fi
+	if ! probe_output probe "$OUTPUT"; then err "$ERR"; return 1; fi
+	printf '{"ok":true,"verified":true,"mode":"vpn","source":"%s","output":"%s","device":"%s","table":%s,"mark":"%s"}\n' \
+		"$PROBE_SOURCE" "$(esc "$OUTPUT")" "$(esc "$PROBE_DEVICE")" "${PROBE_TABLE:-0}" "${PROBE_MARK:-}"
+}
 inspect() {
 	command -v "$IP" >/dev/null 2>&1 || { err "Команда ip не найдена"; return 1; }
 	steer_found=false; steer_version=
@@ -252,31 +325,43 @@ install_drop() {
 	MODE=fail; FAIL=1; DEV=; MARK=; PREF=; TABLE=0; OWN=0
 	write_state && nft_install
 }
+fail_close_if_same_output() {
+	read_state || return 0
+	[ "$S_OUTPUT" = "$OUTPUT" ] || return 0
+	UID_TG=$S_UID
+	lock || return 1
+	remove_previous
+	install_drop
+	unlock
+}
 apply_steer() {
 	OUT_NAME=$(printf '%s' "$OUTPUT" | sed 's/^steer://')
 	outname "$OUT_NAME" || { err "Некорректное имя выхода Steer"; return 1; }
 	load_status || {
-		lock || { err "Не удалось получить блокировку маршрута"; return 1; }
-		if prepare_user; then remove_previous; install_drop; fi
-		unlock
-		err "Не удалось получить steer status. Telegram заблокирован до восстановления маршрута."
+		fail_close_if_same_output
+		err "Не удалось получить steer status; другой активный выход сохранён, отказ текущего выхода заблокирован"
 		return 1
 	}
 	read_steer_output || READY=false
 	json_select .. >/dev/null 2>&1 || :
 	if [ "$READY" != true ]; then
-		lock || { err "Не удалось получить блокировку маршрута"; return 1; }
-		if prepare_user; then remove_previous; install_drop; fi
-		unlock
-		err "Выход Steer сейчас не готов. Telegram заблокирован до восстановления VPN."
+		fail_close_if_same_output
+		err "Выход Steer сейчас не готов. Другой активный выход сохранён; отказ текущего выхода блокируется."
 		return 1
 	fi
-	# Steer output mark plus its documented ZAPRET_SKIP_MARK bit.
+	# Validate the candidate mark against the kernel BEFORE touching the currently
+	# active Telegram rules. A failed candidate must never tear down a working route.
+	UID_TG=$(id -u "$USER_NAME" 2>/dev/null)
 	mark_num=$((MARK | 0x40000000))
 	MARK=$(printf '0x%08x' "$mark_num")
+	lookup=$("$IP" -4 route get 149.154.167.220 mark "$MARK" uid "$UID_TG" 2>&1)
+	if ! printf '%s\n' "$lookup" | grep -Fq "dev $DEV"; then
+		fail_close_if_same_output
+		err "Проверка маршрута Steer не пройдена для $OUTPUT; другой активный выход сохранён, отказ текущего выхода заблокирован"
+		return 1
+	fi
 	MODE=steer; FAIL=0; OWN=0; PREF=
 	lock || { err "Не удалось получить блокировку маршрута"; return 1; }
-	UID_TG=$(id -u "$USER_NAME" 2>/dev/null)
 	if read_state && [ "$S_MODE" = "$MODE" ] && [ "$S_UID" = "$UID_TG" ] &&
 	   [ "$S_OUTPUT" = "$OUTPUT" ] && [ "$S_DEVICE" = "$DEV" ] &&
 	   [ "$S_TABLE" = "$TABLE" ] && [ "$S_MARK" = "$MARK" ] && [ "$S_FAIL" = 0 ] && guard_ready; then
@@ -416,6 +501,7 @@ apply_route() {
 	}
 case "$1" in
 	inspect) inspect ;;
+	probe) probe_action "$@" ;;
 	apply) apply_route ;;
 	status) route_status ;;
 	*) err "Использование: nightfall-telegram-route inspect|apply|status" ;;
