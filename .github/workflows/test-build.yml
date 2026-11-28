@@ -15,7 +15,7 @@ on:
         description: "Версия тестового архива"
         required: true
         type: string
-        default: "v1.30.0-alpha.14-telegram-control-center"
+        default: "v1.30.0-alpha.15-tg-center-route-guard"
 
 permissions:
   contents: read
@@ -35,7 +35,7 @@ jobs:
 
       - name: Build archive
         env:
-          VERSION: ${{ inputs.version || 'v1.30.0-alpha.14-telegram-control-center' }}
+          VERSION: ${{ inputs.version || 'v1.30.0-alpha.15-tg-center-route-guard' }}
         run: sh ./build-release.sh
 
       - name: Verify archive and checksum
@@ -49,7 +49,7 @@ jobs:
       - name: Upload installable archive
         uses: actions/upload-artifact@v7
         with:
-          name: nightfall-test-${{ inputs.version || 'v1.30.0-alpha.14-telegram-control-center' }}
+          name: nightfall-test-${{ inputs.version || 'v1.30.0-alpha.15-tg-center-route-guard' }}
           path: |
             dist/nightfall-root.tar.gz
             dist/nightfall-root.tar.gz.sha256
