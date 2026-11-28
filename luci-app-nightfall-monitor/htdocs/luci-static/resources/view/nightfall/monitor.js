@@ -1588,6 +1588,7 @@ return view.extend({
 		let tgOutputSignature = null;
 		const tgSteerValue = E('b', {}, _('Определение…'));
 		const tgOutputCount = E('b', {}, '–');
+		const tgOutputListCount = E('span', { class: 'nfm-tg-output-count' }, '–');
 		const tgRouteState = E('div', { class: 'nfm-tg-state' }, _('Загрузка данных маршрутизации…'));
 		const tgApiState = E('div', { class: 'nfm-tg-state' }, _('Проверка ещё не выполнялась'));
 		const tgRouteStatus = E('div', { class: 'nfm-tg-state' }, _('Маршрут ещё не применён.'));
@@ -1655,7 +1656,7 @@ return view.extend({
 			tgProxyField
 		]);
 		const tgVpnPane = E('div', { class: 'nfm-tg-mode-pane nfm-tg-vpn-pane' }, [
-			E('div', { class: 'nfm-tg-output-heading' }, [ E('b', {}, _('VPN-выходы')), E('span', { class: 'nfm-tg-output-count' }, tgOutputCount) ]),
+			E('div', { class: 'nfm-tg-output-heading' }, [ E('b', {}, _('Выберите выход Telegram')), tgOutputListCount ]),
 			tgOutputList,
 			tgOutputSelection,
 			E('div', { class: 'nfm-actions nfm-tg-output-actions', style: 'margin-top:8px' }, [ tgProbeButton ]),
@@ -1819,6 +1820,7 @@ tgApplyRouteButton
 			if (!S.tgInfo || !S.tgInfo.ok) {
 				tgSteerValue.textContent = S.tgInfo && S.tgInfo.error ? _('Ошибка обнаружения') : _('Не проверено');
 				tgOutputCount.textContent = '–';
+				tgOutputListCount.textContent = _('нет данных');
 				tgRouteState.textContent = S.tgInfo && S.tgInfo.error ? _('Не удалось обнаружить выходы: ') + S.tgInfo.error : _('Нажмите «Обновить список выходов».');
 				renderTelegramRuntime(mode);
 				if (tgOutputSignature !== 'unavailable') {
@@ -1835,6 +1837,7 @@ tgApplyRouteButton
 			const outputs = allTgOutputs();
 			const readyCount = outputs.filter(item => item.ready !== false).length;
 			tgOutputCount.textContent = _('%d обнаружено · %d доступны для проверки').format(outputs.length, readyCount);
+			tgOutputListCount.textContent = _('%d найдено').format(outputs.length);
 			const runtime = S.tgRouteRuntime || {};
 			const activeOutput = runtime.active && runtime.output ? runtime.output : '';
 			const savedOutput = cfgInputs.TG_ROUTE_OUTPUT.value || values.TG_ROUTE_OUTPUT || info.selected_output || (values.TG_IFACE ? 'iface:' + values.TG_IFACE : '');
