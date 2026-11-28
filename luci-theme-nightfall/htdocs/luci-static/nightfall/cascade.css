@@ -7019,28 +7019,7 @@ html body #view #status_leases6 .td {
 	word-break: normal;
 	box-sizing: border-box;
 }
-html body #view #lease_status_table .tr.placeholder,
-html body #view #lease6_status_table .tr.placeholder,
-html body #view #status_leases .tr.placeholder,
-html body #view #status_leases6 .tr.placeholder {
-	display: block;
-	position: relative;
-	width: 100%;
-	max-width: 100%;
-	height: auto;
-	box-sizing: border-box;
-}
-html body #view #lease_status_table .tr.placeholder > .td,
-html body #view #lease6_status_table .tr.placeholder > .td,
-html body #view #status_leases .tr.placeholder > .td,
-html body #view #status_leases6 .tr.placeholder > .td {
-	display: block;
-	position: static;
-	width: 100% !important;
-	min-width: 0 !important;
-	max-width: 100%;
-	box-sizing: border-box;
-}
+
 
 /* Network → Interfaces: keep the port tooltip outside the rounded interface card.
  * The card surface remains rounded through its own head/body corners. */
