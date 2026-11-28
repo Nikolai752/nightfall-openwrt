@@ -124,7 +124,7 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 `;
 (async () => {
 	const b = await chromium.launch();
-	const names = { wifi: 'Wi-Fi клиенты', devs: 'Доступ в интернет', apps: 'Трафик по категориям', diag: 'Диагностика сети', sec: 'Сводка безопасности', log: 'Журнал событий' };
+	const names = { wifi: 'Wi-Fi клиенты', devs: 'Доступ в интернет', apps: 'Трафик по категориям', diag: 'Диагностика сети', sec: 'Сводка безопасности', log: 'Журнал событий', settings: 'Настройки предупреждений' };
 	for (const [vn, vp] of [
 		[ 'desktop', { width: 1280, height: 900 } ],
 		[ 'mobile', { width: 390, height: 800 } ],
@@ -156,8 +156,21 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 		await p.evaluate(async () => { const m = window.__mod; const d = await m.load(); document.getElementById('m').appendChild(m.render(d)); });
 		await p.waitForTimeout(2500);
 		const tabs = await p.$$eval('.nfm-tab.nfm-ti', els => els.map(e => e.getAttribute('data-ic')));
-		for (const k of [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist', 'tg' ]) if (!tabs.includes(k)) bad(vn + ': нет вкладки ' + k);
-		for (const k of [ 'overview', 'procs', 'wifi', 'devs', 'apps', 'diag', 'sec', 'log', 'net', 'hist', 'tg' ]) {
+		for (const k of [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist', 'tg', 'settings' ]) if (!tabs.includes(k)) bad(vn + ': нет вкладки ' + k);
+		const navLayout = await p.$eval('.nfm-top .nfm-tabs', el => {
+			const buttons = Array.from(el.querySelectorAll('.nfm-tab.nfm-ti'));
+			const rects = buttons.map(b => b.getBoundingClientRect());
+			return {
+				count: buttons.length,
+				clientWidth: el.clientWidth,
+				scrollWidth: el.scrollWidth,
+				rows: new Set(rects.map(r => Math.round(r.top))).size,
+				rightOverflow: rects.length ? Math.max(...rects.map(r => r.right)) - el.getBoundingClientRect().right : 0
+			};
+		});
+		if (navLayout.count !== 13 || navLayout.rows !== 1 || navLayout.scrollWidth > navLayout.clientWidth + 1 || navLayout.rightOverflow > 1)
+			bad(vn + ': верхняя панель должна содержать 13 вкладок в одной строке без переполнения: ' + JSON.stringify(navLayout));
+		for (const k of [ 'overview', 'procs', 'wifi', 'devs', 'apps', 'diag', 'sec', 'log', 'net', 'hist', 'tg', 'settings' ]) {
 			await p.click(`.nfm-tab.nfm-ti[data-ic="${k}"]`); await p.evaluate(() => window.__runMonitorTick()); await p.waitForTimeout(k === 'sec' || k === 'log' ? 3000 : 1500);
 			const vis = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm > div[hidden], .nfm > div:not([hidden])')).filter(x => !x.hasAttribute('hidden') && x.className === '').map(x => x.textContent.slice(0, 4000)).join('\n'));
 			if (names[k] && !vis.includes(names[k])) bad(vn + ': вкладка ' + k + ' не показала «' + names[k] + '»');
@@ -264,6 +277,13 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				await p.click('text=Проверить всё: шлюз, интернет, DNS'); await p.waitForTimeout(6000);
 				const o = await p.evaluate(() => document.querySelector('.nfm-diag-out').textContent);
 				if (!/Шлюз|Маршрут по умолчанию/.test(o)) bad(vn + ': проверка диагностики ничего не вывела: ' + o);
+			}
+			if (k === 'settings') {
+				const st = await p.locator('.nfm-settings').textContent();
+				if (!st.includes('Настройки предупреждений') || !st.includes('Хранение истории'))
+					bad(vn + ': во вкладке «Настройки» отсутствуют общие параметры мониторинга');
+				if (st.includes('Токен бота') || st.includes('Маршрут Telegram'))
+					bad(vn + ': настройки Telegram должны находиться только во вкладке TG Bot');
 			}
 			if (k === 'tg') {
 				const tt = await p.evaluate(() => document.querySelector('.nfm-tg-page')?.textContent || '');
