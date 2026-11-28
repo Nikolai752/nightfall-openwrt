@@ -3406,6 +3406,11 @@ html:not([data-nf-motion="off"]) header .nav li.open > .dropdown-menu > li:nth-c
 html:not([data-nf-motion="off"]) header .nav li.open > .dropdown-menu > li:nth-child(3) { animation-delay: .04s; }
 html:not([data-nf-motion="off"]) header .nav li.open > .dropdown-menu > li:nth-child(n+4) { animation-delay: .06s; }
 html:not([data-nf-motion="off"]) .modal { animation: nf-pop .22s cubic-bezier(.2, .8, .2, 1) both; }
+/* LuCI reuses this same alert modal and refreshes its status every second while applying.
+   Do not replay the entrance animation on each progress update. */
+html:not([data-nf-motion="off"]) #modal_overlay > .modal.alert-message.spinning {
+	animation: none !important;
+}
 html:not([data-nf-motion="off"]) .nf-pop.open { animation: nf-pop .18s ease both; }
 html:not([data-nf-motion="off"]) .tabs > li.active::after, html:not([data-nf-motion="off"]) .cbi-tabmenu > li.cbi-tab::after { animation: nf-fade .25s ease both; }
 html:not([data-nf-motion="off"]):not([data-nf-settled]) .nfm > div:not([hidden]):not(.nfm-top) { animation: nf-fade .22s ease both; }
@@ -6284,7 +6289,8 @@ button, input[type="button"], input[type="reset"], input[type="submit"], .cbi-bu
 
 /* v1.17.2: индикатор в окне «Применение изменений…» крупнее и по центру строки */
 #modal_overlay .modal .spinning:not(em), #modal_overlay .alert-message.spinning:not(em) { padding-left: 52px !important; min-height: 32px; display: flex; align-items: center; }
-#modal_overlay .modal .spinning:not(em)::before, #modal_overlay .alert-message.spinning:not(em)::before { width: 28px; height: 28px; top: calc(50% - 14px); left: 12px; }
+/* The 28 px progress icon replaces the 20 px alert icon; clear its old -10 px offset. */
+#modal_overlay .modal .spinning:not(em)::before, #modal_overlay .alert-message.spinning:not(em)::before { width: 28px; height: 28px; top: calc(50% - 14px); left: 12px; margin-top: 0; }
 
 /* v1.18.0: своя карточка «Температуры» вместо штатной */
 #view > .cbi-section.nf-stock-hidden { display: none !important; }
@@ -7019,28 +7025,7 @@ html body #view #status_leases6 .td {
 	word-break: normal;
 	box-sizing: border-box;
 }
-html body #view #lease_status_table .tr.placeholder,
-html body #view #lease6_status_table .tr.placeholder,
-html body #view #status_leases .tr.placeholder,
-html body #view #status_leases6 .tr.placeholder {
-	display: block;
-	position: relative;
-	width: 100%;
-	max-width: 100%;
-	height: auto;
-	box-sizing: border-box;
-}
-html body #view #lease_status_table .tr.placeholder > .td,
-html body #view #lease6_status_table .tr.placeholder > .td,
-html body #view #status_leases .tr.placeholder > .td,
-html body #view #status_leases6 .tr.placeholder > .td {
-	display: block;
-	position: static;
-	width: 100% !important;
-	min-width: 0 !important;
-	max-width: 100%;
-	box-sizing: border-box;
-}
+
 
 /* Network → Interfaces: keep the port tooltip outside the rounded interface card.
  * The card surface remains rounded through its own head/body corners. */

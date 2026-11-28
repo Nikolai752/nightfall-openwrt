@@ -20,9 +20,85 @@ const html = '<!doctype html><html lang="ru"><head><meta charset=utf-8><meta nam
 const login = '<!doctype html><html lang="ru"><head><meta charset=utf-8><style>' + CSS + '</style></head><body class="nf-blank modal-overlay-active"><div id="modal_overlay" class="active"><div class="modal login"><h4>Веб-интерфейс</h4>' +
 	'<form class="cbi-map"><div class="cbi-section"><div class="cbi-section-node"><div class="cbi-value"><label class="cbi-value-title">Имя пользователя</label><div class="cbi-value-field"><input type="text" value="root"></div></div>' +
 	'<div class="cbi-value"><label class="cbi-value-title">Пароль</label><div class="cbi-value-field"><input type="password"></div></div></div></div></form><button class="btn cbi-button-positive important">Войти</button></div></div></body></html>';
+/* Real LuCI Status → Overview markup for the active DHCPv6 lease table. */
+const DHCP = '<!doctype html><html lang="ru"><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><style>' + CSS + '</style></head>' +
+	'<body data-page="admin-status-overview"><div id="maincontent"><div id="view"><div class="cbi-section fade-in">' +
+	'<h3>Active DHCPv6 Leases</h3><table class="table leases6" id="status_leases6">' +
+	'<tr class="tr table-titles"><th class="th">Interface</th><th class="th">Hostname</th><th class="th">IPv6 addresses</th><th class="th">DUID</th><th class="th">IAID</th><th class="th">Static Lease</th></tr>' +
+	'<tr class="tr placeholder"><td class="td"><em>No active leases found</em></td></tr>' +
+	'</table></div></div></div></body></html>';
+
 let fail = 0; const bad = m => { console.log('ОШИБКА: ' + m); fail = 1; };
 (async () => {
 	const b = await chromium.launch();
+	// LuCI changes.displayStatus() reuses the same modal and resets its classes every second.
+	const applyPage = await b.newPage({ viewport: { width: 390, height: 844 } });
+	await applyPage.setContent('<!doctype html><html lang="ru"><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><style>' + CSS + '</style></head><body class="modal-overlay-active"><div id="modal_overlay"><div class="modal alert-message notice spinning" id="apply-status"><h4></h4><p>Applying configuration changes… 30s</p></div></div></body></html>');
+	let applyPrev = null;
+	for (let i = 0; i < 4; i++) {
+		await applyPage.evaluate(n => {
+			const modal = document.getElementById('apply-status');
+			// Match LuCI: showModal() resets the class list, then displayStatus adds these classes again.
+			modal.setAttribute('class', 'modal');
+			modal.classList.add('alert-message', 'notice', 'spinning');
+			const h = document.createElement('h4');
+			const p = document.createElement('p');
+			p.textContent = 'Applying configuration changes… ' + (30 - n) + 's';
+			modal.replaceChildren(h, p);
+		}, i);
+		await applyPage.waitForTimeout(70);
+		const st = await applyPage.evaluate(() => {
+			const modal = document.getElementById('apply-status');
+			const rect = modal.getBoundingClientRect();
+			const cs = getComputedStyle(modal), before = getComputedStyle(modal, '::before');
+			return {
+				animation: cs.animationName,
+				leftPadding: parseFloat(cs.paddingLeft),
+				iconLeft: parseFloat(before.left),
+				iconWidth: parseFloat(before.width),
+				iconHeight: parseFloat(before.height),
+				iconMarginTop: before.marginTop,
+				top: rect.top, height: rect.height
+			};
+		});
+		if (st.animation !== 'none') bad('окно применения: анимация появления повторно запускается при обновлении статуса (' + st.animation + ')');
+		if (st.leftPadding < st.iconLeft + st.iconWidth + 4) bad('окно применения: индикатор перекрывает текст');
+		if (st.iconWidth !== 28 || st.iconHeight !== 28) bad('окно применения: размер индикатора неожиданно изменился (' + st.iconWidth + '×' + st.iconHeight + ' px)');
+		if (st.iconMarginTop !== '0px') bad('окно применения: у увеличенного индикатора остался старый вертикальный отступ (' + st.iconMarginTop + ')');
+		if (applyPrev && (Math.abs(st.top - applyPrev.top) > 1 || Math.abs(st.height - applyPrev.height) > 1)) bad('окно применения: геометрия меняется при обновлении текста статуса');
+		applyPrev = st;
+	}
+	await applyPage.close();
+	// Reproduce the actual active DHCPv6 table ID and its empty-state markup.
+	const dp = await b.newPage({ viewport: { width: 1280, height: 900 } });
+	await dp.setContent(DHCP); await dp.waitForTimeout(250);
+	const measureDhcpEmpty = () => dp.evaluate(() => {
+		const table = document.getElementById('status_leases6');
+		const cell = table.querySelector('.tr.placeholder > .td');
+		const em = cell.querySelector('em');
+		const range = document.createRange(); range.selectNodeContents(em);
+		const t = table.getBoundingClientRect(), c = cell.getBoundingClientRect(), x = range.getBoundingClientRect();
+		return {
+			textShift: Math.abs((x.left + x.width / 2) - (t.left + t.width / 2)),
+			cellShift: Math.abs((c.left + c.width / 2) - (t.left + t.width / 2)),
+			cellWidth: c.width, tableWidth: t.width,
+			overflow: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - document.documentElement.clientWidth
+		};
+	});
+	for (let i = 0; i < 4; i++) {
+		const lease = await measureDhcpEmpty();
+		if (lease.textShift > 4) bad('активные аренды DHCPv6: текст пустого состояния смещён влево (' + Math.round(lease.textShift) + ' px)');
+		if (lease.cellShift > 4 || lease.cellWidth < lease.tableWidth - 4) bad('активные аренды DHCPv6: пустая ячейка уже таблицы или не по центру');
+		if (lease.overflow > 2) bad('активные аренды DHCPv6: появляется горизонтальная прокрутка страницы (' + Math.round(lease.overflow) + ' px)');
+		if (i < 3) {
+			await dp.evaluate(() => {
+				const row = document.querySelector('#status_leases6 .tr.placeholder');
+				row.replaceWith(row.cloneNode(true));
+			});
+			await dp.waitForTimeout(80);
+		}
+	}
+	await dp.close();
 	const p = await b.newPage({ viewport: { width: 1400, height: 900 } });
 	p.on('pageerror', e => bad(e.message));
 	await p.setContent(html); await p.waitForTimeout(700);
