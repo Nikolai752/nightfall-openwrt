@@ -7019,36 +7019,7 @@ html body #view #status_leases6 .td {
 	word-break: normal;
 	box-sizing: border-box;
 }
-html body #view #lease_status_table .tr.placeholder,
-html body #view #lease6_status_table .tr.placeholder,
-html body #view #status_leases .tr.placeholder,
-html body #view #status_leases6 .tr.placeholder {
-	display: block;
-	position: relative;
-	width: 100%;
-	max-width: 100%;
-	height: 112px;
-	box-sizing: border-box;
-}
-html body #view #lease_status_table .tr.placeholder > .td,
-html body #view #lease6_status_table .tr.placeholder > .td,
-html body #view #status_leases .tr.placeholder > .td,
-html body #view #status_leases6 .tr.placeholder > .td {
-	/* LuCI creates a single-cell placeholder after a multi-column header.
-	 * The fixed table layout otherwise constrains that cell to column one. */
-	display: flex;
-	position: absolute;
-	inset: 0;
-	width: auto !important;
-	min-width: 0 !important;
-	max-width: none;
-	height: 100%;
-	align-items: center;
-	justify-content: center;
-	padding: 0 16px;
-	box-sizing: border-box;
-	text-align: center !important;
-}
+
 
 /* Network → Interfaces: keep the port tooltip outside the rounded interface card.
  * The card surface remains rounded through its own head/body corners. */
