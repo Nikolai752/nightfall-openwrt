@@ -12,6 +12,10 @@ USER_NAME=$NF_TG_USER; [ -n "$USER_NAME" ] || USER_NAME=nightfall-tg
 STATE=$NF_TG_STATE; [ -n "$STATE" ] || STATE=/var/run/nightfall-telegram-route.state
 LOCK=$NF_TG_LOCK; [ -n "$LOCK" ] || LOCK=/var/lock/nightfall-telegram-route.lock
 JSHN=$NF_JSHN; [ -n "$JSHN" ] || JSHN=/usr/share/libubox/jshn.sh
+# Steer 2.1.4 (OpenWrt): preserve unrelated packet marks outside the output field and zapret opt-out.
+STEER_MARK_MASK=0x0ff00000
+ZAPRET_SKIP_MARK=0x40000000
+STEER_MARK_KEEP=0xb00fffff
 
 cfg() { [ -r "$CONF" ] && sed -n "s/^$1=\"\{0,1\}\([^ #\"]*\).*/\1/p" "$CONF" | head -n 1; }
 esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/[[:cntrl:]]/ /g'; }
@@ -35,13 +39,14 @@ iface_kind() {
 	esac
 }
 table_exists() { "$NFT" list table inet nightfall_telegram >/dev/null 2>&1; }
-steer_mark_key() { printf '0x%08x' "$((MARK & 0x0ff00000))"; }
+steer_mark_key() { printf '0x%08x' "$((MARK & STEER_MARK_MASK))"; }
+steer_mark_rule() { printf 'meta mark set (meta mark & %s) | %s' "$STEER_MARK_KEEP" "$MARK"; }
 guard_ready() {
 	[ -n "$UID_TG" ] && table_exists || return 1
 	case "$MODE" in
 		steer)
 			BASE_MARK=$(steer_mark_key)
-			"$NFT" list chain inet nightfall_telegram route_output 2>/dev/null | grep -Fq "meta skuid $UID_TG meta mark set $MARK" &&
+			"$NFT" list chain inet nightfall_telegram route_output 2>/dev/null | grep -Fq "nightfall-telegram-steer-mark" &&
 			"$NFT" list chain inet nightfall_telegram output_guard 2>/dev/null | grep -Fq "nightfall-telegram-steer-local-output-redir" &&
 			"$NFT" list chain inet nightfall_telegram output_guard 2>/dev/null | grep -Fq "meta skuid $UID_TG oifname != \"$DEV\" drop" &&
 			"$NFT" list chain inet nightfall_telegram egress_guard 2>/dev/null | grep -Fq "nightfall-telegram-steer-local-egress-redir" &&
@@ -147,7 +152,7 @@ EOF
 			printf 'add rule inet nightfall_telegram fail_closed meta skuid %s drop comment "nightfall-telegram-fail-closed"\n' "$UID_TG"
 		elif [ "$MODE" = steer ]; then
 			BASE_MARK=$(steer_mark_key)
-			printf 'add rule inet nightfall_telegram route_output meta skuid %s meta mark set %s comment "nightfall-telegram-steer-mark"\n' "$UID_TG" "$MARK"
+			printf 'add rule inet nightfall_telegram route_output meta skuid %s %s comment "nightfall-telegram-steer-mark"\n' "$UID_TG" "$(steer_mark_rule)"
 			# Steer redirects marked local TCP sockets to the active plugin listener on
 			# 127.0.0.1. Its port is allocated from the live output registry (9480 + slot),
 			# so match the DNAT, loopback destination and output mark instead of hardcoding
@@ -236,7 +241,7 @@ probe_steer_output() {
 	read_steer_output || READY=false
 	json_select .. >/dev/null 2>&1 || :
 	[ "$READY" = true ] || { ERR="Выход Steer не готов: интерфейс, таблица или маршрут не прошли базовую проверку"; return 1; }
-	mark_num=$((MARK | 0x40000000))
+	mark_num=$((MARK | ZAPRET_SKIP_MARK))
 	PROBE_MARK=$(printf '0x%08x' "$mark_num")
 	lookup=$("$IP" -4 route get 149.154.167.220 mark "$PROBE_MARK" uid "$UID_TG" 2>&1)
 	printf '%s\n' "$lookup" | grep -Fq "dev $DEV" || {
@@ -352,7 +357,7 @@ apply_steer() {
 	# Validate the candidate mark against the kernel BEFORE touching the currently
 	# active Telegram rules. A failed candidate must never tear down a working route.
 	UID_TG=$(id -u "$USER_NAME" 2>/dev/null)
-	mark_num=$((MARK | 0x40000000))
+	mark_num=$((MARK | ZAPRET_SKIP_MARK))
 	MARK=$(printf '0x%08x' "$mark_num")
 	lookup=$("$IP" -4 route get 149.154.167.220 mark "$MARK" uid "$UID_TG" 2>&1)
 	if ! printf '%s\n' "$lookup" | grep -Fq "dev $DEV"; then
@@ -474,7 +479,7 @@ apply_route() {
 				return 0
 			fi
 			json_select .. >/dev/null 2>&1 || :
-			mark_num=$((MARK | 0x40000000))
+			mark_num=$((MARK | ZAPRET_SKIP_MARK))
 			current_mark=$(printf '0x%08x' "$mark_num")
 			if [ "$READY" != true ] || [ "$DEV" != "$S_DEVICE" ] || [ "$TABLE" != "$S_TABLE" ] || [ "$current_mark" != "$S_MARK" ]; then
 				printf '{"ok":true,"active":false,"blocked":true,"mode":"vpn","output":"%s","device":"%s"}\n' "$(esc "$S_OUTPUT")" "$(esc "$S_DEVICE")"
