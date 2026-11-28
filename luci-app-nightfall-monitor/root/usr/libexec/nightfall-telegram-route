@@ -46,7 +46,7 @@ guard_ready() {
 	case "$MODE" in
 		steer)
 			BASE_MARK=$(steer_mark_key)
-			"$NFT" list chain inet nightfall_telegram route_output 2>/dev/null | grep -Fq "nightfall-telegram-steer-mark" &&
+			"$NFT" list chain inet nightfall_telegram route_output 2>/dev/null | grep -Fq "nightfall-telegram-steer-mark-preserve" &&
 			"$NFT" list chain inet nightfall_telegram output_guard 2>/dev/null | grep -Fq "nightfall-telegram-steer-local-output-redir" &&
 			"$NFT" list chain inet nightfall_telegram output_guard 2>/dev/null | grep -Fq "meta skuid $UID_TG oifname != \"$DEV\" drop" &&
 			"$NFT" list chain inet nightfall_telegram egress_guard 2>/dev/null | grep -Fq "nightfall-telegram-steer-local-egress-redir" &&
@@ -152,7 +152,7 @@ EOF
 			printf 'add rule inet nightfall_telegram fail_closed meta skuid %s drop comment "nightfall-telegram-fail-closed"\n' "$UID_TG"
 		elif [ "$MODE" = steer ]; then
 			BASE_MARK=$(steer_mark_key)
-			printf 'add rule inet nightfall_telegram route_output meta skuid %s %s comment "nightfall-telegram-steer-mark"\n' "$UID_TG" "$(steer_mark_rule)"
+			printf 'add rule inet nightfall_telegram route_output meta skuid %s %s comment "nightfall-telegram-steer-mark-preserve"\n' "$UID_TG" "$(steer_mark_rule)"
 			# Steer redirects marked local TCP sockets to the active plugin listener on
 			# 127.0.0.1. Its port is allocated from the live output registry (9480 + slot),
 			# so match the DNAT, loopback destination and output mark instead of hardcoding
