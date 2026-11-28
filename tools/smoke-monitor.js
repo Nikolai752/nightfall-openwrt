@@ -106,8 +106,8 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 		await p.evaluate(async () => { const m = window.__mod; const d = await m.load(); document.getElementById('m').appendChild(m.render(d)); });
 		await p.waitForTimeout(2500);
 		const tabs = await p.$$eval('.nfm-tab.nfm-ti', els => els.map(e => e.getAttribute('data-ic')));
-		for (const k of [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist' ]) if (!tabs.includes(k)) bad(vn + ': нет вкладки ' + k);
-		for (const k of [ 'overview', 'procs', 'wifi', 'devs', 'apps', 'diag', 'sec', 'log', 'net', 'hist' ]) {
+		for (const k of [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist', 'settings' ]) if (!tabs.includes(k)) bad(vn + ': нет вкладки ' + k);
+		for (const k of [ 'overview', 'procs', 'wifi', 'devs', 'apps', 'diag', 'sec', 'log', 'net', 'hist', 'settings' ]) {
 			await p.click(`.nfm-tab.nfm-ti[data-ic="${k}"]`); await p.evaluate(() => window.__runMonitorTick()); await p.waitForTimeout(k === 'sec' || k === 'log' ? 3000 : 1500);
 			const vis = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm > div[hidden], .nfm > div:not([hidden])')).filter(x => !x.hasAttribute('hidden') && x.className === '').map(x => x.textContent.slice(0, 4000)).join('\n'));
 			if (names[k] && !vis.includes(names[k])) bad(vn + ': вкладка ' + k + ' не показала «' + names[k] + '»');
@@ -216,8 +216,10 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				if (!/Шлюз|Маршрут по умолчанию/.test(o)) bad(vn + ': проверка диагностики ничего не вывела: ' + o);
 			}
 			if (k === 'hist') {
+				const cfgInHistory = await p.evaluate(() => !!document.querySelector('.nfm-history .nfm-cfg-settings-card'));
+				if (cfgInHistory) bad(vn + ': настройки всё ещё находятся в конце вкладки «История»');
 				const ht = await p.evaluate(() => document.body.textContent);
-				for (const w of [ 'Сводка за день', 'Сводка недели', 'Трафик по месяцам', 'Сравнение периодов', 'Тепловая карта по часам', 'Процессор, память, температура', 'Интернет: задержка', 'Качество связи', 'Скорость интернета (WAN)', 'Хранение истории и износ флеш-памяти', 'Экспорт данных в CSV', 'Накопители', 'Настройки предупреждений' ])
+				for (const w of [ 'Сводка за день', 'Сводка недели', 'Трафик по месяцам', 'Сравнение периодов', 'Тепловая карта по часам', 'Процессор, память, температура', 'Интернет: задержка', 'Качество связи', 'Скорость интернета (WAN)', 'Хранение истории и износ флеш-памяти', 'Экспорт данных в CSV', 'Накопители' ])
 					if (!ht.includes(w)) bad(vn + ': во вкладке «История» нет «' + w + '»');
 				if (/NaN|undefined|не число Б/.test(ht)) bad(vn + ': во вкладке «История» отображается некорректное числовое значение');
 				const geometry = await p.evaluate(() => {
@@ -229,16 +231,11 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 						const r = el.getBoundingClientRect();
 						return { width: r.width, height: r.height };
 					});
-					const switches = Array.from(document.querySelectorAll('.nfm-cfg-toggle input.nfm-toggle')).map(el => {
-						const r = el.getBoundingClientRect();
-						return { width: r.width, height: r.height };
-					});
-					return { viewportWidth: window.innerWidth, cards, charts, switches, cfgGroups: document.querySelectorAll('.nfm-cfg-layout > .nfm-cfg-g').length };
+					return { viewportWidth: window.innerWidth, cards, charts, cfgGroups: document.querySelectorAll('.nfm-cfg-layout > .nfm-cfg-g').length };
 				});
 				if (geometry.charts.length < 3 || geometry.charts.some(x => x.width < 80 || x.height < 60)) bad(vn + ': графики истории не получили корректный размер; найдено=' + geometry.charts.length + ', размеры=' + JSON.stringify(geometry.charts.map(x => ({ width: Math.round(x.width), height: Math.round(x.height) }))));
 				if (geometry.cards.some(x => x.right > geometry.viewportWidth + 1 || x.scroll > x.client + 3)) bad(vn + ': карточка истории выходит за границы или обрезает содержимое');
 				if (geometry.cfgGroups !== 6) bad(vn + ': сетка настроек истории должна содержать шесть основных групп');
-				if (geometry.switches.some(x => Math.abs(x.width - 40) > 1 || Math.abs(x.height - 23) > 1)) bad(vn + ': переключатели настроек имеют неправильный размер');
 				for (const dark of [ false, true ]) {
 					await p.evaluate(d => d ? document.documentElement.setAttribute('data-darkmode', 'true') : document.documentElement.removeAttribute('data-darkmode'), dark);
 					await p.evaluate(isDark => {
@@ -339,6 +336,21 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				const pc = await p.evaluate(() => document.querySelectorAll('.nfm-evlist .nfm-ev-i .nfm-pin.on').length);
 				if (pc < 1) bad(vn + ': фильтр «Закреплённые» пуст');
 				await p.click('.nfm-tabs button[data-k="all"]');
+			}
+			if (k === 'settings') {
+				const cfg = await p.evaluate(() => {
+					const tab = document.querySelector('.nfm-settings');
+					const card = tab && tab.querySelector('.nfm-cfg-settings-card');
+					const lite = card && card.querySelector('input[type="checkbox"][aria-label^="Режим Lite"]');
+					const switches = Array.from(tab ? tab.querySelectorAll('.nfm-cfg-toggle input.nfm-toggle') : []).map(el => {
+						const r = el.getBoundingClientRect();
+						return { width: r.width, height: r.height };
+					});
+					return { visible: !!tab && !tab.hidden, card: !!card, lite: !!lite, switches };
+				});
+				if (!cfg.visible || !cfg.card || !cfg.lite) bad(vn + ': во вкладке «Настройки» нет карточки конфигурации или переключателя Lite');
+				if (cfg.switches.some(x => Math.abs(x.width - 40) > 1 || Math.abs(x.height - 23) > 1)) bad(vn + ': переключатели настроек имеют неправильный размер');
+				await p.screenshot({ path: path.join(OUT, 'monitor-settings-' + vn + '.png'), fullPage: true });
 			}
 			if (k === 'diag') {
 				const gt = await p.evaluate(() => document.body.textContent);
