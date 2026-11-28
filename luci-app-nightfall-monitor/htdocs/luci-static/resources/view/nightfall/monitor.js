@@ -1862,23 +1862,15 @@ tgApplyRouteButton
 					? _('Telegram API будет доступен только через указанный прокси.')
 					: _('VPN-режим использует отдельный UID и policy routing. При отсутствии рабочего выхода отправка блокируется.');
 
+			const info = S.tgInfo && S.tgInfo.ok ? S.tgInfo : {};
 			if (!S.tgInfo || !S.tgInfo.ok) {
 				tgSteerValue.textContent = S.tgInfo && S.tgInfo.error ? _('Ошибка обнаружения') : _('Не проверено');
-				tgOutputCount.textContent = '–';
-				tgOutputListCount.textContent = _('нет данных');
-				tgRouteState.textContent = S.tgInfo && S.tgInfo.error ? _('Не удалось обнаружить выходы: ') + S.tgInfo.error : _('Нажмите «Обновить список выходов».');
-				renderTelegramRuntime(mode);
-				if (tgOutputSignature !== 'unavailable') {
-					tgOutputList.replaceChildren(E('div', { class: 'nfm-note-s' }, _('Список выходов пока не получен')));
-					tgOutputSignature = 'unavailable';
-				}
-				return;
+				tgRouteState.textContent = S.tgInfo && S.tgInfo.error ? _('Не удалось обнаружить выходы: ') + S.tgInfo.error : _('Обнаружение VPN-выходов ещё не завершено.');
+			} else {
+				tgSteerValue.textContent = info.steer && info.steer.found
+					? _('Steer ') + (info.steer.version || _('обнаружен'))
+					: _('Универсальный Linux policy routing');
 			}
-
-			const info = S.tgInfo;
-			tgSteerValue.textContent = info.steer && info.steer.found
-				? _('Steer ') + (info.steer.version || _('обнаружен'))
-				: _('Универсальный Linux policy routing');
 			const outputs = allTgOutputs();
 			const readyCount = outputs.filter(item => item.ready !== false).length;
 			tgOutputCount.textContent = _('%d обнаружено · %d доступны для проверки').format(outputs.length, readyCount);
@@ -1921,8 +1913,8 @@ tgApplyRouteButton
 					state.textContent = active ? _('АКТИВЕН') : verified ? _('ПРОВЕРЕН') : item && item.ready !== false ? (selected ? _('ВЫБРАН · ПРОВЕРИТЬ') : _('ПРОВЕРИТЬ')) : _('НЕДОСТУПЕН');
 				}
 			});
-			tgProbeButton.disabled = !selectedItem || selectedItem.ready === false || tgProbeBusy || tgApplyBusy;
-			tgProbeButton.textContent = tgProbeBusy ? _('Проверяю…') : selectedVerified ? _('Проверить ещё раз') : _('Проверить выбранный выход');
+			tgProbeButton.disabled = !selectedItem || selectedItem.ready === false || tgProbeBusy || tgApplyBusy || (selectedItem.activeOnly && activeOutput === current);
+			tgProbeButton.textContent = tgProbeBusy ? _('Проверяю…') : selectedItem && selectedItem.activeOnly && activeOutput === current ? _('Маршрут уже активен') : selectedVerified ? _('Проверить ещё раз') : _('Проверить выбранный выход');
 			if (mode === 'vpn') {
 				if (!selectedItem) tgOutputSelection.textContent = current ? _('Сохранённый выход не найден в списке обнаружения.') : _('Выберите выход в списке.');
 				else if (activeOutput === current) tgOutputSelection.textContent = _('Сейчас реально активен: ') + (selectedItem.device || current) + (selectedItem.table ? ' · table ' + selectedItem.table : '');
@@ -1942,6 +1934,7 @@ tgApplyRouteButton
 				tgRouteState.textContent = _('Telegram использует стандартную маршрутизацию OpenWrt.');
 			}
 			renderTelegramRuntime(mode);
+			syncTelegramTestButton();
 		}
 
 		function loadTelegram(force) {
