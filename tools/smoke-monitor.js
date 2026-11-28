@@ -105,7 +105,7 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 		await p.addScriptTag({ content: 'const SRC = ' + JSON.stringify(SRC) + ';\nconst CHARTS_SRC = ' + JSON.stringify(CHARTS_SRC) + ';\n' + BOOT });
 		await p.evaluate(async () => { const m = window.__mod; const d = await m.load(); document.getElementById('m').appendChild(m.render(d)); });
 		await p.waitForTimeout(2500);
-		const tabs = await p.$eval('.nfm-tab.nfm-ti', els => els.map(e => e.getAttribute('data-ic')));
+		const tabs = await p.locator('.nfm-tab.nfm-ti').evaluateAll(els => els.map(e => e.getAttribute('data-ic')));
 		if (vn === 'desktop') {
 			const layout = await p.evaluate(() => {
 				const nav = document.querySelector('.nfm-main-tabs');
