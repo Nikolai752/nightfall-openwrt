@@ -83,7 +83,7 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 `;
 (async () => {
 	const b = await chromium.launch();
-	const names = { wifi: 'Wi-Fi клиенты', devs: 'Доступ в интернет', apps: 'Трафик по категориям', diag: 'Диагностика сети', sec: 'Сводка безопасности', log: 'Журнал событий' };
+	const names = { wifi: 'Wi-Fi клиенты', devs: 'Доступ в интернет', apps: 'Трафик по категориям', diag: 'Диагностика сети', sec: 'Сводка безопасности', log: 'Журнал событий', settings: 'Настройки предупреждений' };
 	for (const [vn, vp] of [
 		[ 'desktop', { width: 1280, height: 900 } ],
 		[ 'mobile', { width: 390, height: 800 } ],
@@ -106,8 +106,8 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 		await p.evaluate(async () => { const m = window.__mod; const d = await m.load(); document.getElementById('m').appendChild(m.render(d)); });
 		await p.waitForTimeout(2500);
 		const tabs = await p.$$eval('.nfm-tab.nfm-ti', els => els.map(e => e.getAttribute('data-ic')));
-		for (const k of [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist' ]) if (!tabs.includes(k)) bad(vn + ': нет вкладки ' + k);
-		for (const k of [ 'overview', 'procs', 'wifi', 'devs', 'apps', 'diag', 'sec', 'log', 'net', 'hist' ]) {
+		for (const k of [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist', 'settings' ]) if (!tabs.includes(k)) bad(vn + ': нет вкладки ' + k);
+		for (const k of [ 'overview', 'procs', 'wifi', 'devs', 'apps', 'diag', 'sec', 'log', 'net', 'hist', 'settings' ]) {
 			await p.click(`.nfm-tab.nfm-ti[data-ic="${k}"]`); await p.evaluate(() => window.__runMonitorTick()); await p.waitForTimeout(k === 'sec' || k === 'log' ? 3000 : 1500);
 			const vis = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm > div[hidden], .nfm > div:not([hidden])')).filter(x => !x.hasAttribute('hidden') && x.className === '').map(x => x.textContent.slice(0, 4000)).join('\n'));
 			if (names[k] && !vis.includes(names[k])) bad(vn + ': вкладка ' + k + ' не показала «' + names[k] + '»');
@@ -216,8 +216,10 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				if (!/Шлюз|Маршрут по умолчанию/.test(o)) bad(vn + ': проверка диагностики ничего не вывела: ' + o);
 			}
 			if (k === 'hist') {
+				const cfgInHistory = await p.evaluate(() => !!document.querySelector('.nfm-history .nfm-cfg-settings-card'));
+				if (cfgInHistory) bad(vn + ': настройки всё ещё находятся в конце вкладки «История»');
 				const ht = await p.evaluate(() => document.body.textContent);
-				for (const w of [ 'Сводка за день', 'Сводка недели', 'Трафик по месяцам', 'Сравнение периодов', 'Тепловая карта по часам', 'Процессор, память, температура', 'Интернет: задержка', 'Качество связи', 'Скорость интернета (WAN)', 'Хранение истории и износ флеш-памяти', 'Экспорт данных в CSV', 'Накопители', 'Настройки предупреждений' ])
+				for (const w of [ 'Сводка за день', 'Сводка недели', 'Трафик по месяцам', 'Сравнение периодов', 'Тепловая карта по часам', 'Процессор, память, температура', 'Интернет: задержка', 'Качество связи', 'Скорость интернета (WAN)', 'Хранение истории и износ флеш-памяти', 'Экспорт данных в CSV', 'Накопители' ])
 					if (!ht.includes(w)) bad(vn + ': во вкладке «История» нет «' + w + '»');
 				if (/NaN|undefined|не число Б/.test(ht)) bad(vn + ': во вкладке «История» отображается некорректное числовое значение');
 				const geometry = await p.evaluate(() => {
@@ -339,6 +341,16 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				const pc = await p.evaluate(() => document.querySelectorAll('.nfm-evlist .nfm-ev-i .nfm-pin.on').length);
 				if (pc < 1) bad(vn + ': фильтр «Закреплённые» пуст');
 				await p.click('.nfm-tabs button[data-k="all"]');
+			}
+			if (k === 'settings') {
+				const cfg = await p.evaluate(() => {
+					const tab = document.querySelector('.nfm-settings');
+					const card = tab && tab.querySelector('.nfm-cfg-settings-card');
+					const lite = card && card.querySelector('input[type="checkbox"][aria-label^="Режим Lite"]');
+					return { visible: !!tab && !tab.hidden, card: !!card, lite: !!lite };
+				});
+				if (!cfg.visible || !cfg.card || !cfg.lite) bad(vn + ': во вкладке «Настройки» нет карточки конфигурации или переключателя Lite');
+				await p.screenshot({ path: path.join(OUT, 'monitor-settings-' + vn + '.png'), fullPage: true });
 			}
 			if (k === 'diag') {
 				const gt = await p.evaluate(() => document.body.textContent);
