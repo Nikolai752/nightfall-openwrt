@@ -83,7 +83,7 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 `;
 (async () => {
 	const b = await chromium.launch();
-	const names = { wifi: 'Wi-Fi клиенты', devs: 'Доступ в интернет', apps: 'Трафик по категориям', diag: 'Диагностика сети', sec: 'Сводка безопасности', log: 'Журнал событий', settings: 'Настройки предупреждений' };
+	const names = { wifi: 'Wi-Fi клиенты', devs: 'Доступ в интернет', apps: 'Трафик по категориям', diag: 'Диагностика сети', sec: 'Сводка безопасности', log: 'Журнал событий' };
 	for (const [vn, vp] of [
 		[ 'desktop', { width: 1280, height: 900 } ],
 		[ 'mobile', { width: 390, height: 800 } ],
