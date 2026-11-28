@@ -20,9 +20,47 @@ const html = '<!doctype html><html lang="ru"><head><meta charset=utf-8><meta nam
 const login = '<!doctype html><html lang="ru"><head><meta charset=utf-8><style>' + CSS + '</style></head><body class="nf-blank modal-overlay-active"><div id="modal_overlay" class="active"><div class="modal login"><h4>Веб-интерфейс</h4>' +
 	'<form class="cbi-map"><div class="cbi-section"><div class="cbi-section-node"><div class="cbi-value"><label class="cbi-value-title">Имя пользователя</label><div class="cbi-value-field"><input type="text" value="root"></div></div>' +
 	'<div class="cbi-value"><label class="cbi-value-title">Пароль</label><div class="cbi-value-field"><input type="password"></div></div></div></div></form><button class="btn cbi-button-positive important">Войти</button></div></div></body></html>';
+/* Real LuCI Status → Overview markup for the active DHCPv6 lease table. */
+const DHCP = '<!doctype html><html lang="ru"><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><style>' + CSS + '</style></head>' +
+	'<body data-page="admin-status-overview"><div id="maincontent"><div id="view"><div class="cbi-section fade-in">' +
+	'<h3>Active DHCPv6 Leases</h3><table class="table leases6" id="status_leases6">' +
+	'<tr class="tr table-titles"><th class="th">Interface</th><th class="th">Hostname</th><th class="th">IPv6 addresses</th><th class="th">DUID</th><th class="th">IAID</th><th class="th">Static Lease</th></tr>' +
+	'<tr class="tr placeholder"><td class="td"><em>No active leases found</em></td></tr>' +
+	'</table></div></div></div></body></html>';
+
 let fail = 0; const bad = m => { console.log('ОШИБКА: ' + m); fail = 1; };
 (async () => {
 	const b = await chromium.launch();
+	// Reproduce the actual active DHCPv6 table ID and its empty-state markup.
+	const dp = await b.newPage({ viewport: { width: 1280, height: 900 } });
+	await dp.setContent(DHCP); await dp.waitForTimeout(250);
+	const measureDhcpEmpty = () => dp.evaluate(() => {
+		const table = document.getElementById('status_leases6');
+		const cell = table.querySelector('.tr.placeholder > .td');
+		const em = cell.querySelector('em');
+		const range = document.createRange(); range.selectNodeContents(em);
+		const t = table.getBoundingClientRect(), c = cell.getBoundingClientRect(), x = range.getBoundingClientRect();
+		return {
+			textShift: Math.abs((x.left + x.width / 2) - (t.left + t.width / 2)),
+			cellShift: Math.abs((c.left + c.width / 2) - (t.left + t.width / 2)),
+			cellWidth: c.width, tableWidth: t.width,
+			overflow: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) - document.documentElement.clientWidth
+		};
+	});
+	for (let i = 0; i < 4; i++) {
+		const lease = await measureDhcpEmpty();
+		if (lease.textShift > 4) bad('активные аренды DHCPv6: текст пустого состояния смещён влево (' + Math.round(lease.textShift) + ' px)');
+		if (lease.cellShift > 4 || lease.cellWidth < lease.tableWidth - 4) bad('активные аренды DHCPv6: пустая ячейка уже таблицы или не по центру');
+		if (lease.overflow > 2) bad('активные аренды DHCPv6: появляется горизонтальная прокрутка страницы (' + Math.round(lease.overflow) + ' px)');
+		if (i < 3) {
+			await dp.evaluate(() => {
+				const row = document.querySelector('#status_leases6 .tr.placeholder');
+				row.replaceWith(row.cloneNode(true));
+			});
+			await dp.waitForTimeout(80);
+		}
+	}
+	await dp.close();
 	const p = await b.newPage({ viewport: { width: 1400, height: 900 } });
 	p.on('pageerror', e => bad(e.message));
 	await p.setContent(html); await p.waitForTimeout(700);
