@@ -131,6 +131,12 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 		[ 'iphone-15-pro-max', { width: 430, height: 932 } ],
 		[ 'iphone-16-pro-max', { width: 440, height: 956 } ]
 	]) {
+		// Each viewport is an independent browser session; reset shared RPC fixtures and counters.
+		TG_ROUTE_OUTPUT = 'steer:zm_vpn2';
+		TG_ROUTE_ACTIVE = true;
+		TG_ROUTE_STATUS_OK = true;
+		TG_TEST_STARTS = 0;
+		CFG_SET_CALLS.length = 0;
 		const mobile = vn !== 'desktop';
 		const p = await b.newPage({ viewport: vp, isMobile: mobile, hasTouch: mobile });
 		const errs = [];
@@ -289,7 +295,9 @@ const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
 				if (await outputRows.count() !== 3) bad(vn + ': selector cards должны показать все три тестовых выхода');
 				const outputText = await outputList.textContent();
 				if (!outputText.includes('АКТИВЕН') || !outputText.includes('ПРОВЕРИТЬ') || !outputText.includes('НЕДОСТУПЕН')) bad(vn + ': selector cards не различают активный, найденный и недоступный выходы');
-				const firstRow = await p.locator('.nfm-tg-output-choice[data-output="steer:groupvpn"]').evaluate(el => { const r=el.getBoundingClientRect(), s=getComputedStyle(el), hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2); return {w:r.width,h:r.height,pointer:s.pointerEvents,cursor:s.cursor,display:s.display,disabled:el.disabled,ariaDisabled:el.getAttribute('aria-disabled'),hit:!!hit && (hit===el || el.contains(hit)),hitTag:hit&&hit.tagName,hitClass:hit&&hit.className}; });
+				const firstRowLocator = p.locator('.nfm-tg-output-choice[data-output="steer:groupvpn"]');
+				await firstRowLocator.scrollIntoViewIfNeeded();
+				const firstRow = await firstRowLocator.evaluate(el => { const r=el.getBoundingClientRect(), s=getComputedStyle(el), hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2); return {w:r.width,h:r.height,pointer:s.pointerEvents,cursor:s.cursor,display:s.display,disabled:el.disabled,ariaDisabled:el.getAttribute('aria-disabled'),hit:!!hit && (hit===el || el.contains(hit)),hitTag:hit&&hit.tagName,hitClass:hit&&hit.className}; });
 				if (firstRow.w < 160 || firstRow.h < 40 || firstRow.pointer === 'none' || firstRow.cursor !== 'pointer' || firstRow.display === 'none' || firstRow.disabled || firstRow.ariaDisabled === 'true' || !firstRow.hit) bad(vn + ': карточка VPN-выхода перекрыта, заблокирована или показывает запрещающий курсор: ' + JSON.stringify(firstRow));
 				/* Select a different Steer output with a real delegated button click (mouse/touch). */
 				await p.click('.nfm-tg-output-choice[data-output="steer:groupvpn"]'); await p.waitForTimeout(100);
