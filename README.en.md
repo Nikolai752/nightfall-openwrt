@@ -6,11 +6,11 @@
 [![OpenWrt 25.12.6](https://img.shields.io/badge/OpenWrt-25.12.6-00a3b5?style=flat-square&logo=openwrt)](https://openwrt.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](https://opensource.org/licenses/MIT)
 
-**Current stable release: [Nightfall v1.30.0](https://github.com/Nikolai752/nightfall-openwrt/releases/tag/v1.30.0).** This release fixes release packaging, safely handles the expected symbolic links, and delivers Simplified Chinese (`zh_Hans`) catalogs for the theme and Resource Monitor. The catalogs are compiled into LuCI `.lmo` files; installation registers `zh_cn` as an available language but does not change the user's current language.
+**Current stable release: [Nightfall v1.30.1](https://github.com/Nikolai752/nightfall-openwrt/releases/tag/v1.30.1).** This release extends `zh_Hans` localization to backend-generated messages displayed in the UI: updater progress, backup and restore output, network diagnostics, configuration and settings errors, Telegram messages, access-block reasons, and Wake-on-LAN errors. Multiline backup output is translated line by line, while machine-generated manifest fields remain unchanged. Translations are compiled into LuCI `.lmo` catalogs; installation registers `zh_cn` without changing the user's selected language.
 
 A LuCI theme in the style of Windows 11 and Liquid Glass, plus a **Resource Monitor** page with history, charts, traffic accounting by device and by application, Telegram notifications and one-click updates. For **OpenWrt 25.12**. The installer checks for `base64` and installs `coreutils-base64` if the BusyBox applet is missing; `curl` is needed only for updates and Telegram.
 
-> **Language note.** The theme and Resource Monitor currently include Russian and Simplified Chinese (`zh_Hans`) translations, but the Overview dashboard and Resource Monitor interface are not yet translated into English. We are looking for volunteers to help with the English UI translation; contributions are welcome via [Issues](https://github.com/Nikolai752/nightfall-openwrt/issues). Standard LuCI pages (Network, Firewall, etc.) continue to use the translations supplied by LuCI. To switch to Simplified Chinese, use System → System → Language and Style after installing v1.30.0; installation registers `zh_cn` but does not change the selected language automatically.
+> **Language note.** The theme and Resource Monitor currently include Russian and Simplified Chinese (`zh_Hans`) translations, but the Overview dashboard and Resource Monitor interface are not yet translated into English. We are looking for volunteers to help with the English UI translation; contributions are welcome via [Issues](https://github.com/Nikolai752/nightfall-openwrt/issues). Standard LuCI pages (Network, Firewall, etc.) continue to use the translations supplied by LuCI. To switch to Simplified Chinese, use System → System → Language and Style after installing v1.30.1; installation registers `zh_cn` but does not change the selected language automatically.
 
 ## Screenshots
 
@@ -215,7 +215,7 @@ If LuCI will not open at all: `uci set luci.main.mediaurlbase=/luci-static/boots
 
 ## Requirements and compatibility
 
-- **Target platform: OpenWrt 25.12 with LuCI.** v1.30.0 passed CI, including functional and browser smoke tests. The project's primary hardware-test reference is a Cudy WR3000U-256MB 1.0 (WR3000U v1) running OpenWrt 25.12.6; the listed hardware scenarios were exercised on this model during earlier test builds, which is not a full on-router certification of every v1.30.0 feature. LuCI templates and menus may differ on 23.05 and 24.10; compatibility there is not confirmed. OpenWrt 21.02 and older are unsupported.
+- **Target platform: OpenWrt 25.12 with LuCI.** v1.30.1 passed CI, including functional and browser smoke tests. The project's primary hardware-test reference is a Cudy WR3000U-256MB 1.0 (WR3000U v1) running OpenWrt 25.12.6; the listed hardware scenarios were exercised on this model during earlier test builds, which is not a full on-router certification of every v1.30.1 feature. LuCI templates and menus may differ on 23.05 and 24.10; compatibility there is not confirmed. OpenWrt 21.02 and older are unsupported.
 - **CPU architecture does not matter:** there are no compiled programs, only CSS, JS, templates and shell scripts.
 - **Storage:** the installed theme takes about 1.4 MB. That can be a lot on routers with 4–8 MB of flash; 16 MB and more is fine. If space is tight, you can delete the iPhone splash images (`/www/luci-static/nightfall/splash`).
 - **RAM:** history is kept in `/tmp`. On routers with 64 MB or less it takes a noticeable share of memory.
@@ -224,7 +224,7 @@ If LuCI will not open at all: `uci set luci.main.mediaurlbase=/luci-static/boots
 
 ## Status
 
-**Primary hardware-test reference:** Cudy WR3000U-256MB 1.0 (WR3000U v1) running OpenWrt 25.12.6. During earlier test builds, the collector and Telegram bot, notifications, device and application statistics, USB history persistence, and backup creation and restore were exercised on this device. This does not mean every v1.30.0 feature, third-party LuCI page, or add-on package (such as adblock or sqm) received a separate on-router test. Nightfall is not limited to Cudy devices, but hardware results for other router models are not yet confirmed.
+**Primary hardware-test reference:** Cudy WR3000U-256MB 1.0 (WR3000U v1) running OpenWrt 25.12.6. During earlier test builds, the collector and Telegram bot, notifications, device and application statistics, USB history persistence, and backup creation and restore were exercised on this device. This does not mean every v1.30.1 feature, third-party LuCI page, or add-on package (such as adblock or sqm) received a separate on-router test. Nightfall is not limited to Cudy devices, but hardware results for other router models are not yet confirmed.
 
 If you installed the theme on another router, please tell us in [Issues](https://github.com/Nikolai752/nightfall-openwrt/issues) how it went: model, OpenWrt version, what works and what does not. That helps build a list of tested devices. Found a bug or want an improvement? Same place.
 

@@ -6,11 +6,11 @@
 [![OpenWrt 25.12.6](https://img.shields.io/badge/OpenWrt-25.12.6-00a3b5?style=flat-square&logo=openwrt)](https://openwrt.org)
 [![许可证：MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](https://opensource.org/licenses/MIT)
 
-**当前稳定版本：[Nightfall v1.30.0](https://github.com/Nikolai752/nightfall-openwrt/releases/tag/v1.30.0)。** 本版本修复了发布打包流程和标准符号链接处理问题，并为主题及资源监视器提供简体中文（`zh_Hans`）语言目录。翻译会编译为 LuCI `.lmo` 文件；安装时会将 `zh_cn` 注册为可用语言，但不会自动更改用户当前选择的界面语言。
+**当前稳定版本：[Nightfall v1.30.1](https://github.com/Nikolai752/nightfall-openwrt/releases/tag/v1.30.1)。** 本版本将 `zh_Hans` 简体中文翻译扩展到界面中显示的后端消息，包括更新进度、备份与恢复输出、网络诊断、配置与设置错误、Telegram 消息、访问屏蔽原因以及 Wake-on-LAN 错误。多行备份输出会逐行翻译，机器生成的清单字段保持原样。翻译会编译为 LuCI `.lmo` 文件；安装时注册 `zh_cn`，但不会自动更改用户当前选择的界面语言。
 
 Nightfall 是一款适用于 LuCI 的主题，提供 Windows 11 和 Liquid Glass 风格，并附带**资源监视器**页面，支持历史记录、图表、按设备和应用统计流量、Telegram 通知以及一键更新。目标平台为 **OpenWrt 25.12**。安装程序会检查 `base64`；如果系统缺少 BusyBox 对应功能，会安装用于备份的 `coreutils-base64`。更新和 Telegram 功能需要 `curl`。
 
-> **语言说明：** Nightfall 主题和资源监视器提供俄语与简体中文（`zh_Hans`）翻译。Network、Firewall 等标准 LuCI 页面使用 LuCI 自身安装的语言包。安装 v1.30.0 后，可前往“System → System → Language and Style”选择“简体中文（Simplified Chinese）”。安装程序只注册该语言，不会自动切换当前语言。
+> **语言说明：** Nightfall 主题和资源监视器提供俄语与简体中文（`zh_Hans`）翻译。Network、Firewall 等标准 LuCI 页面使用 LuCI 自身安装的语言包。安装 v1.30.1 后，可前往“System → System → Language and Style”选择“简体中文（Simplified Chinese）”。安装程序只注册该语言，不会自动切换当前语言。
 
 ## 截图
 
@@ -198,7 +198,7 @@ uci commit luci
 
 ## 系统要求与兼容性
 
-- **目标平台：OpenWrt 25.12 + LuCI。** v1.30.0 已通过 CI 功能测试和浏览器 smoke 测试。项目主要硬件测试参考为 **Cudy WR3000U-256MB 1.0（WR3000U v1）+ OpenWrt 25.12.6**；列出的硬件场景是在此前测试版本中使用该设备验证的，这不代表 v1.30.0 的每项功能都已在实体路由器上单独认证。OpenWrt 23.05 和 24.10 的 LuCI 模板及菜单可能不同，尚未确认兼容性；OpenWrt 21.02 及更早版本不受支持。
+- **目标平台：OpenWrt 25.12 + LuCI。** v1.30.1 已通过 CI 功能测试和浏览器 smoke 测试。项目主要硬件测试参考为 **Cudy WR3000U-256MB 1.0（WR3000U v1）+ OpenWrt 25.12.6**；列出的硬件场景是在此前测试版本中使用该设备验证的，这不代表 v1.30.1 的每项功能都已在实体路由器上单独认证。OpenWrt 23.05 和 24.10 的 LuCI 模板及菜单可能不同，尚未确认兼容性；OpenWrt 21.02 及更早版本不受支持。
 - **CPU 架构不受限制：** 主题不包含编译后的程序，主要由 CSS、JavaScript、模板和 Shell 脚本组成。
 - **存储空间：** 安装后的主题约占 1.4 MB。对于只有 4–8 MB 闪存的路由器，这可能较多；16 MB 及以上通常更合适。如空间不足，可删除 iPhone 启动画面目录 `/www/luci-static/nightfall/splash`。
 - **RAM：** 历史数据保存在 `/tmp`。对于 RAM 不超过 64 MB 的路由器，占用可能比较明显。
@@ -207,7 +207,7 @@ uci commit luci
 
 ## 测试状态
 
-**主要硬件测试参考：** Cudy WR3000U-256MB 1.0（WR3000U v1），运行 OpenWrt 25.12.6。此前测试版本曾在该设备上检查采集器、Telegram 机器人、通知、设备和应用统计、USB 历史持久化以及备份创建与恢复。这不代表 v1.30.0 的每项功能、第三方 LuCI 页面或附加软件包（例如 adblock、sqm）都在该路由器上单独测试过。Nightfall 并不局限于 Cudy 设备，但其他路由器型号的硬件测试结果尚未确认。
+**主要硬件测试参考：** Cudy WR3000U-256MB 1.0（WR3000U v1），运行 OpenWrt 25.12.6。此前测试版本曾在该设备上检查采集器、Telegram 机器人、通知、设备和应用统计、USB 历史持久化以及备份创建与恢复。这不代表 v1.30.1 的每项功能、第三方 LuCI 页面或附加软件包（例如 adblock、sqm）都在该路由器上单独测试过。Nightfall 并不局限于 Cudy 设备，但其他路由器型号的硬件测试结果尚未确认。
 
 如果你在其他路由器上安装了主题，欢迎在 [Issues](https://github.com/Nikolai752/nightfall-openwrt/issues) 中反馈型号、OpenWrt 版本以及哪些功能正常或异常。这有助于建立经过测试的设备清单。发现问题或希望改进，也请提交 Issue。
 

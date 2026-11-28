@@ -1,3 +1,21 @@
+## v1.30.1 · Расширенная китайская локализация сообщений интерфейса
+- [Добавлено] **Переводы backend-сообщений zh_Hans**: локализация сообщений, формируемых скриптами Nightfall и отображаемых в LuCI, включая обновление, резервное копирование и восстановление, сетевую диагностику, ошибки конфигурации и настроек, сообщения Telegram, причины блокировки доступа и ошибки Wake-on-LAN.
+- [Исправлено] **Многострочный вывод резервного копирования**: сообщения создания, проверки и восстановления обрабатываются построчно в теме и мониторе; машинные поля манифеста `key=value` остаются без изменений.
+- [Исправлено] **Сообщения ошибок настроек**: точки отображения ошибок Telegram, настроек диска и сохранения конфигурации теперь проходят через механизмы локализации.
+- [Улучшено] **Обновление кэша ресурсов**: версия ресурсов изменена, чтобы браузер загружал обновлённые скрипты локализации.
+- [Тесты] Полный CI PR #208, сборка установочного TAR.GZ, проверка SHA-256 и установка тестовой сборки на Cudy WR3000U v1 прошли успешно; проверены оба скомпилированных каталога LuCI.
+- [Благодарности] **@ntbowen** — за PR #208, расширение китайской локализации backend-сообщений и исправление перевода многострочного вывода резервного копирования.
+
+### English
+
+## v1.30.1 · Expanded Chinese localization for UI messages
+- [Added] **zh_Hans translations for backend-generated messages** displayed in LuCI, covering updater progress, backup and restore, network diagnostics, configuration and settings errors, Telegram messages, access-block reasons, and Wake-on-LAN errors.
+- [Fixed] **Multiline backup output**: backup creation, validation, and restore messages are translated line by line in both the theme and Resource Monitor; machine-generated `key=value` manifest fields remain unchanged.
+- [Fixed] **Settings error messages**: Telegram, disk settings, and configuration-save error display paths now use the localization helpers.
+- [Improved] **Resource cache versioning** so browsers load the updated localization scripts.
+- [Tests] PR #208 CI, installable TAR.GZ build, SHA-256 verification, and test-build installation on a Cudy WR3000U v1 completed successfully; both compiled LuCI catalogs were checked.
+- [Credits] **@ntbowen** for PR #208, the expanded backend-message translations, and the multiline backup-output translation fix.
+
 ## v1.30.0 · Надёжная сборка релиза и китайская локализация
 - [Исправлено] **Упаковщик релиза**: сохранение штатных символических ссылок без повторного создания; конфликтующие или неверные пути приводят к понятной ошибке без перезаписи.
 - [Исправлено] **Доставка локализации zh_Hans**: TAR.GZ включает скомпилированные LuCI-каталоги `.lmo` и регистрирует `zh_cn`, не меняя выбранный пользователем язык интерфейса.
