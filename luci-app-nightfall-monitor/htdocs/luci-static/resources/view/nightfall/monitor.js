@@ -1415,26 +1415,51 @@ return view.extend({
 			});
 			return wait(500).then(() => pollResult(0));
 		});
+		let tgTestBusy = false;
+		const tgTestButton = E('button', { type: 'button', class: 'nfm-act nfm-tg-test-button', click: () => tgRun('test').then(r => {
+			if (r) tgMsg.textContent = r.ok ? _('Сообщение отправлено, проверьте Telegram.') : _('Не отправлено: ') + r.error;
+		}) }, _('Отправить проверку'));
 		const tgRun = cmd => {
-			tgMsg.textContent = _('Сохраняю настройки и проверяю подключение…');
-			return saveTelegramConfig().then(r => {
-				if (!r) return null;
-				const request = cmd === 'test' ? runTelegramTest() : notifyExec([ cmd ]);
-				return request.then(result => {
-					if (tgApiState) {
-						tgApiState.textContent = (result && result.ok ? _('Telegram API ответил успешно.') : _('Запрос к Telegram не выполнен: ') + ((result && result.error) || _('нет ответа'))) + ' · ' + new Date().toLocaleTimeString();
-						tgApiState.classList.toggle('is-good', !!(result && result.ok));
-						tgApiState.classList.toggle('is-bad', !(result && result.ok));
+			if (cmd === 'test') {
+				if (tgTestBusy) return Promise.resolve(null);
+				tgTestBusy = true;
+				tgTestButton.disabled = true;
+				tgTestButton.textContent = _('Проверяю маршрут…');
+				tgMsg.textContent = _('Сначала сверяю фактический маршрут Telegram…');
+				return fs.exec('/usr/libexec/nightfall-telegram-route', [ 'status' ]).then(res => {
+					let status = null;
+					try { status = JSON.parse(res.stdout || '{}'); } catch (e) {}
+					if (status && status.ok) S.tgRouteRuntime = status;
+					renderTelegram();
+					const reason = telegramTestBlockReason(status);
+					if (reason) return { ok: false, error: reason, blocked: true };
+					const mode = cfgInputs.TG_ROUTE_MODE.value || (S.cfg && S.cfg.values && S.cfg.values.TG_ROUTE_MODE) || 'system';
+					if (mode === 'vpn') {
+						const selected = selectedTgOutput();
+						cfgInputs.TG_ROUTE_MODE.value = 'vpn';
+						cfgInputs.TG_ROUTE_OUTPUT.value = selected.id;
 					}
+					return saveTelegramConfig().then(saved => saved ? runTelegramTest() : null);
+				}).catch(err => ({ ok: false, error: _('Не удалось проверить активный маршрут: ') + ((err && err.message) || String(err)) })).then(result => {
+					tgTestBusy = false;
+					tgTestButton.textContent = _('Отправить проверку');
+					if (tgApiState && result) {
+						tgApiState.textContent = (result.ok ? _('Telegram API ответил успешно.') : (result.blocked ? _('Тест не отправлен: ') : _('Проверка не пройдена: ')) + (result.error || _('нет ответа'))) + ' · ' + new Date().toLocaleTimeString();
+						tgApiState.classList.toggle('is-good', !!result.ok);
+						tgApiState.classList.toggle('is-bad', !result.ok);
+					}
+					syncTelegramTestButton();
 					return result;
 				});
-			});
+			}
+			tgMsg.textContent = _('Сохраняю настройки Telegram…');
+			return saveTelegramConfig().then(saved => saved ? notifyExec([ cmd ]) : null);
 		};
 		const tgTools = E('div', { style: 'margin-top:10px' }, [
 			E('div', { class: 'nfm-note-s' }, _('Как настроить: 1) в Telegram найдите @BotFather, создайте бота командой /newbot и вставьте токен выше; 2) откройте своего бота и нажмите Start; 3) нажмите «Определить chat id», затем «Отправить проверку»; 4) включите переключатель «Отправлять уведомления» и сохраните. После этого боту можно писать команды: /status, /clients, /traffic, /apps, /speed, /help (отвечает только вам).')),
 			E('div', { class: 'nfm-actions', style: 'margin:8px 0 0' }, [
 				E('button', { class: 'nfm-act', click: () => tgRun('chatid').then(r => { if (!r) return; if (r.ok) { cfgInputs.TG_CHAT.value = r.chat; callCfg([ 'set', 'TG_CHAT=' + r.chat ]); tgMsg.textContent = _('Chat id найден: ') + r.chat; } else tgMsg.textContent = r.error; }) }, _('Определить chat id')),
-				E('button', { class: 'nfm-act', click: () => tgRun('test').then(r => { if (r) tgMsg.textContent = r.ok ? _('Сообщение отправлено, проверьте Telegram.') : _('Не отправлено: ') + r.error; }) }, _('Отправить проверку')),
+				tgTestButton,
 				E('button', { class: 'nfm-act', click: () => tgRun('backup').then(r => { if (r) tgMsg.textContent = r.ok ? _('Резервная копия отправлена в Telegram файлом (без токена бота).') : _('Не отправлено: ') + r.error; }) }, _('Резервная копия в Telegram')) ]),
 			tgMsg ]);
 		/* ---- Накопители: найти флешку / SD-карту и одним нажатием хранить на ней историю ---- */
@@ -1610,7 +1635,31 @@ return view.extend({
 			const info = S.tgInfo || {};
 			const steer = info.outputs || [];
 			const devices = new Set(steer.map(item => item.device).filter(Boolean));
-			return steer.concat((info.interfaces || []).filter(item => !devices.has(item.device)));
+			const outputs = steer.concat((info.interfaces || []).filter(item => !devices.has(item.device)));
+			const runtime = S.tgRouteRuntime || {};
+			/* Never show an empty selector while the kernel confirms a live route. */
+			if (runtime.active && runtime.output && !outputs.some(item => item.id === runtime.output)) {
+				outputs.unshift({ id: runtime.output, label: runtime.output.replace(/^(steer:|iface:)/, '') + ' · ' + _('текущий маршрут'), device: runtime.device || '', table: runtime.table || 0, mark: runtime.mark || '', ready: true, verified: true, activeOnly: true });
+			}
+			return outputs;
+		}
+		function telegramTestBlockReason(status) {
+			const values = S.cfg && S.cfg.values || {};
+			const mode = cfgInputs.TG_ROUTE_MODE.value || values.TG_ROUTE_MODE || (values.TG_PROXY ? 'proxy' : values.TG_IFACE ? 'vpn' : 'system');
+			if (mode === 'vpn') {
+				const currentStatus = status && status.ok ? status : S.tgRouteRuntime || {};
+				const selected = selectedTgOutput();
+				if (!selected.id || !selected.item) return _('Тест заблокирован: нет выбранного и обнаруженного VPN-выхода. Обновите список и выберите маршрут.');
+				if (selected.item.ready === false) return _('Тест заблокирован: выбранный VPN-выход недоступен.');
+				if (!currentStatus.active || currentStatus.output !== selected.id) return _('Тест не отправлен: сначала выберите, проверьте и примените VPN-выход. Сейчас активный маршрут не совпадает с выбранным.');
+			}
+			if (mode === 'proxy' && !(cfgInputs.TG_PROXY.value || values.TG_PROXY || '').trim()) return _('Тест заблокирован: сначала укажите адрес прокси.');
+			return '';
+		}
+		function syncTelegramTestButton() {
+			const reason = telegramTestBlockReason();
+			tgTestButton.disabled = tgTestBusy || !!reason;
+			tgTestButton.title = reason || _('Отправить проверочное сообщение по текущему активному способу подключения');
 		}
 		function selectedTgOutput() {
 			const runtime = S.tgRouteRuntime || {};
@@ -1756,11 +1805,7 @@ tgApplyRouteButton
 					E('button', { type: 'button', class: 'nfm-act', click: () => saveTelegramConfig().then(r => {
 						tgSettingsMsg.textContent = r ? _('Настройки Telegram сохранены.') : _('Не удалось сохранить настройки Telegram.');
 					}) }, _('Сохранить настройки Telegram')),
-					E('button', { type: 'button', class: 'nfm-act', click: () => tgRun('test').then(r => {
-						tgApiState.textContent = (r && r.ok ? _('Telegram API ответил успешно.') : _('Проверка не пройдена: ') + ((r && r.error) || _('нет ответа'))) + ' · ' + new Date().toLocaleTimeString();
-						tgApiState.classList.toggle('is-good', !!(r && r.ok));
-						tgApiState.classList.toggle('is-bad', !(r && r.ok));
-					}) }, _('Тест подключения'))
+
 				]),
 				tgSettingsMsg
 			]))
