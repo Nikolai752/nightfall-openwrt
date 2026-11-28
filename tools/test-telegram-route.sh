@@ -217,6 +217,13 @@ grep -Fq 'egress_guard meta skuid 104 oifname != "wg2" drop' "$NF_TG_TEST_NFT" |
 ok "VLESS, xsteer and AWG use their own Steer device/mark/table; zm_vpn2 is restored afterwards"
 
 
+# Restore the original group output before the existing groupvpn regression assertions.
+printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:groupvpn\n' > "$T/conf"
+out=$("$H" apply) || bad "restoring groupvpn after protocol checks failed: $out"
+case "$out" in *'"ok":true'*'"device":"wg1"'*) ;; *) bad "groupvpn was not restored after protocol checks: $out" ;; esac
+grep -Fq 'egress_guard meta skuid 104 oifname != "wg1" drop' "$NF_TG_TEST_NFT" || bad "groupvpn guard was not restored after protocol checks"
+ok "original groupvpn output is restored after the VLESS/xsteer/AWG checks"
+
 # Applying the Steer route must mark Telegram sockets and add an egress guard.
 out=$("$H" apply) || bad "Steer route apply failed: $out"
 case "$out" in *'"ok":true'*'"source":"steer"'*) ;; *) bad "unexpected Steer apply result: $out" ;; esac
