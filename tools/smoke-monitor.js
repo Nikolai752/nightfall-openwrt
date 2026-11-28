@@ -14,6 +14,8 @@ const OUT = path.join(__dirname, 'out'); fs.mkdirSync(OUT, { recursive: true });
 const T = fs.mkdtempSync(path.join(os.tmpdir(), 'nfmon-'));
 const CFG_SET_CALLS = [];
 let TG_ROUTE_OUTPUT = 'steer:zm_vpn2';
+let TG_ROUTE_ACTIVE = true;
+let TG_TEST_STARTS = 0;
 const NOW = Math.floor(Date.now() / 1000);
 cp.execFileSync('sh', [path.join(__dirname, 'sec-fixtures.sh'), T]);
 const ENV = Object.assign({}, process.env, { NF_LOGREAD: path.join(T, 'logread'), NF_PROC: path.join(T, 'proc'), NF_KNOWN: path.join(T, 'known'), NF_UCI: path.join(T, 'uci'), NF_UPDATEBIN: path.join(T, 'upd'), NF_SHADOW: path.join(T, 'shadow'), NF_DIR: path.join(T, 'd'), NF_NFT: path.join(T, 'nft'), NFT_LOG: path.join(T, 'nft.log') });
@@ -35,10 +37,20 @@ const EXEC = (cmd, args) => {
 		}
 		if (args[0] === 'apply') {
 			const item = TG_ROUTE_OUTPUT === 'steer:groupvpn' ? { device: 'wg1', table: 300 } : { device: 'wg2', table: 304 };
+			TG_ROUTE_ACTIVE = true;
 			return JSON.stringify({ ok: true, active: true, mode: 'vpn', source: 'steer', uid: 104, table: item.table, device: item.device, output: TG_ROUTE_OUTPUT });
 		}
+		if (args[0] === 'status') {
+			const item = TG_ROUTE_OUTPUT === 'steer:groupvpn' ? { device: 'wg1', table: 300 } : { device: 'wg2', table: 304 };
+			return JSON.stringify(TG_ROUTE_ACTIVE ? { ok: true, active: true, mode: 'vpn', source: 'steer', uid: 104, table: item.table, device: item.device, output: TG_ROUTE_OUTPUT } : { ok: true, active: false, mode: 'vpn', output: TG_ROUTE_OUTPUT });
+		}
 		const item = TG_ROUTE_OUTPUT === 'steer:groupvpn' ? { device: 'wg1', table: 300 } : { device: 'wg2', table: 304 };
-		return JSON.stringify({ ok: true, active: true, mode: 'vpn', source: 'steer', uid: 104, table: item.table, device: item.device, output: TG_ROUTE_OUTPUT });
+		return JSON.stringify({ ok: true, active: TG_ROUTE_ACTIVE, mode: 'vpn', source: 'steer', uid: 104, table: item.table, device: item.device, output: TG_ROUTE_OUTPUT });
+	}
+	if (n === 'nightfall-notify') {
+		if (args[0] === 'test-start') { TG_TEST_STARTS++; return '{"ok":true,"state":"running"}'; }
+		if (args[0] === 'test-status') return '{"ok":true}';
+		return '{"ok":true}';
 	}
 	if (n === 'nightfall-config' && args[0] === 'set') {
 		CFG_SET_CALLS.push(args.slice());
@@ -122,6 +134,8 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 		const errs = [];
 		p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
 		await p.exposeFunction('__exec', (c, a) => EXEC(c, a));
+		await p.exposeFunction('__setTgRouteActive', active => { TG_ROUTE_ACTIVE = !!active; });
+		await p.exposeFunction('__getTgTestStarts', () => TG_TEST_STARTS);
 		await p.route('**/*', r => {
 			const u = new URL(r.request().url());
 			if (u.pathname === '/page') return r.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="ru"><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><link rel=stylesheet href="http://t.local/c.css"></head><body><div id=m></div></body></html>' });
@@ -244,9 +258,11 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 			}
 			if (k === 'tg') {
 				const tt = await p.evaluate(() => document.querySelector('.nfm-tg-page')?.textContent || '');
-				for (const w of [ 'Telegram-бот', 'Маршрут подключения к Telegram', 'Системный маршрут', 'Через прокси', 'Через VPN', 'Сохранить настройки Telegram' ])
+				for (const w of [ 'Telegram-бот', 'Маршрут Telegram', 'Система', 'Прокси', 'VPN', 'Сохранение настроек' ])
 					if (!tt.includes(w)) bad(vn + ': во вкладке TG Bot нет «' + w + '»');
-				const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
+								const legacyTopVisible = await p.locator('.nfm-top-device').evaluate(el => !el.hasAttribute('hidden'));
+				if (legacyTopVisible) bad(vn + ': старая строка модели и аптайма должна скрываться на вкладке TG Bot');
+const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
 					const css = getComputedStyle(el, '::before');
 					return css.maskImage || css.webkitMaskImage || css.getPropertyValue('--ic');
 				});
@@ -276,7 +292,7 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				await p.click('button:has-text("Применить выбранный выход")'); await p.waitForTimeout(250);
 				selectedRoute = await outputList.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output');
 				if (selectedRoute !== 'steer:zm_vpn2') bad(vn + ': не удалось вернуть проверенный маршрут zm_vpn2');
-				await p.click('button:has-text("Сохранить настройки Telegram")'); await p.waitForTimeout(200);
+				await p.click('button:has-text("Сохранить настройки")'); await p.waitForTimeout(200);
 				const savedTgConfig = CFG_SET_CALLS[CFG_SET_CALLS.length - 1] || [];
 				if (!savedTgConfig.includes('TG_ROUTE_MODE=vpn') || !savedTgConfig.includes('TG_ROUTE_OUTPUT=steer:zm_vpn2')) bad(vn + ': сохранение TG Bot потеряло маршрут zm_vpn2');
 				const tgAfterSwitch = await p.evaluate(() => document.querySelector('.nfm-tg-page')?.textContent || '');
@@ -292,6 +308,16 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 					bad(vn + ': переключатели TG Bot имеют неправильный размер: ' + JSON.stringify(tgSwitches));
 				await p.locator('.nfm-tg-disclosure').evaluateAll(els => els.forEach(el => { el.open = false; }));
 				if (await p.locator('.nfm-tg-disclosure[open]').count()) bad(vn + ': дополнительные разделы должны быть свёрнуты по умолчанию');
+								/* A stale saved output must not send a test message when the live route is no longer active. */
+				await p.evaluate(() => window.__setTgRouteActive(false));
+				await p.locator('.nfm-tg-test-button').evaluate(el => { el.disabled = false; el.click(); });
+				await p.waitForTimeout(700);
+				if (await p.evaluate(() => window.__getTgTestStarts()) !== 0) bad(vn + ': тест Telegram был отправлен без подтверждённого активного маршрута');
+				if (!(await p.locator('.nfm-tg-test-button').isDisabled())) bad(vn + ': кнопка теста должна блокироваться при неактивном VPN-маршруте');
+				await p.evaluate(() => window.__setTgRouteActive(true));
+				await p.evaluate(() => window.__runMonitorTick()); await p.waitForTimeout(150);
+				await p.locator('.nfm-tg-test-button').click(); await p.waitForTimeout(800);
+				if (await p.evaluate(() => window.__getTgTestStarts()) !== 1) bad(vn + ': тест Telegram не стартовал при подтверждённом активном zm_vpn2');
 				await p.screenshot({ path: path.join(OUT, 'monitor-tg-' + vn + '.png'), fullPage: true });
 			}
 			if (k === 'hist') {
