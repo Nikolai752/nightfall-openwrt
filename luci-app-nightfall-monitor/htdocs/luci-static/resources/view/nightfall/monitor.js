@@ -1455,9 +1455,12 @@ return view.extend({
 			tgMsg.textContent = _('Сохраняю настройки Telegram…');
 			return saveTelegramConfig().then(saved => saved ? notifyExec([ cmd ]) : null);
 		};
-		const tgTools = E('div', { style: 'margin-top:10px' }, [
-			E('div', { class: 'nfm-note-s' }, _('Как настроить: 1) в Telegram найдите @BotFather, создайте бота командой /newbot и вставьте токен выше; 2) откройте своего бота и нажмите Start; 3) нажмите «Определить chat id», затем «Отправить проверку»; 4) включите переключатель «Отправлять уведомления» и сохраните. После этого боту можно писать команды: /status, /clients, /traffic, /apps, /speed, /help (отвечает только вам).')),
-			E('div', { class: 'nfm-actions', style: 'margin:8px 0 0' }, [
+		const tgTools = E('div', { class: 'nfm-tg-connection-tools' }, [
+			E('details', { class: 'nfm-tg-help' }, [
+				E('summary', {}, _('Как подключить бота')),
+				E('div', {}, _('Создайте бота через @BotFather, вставьте токен, откройте чат с ботом и нажмите Start. Затем определите Chat ID и отправьте проверку. Команды: /status, /clients, /traffic, /apps, /speed, /help.'))
+			]),
+			E('div', { class: 'nfm-actions nfm-tg-connect-actions', style: 'margin:8px 0 0' }, [
 				E('button', { class: 'nfm-act', click: () => tgRun('chatid').then(r => { if (!r) return; if (r.ok) { cfgInputs.TG_CHAT.value = r.chat; callCfg([ 'set', 'TG_CHAT=' + r.chat ]); tgMsg.textContent = _('Chat id найден: ') + r.chat; } else tgMsg.textContent = r.error; }) }, _('Определить chat id')),
 				tgTestButton,
 				E('button', { class: 'nfm-act', click: () => tgRun('backup').then(r => { if (r) tgMsg.textContent = r.ok ? _('Резервная копия отправлена в Telegram файлом (без токена бота).') : _('Не отправлено: ') + r.error; }) }, _('Резервная копия в Telegram')) ]),
@@ -1728,20 +1731,19 @@ return view.extend({
 				])
 			]);
 		}
-		const tgRouteCard = card(_('Маршрут подключения к Telegram'), E('div', {}, [
+		const tgRouteCard = card(_('Маршрут Telegram'), E('div', {}, [
 			E('div', { class: 'nfm-tg-mode-list' }, [
-				tgModeChoice('system', _('Системный маршрут'), _('Обычная маршрутизация OpenWrt. Никакие VPN-настройки не изменяются.')),
-				tgModeChoice('proxy', _('Через прокси'), _('SOCKS5 / SOCKS5H / HTTP(S). Работает независимо от Steer.')),
-				tgModeChoice('vpn', _('Через VPN'), _('Только соединения Telegram направляются через выбранный VPN-выход. При его отказе прямого обхода не будет.'))
+				tgModeChoice('system', _('Система'), _('Стандартный маршрут OpenWrt')),
+				tgModeChoice('proxy', _('Прокси'), _('SOCKS5 / SOCKS5H / HTTP(S)')),
+				tgModeChoice('vpn', _('VPN'), _('Отдельный маршрут только для Telegram'))
 			]),
-			tgProxyPane,
-			tgVpnPane,
-			tgModeDescription,
-			E('div', { class: 'nfm-actions', style: 'margin-top:12px' }, [
-				E('button', { type: 'button', class: 'nfm-act', click: () => loadTelegram(true) }, _('Обновить список выходов')),
-tgApplyRouteButton
+			tgProxyPane, tgVpnPane,
+			E('div', { class: 'nfm-note-s nfm-tg-mode-description' }, tgModeDescription),
+			E('div', { class: 'nfm-tg-route-actions' }, [
+				E('button', { type: 'button', class: 'nfm-act', click: () => loadTelegram(true) }, _('Обновить выходы')),
+				tgApplyRouteButton
 			]),
-			tgRouteState
+			E('div', { class: 'nfm-tg-route-state' }, tgRouteState)
 		]));
 
 		const tgMasterField = cfgField('TG');
@@ -1758,11 +1760,7 @@ tgApplyRouteButton
 				tgMasterField
 			])
 		]);
-		const tgConnectionCard = card(_('Подключение'), E('div', {}, [
-			cfgField('TG_TOKEN'),
-			cfgField('TG_CHAT'),
-			tgTools
-		]));
+		const tgConnectionCard = card(_('Данные подключения'), E('div', { class: 'nfm-tg-connection-body' }, [ cfgField('TG_TOKEN'), cfgField('TG_CHAT'), tgTools ]));
 		const tgNotifyGroup = cfgGroup(_('Уведомления'), [ 'TG_ALERTS', 'TG_UPDATES', 'TG_SEC', 'TG_REPORT' ]);
 		const tgBotGroup = cfgGroup(_('Управление ботом'), [ 'TG_BOT', 'TG_CLEAN', 'TG_WIDGETS' ]);
 		const tgNotifyDisclosure = E('details', { class: 'nfm-tg-disclosure' }, [ E('summary', {}, [ E('span', { class: 'nfm-tg-disclosure-icon' }, '◉'), _('Уведомления'), E('span', { class: 'nfm-tg-disclosure-hint' }, _('События и отчёты')) ]), tgNotifyGroup ]);
@@ -1770,16 +1768,16 @@ tgApplyRouteButton
 		const tgIntegrationCard = card(_('Обнаруженная интеграция'), E('div', {}, [
 			E('div', { class: 'nfm-tg-info-row' }, [ E('span', {}, _('VPN-менеджер')), tgSteerValue ]),
 			E('div', { class: 'nfm-tg-info-row' }, [ E('span', {}, _('Доступные выходы')), tgOutputCount ]),
-			E('div', { class: 'nfm-tg-note' }, _('Обнаружение строится по интерфейсам ядра и правилам ip rule. Поддержка не зависит от фиксированных имён Steer, WireGuard или TUN.'))
+			E('div', { class: 'nfm-tg-note' }, _('Обнаружение учитывает реальные интерфейсы, метки Steer и policy-routing. Наличие выхода не считается подтверждением маршрута.'))
 		]));
 		const tgApiCard = card(_('Адреса Telegram'), E('div', {}, [
 			E('div', { class: 'nfm-tg-info-row' }, [ E('span', {}, 'api.telegram.org'), E('b', {}, 'HTTPS · 443') ]),
-			E('div', { class: 'nfm-tg-note' }, _('Все проверки выполняются тем же Telegram-клиентом Nightfall и тем же выбранным способом подключения.')),
+			E('div', { class: 'nfm-tg-note' }, _('Тест отправляется только после подтверждения реально активного маршрута.')),
 			tgApiState
 		]));
 		const tgRouteStatusCard = card(_('Статус маршрута'), E('div', {}, [
 			tgRouteStatus,
-			E('div', { class: 'nfm-tg-note' }, _('Статус проверяется по живым данным Steer, состоянию интерфейса, policy-routing таблице, метке и фактическому выбору маршрута ядром. Это подтверждает маршрут на уровне OpenWrt; доступность Telegram API проверяется отдельно кнопкой теста. Остальной трафик роутера не перенаправляется.'))
+			E('div', { class: 'nfm-tg-note' }, _('Проверяется реальный маршрут процесса Telegram. Остальной трафик роутера не перенаправляется.'))
 		]));
 		const tgAdvanced = E('details', { class: 'nfm-cfg-g nfm-tg-advanced' }, [
 			E('summary', { class: 'nfm-cfg-head' }, [
@@ -1792,23 +1790,24 @@ tgApplyRouteButton
 				E('div', { class: 'nfm-note-s' }, _('Список разрешённых пользователей для управления ботом в групповом чате. В личном чате не требуется.'))
 			])
 		]);
+		const tgMainGrid = E('div', { class: 'nfm-tg-main-grid' }, [ tgConnectionCard, tgRouteCard ]);
+		const tgStatusGrid = E('div', { class: 'nfm-tg-status-grid' }, [ tgIntegrationCard, tgApiCard, tgRouteStatusCard ]);
+		const tgOptionsGrid = E('div', { class: 'nfm-tg-options-grid' }, [ tgNotifyDisclosure, tgBotDisclosure ]);
+		const tgSaveCard = card(_('Сохранение настроек'), E('div', { class: 'nfm-tg-save-row' }, [
+			E('div', {}, [ E('b', {}, _('Настройки бота')), E('div', { class: 'nfm-note-s' }, _('Сохраняет токен, Chat ID и параметры уведомлений. Маршрут VPN применяется отдельно.')) ]),
+			E('button', { type: 'button', class: 'nfm-act nfm-act-primary', click: () => saveTelegramConfig().then(r => {
+				tgSettingsMsg.textContent = r ? _('Настройки Telegram сохранены.') : _('Не удалось сохранить настройки Telegram.');
+			}) }, _('Сохранить настройки')),
+			tgSettingsMsg
+		]));
 		const tgTab = E('div', { hidden: true, class: 'nfm-tg-page' }, [
-			E('style', {}, [ '.nfm-tg-page{min-width:0}.nfm-tg-hero{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:16px 18px;margin-bottom:14px;border:1px solid var(--nfm-border);border-radius:14px;background:var(--nfm-card)}.nfm-tg-brand{display:flex;align-items:center;gap:14px;min-width:0}.nfm-tg-logo{width:54px;height:54px;display:grid;place-items:center;border-radius:50%;background:#168fd2;color:white;font-size:27px;font-weight:700;box-shadow:0 5px 18px #168fd233}.nfm-tg-brand h2{margin:0 0 4px}.nfm-tg-master{display:flex;align-items:center;gap:12px}.nfm-tg-mode-list{display:grid;gap:8px}.nfm-tg-mode-choice{display:flex;align-items:flex-start;gap:11px;padding:12px;border:1px solid var(--nfm-border);border-radius:11px;cursor:pointer;min-width:0}.nfm-tg-mode-choice:has(input:checked){border-color:var(--nfm-accent);background:color-mix(in srgb,var(--nfm-accent) 9%,var(--nfm-card))}.nfm-tg-mode-choice input{margin-top:3px;flex:0 0 auto}.nfm-tg-mode-copy{display:flex;flex-direction:column;gap:3px;min-width:0}.nfm-tg-mode-copy small{color:var(--nfm-dim);line-height:1.4}.nfm-tg-mode-pane{margin-top:10px;padding:12px;border:1px solid var(--nfm-border);border-radius:10px;background:var(--nfm-card2)}.nfm-tg-info-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--nfm-border)}.nfm-tg-info-row:last-of-type{border-bottom:0}.nfm-tg-note,.nfm-tg-state{margin-top:10px;padding:10px 12px;border-radius:9px;background:var(--nfm-card2);line-height:1.45}.nfm-tg-state{font-size:.94em}.nfm-tg-page>.nfm-grid.nfm-g21{align-items:start}.nfm-tg-vpn-pane{display:grid;gap:7px}.nfm-tg-output-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px;font-size:12px}.nfm-tg-output-count{font-size:10px;font-weight:600;color:var(--nfm-dim)}.nfm-tg-output-list{display:grid;grid-template-columns:1fr;gap:5px;max-height:none;overflow:visible;position:relative;z-index:2;isolation:isolate;pointer-events:auto}.nfm-tg-output-choice{display:flex;align-items:center;gap:9px;width:100%;min-width:0;min-height:44px;padding:7px 9px;border:1px solid var(--nfm-border);border-radius:9px;background:var(--nfm-card);color:var(--nfm-text);font:inherit;font-size:11.5px;line-height:1.25;text-align:left;cursor:pointer;pointer-events:auto;touch-action:manipulation;position:relative;z-index:3;transition:border-color .15s ease,background .15s ease,box-shadow .15s ease}.nfm-tg-output-choice:hover:not(:disabled){border-color:var(--nfm-accent);background:color-mix(in srgb,var(--nfm-accent) 7%,var(--nfm-card))}.nfm-tg-output-choice:focus-visible{outline:2px solid var(--nfm-accent);outline-offset:2px}.nfm-tg-output-choice.selected{border-color:var(--nfm-accent);background:color-mix(in srgb,var(--nfm-accent) 11%,var(--nfm-card));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--nfm-accent) 60%,transparent)}.nfm-tg-output-choice.is-active{border-left:3px solid #29bd7b}.nfm-tg-output-choice:disabled{opacity:.48;cursor:not-allowed}.nfm-tg-output-radio{width:15px;height:15px;flex:0 0 15px;border:1.5px solid var(--nfm-dim);border-radius:50%;display:grid;place-items:center}.nfm-tg-output-choice.selected .nfm-tg-output-radio{border-color:var(--nfm-accent)}.nfm-tg-output-choice.selected .nfm-tg-output-radio:after{content:"";width:7px;height:7px;border-radius:50%;background:var(--nfm-accent)}.nfm-tg-output-copy{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}.nfm-tg-output-name{min-width:0;overflow-wrap:anywhere;font-weight:650}.nfm-tg-output-detail{color:var(--nfm-dim);font-size:10px;overflow-wrap:anywhere}.nfm-tg-output-state{flex:0 0 auto;max-width:98px;text-align:right;font-size:8.5px;line-height:1.2;letter-spacing:.025em;font-weight:750;color:var(--nfm-dim)}.nfm-tg-output-state.is-active{color:#29bd7b}.nfm-tg-output-state.is-verified{color:var(--nfm-accent)}.nfm-tg-output-state.is-found{color:#d79b38}.nfm-tg-output-state.is-unavailable{color:#df8550}.nfm-tg-output-selection{margin-top:7px;padding:8px 10px;border:1px solid var(--nfm-border);border-radius:9px;background:color-mix(in srgb,var(--nfm-accent) 5%,var(--nfm-card));font-size:11px;line-height:1.4;overflow-wrap:anywhere}.nfm-tg-output-actions{align-items:center}.nfm-tg-output-actions .nfm-act{min-height:32px;padding:6px 10px;font-size:11px}.nfm-tg-output-help{font-size:10.5px;line-height:1.35}.nfm-tg-page>.nfm-grid.nfm-g21{align-items:start;gap:10px;margin-bottom:10px}.nfm-tg-page .nfm-card{padding:11px 13px}.nfm-tg-page .nfm-card-title{margin-bottom:8px}.nfm-tg-page .nfm-tg-mode-list{gap:6px}.nfm-tg-page .nfm-tg-mode-choice{padding:8px 9px}.nfm-tg-page .nfm-tg-mode-pane{padding:9px}.nfm-tg-page .nfm-tg-hero{padding:11px 14px;margin-bottom:9px}.nfm-tg-page .nfm-act-primary{border-color:color-mix(in srgb,var(--nfm-accent) 65%,var(--nfm-border));background:color-mix(in srgb,var(--nfm-accent) 15%,var(--nfm-card));font-weight:600}.nfm-tg-page .nfm-act:disabled{opacity:.45;cursor:not-allowed}.nfm-tg-advanced{margin-top:10px}.nfm-tg-advanced .nfm-cfg-body{padding-top:12px}.nfm-tg-secondary{align-items:start}.nfm-tg-disclosure{min-width:0;border:1px solid var(--nfm-border);border-radius:12px;background:var(--nfm-card);padding:0 14px;overflow:hidden}.nfm-tg-disclosure>summary{display:flex;align-items:center;gap:9px;min-height:52px;cursor:pointer;list-style:none;font-weight:600;font-size:13px}.nfm-tg-disclosure>summary::-webkit-details-marker{display:none}.nfm-tg-disclosure>summary:after{content:"⌄";margin-left:auto;color:var(--nfm-dim);transition:transform .2s}.nfm-tg-disclosure[open]>summary:after{transform:rotate(180deg)}.nfm-tg-disclosure-icon{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:color-mix(in srgb,var(--nfm-accent) 14%,var(--nfm-card2));color:var(--nfm-accent)}.nfm-tg-disclosure-hint{margin-left:auto;color:var(--nfm-dim);font-size:11px;font-weight:400}.nfm-tg-disclosure[open] .nfm-tg-disclosure-hint{display:none}.nfm-tg-disclosure .nfm-cfg-g{border:0;padding:0 0 12px;background:transparent;box-shadow:none}.nfm-tg-disclosure .nfm-cfg-head{display:none}.nfm-tg-disclosure .nfm-cfg-body{padding:0}.nfm-tg-page .nfm-card{padding:14px 16px}.nfm-tg-page .nfm-card-title{margin-bottom:9px}.nfm-tg-page .nfm-tg-state{margin-top:8px}.nfm-tg-page .nfm-tg-mode-choice{padding:9px 10px}.nfm-tg-page .nfm-tg-mode-copy small{font-size:11.5px}.nfm-tg-page .nfm-tg-mode-pane{padding:10px}.nfm-tg-page .nfm-tg-hero{padding:13px 16px;margin-bottom:10px}.nfm-tg-page .nfm-tg-logo{width:46px;height:46px;font-size:24px}.nfm-tg-page .nfm-tg-advanced{margin-top:10px}.nfm-tg-page .nfm-tg-status-row .nfm-tg-note{font-size:12px}@media(max-width:700px){.nfm-tg-output-choice{min-height:46px}.nfm-tg-hero{align-items:flex-start}.nfm-tg-master{width:100%;justify-content:space-between}.nfm-tg-mode-choice{padding:10px}.nfm-tg-disclosure-hint{font-size:10px}}' ]),
+			E('style', {}, [ '.nfm-tg-page{--tg-blue:#168fe0;--tg-green:#29b779;min-width:0;display:block}.nfm-tg-hero{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;padding:16px 20px;margin:0 0 12px;border:1px solid color-mix(in srgb,var(--nfm-accent) 30%,var(--nfm-border));border-radius:15px;background:linear-gradient(115deg,color-mix(in srgb,var(--nfm-accent) 13%,var(--nfm-card)),var(--nfm-card) 62%);box-shadow:0 7px 22px rgba(0,0,0,.08)}.nfm-tg-brand{display:flex;align-items:center;gap:14px;min-width:0}.nfm-tg-logo{width:48px;height:48px;display:grid;place-items:center;flex:0 0 48px;border-radius:15px;background:linear-gradient(145deg,#26a7e8,#0877bf);color:#fff;font-size:25px;font-weight:750;box-shadow:0 5px 16px #168fd233}.nfm-tg-brand h2{margin:0 0 3px;font-size:19px;letter-spacing:-.02em}.nfm-tg-brand .nfm-sub{font-size:11.5px;opacity:.72}.nfm-tg-master{display:flex;align-items:center;gap:12px;padding:8px 12px;border:1px solid var(--nfm-border);border-radius:11px;background:color-mix(in srgb,var(--nfm-card) 88%,transparent)}.nfm-tg-main-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.08fr);align-items:start;gap:12px;margin-bottom:12px}.nfm-tg-status-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch;gap:10px;margin-bottom:12px}.nfm-tg-options-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px}.nfm-tg-page .nfm-card{min-width:0;padding:14px 16px;border-radius:13px;overflow:hidden;transition:border-color .16s ease,box-shadow .16s ease}.nfm-tg-page .nfm-card::after{height:44px;opacity:.65;pointer-events:none}.nfm-tg-page .nfm-card:hover{transform:none;box-shadow:0 5px 18px rgba(0,0,0,.08)}.nfm-tg-page .nfm-card-title{margin-bottom:10px;font-size:13px;letter-spacing:.005em}.nfm-tg-connection-body{display:grid;gap:8px}.nfm-tg-connection-tools{padding-top:3px}.nfm-tg-help{padding:8px 10px;border:1px solid var(--nfm-border);border-radius:9px;background:color-mix(in srgb,var(--nfm-card2) 55%,transparent);font-size:10.5px}.nfm-tg-help summary{cursor:pointer;font-weight:650;color:var(--nfm-text)}.nfm-tg-help>div{padding-top:7px;color:var(--nfm-dim);line-height:1.45}.nfm-tg-connect-actions{display:flex;gap:6px;flex-wrap:wrap}.nfm-tg-connect-actions .nfm-act{min-height:32px;padding:6px 10px;font-size:10.5px}.nfm-tg-test-button:not(:disabled){border-color:color-mix(in srgb,var(--nfm-accent) 55%,var(--nfm-border))}.nfm-tg-test-button:disabled{opacity:.4;cursor:not-allowed}.nfm-tg-mode-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}.nfm-tg-mode-choice{display:flex;flex-direction:column;align-items:flex-start;gap:7px;min-width:0;min-height:88px;padding:10px;border:1px solid var(--nfm-border);border-radius:10px;background:var(--nfm-card);cursor:pointer;transition:border-color .15s ease,background .15s ease}.nfm-tg-mode-choice:hover{border-color:color-mix(in srgb,var(--nfm-accent) 55%,var(--nfm-border))}.nfm-tg-mode-choice:has(input:checked){border-color:var(--nfm-accent);background:color-mix(in srgb,var(--nfm-accent) 10%,var(--nfm-card));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--nfm-accent) 45%,transparent)}.nfm-tg-mode-choice input{margin:0;width:15px;height:15px;accent-color:var(--nfm-accent)}.nfm-tg-mode-copy{display:flex;flex-direction:column;gap:3px;min-width:0}.nfm-tg-mode-copy b{font-size:11.5px}.nfm-tg-mode-copy small{font-size:9.5px;line-height:1.35;color:var(--nfm-dim)}.nfm-tg-mode-pane{margin-top:9px;padding:11px;border:1px solid var(--nfm-border);border-radius:11px;background:color-mix(in srgb,var(--nfm-card2) 62%,transparent)}.nfm-tg-vpn-pane{display:grid;gap:7px}.nfm-tg-output-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px;font-size:11.5px}.nfm-tg-output-count{font-size:9.5px;font-weight:650;color:var(--nfm-dim)}.nfm-tg-output-list{display:grid;grid-template-columns:1fr;gap:5px;max-height:260px;overflow:auto;padding:1px 3px 1px 1px;position:relative;z-index:2;isolation:isolate;pointer-events:auto}.nfm-tg-output-choice{display:flex;align-items:center;gap:9px;width:100%;min-width:0;min-height:43px;padding:7px 9px;border:1px solid var(--nfm-border);border-radius:9px;background:var(--nfm-card);color:var(--nfm-text);font:inherit;font-size:11px;line-height:1.25;text-align:left;cursor:pointer;pointer-events:auto;touch-action:manipulation;position:relative;z-index:3;transition:border-color .15s ease,background .15s ease,box-shadow .15s ease}.nfm-tg-output-choice:hover:not(:disabled){border-color:var(--nfm-accent);background:color-mix(in srgb,var(--nfm-accent) 7%,var(--nfm-card))}.nfm-tg-output-choice:focus-visible{outline:2px solid var(--nfm-accent);outline-offset:2px}.nfm-tg-output-choice.selected{border-color:var(--nfm-accent);background:color-mix(in srgb,var(--nfm-accent) 10%,var(--nfm-card));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--nfm-accent) 48%,transparent)}.nfm-tg-output-choice.is-active{border-left:3px solid var(--tg-green)}.nfm-tg-output-choice:disabled{opacity:.46;cursor:not-allowed}.nfm-tg-output-radio{width:15px;height:15px;flex:0 0 15px;border:1.5px solid var(--nfm-dim);border-radius:50%;display:grid;place-items:center}.nfm-tg-output-choice.selected .nfm-tg-output-radio{border-color:var(--nfm-accent)}.nfm-tg-output-choice.selected .nfm-tg-output-radio:after{content:"";width:7px;height:7px;border-radius:50%;background:var(--nfm-accent)}.nfm-tg-output-copy{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}.nfm-tg-output-name{min-width:0;overflow-wrap:anywhere;font-size:11px;font-weight:680}.nfm-tg-output-detail{color:var(--nfm-dim);font-size:9px;overflow-wrap:anywhere}.nfm-tg-output-state{flex:0 0 auto;max-width:93px;text-align:right;font-size:8px;line-height:1.2;letter-spacing:.02em;font-weight:800;color:var(--nfm-dim)}.nfm-tg-output-state.is-active{color:var(--tg-green)}.nfm-tg-output-state.is-verified{color:var(--nfm-accent)}.nfm-tg-output-state.is-found{color:#d79b38}.nfm-tg-output-state.is-unavailable{color:#df8550}.nfm-tg-output-selection{margin-top:3px;padding:8px 10px;border:1px solid var(--nfm-border);border-radius:9px;background:color-mix(in srgb,var(--nfm-accent) 5%,var(--nfm-card));font-size:10.5px;line-height:1.4;overflow-wrap:anywhere}.nfm-tg-output-actions{align-items:center;display:flex;gap:7px;flex-wrap:wrap}.nfm-tg-output-actions .nfm-act,.nfm-tg-route-actions .nfm-act{min-height:32px;padding:6px 10px;font-size:10.5px}.nfm-tg-output-help{font-size:9.5px;line-height:1.35;color:var(--nfm-dim)}.nfm-tg-route-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:9px}.nfm-tg-mode-description{margin-top:8px;font-size:10px}.nfm-tg-route-state{margin-top:8px;padding:8px 10px;border:1px solid var(--nfm-border);border-radius:9px;background:var(--nfm-card2);font-size:10.5px}.nfm-tg-page .nfm-tg-info-row{padding:7px 0;font-size:10.5px}.nfm-tg-page .nfm-tg-note{margin-top:7px;padding:8px 9px;font-size:9.5px;line-height:1.4;border-radius:8px;background:var(--nfm-card2)}.nfm-tg-page .nfm-tg-state{margin-top:7px;padding:8px 10px;font-size:10.5px;border:1px solid var(--nfm-border);border-radius:9px}.nfm-tg-page .nfm-tg-state.is-good{border-color:color-mix(in srgb,#29b779 50%,var(--nfm-border))}.nfm-tg-page .nfm-tg-state.is-bad{border-color:color-mix(in srgb,#e05252 55%,var(--nfm-border))}.nfm-tg-disclosure{min-width:0;border:1px solid var(--nfm-border);border-radius:11px;background:var(--nfm-card);padding:0 12px;overflow:hidden}.nfm-tg-disclosure>summary{display:flex;align-items:center;gap:9px;min-height:46px;cursor:pointer;list-style:none;font-weight:650;font-size:11.5px}.nfm-tg-disclosure>summary::-webkit-details-marker{display:none}.nfm-tg-disclosure>summary:after{content:"+";margin-left:auto;color:var(--nfm-dim);font-size:17px}.nfm-tg-disclosure[open]>summary:after{content:"−"}.nfm-tg-disclosure-icon{display:grid;place-items:center;width:26px;height:26px;border-radius:8px;background:color-mix(in srgb,var(--nfm-accent) 13%,var(--nfm-card2));color:var(--nfm-accent)}.nfm-tg-disclosure-hint{margin-left:auto;color:var(--nfm-dim);font-size:9.5px;font-weight:400}.nfm-tg-disclosure[open] .nfm-tg-disclosure-hint{display:none}.nfm-tg-disclosure .nfm-cfg-g{border:0;padding:0 0 10px;background:transparent;box-shadow:none}.nfm-tg-disclosure .nfm-cfg-head{display:none}.nfm-tg-disclosure .nfm-cfg-body{padding:0}.nfm-tg-advanced{margin:0 0 10px;border:1px solid var(--nfm-border);border-radius:11px;overflow:hidden}.nfm-tg-advanced .nfm-cfg-head{min-height:45px;padding:0 13px}.nfm-tg-advanced .nfm-cfg-body{padding:10px 13px}.nfm-tg-save-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.nfm-tg-save-row>div:first-child{flex:1;min-width:200px}.nfm-tg-save-row>div:first-child b{font-size:11.5px}.nfm-tg-save-row .nfm-note-s{font-size:9.5px}.nfm-tg-save-row .nfm-act{min-height:34px}.nfm-tg-page .nfm-act-primary{border-color:color-mix(in srgb,var(--nfm-accent) 65%,var(--nfm-border));background:color-mix(in srgb,var(--nfm-accent) 16%,var(--nfm-card));font-weight:650}.nfm-tg-page .nfm-act:disabled{opacity:.42;cursor:not-allowed}.nfm-tg-status-grid .nfm-card{height:100%}.nfm-tg-page .nfm-grid{margin-bottom:0}@media(max-width:1000px){.nfm-tg-main-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}@media(max-width:760px){.nfm-tg-main-grid{grid-template-columns:1fr}.nfm-tg-status-grid{grid-template-columns:1fr 1fr}.nfm-tg-options-grid{grid-template-columns:1fr}.nfm-tg-hero{padding:13px}.nfm-tg-master{width:100%;justify-content:space-between}}@media(max-width:520px){.nfm-tg-mode-list{grid-template-columns:1fr}.nfm-tg-mode-choice{min-height:0;flex-direction:row;align-items:flex-start}.nfm-tg-status-grid{grid-template-columns:1fr}.nfm-tg-output-choice{min-height:47px}.nfm-tg-output-state{max-width:88px}.nfm-tg-brand h2{font-size:17px}.nfm-tg-connect-actions .nfm-act{flex:1 1 auto}}']),
 			tgHero,
-			E('div', { class: 'nfm-grid nfm-g21' }, [ tgConnectionCard, tgRouteCard ]),
-			E('div', { class: 'nfm-grid nfm-g3 nfm-tg-secondary' }, [ tgNotifyDisclosure, tgBotDisclosure, tgIntegrationCard ]),
-			E('div', { class: 'nfm-grid nfm-g21 nfm-tg-status-row' }, [ tgApiCard, tgRouteStatusCard ]),
+			tgMainGrid,
+			tgStatusGrid,
+			tgOptionsGrid,
 			tgAdvanced,
-			card(_('Применение настроек'), E('div', {}, [
-				E('div', { class: 'nfm-note-s' }, _('Сохраните параметры бота отдельно от применения VPN-маршрута. Тест отправит реальное сообщение через выбранный способ подключения.')),
-				E('div', { class: 'nfm-actions', style: 'margin-top:10px' }, [
-					E('button', { type: 'button', class: 'nfm-act', click: () => saveTelegramConfig().then(r => {
-						tgSettingsMsg.textContent = r ? _('Настройки Telegram сохранены.') : _('Не удалось сохранить настройки Telegram.');
-					}) }, _('Сохранить настройки Telegram')),
-
-				]),
-				tgSettingsMsg
-			]))
+			tgSaveCard
 		]);
 
 		function renderTelegramRuntime(mode) {
@@ -2817,8 +2816,9 @@ tgApplyRouteButton
 		const onTab = (...k) => k.indexOf(S.tab) >= 0;
 		const TAB_KEYS = [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist', 'tg' ];
 		const tabBtns = {};
+		let topDeviceHeader = null;
 		const tabs = E('div', { class: 'nfm-tabs', role: 'tablist' }, [ [ 'overview', _('Обзор') ], [ 'net', _('Сеть') ], [ 'wifi', 'Wi‑Fi' ], [ 'devs', _('Устройства') ], [ 'apps', _('Трафик') ], [ 'procs', _('Программы') ], [ 'svcs', _('Службы') ], [ 'diag', _('Диагностика') ], [ 'sec', _('Безопасность') ], [ 'log', _('Журнал') ], [ 'hist', _('История') ], [ 'tg', 'TG Bot' ] ]
-			.map(([ k, l ]) => tabBtns[k] = E('button', { class: 'nfm-tab nfm-ti', 'data-ic': k, role: 'tab', click: () => { S.tab = k; refresh(); } }, l)));
+			.map(([ k, l ]) => tabBtns[k] = E('button', { class: 'nfm-tab nfm-ti', 'data-ic': k, role: 'tab', click: () => { S.tab = k; if (topDeviceHeader) topDeviceHeader.hidden = k === 'tg'; refresh(); } }, l)));
 
 		const svcFilter = E('input', { class: 'nfm-in', type: 'search', placeholder: _('Найти службу…'), input: () => renderServices() });
 		const svcBox = E('div');
@@ -2829,11 +2829,11 @@ tgApplyRouteButton
 			E('div', { class: 'nfm-grid' }, [ svcMore ])
 		]);
 		{ const hv = (window.location.hash || '').replace('#', ''); if (TAB_KEYS.includes(hv)) S.tab = hv; }
+		topDeviceHeader = E('div', { class: 'nfm-top-device', hidden: S.tab === 'tg' }, [ E('h2', {}, _('Монитор ресурсов')),
+			E('div', { class: 'nfm-sub' }, [ (board.model || board.hostname || 'OpenWrt') + _(' · работает '), t('uptime') ]) ]);
 		const root = E('div', { class: 'nfm' }, [
 			E('style', {}, CSS + XCSS),
-			E('div', { class: 'nfm-top' }, [
-				E('div', {}, [ E('h2', {}, _('Монитор ресурсов')),
-					E('div', { class: 'nfm-sub' }, [ (board.model || board.hostname || 'OpenWrt') + _(' · работает '), t('uptime') ]) ]),
+			E('div', { class: 'nfm-top' }, [ topDeviceHeader,
 				E('span', { class: 'nfm-spacer' }), modeBadge, pill, pauseBtn, tabs ]),
 			overview, net, wifiTab, devsTab, appsTab, procs, svcs, diagTab, secTab, logTab, hist, tgTab
 		]);
