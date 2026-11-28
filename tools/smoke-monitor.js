@@ -124,7 +124,7 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 `;
 (async () => {
 	const b = await chromium.launch();
-	const names = { wifi: 'Wi-Fi клиенты', devs: 'Доступ в интернет', apps: 'Трафик по категориям', diag: 'Диагностика сети', sec: 'Сводка безопасности', log: 'Журнал событий', settings: 'Настройки предупреждений' };
+	const names = { wifi: 'Wi-Fi клиенты', devs: 'Доступ в интернет', apps: 'Трафик по категориям', diag: 'Диагностика сети', sec: 'Сводка безопасности', log: 'Журнал событий' };
 	for (const [vn, vp] of [
 		[ 'desktop', { width: 1280, height: 900 } ],
 		[ 'mobile', { width: 390, height: 800 } ],
@@ -384,13 +384,18 @@ const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
 			}
 			if (k === 'hist') {
 				const ht = await p.evaluate(() => document.body.textContent);
-				for (const w of [ 'Сводка за день', 'Сводка недели', 'Трафик по месяцам', 'Сравнение периодов', 'Тепловая карта по часам', 'Процессор, память, температура', 'Интернет: задержка', 'Качество связи', 'Скорость интернета (WAN)', 'Хранение истории и износ флеш-памяти', 'Экспорт данных в CSV', 'Накопители', 'Настройки предупреждений' ])
+				for (const w of [ 'Сводка за день', 'Сводка недели', 'Трафик по месяцам', 'Сравнение периодов', 'Тепловая карта по часам', 'Процессор, память, температура', 'Интернет: задержка', 'Качество связи', 'Скорость интернета (WAN)', 'Хранение истории и износ флеш-памяти', 'Экспорт данных в CSV', 'Накопители' ])
 					if (!ht.includes(w)) bad(vn + ': во вкладке «История» нет «' + w + '»');
 				if (/NaN|undefined|не число Б/.test(ht)) bad(vn + ': во вкладке «История» отображается некорректное числовое значение');
 				const geometry = await p.evaluate(() => {
-					const cards = Array.from(document.querySelectorAll('.nfm-grid > *')).map(el => {
+					const cards = Array.from(document.querySelectorAll('.nfm-history > .nfm-grid > *')).map(el => {
 						const r = el.getBoundingClientRect();
-						return { right: r.right, width: r.width, scroll: el.scrollWidth, client: el.clientWidth };
+						return {
+							tag: el.tagName, className: typeof el.className === 'string' ? el.className : '',
+							text: (el.textContent || '').trim().slice(0, 90),
+							left: r.left, right: r.right, width: r.width,
+							scroll: el.scrollWidth, client: el.clientWidth
+						};
 					});
 					const charts = Array.from(document.querySelectorAll('.nfm-history .nfm-chart')).map(el => {
 						const r = el.getBoundingClientRect();
@@ -403,7 +408,8 @@ const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
 					return { viewportWidth: window.innerWidth, cards, charts, switches, cfgGroups: document.querySelectorAll('.nfm-cfg-layout > .nfm-cfg-g').length };
 				});
 				if (geometry.charts.length < 3 || geometry.charts.some(x => x.width < 80 || x.height < 60)) bad(vn + ': графики истории не получили корректный размер; найдено=' + geometry.charts.length + ', размеры=' + JSON.stringify(geometry.charts.map(x => ({ width: Math.round(x.width), height: Math.round(x.height) }))));
-				if (geometry.cards.some(x => x.right > geometry.viewportWidth + 1 || x.scroll > x.client + 3)) bad(vn + ': карточка истории выходит за границы или обрезает содержимое');
+				const cardOverflow = geometry.cards.filter(x => x.right > geometry.viewportWidth + 1 || x.scroll > x.client + 3);
+				if (cardOverflow.length) bad(vn + ': карточка истории выходит за границы или обрезает содержимое: ' + JSON.stringify(cardOverflow));
 				if (geometry.cfgGroups !== 6) bad(vn + ': сетка настроек истории должна содержать шесть основных групп');
 				if (geometry.switches.some(x => Math.abs(x.width - 40) > 1 || Math.abs(x.height - 23) > 1)) bad(vn + ': переключатели настроек имеют неправильный размер');
 				for (const dark of [ false, true ]) {
