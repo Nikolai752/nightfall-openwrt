@@ -231,16 +231,11 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 						const r = el.getBoundingClientRect();
 						return { width: r.width, height: r.height };
 					});
-					const switches = Array.from(document.querySelectorAll('.nfm-cfg-toggle input.nfm-toggle')).map(el => {
-						const r = el.getBoundingClientRect();
-						return { width: r.width, height: r.height };
-					});
-					return { viewportWidth: window.innerWidth, cards, charts, switches, cfgGroups: document.querySelectorAll('.nfm-cfg-layout > .nfm-cfg-g').length };
+					return { viewportWidth: window.innerWidth, cards, charts, cfgGroups: document.querySelectorAll('.nfm-cfg-layout > .nfm-cfg-g').length };
 				});
 				if (geometry.charts.length < 3 || geometry.charts.some(x => x.width < 80 || x.height < 60)) bad(vn + ': графики истории не получили корректный размер; найдено=' + geometry.charts.length + ', размеры=' + JSON.stringify(geometry.charts.map(x => ({ width: Math.round(x.width), height: Math.round(x.height) }))));
 				if (geometry.cards.some(x => x.right > geometry.viewportWidth + 1 || x.scroll > x.client + 3)) bad(vn + ': карточка истории выходит за границы или обрезает содержимое');
 				if (geometry.cfgGroups !== 6) bad(vn + ': сетка настроек истории должна содержать шесть основных групп');
-				if (geometry.switches.some(x => Math.abs(x.width - 40) > 1 || Math.abs(x.height - 23) > 1)) bad(vn + ': переключатели настроек имеют неправильный размер');
 				for (const dark of [ false, true ]) {
 					await p.evaluate(d => d ? document.documentElement.setAttribute('data-darkmode', 'true') : document.documentElement.removeAttribute('data-darkmode'), dark);
 					await p.evaluate(isDark => {
@@ -347,9 +342,14 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 					const tab = document.querySelector('.nfm-settings');
 					const card = tab && tab.querySelector('.nfm-cfg-settings-card');
 					const lite = card && card.querySelector('input[type="checkbox"][aria-label^="Режим Lite"]');
-					return { visible: !!tab && !tab.hidden, card: !!card, lite: !!lite };
+					const switches = Array.from(tab ? tab.querySelectorAll('.nfm-cfg-toggle input.nfm-toggle') : []).map(el => {
+						const r = el.getBoundingClientRect();
+						return { width: r.width, height: r.height };
+					});
+					return { visible: !!tab && !tab.hidden, card: !!card, lite: !!lite, switches };
 				});
 				if (!cfg.visible || !cfg.card || !cfg.lite) bad(vn + ': во вкладке «Настройки» нет карточки конфигурации или переключателя Lite');
+				if (cfg.switches.some(x => Math.abs(x.width - 40) > 1 || Math.abs(x.height - 23) > 1)) bad(vn + ': переключатели настроек имеют неправильный размер');
 				await p.screenshot({ path: path.join(OUT, 'monitor-settings-' + vn + '.png'), fullPage: true });
 			}
 			if (k === 'diag') {
