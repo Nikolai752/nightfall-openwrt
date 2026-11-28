@@ -1593,14 +1593,56 @@ return view.extend({
 		const tgRouteStatus = E('div', { class: 'nfm-tg-state' }, _('Маршрут ещё не применён.'));
 		const tgSettingsMsg = E('div', { class: 'nfm-tg-state' }, '');
 		const tgOutputList = E('div', { class: 'nfm-tg-output-list', role: 'group', 'aria-label': _('VPN-выход для Telegram') });
+		const tgOutputSelection = E('div', { class: 'nfm-tg-output-selection' }, _('Выберите VPN-выход для проверки.'));
+		let tgPendingOutput = null, tgProbeBusy = false, tgApplyBusy = false;
+		const tgProbeButton = E('button', { type: 'button', class: 'nfm-act', click: () => probeTgOutput() }, _('Проверить выбранный выход'));
 		function chooseTgOutput(item) {
-			if (!item || item.ready === false) return;
-			cfgInputs.TG_ROUTE_OUTPUT.value = item.id;
-			Array.from(tgOutputList.querySelectorAll('button[data-output]')).forEach(button => {
-				button.classList.toggle('selected', button.getAttribute('data-output') === item.id);
-				button.setAttribute('aria-pressed', button.getAttribute('data-output') === item.id ? 'true' : 'false');
+			if (!item || item.ready === false || !item.id) return;
+			tgPendingOutput = item.id;
+			renderTelegram();
+		}
+		function allTgOutputs() {
+			const info = S.tgInfo || {};
+			const steer = info.outputs || [];
+			const devices = new Set(steer.map(item => item.device).filter(Boolean));
+			return steer.concat((info.interfaces || []).filter(item => !devices.has(item.device)));
+		}
+		function selectedTgOutput() {
+			const runtime = S.tgRouteRuntime || {};
+			const values = S.cfg && S.cfg.values || {};
+			const saved = cfgInputs.TG_ROUTE_OUTPUT.value || values.TG_ROUTE_OUTPUT || (values.TG_IFACE ? 'iface:' + values.TG_IFACE : '');
+			const active = runtime.active && runtime.output ? runtime.output : '';
+			const id = tgPendingOutput || active || saved;
+			return { id, item: allTgOutputs().find(item => item.id === id), active };
+		}
+		function probeTgOutput() {
+			const selected = selectedTgOutput(), item = selected.item;
+			if (!item || item.ready === false || tgProbeBusy || tgApplyBusy) return Promise.resolve(null);
+			tgProbeBusy = true;
+			tgOutputSelection.textContent = _('Проверяю маршрут через ') + (item.label || item.id) + '…';
+			tgProbeButton.disabled = true;
+			return fs.exec('/usr/libexec/nightfall-telegram-route', [ 'probe', item.id ]).then(res => {
+				let result = null;
+				try { result = JSON.parse(res.stdout || '{}'); } catch (e) {}
+				item.verified = !!(result && result.ok && result.verified);
+				item.probeError = item.verified ? '' : ((result && result.error) || _('Ядро не подтвердило этот маршрут.'));
+				if (item.verified) {
+					item.probe = result;
+					tgOutputSelection.textContent = _('Проверка успешна: ') + item.device + (item.table ? ' · table ' + item.table : '') + _(' · можно применять');
+				} else {
+					tgOutputSelection.textContent = _('Проверка не пройдена: ') + item.probeError;
+				}
+				return result;
+			}).catch(err => {
+				item.verified = false;
+				item.probeError = (err && err.message) || String(err);
+				tgOutputSelection.textContent = _('Ошибка проверки: ') + item.probeError;
+				return null;
+			}).then(result => {
+				tgProbeBusy = false;
+				renderTelegram();
+				return result;
 			});
-			tgRouteState.textContent = _('Выбранный выход: ') + (item.label || item.id);
 		}
 		const tgProxyField = cfgField('TG_PROXY');
 		const tgProxyPane = E('div', { class: 'nfm-tg-mode-pane' }, [
@@ -1608,11 +1650,14 @@ return view.extend({
 			tgProxyField
 		]);
 		const tgVpnPane = E('div', { class: 'nfm-tg-mode-pane' }, [
-			E('label', { class: 'nfm-cfg-label' }, _('Обнаруженные VPN-выходы и policy-routing таблицы')),
+			E('label', { class: 'nfm-cfg-label' }, _('VPN-выходы · выберите один для отдельной проверки')),
 			tgOutputList,
-			E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, _('Nightfall использует существующую таблицу Steer или создаёт собственную таблицу только для выбранного обычного VPN-интерфейса. Правила и маршруты других программ не переписываются.'))
+			tgOutputSelection,
+			E('div', { class: 'nfm-actions nfm-tg-output-actions', style: 'margin-top:9px' }, [ tgProbeButton ]),
+			E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, _('«Найден» означает только, что интерфейс или Steer-таблица обнаружены. Перед переключением Nightfall проверяет отдельную метку/UID-маршрут именно этого выхода. Текущий маршрут сохраняется, если проверка кандидата не прошла.'))
 		]);
 		const tgModeDescription = E('div', { class: 'nfm-note-s', style: 'margin-top:10px' });
+		const tgApplyRouteButton = E('button', { type: 'button', class: 'nfm-act nfm-act-primary', click: () => applyTelegramRoute() }, _('Применить выбранный выход'));
 		function setTgMode(mode) {
 			cfgInputs.TG_ROUTE_MODE.value = mode;
 			renderTelegram();
@@ -1639,7 +1684,7 @@ return view.extend({
 			tgModeDescription,
 			E('div', { class: 'nfm-actions', style: 'margin-top:12px' }, [
 				E('button', { type: 'button', class: 'nfm-act', click: () => loadTelegram(true) }, _('Обновить список выходов')),
-				E('button', { type: 'button', class: 'nfm-act', click: () => applyTelegramRoute() }, _('Сохранить и применить маршрут'))
+tgApplyRouteButton
 			]),
 			tgRouteState
 		]));
@@ -1782,42 +1827,59 @@ return view.extend({
 			tgSteerValue.textContent = info.steer && info.steer.found
 				? _('Steer ') + (info.steer.version || _('обнаружен'))
 				: _('Универсальный Linux policy routing');
-			const steerOutputs = info.outputs || [];
-			const steerDevices = new Set(steerOutputs.map(item => item.device).filter(Boolean));
-			/* Do not show the same kernel tunnel twice: Steer output entries are the
-			 * canonical choices; generic Point-to-point/TUN entries are fallbacks only. */
-			const genericInterfaces = (info.interfaces || []).filter(item => !steerDevices.has(item.device));
-			const outputs = steerOutputs.concat(genericInterfaces);
+			const outputs = allTgOutputs();
 			const readyCount = outputs.filter(item => item.ready !== false).length;
-			tgOutputCount.textContent = _('%d из %d готовы').format(readyCount, outputs.length);
-			const current = cfgInputs.TG_ROUTE_OUTPUT.value || values.TG_ROUTE_OUTPUT || (values.TG_IFACE ? 'iface:' + values.TG_IFACE : '');
-			const outputSignature = JSON.stringify([ outputs.map(item => [ item.id, item.label || '', item.ready !== false ]) ]);
-			/* Show all discovered routes. Their state comes from steer status plus
-			 * kernel link/table checks; unavailable routes remain visible but disabled. */
+			tgOutputCount.textContent = _('%d обнаружено · %d доступны для проверки').format(outputs.length, readyCount);
+			const runtime = S.tgRouteRuntime || {};
+			const activeOutput = runtime.active && runtime.output ? runtime.output : '';
+			const savedOutput = cfgInputs.TG_ROUTE_OUTPUT.value || values.TG_ROUTE_OUTPUT || (values.TG_IFACE ? 'iface:' + values.TG_IFACE : '');
+			const current = tgPendingOutput || activeOutput || savedOutput;
+			const selectedItem = outputs.find(item => item.id === current);
+			const selectedVerified = !!(selectedItem && (selectedItem.verified || (activeOutput && activeOutput === current)));
+			const outputSignature = JSON.stringify(outputs.map(item => [ item.id, item.label || '', item.ready !== false, !!item.verified, item.device || '', item.table || '', item.probeError || '' ]));
+			/* Discovery, verified route selection and live active route are separate states. */
 			if (outputSignature !== tgOutputSignature && !tgOutputList.contains(document.activeElement)) {
 				const choices = outputs.map(item => {
 					const ready = item.ready !== false;
+					const active = activeOutput === item.id;
+					const verified = !!item.verified || active;
+					const state = active ? _('АКТИВЕН СЕЙЧАС') : verified ? _('ПРОВЕРЕН') : ready ? _('НАЙДЕН · ПРОВЕРИТЬ') : _('НЕДОСТУПЕН');
+					const detail = [ item.device || '', item.table ? 'table ' + item.table : '', item.mark || '' ].filter(Boolean).join(' · ');
 					return E('button', {
 						type: 'button',
-						class: 'nfm-tg-output-choice' + (item.id === current ? ' selected' : ''),
+						class: 'nfm-tg-output-choice' + (item.id === current ? ' selected' : '') + (active ? ' is-active' : ''),
 						'data-output': item.id,
 						'aria-pressed': item.id === current ? 'true' : 'false',
 						disabled: !ready,
 						click: () => chooseTgOutput(item)
 					}, [
-						E('span', { class: 'nfm-tg-output-name' }, item.label || item.id),
-						E('span', { class: 'nfm-tg-output-state' + (ready ? ' is-ready' : ' is-unavailable') },
-							ready ? (item.id.startsWith('steer:') ? _('Готов · Steer') : _('Готов · VPN')) : _('Не готов'))
+						E('span', { class: 'nfm-tg-output-copy' }, [
+							E('span', { class: 'nfm-tg-output-name' }, item.label || item.id),
+							E('small', { class: 'nfm-tg-output-detail' }, detail || _('Интерфейс без отдельной таблицы Steer'))
+						]),
+						E('span', { class: 'nfm-tg-output-state' + (active ? ' is-active' : verified ? ' is-verified' : ready ? ' is-found' : ' is-unavailable') }, state)
 					]);
 				});
-				tgOutputList.replaceChildren(...(choices.length ? choices : [ E('div', { class: 'nfm-note-s' }, _('VPN-выходы не обнаружены. Проверьте состояние Steer или VPN-интерфейсов.')) ]));
+				tgOutputList.replaceChildren(...(choices.length ? choices : [ E('div', { class: 'nfm-note-s' }, _('VPN-выходы не обнаружены.')) ]));
 				tgOutputSignature = outputSignature;
 			}
 			Array.from(tgOutputList.querySelectorAll('button[data-output]')).forEach(button => {
 				const selected = button.getAttribute('data-output') === current;
+				const active = button.getAttribute('data-output') === activeOutput;
 				button.classList.toggle('selected', selected);
+				button.classList.toggle('is-active', active);
 				button.setAttribute('aria-pressed', selected ? 'true' : 'false');
 			});
+			tgProbeButton.disabled = !selectedItem || selectedItem.ready === false || tgProbeBusy || tgApplyBusy;
+			tgProbeButton.textContent = tgProbeBusy ? _('Проверяю…') : selectedVerified ? _('Проверить ещё раз') : _('Проверить выбранный выход');
+			if (mode === 'vpn') {
+				if (!selectedItem) tgOutputSelection.textContent = current ? _('Сохранённый выход не найден в списке обнаружения.') : _('Выберите выход в списке.');
+				else if (activeOutput === current) tgOutputSelection.textContent = _('Сейчас реально активен: ') + (selectedItem.device || current) + (selectedItem.table ? ' · table ' + selectedItem.table : '');
+				else if (selectedItem.verified) tgOutputSelection.textContent = _('Выход проверен: ') + (selectedItem.device || current) + (selectedItem.table ? ' · table ' + selectedItem.table : '') + _(' · готов к применению');
+				else if (selectedItem.probeError) tgOutputSelection.textContent = _('Последняя проверка не пройдена: ') + selectedItem.probeError;
+				else tgOutputSelection.textContent = selectedItem.ready === false ? _('Интерфейс или таблица сейчас недоступны.') : _('Выход только обнаружен. Сначала выполните проверку маршрута.');
+			} else tgOutputSelection.textContent = _('Выбор VPN применяется только в режиме «Через VPN».');
+			if (tgApplyRouteButton) tgApplyRouteButton.disabled = tgApplyBusy || (mode === 'vpn' && (!selectedItem || selectedItem.ready === false || !selectedVerified));
 			if (mode === 'vpn') {
 				const selected = outputs.find(item => item.id === current);
 				tgRouteState.textContent = selected
@@ -1855,28 +1917,62 @@ return view.extend({
 		}
 
 		function applyTelegramRoute() {
-			tgRouteState.textContent = _('Сохраняю настройки и проверяю маршрут…');
+			const selected = selectedTgOutput(), mode = cfgInputs.TG_ROUTE_MODE.value || 'system';
+			if (mode === 'vpn' && (!selected.item || selected.item.ready === false)) {
+				tgRouteState.textContent = _('Сначала выберите обнаруженный VPN-выход.');
+				return Promise.resolve(null);
+			}
+			if (mode === 'vpn' && !selected.item.verified && selected.id !== selected.active) {
+				tgRouteState.textContent = _('Сначала отдельно проверьте выбранный выход.');
+				return Promise.resolve(null);
+			}
+			if (tgApplyBusy) return Promise.resolve(null);
+			tgApplyBusy = true;
+			const values = S.cfg && S.cfg.values || {};
+			const previousMode = values.TG_ROUTE_MODE || (selected.active ? 'vpn' : (cfgInputs.TG_ROUTE_MODE.value || 'system'));
+			const previousOutput = selected.active || values.TG_ROUTE_OUTPUT || (values.TG_IFACE ? 'iface:' + values.TG_IFACE : '');
+			const candidate = selected.id;
+			if (mode === 'vpn') {
+				cfgInputs.TG_ROUTE_MODE.value = 'vpn';
+				cfgInputs.TG_ROUTE_OUTPUT.value = candidate;
+			}
+			tgRouteState.textContent = _('Сохраняю настройки и применяю проверенный маршрут…');
+			const restoreSavedRoute = () => {
+				cfgInputs.TG_ROUTE_MODE.value = previousMode;
+				cfgInputs.TG_ROUTE_OUTPUT.value = previousOutput;
+				return saveTelegramConfig();
+			};
 			return saveTelegramConfig().then(saved => {
 				if (!saved) return null;
 				return fs.exec('/usr/libexec/nightfall-telegram-route', [ 'apply' ]).then(res => {
 					let result = null;
 					try { result = JSON.parse(res.stdout || '{}'); } catch (e) {}
 					if (result && result.ok) {
+						if (S.cfg && S.cfg.values) {
+							S.cfg.values.TG_ROUTE_MODE = cfgInputs.TG_ROUTE_MODE.value;
+							S.cfg.values.TG_ROUTE_OUTPUT = cfgInputs.TG_ROUTE_OUTPUT.value;
+						}
+						tgPendingOutput = null;
 						tgRouteState.textContent = result.mode === 'vpn'
-							? _('VPN-маршрут активен: ') + (result.device || result.output || '')
+							? _('Маршрут подтверждён: ') + (result.output || candidate) + ' · ' + (result.device || '') + (result.table ? ' · table ' + result.table : '')
 							: result.mode === 'proxy' ? _('Прокси сохранён и готов к проверке.') : _('Используется системный маршрут OpenWrt.');
 						tgRouteStatus.textContent = tgRouteState.textContent;
-						loadTelegram(true);
-						return result;
+						return loadTelegram(true).then(() => result);
 					}
-					tgRouteState.textContent = result && result.error ? result.error : _('Не удалось применить маршрут Telegram.');
+					return restoreSavedRoute().then(() => {
+						tgRouteState.textContent = result && result.error ? result.error + ' · ' + _('Предыдущие настройки сохранены.') : _('Не удалось применить маршрут Telegram. Предыдущие настройки восстановлены.');
+						tgRouteStatus.textContent = tgRouteState.textContent;
+						return loadTelegram(true).then(() => null);
+					});
+				}).catch(err => restoreSavedRoute().then(() => {
+					tgRouteState.textContent = _('Не удалось запустить маршрутизацию: ') + (err.message || err) + ' · ' + _('Настройки предыдущего маршрута восстановлены.');
 					tgRouteStatus.textContent = tgRouteState.textContent;
-					return null;
-				}).catch(err => {
-					tgRouteState.textContent = _('Не удалось запустить маршрутизацию: ') + (err.message || err);
-					tgRouteStatus.textContent = tgRouteState.textContent;
-					return null;
-				});
+					return loadTelegram(true).then(() => null);
+				}));
+			}).then(result => {
+				tgApplyBusy = false;
+				renderTelegram();
+				return result;
 			});
 		}
 
