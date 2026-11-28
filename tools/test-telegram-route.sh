@@ -62,6 +62,9 @@ case "$args" in
 	*"-o link show dev wg2"*)
 		echo '10: wg2: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420'
 		;;
+	*"-o link show dev tun-vless"*) echo '12: tun-vless: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420' ;;
+	*"-o link show dev xsteer0"*) echo '13: xsteer0: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420' ;;
+	*"-o link show dev awg0"*) echo '14: awg0: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420' ;;
 	*"-o link show dev wg3"*)
 		echo '11: wg3: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420'
 		;;
@@ -95,12 +98,18 @@ case "$args" in
 	*"-4 route show table 306 default"*)
 		echo 'default dev wg3 scope link'
 		;;
+	*"-4 route show table 307 default"*) echo 'default dev tun-vless scope link' ;;
+	*"-4 route show table 308 default"*) echo 'default dev xsteer0 scope link' ;;
+	*"-4 route show table 309 default"*) echo 'default dev awg0 scope link' ;;
 	*"-4 route show table 42000 default"*)
 		echo 'default dev wg1 scope link'
 		;;
 	*"-4 route get 149.154.167.220"*)
 		case "$args" in
 			*0x40500000*) echo '149.154.167.220 dev wg2 table steer_zm_vpn2 src 10.10.0.2 mark 0x40500000' ;;
+			*0x40700000*) echo '149.154.167.220 dev tun-vless table steer_vlessvpn src 10.7.0.2 mark 0x40700000' ;;
+			*0x40800000*) echo '149.154.167.220 dev xsteer0 table steer_xsvpn src 10.8.0.2 mark 0x40800000' ;;
+			*0x40900000*) echo '149.154.167.220 dev awg0 table steer_awgvpn src 10.9.0.3 mark 0x40900000' ;;
 			*mark*) echo '149.154.167.220 dev wg1 table steer_groupvpn src 10.9.0.2 mark 0x40400000' ;;
 			*) echo '149.154.167.220 dev wg1 table 42000 src 10.9.0.2' ;;
 		esac
@@ -154,6 +163,9 @@ cat > "$NF_TG_TEST_STATUS" <<'JSON'
   "groupvpn":{"kind":"group","device":"","up":true,"mark":"0x00400000","table":300,"failed":false,"group":{"selected":"wg1"}},
   "zm_vpn2":{"kind":"group","device":"","up":true,"mark":"0x00500000","table":304,"failed":false,"group":{"selected":"wg2"}},
   "wrongroute":{"kind":"interface","device":"wg3","up":true,"mark":"0x00600000","table":306,"failed":false},
+  "vlessvpn":{"kind":"tunnel","device":"tun-vless","up":true,"mark":"0x00700000","table":307,"failed":false},
+  "xsvpn":{"kind":"xsteer","device":"xsteer0","up":true,"mark":"0x00800000","table":308,"failed":false},
+  "awgvpn":{"kind":"awg","device":"awg0","up":true,"mark":"0x00900000","table":309,"failed":false},
   "wg1":{"kind":"interface","device":"wg1","up":true,"mark":"0x00400000","table":300,"failed":false},
   "wg2":{"kind":"interface","device":"wg2","up":true,"mark":"0x00500000","table":304,"failed":false}
 }}
@@ -183,10 +195,39 @@ grep -Fq 'не подтвердила выход' "$T/probe-wrong-result" ||
 	bad "failed Steer preflight did not explain the device mismatch"
 ok "Steer outputs are individually preflighted against their own marks and devices"
 
+# Device-backed protocol outputs share the same live device/mark/table contract.
+for spec in "vlessvpn|tun-vless|0x40700000|307" "xsvpn|xsteer0|0x40800000|308" "awgvpn|awg0|0x40900000|309"; do
+	name=$(printf '%s' "$spec" | cut -d '|' -f 1)
+	expected_dev=$(printf '%s' "$spec" | cut -d '|' -f 2)
+	expected_mark=$(printf '%s' "$spec" | cut -d '|' -f 3)
+	expected_table=$(printf '%s' "$spec" | cut -d '|' -f 4)
+	out=$("$H" probe "steer:$name") || bad "Steer $name preflight failed: $out"
+	printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.verified) process.exit(1)' || bad "Steer $name did not pass its marked route check"
+	printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:%s\n' "$name" > "$T/conf"
+	out=$("$H" apply) || bad "Steer $name apply failed: $out"
+	grep -Fq "route_output meta skuid 104 meta mark set (meta mark & 0xb00fffff) | $expected_mark" "$NF_TG_TEST_NFT" || bad "Steer $name did not preserve unrelated fwmark bits"
+	grep -Fq "egress_guard meta skuid 104 oifname != \"$expected_dev\" drop" "$NF_TG_TEST_NFT" || bad "Steer $name egress guard does not target $expected_dev"
+	out=$("$H" status) || bad "Steer $name status failed: $out"
+	printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.active || d.device!==process.argv[1] || d.table!==Number(process.argv[2])) process.exit(1)' "$expected_dev" "$expected_table" || bad "Steer $name status is not bound to its live device/table"
+done
+printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:zm_vpn2\n' > "$T/conf"
+out=$("$H" apply) || bad "restoring known-good zm_vpn2 after protocol tests failed: $out"
+case "$out" in *'"ok":true'*'"device":"wg2"'*) ;; *) bad "zm_vpn2 was not restored after protocol tests: $out" ;; esac
+grep -Fq 'egress_guard meta skuid 104 oifname != "wg2" drop' "$NF_TG_TEST_NFT" || bad "zm_vpn2 guard was not restored after protocol tests"
+ok "VLESS, xsteer and AWG use their own Steer device/mark/table; zm_vpn2 is restored afterwards"
+
+
+# Restore the original group output before the existing groupvpn regression assertions.
+printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:groupvpn\n' > "$T/conf"
+out=$("$H" apply) || bad "restoring groupvpn after protocol checks failed: $out"
+case "$out" in *'"ok":true'*'"device":"wg1"'*) ;; *) bad "groupvpn was not restored after protocol checks: $out" ;; esac
+grep -Fq 'egress_guard meta skuid 104 oifname != "wg1" drop' "$NF_TG_TEST_NFT" || bad "groupvpn guard was not restored after protocol checks"
+ok "original groupvpn output is restored after the VLESS/xsteer/AWG checks"
+
 # Applying the Steer route must mark Telegram sockets and add an egress guard.
 out=$("$H" apply) || bad "Steer route apply failed: $out"
 case "$out" in *'"ok":true'*'"source":"steer"'*) ;; *) bad "unexpected Steer apply result: $out" ;; esac
-grep -Fq 'route_output meta skuid 104 meta mark set 0x40400000' "$NF_TG_TEST_NFT" ||
+grep -Fq 'route_output meta skuid 104 meta mark set (meta mark & 0xb00fffff) | 0x40400000' "$NF_TG_TEST_NFT" ||
 	bad "Steer socket mark was not installed"
 grep -Fq 'output_guard meta skuid 104 ct status dnat meta mark & 0x0ff00000 == 0x00400000 ip daddr 127.0.0.1 meta l4proto tcp accept' "$NF_TG_TEST_NFT" ||
 	bad "Steer local TCP redirect exception was not installed before the output guard"
@@ -215,7 +256,7 @@ ok "Steer route status confirms device with symbolic table alias"
 printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:zm_vpn2\n' > "$T/conf"
 out=$("$H" apply) || bad "switch to proven zm_vpn2 failed: $out"
 case "$out" in *'"ok":true'*'"source":"steer"'*'"device":"wg2"'*) ;; *) bad "zm_vpn2 switch resolved to an unexpected route: $out" ;; esac
-grep -Fq 'route_output meta skuid 104 meta mark set 0x40500000' "$NF_TG_TEST_NFT" ||
+grep -Fq 'route_output meta skuid 104 meta mark set (meta mark & 0xb00fffff) | 0x40500000' "$NF_TG_TEST_NFT" ||
 	bad "switch to zm_vpn2 did not install its own Steer mark"
 grep -Fq 'egress_guard meta skuid 104 oifname != "wg2" drop' "$NF_TG_TEST_NFT" ||
 	bad "switch to zm_vpn2 did not replace the egress guard"
@@ -245,7 +286,7 @@ ok "failed candidate preflight preserves the working zm_vpn2 route"
 printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:groupvpn\n' > "$T/conf"
 out=$("$H" apply) || bad "return from zm_vpn2 to original Steer output failed: $out"
 case "$out" in *'"ok":true'*'"source":"steer"'*'"device":"wg1"'*) ;; *) bad "return to original Steer output resolved incorrectly: $out" ;; esac
-grep -Fq 'route_output meta skuid 104 meta mark set 0x40400000' "$NF_TG_TEST_NFT" ||
+grep -Fq 'route_output meta skuid 104 meta mark set (meta mark & 0xb00fffff) | 0x40400000' "$NF_TG_TEST_NFT" ||
 	bad "return to original output did not restore its original Steer mark"
 grep -Fq 'egress_guard meta skuid 104 oifname != "wg1" drop' "$NF_TG_TEST_NFT" ||
 	bad "return to original output did not restore its original egress guard"

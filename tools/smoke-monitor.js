@@ -131,6 +131,12 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 		[ 'iphone-15-pro-max', { width: 430, height: 932 } ],
 		[ 'iphone-16-pro-max', { width: 440, height: 956 } ]
 	]) {
+		// Each viewport is an independent browser session; reset shared RPC fixtures and counters.
+		TG_ROUTE_OUTPUT = 'steer:zm_vpn2';
+		TG_ROUTE_ACTIVE = true;
+		TG_ROUTE_STATUS_OK = true;
+		TG_TEST_STARTS = 0;
+		CFG_SET_CALLS.length = 0;
 		const mobile = vn !== 'desktop';
 		const p = await b.newPage({ viewport: vp, isMobile: mobile, hasTouch: mobile });
 		const errs = [];
@@ -150,8 +156,21 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 		await p.evaluate(async () => { const m = window.__mod; const d = await m.load(); document.getElementById('m').appendChild(m.render(d)); });
 		await p.waitForTimeout(2500);
 		const tabs = await p.$$eval('.nfm-tab.nfm-ti', els => els.map(e => e.getAttribute('data-ic')));
-		for (const k of [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist', 'tg' ]) if (!tabs.includes(k)) bad(vn + ': нет вкладки ' + k);
-		for (const k of [ 'overview', 'procs', 'wifi', 'devs', 'apps', 'diag', 'sec', 'log', 'net', 'hist', 'tg' ]) {
+		for (const k of [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist', 'tg', 'settings' ]) if (!tabs.includes(k)) bad(vn + ': нет вкладки ' + k);
+		const navLayout = await p.$eval('.nfm-top .nfm-tabs', el => {
+			const buttons = Array.from(el.querySelectorAll('.nfm-tab.nfm-ti'));
+			const rects = buttons.map(b => b.getBoundingClientRect());
+			return {
+				count: buttons.length,
+				clientWidth: el.clientWidth,
+				scrollWidth: el.scrollWidth,
+				rows: new Set(rects.map(r => Math.round(r.top))).size,
+				rightOverflow: rects.length ? Math.max(...rects.map(r => r.right)) - el.getBoundingClientRect().right : 0
+			};
+		});
+		if (navLayout.count !== 13 || navLayout.rows !== 1 || navLayout.scrollWidth > navLayout.clientWidth + 1 || navLayout.rightOverflow > 1)
+			bad(vn + ': верхняя панель должна содержать 13 вкладок в одной строке без переполнения: ' + JSON.stringify(navLayout));
+		for (const k of [ 'overview', 'procs', 'wifi', 'devs', 'apps', 'diag', 'sec', 'log', 'net', 'hist', 'tg', 'settings' ]) {
 			await p.click(`.nfm-tab.nfm-ti[data-ic="${k}"]`); await p.evaluate(() => window.__runMonitorTick()); await p.waitForTimeout(k === 'sec' || k === 'log' ? 3000 : 1500);
 			const vis = await p.evaluate(() => Array.from(document.querySelectorAll('.nfm > div[hidden], .nfm > div:not([hidden])')).filter(x => !x.hasAttribute('hidden') && x.className === '').map(x => x.textContent.slice(0, 4000)).join('\n'));
 			if (names[k] && !vis.includes(names[k])) bad(vn + ': вкладка ' + k + ' не показала «' + names[k] + '»');
@@ -259,6 +278,13 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				const o = await p.evaluate(() => document.querySelector('.nfm-diag-out').textContent);
 				if (!/Шлюз|Маршрут по умолчанию/.test(o)) bad(vn + ': проверка диагностики ничего не вывела: ' + o);
 			}
+			if (k === 'settings') {
+				const st = await p.locator('.nfm-settings').textContent();
+				if (!st.includes('Настройки предупреждений') || !st.includes('Хранение истории'))
+					bad(vn + ': во вкладке «Настройки» отсутствуют общие параметры мониторинга');
+				if (st.includes('Токен бота') || st.includes('Маршрут Telegram'))
+					bad(vn + ': настройки Telegram должны находиться только во вкладке TG Bot');
+			}
 			if (k === 'tg') {
 				const tt = await p.evaluate(() => document.querySelector('.nfm-tg-page')?.textContent || '');
 				for (const w of [ 'Telegram-бот', 'Маршрут Telegram', 'Система', 'Прокси', 'VPN', 'Сохранение настроек' ])
@@ -289,7 +315,9 @@ const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
 				if (await outputRows.count() !== 3) bad(vn + ': selector cards должны показать все три тестовых выхода');
 				const outputText = await outputList.textContent();
 				if (!outputText.includes('АКТИВЕН') || !outputText.includes('ПРОВЕРИТЬ') || !outputText.includes('НЕДОСТУПЕН')) bad(vn + ': selector cards не различают активный, найденный и недоступный выходы');
-				const firstRow = await p.locator('.nfm-tg-output-choice[data-output="steer:groupvpn"]').evaluate(el => { const r=el.getBoundingClientRect(), s=getComputedStyle(el), hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2); return {w:r.width,h:r.height,pointer:s.pointerEvents,cursor:s.cursor,display:s.display,disabled:el.disabled,ariaDisabled:el.getAttribute('aria-disabled'),hit:!!hit && (hit===el || el.contains(hit)),hitTag:hit&&hit.tagName,hitClass:hit&&hit.className}; });
+				const firstRowLocator = p.locator('.nfm-tg-output-choice[data-output="steer:groupvpn"]');
+				await firstRowLocator.scrollIntoViewIfNeeded();
+				const firstRow = await firstRowLocator.evaluate(el => { const r=el.getBoundingClientRect(), s=getComputedStyle(el), hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2); return {w:r.width,h:r.height,pointer:s.pointerEvents,cursor:s.cursor,display:s.display,disabled:el.disabled,ariaDisabled:el.getAttribute('aria-disabled'),hit:!!hit && (hit===el || el.contains(hit)),hitTag:hit&&hit.tagName,hitClass:hit&&hit.className}; });
 				if (firstRow.w < 160 || firstRow.h < 40 || firstRow.pointer === 'none' || firstRow.cursor !== 'pointer' || firstRow.display === 'none' || firstRow.disabled || firstRow.ariaDisabled === 'true' || !firstRow.hit) bad(vn + ': карточка VPN-выхода перекрыта, заблокирована или показывает запрещающий курсор: ' + JSON.stringify(firstRow));
 				/* Select a different Steer output with a real delegated button click (mouse/touch). */
 				await p.click('.nfm-tg-output-choice[data-output="steer:groupvpn"]'); await p.waitForTimeout(100);
@@ -356,13 +384,18 @@ const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
 			}
 			if (k === 'hist') {
 				const ht = await p.evaluate(() => document.body.textContent);
-				for (const w of [ 'Сводка за день', 'Сводка недели', 'Трафик по месяцам', 'Сравнение периодов', 'Тепловая карта по часам', 'Процессор, память, температура', 'Интернет: задержка', 'Качество связи', 'Скорость интернета (WAN)', 'Хранение истории и износ флеш-памяти', 'Экспорт данных в CSV', 'Накопители', 'Настройки предупреждений' ])
+				for (const w of [ 'Сводка за день', 'Сводка недели', 'Трафик по месяцам', 'Сравнение периодов', 'Тепловая карта по часам', 'Процессор, память, температура', 'Интернет: задержка', 'Качество связи', 'Скорость интернета (WAN)', 'Хранение истории и износ флеш-памяти', 'Экспорт данных в CSV', 'Накопители' ])
 					if (!ht.includes(w)) bad(vn + ': во вкладке «История» нет «' + w + '»');
 				if (/NaN|undefined|не число Б/.test(ht)) bad(vn + ': во вкладке «История» отображается некорректное числовое значение');
 				const geometry = await p.evaluate(() => {
-					const cards = Array.from(document.querySelectorAll('.nfm-grid > *')).map(el => {
+					const cards = Array.from(document.querySelectorAll('.nfm-history > .nfm-grid > *')).map(el => {
 						const r = el.getBoundingClientRect();
-						return { right: r.right, width: r.width, scroll: el.scrollWidth, client: el.clientWidth };
+						return {
+							tag: el.tagName, className: typeof el.className === 'string' ? el.className : '',
+							text: (el.textContent || '').trim().slice(0, 90),
+							left: r.left, right: r.right, width: r.width,
+							scroll: el.scrollWidth, client: el.clientWidth
+						};
 					});
 					const charts = Array.from(document.querySelectorAll('.nfm-history .nfm-chart')).map(el => {
 						const r = el.getBoundingClientRect();
@@ -375,7 +408,24 @@ const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
 					return { viewportWidth: window.innerWidth, cards, charts, switches, cfgGroups: document.querySelectorAll('.nfm-cfg-layout > .nfm-cfg-g').length };
 				});
 				if (geometry.charts.length < 3 || geometry.charts.some(x => x.width < 80 || x.height < 60)) bad(vn + ': графики истории не получили корректный размер; найдено=' + geometry.charts.length + ', размеры=' + JSON.stringify(geometry.charts.map(x => ({ width: Math.round(x.width), height: Math.round(x.height) }))));
-				if (geometry.cards.some(x => x.right > geometry.viewportWidth + 1 || x.scroll > x.client + 3)) bad(vn + ': карточка истории выходит за границы или обрезает содержимое');
+				if (vn !== 'desktop') {
+					const rangeLayout = await p.evaluate(() => {
+						const el = document.querySelector('.nfm-history-range-tabs');
+						if (!el) return null;
+						const buttons = Array.from(el.querySelectorAll('.nfm-tab'));
+						const rects = buttons.map(b => b.getBoundingClientRect());
+						return {
+							count: buttons.length, clientWidth: el.clientWidth, scrollWidth: el.scrollWidth,
+							rows: new Set(rects.map(r => Math.round(r.top))).size,
+							rightOverflow: rects.length ? Math.max(...rects.map(r => r.right)) - el.getBoundingClientRect().right : 0
+						};
+					});
+					if (!rangeLayout || rangeLayout.count !== 5 || rangeLayout.rows !== 1 ||
+						rangeLayout.scrollWidth > rangeLayout.clientWidth + 1 || rangeLayout.rightOverflow > 1)
+						bad(vn + ': периоды графика истории должны помещаться в одну строку без обрезки: ' + JSON.stringify(rangeLayout));
+				}
+				const cardOverflow = geometry.cards.filter(x => x.right > geometry.viewportWidth + 1 || x.scroll > x.client + 3);
+				if (cardOverflow.length) bad(vn + ': карточка истории выходит за границы или обрезает содержимое: ' + JSON.stringify(cardOverflow));
 				if (geometry.cfgGroups !== 6) bad(vn + ': сетка настроек истории должна содержать шесть основных групп');
 				if (geometry.switches.some(x => Math.abs(x.width - 40) > 1 || Math.abs(x.height - 23) > 1)) bad(vn + ': переключатели настроек имеют неправильный размер');
 				for (const dark of [ false, true ]) {
