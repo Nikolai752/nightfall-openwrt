@@ -62,11 +62,20 @@ case "$args" in
 	*"-o link show dev wg2"*)
 		echo '10: wg2: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420'
 		;;
+	*"-o link show dev wg3"*)
+		echo '11: wg3: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420'
+		;;
 	*"-o link show dev eth0"*)
 		echo '2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500'
 		;;
 	*"-d link show dev wg1"*)
 		echo '9: wg1: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420 wireguard'
+		;;
+	*"-d link show dev wg2"*)
+		echo '10: wg2: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420 wireguard'
+		;;
+	*"-d link show dev wg3"*)
+		echo '11: wg3: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420 wireguard'
 		;;
 	*"-d link show dev eth0"*)
 		echo '2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 ether'
@@ -74,6 +83,7 @@ case "$args" in
 	"-o link show"*)
 		echo '9: wg1: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420 qdisc noqueue state UNKNOWN mode DEFAULT group default'
 		echo '10: wg2: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420 qdisc noqueue state UNKNOWN mode DEFAULT group default'
+		echo '11: wg3: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420 qdisc noqueue state UNKNOWN mode DEFAULT group default'
 		echo '2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP mode DEFAULT group default'
 		;;
 	*"-4 route show table 300 default"*)
@@ -81,6 +91,9 @@ case "$args" in
 		;;
 	*"-4 route show table 304 default"*)
 		echo 'default dev wg2 scope link'
+		;;
+	*"-4 route show table 306 default"*)
+		echo 'default dev wg3 scope link'
 		;;
 	*"-4 route show table 42000 default"*)
 		echo 'default dev wg1 scope link'
@@ -140,6 +153,7 @@ cat > "$NF_TG_TEST_STATUS" <<'JSON'
 {"schema":1,"outputs":{
   "groupvpn":{"kind":"group","device":"","up":true,"mark":"0x00400000","table":300,"failed":false,"group":{"selected":"wg1"}},
   "zm_vpn2":{"kind":"group","device":"","up":true,"mark":"0x00500000","table":304,"failed":false,"group":{"selected":"wg2"}},
+  "wrongroute":{"kind":"interface","device":"wg3","up":true,"mark":"0x00600000","table":306,"failed":false},
   "wg1":{"kind":"interface","device":"wg1","up":true,"mark":"0x00400000","table":300,"failed":false},
   "wg2":{"kind":"interface","device":"wg2","up":true,"mark":"0x00500000","table":304,"failed":false}
 }}
@@ -155,6 +169,19 @@ printf '%s' "$out" | node -e '
 	if (!o || o.device !== "wg1" || o.table !== 300 || o.ready !== true) process.exit(1);
 ' || bad "Steer group output was not resolved to its selected device"
 ok "Steer group output resolves selected member and table"
+
+# Each Steer output gets its own marked route lookup. The successful result
+# must report that output's own device/table, not whichever route is active now.
+out=$("$H" probe steer:groupvpn) || bad "groupvpn preflight failed: $out"
+printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.verified || d.device!=="wg1" || d.table!==300 || d.output!=="steer:groupvpn") process.exit(1)' ||
+	bad "groupvpn preflight did not verify its own device/table"
+out=$("$H" probe steer:zm_vpn2) || bad "zm_vpn2 preflight failed: $out"
+printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.verified || d.device!=="wg2" || d.table!==304 || d.output!=="steer:zm_vpn2") process.exit(1)' ||
+	bad "zm_vpn2 preflight did not resolve independently"
+if "$H" probe steer:wrongroute > "$T/probe-wrong-result"; then bad "mismatched Steer mark/device passed preflight"; fi
+grep -Fq 'не подтвердила выход' "$T/probe-wrong-result" ||
+	bad "failed Steer preflight did not explain the device mismatch"
+ok "Steer outputs are individually preflighted against their own marks and devices"
 
 # Applying the Steer route must mark Telegram sockets and add an egress guard.
 out=$("$H" apply) || bad "Steer route apply failed: $out"
@@ -201,6 +228,18 @@ ok "zm_vpn2 remains active and is reused idempotently"
 
 ok "switch to zm_vpn2 selects its Steer mark/table and confirms active status"
 
+# A failed candidate must not tear down the known-good active zm_vpn2 route.
+printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:wrongroute\n' > "$T/conf"
+if "$H" apply > "$T/wrong-apply-result"; then bad "invalid candidate output was applied"; fi
+grep -Fq 'текущий активный маршрут Telegram сохранён' "$T/wrong-apply-result" ||
+	bad "invalid candidate failure did not explain that the old route is retained"
+out=$("$H" status) || bad "active route status failed after invalid candidate"
+printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.active || d.output!=="steer:zm_vpn2" || d.device!=="wg2") process.exit(1)' ||
+	bad "invalid candidate damaged the active zm_vpn2 route"
+grep -Fq 'egress_guard meta skuid 104 oifname != "wg2" drop' "$NF_TG_TEST_NFT" ||
+	bad "invalid candidate replaced the active zm_vpn2 egress guard"
+ok "failed candidate preflight preserves the working zm_vpn2 route"
+
 # Return to the original group output. This is the critical regression guard:
 # the already-verified Steer route must still work after another output was used.
 printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:groupvpn\n' > "$T/conf"
@@ -236,6 +275,15 @@ out=$("$H" status) || bad "blocked route status failed: $out"
 printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(d.active || !d.blocked) process.exit(1)' ||
 	bad "failed Steer status did not report fail-closed blocking"
 ok "route status reports the fail-closed state"
+
+# A plain WireGuard candidate is checked in a temporary UID policy table.
+# The temporary table and rules must be removed after the check.
+out=$("$H" probe iface:wg1) || bad "plain interface preflight failed: $out"
+printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.verified || d.source!=="interface" || d.device!=="wg1") process.exit(1)' ||
+	bad "plain interface preflight did not confirm the candidate"
+grep -Fq 'route flush table 42000' "$NF_TG_TEST_IP_LOG" ||
+	bad "plain interface preflight did not clean up its temporary route table"
+ok "plain interface preflight verifies and removes its temporary UID policy rules/table"
 
 # A plain WireGuard interface uses its own UID table and an egress guard.
 printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=iface:wg1\n' > "$T/conf"
