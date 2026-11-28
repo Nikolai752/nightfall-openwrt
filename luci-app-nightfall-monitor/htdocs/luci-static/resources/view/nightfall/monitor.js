@@ -2959,8 +2959,24 @@ return view.extend({
 		const TAB_KEYS = [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist', 'tg', 'settings' ];
 		const tabBtns = {};
 		let topDeviceHeader = null;
-		const tabs = E('div', { class: 'nfm-tabs', role: 'tablist' }, [ [ 'overview', _('Обзор') ], [ 'net', _('Сеть') ], [ 'wifi', 'Wi‑Fi' ], [ 'devs', _('Устройства') ], [ 'apps', _('Трафик') ], [ 'procs', _('Программы') ], [ 'svcs', _('Службы') ], [ 'diag', _('Диагностика') ], [ 'sec', _('Безопасность') ], [ 'log', _('Журнал') ], [ 'hist', _('История') ], [ 'tg', 'TG Bot' ], [ 'settings', _('Настройки') ] ]
-			.map(([ k, l ]) => tabBtns[k] = E('button', { class: 'nfm-tab nfm-ti', 'data-ic': k, role: 'tab', title: l, 'aria-label': l, click: () => { S.tab = k; if (topDeviceHeader) topDeviceHeader.hidden = k === 'tg'; refresh(); } }, l)));
+		const tabs = E('div', { class: 'nfm-tabs', role: 'tablist' }, [
+			[ 'overview', _('Обзор') ],
+			[ 'net', _('Сеть') ],
+			[ 'wifi', 'Wi‑Fi' ],
+			[ 'devs', _('Устройства'), _('Устр.') ],
+			[ 'apps', _('Трафик') ],
+			[ 'procs', _('Программы'), _('Прогр.') ],
+			[ 'svcs', _('Службы') ],
+			[ 'diag', _('Диагностика'), _('Диагн.') ],
+			[ 'sec', _('Безопасность'), _('Защита') ],
+			[ 'log', _('Журнал') ],
+			[ 'hist', _('История') ],
+			[ 'tg', 'TG Bot' ],
+			[ 'settings', _('Настройки'), _('Настр.') ]
+		].map(([ k, full, compact ]) => tabBtns[k] = E('button', {
+			class: 'nfm-tab nfm-ti', 'data-ic': k, role: 'tab', title: full, 'aria-label': full,
+			click: () => { S.tab = k; if (topDeviceHeader) topDeviceHeader.hidden = k === 'tg'; refresh(); }
+		}, compact || full)));
 
 		const svcFilter = E('input', { class: 'nfm-in', type: 'search', placeholder: _('Найти службу…'), input: () => renderServices() });
 		const svcBox = E('div');
