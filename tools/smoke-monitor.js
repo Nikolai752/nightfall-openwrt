@@ -260,14 +260,14 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 				await p.click('.nfm-tg-output-choice[data-output="steer:groupvpn"]'); await p.waitForTimeout(100);
 				if (await p.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output') !== 'steer:groupvpn') bad(vn + ': ручной выбор groupvpn не сработал');
 				await p.click('.nfm-tg-output-actions button'); await p.waitForTimeout(200);
-				if (!(await p.locator('.nfm-tg-output-selection').textContent()).includes('Проверка успешна')) bad(vn + ': предварительная проверка groupvpn не подтвердилась');
+				if (!(await p.locator('.nfm-tg-output-selection').textContent()).includes('Проверка пройдена')) bad(vn + ': предварительная проверка groupvpn не подтвердилась');
 				await p.click('button:has-text("Применить выбранный выход")'); await p.waitForTimeout(250);
 				if (!CFG_SET_CALLS[CFG_SET_CALLS.length - 1].includes('TG_ROUTE_OUTPUT=steer:groupvpn')) bad(vn + ': применение не сохранило выбранный groupvpn');
 				if (!(await p.locator('.nfm-tg-output-choice[data-output="steer:groupvpn"]').evaluate(el => el.classList.contains('is-active')))) bad(vn + ': groupvpn не стал фактически активным после применения');
 				/* Return to the known-good route and verify it remains independently selectable. */
 				await p.click('.nfm-tg-output-choice[data-output="steer:zm_vpn2"]'); await p.waitForTimeout(100);
 				await p.click('.nfm-tg-output-actions button'); await p.waitForTimeout(200);
-				if (!(await p.locator('.nfm-tg-output-selection').textContent()).includes('Проверка успешна')) bad(vn + ': повторная проверка zm_vpn2 не прошла');
+				if (!(await p.locator('.nfm-tg-output-selection').textContent()).includes('Проверка пройдена')) bad(vn + ': повторная проверка zm_vpn2 не прошла');
 				await p.click('button:has-text("Применить выбранный выход")'); await p.waitForTimeout(250);
 				selectedRoute = await p.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output');
 				if (selectedRoute !== 'steer:zm_vpn2') bad(vn + ': не удалось вернуть проверенный маршрут zm_vpn2');
