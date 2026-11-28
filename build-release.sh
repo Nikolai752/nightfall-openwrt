@@ -95,6 +95,9 @@ H="$STAGE/usr/share/ucode/luci/template/themes/nightfall/header.ut"
 [ -n "$V" ] && [ -f "$H" ] && sed -i -E "s/[0-9]{8}[a-z]/$V/g" "$H"
 # История изменений: тема показывает её после обновления.
 [ -f CHANGELOG.md ] && cp CHANGELOG.md "$STAGE/www/luci-static/nightfall/CHANGELOG.md"
+# Копия внутри htdocs темы нужна сборкам OpenWrt/apk: luci.mk упаковывает htdocs как есть,
+# а корневой файл туда не попадает. Держим её в синхронизации при каждом релизе.
+[ -f CHANGELOG.md ] && cp CHANGELOG.md luci-theme-nightfall/htdocs/luci-static/nightfall/CHANGELOG.md
 # Права на исполнение (в git на Windows они теряются).
 chmod 755 "$STAGE"/usr/libexec/nightfall-* "$STAGE"/etc/init.d/nightfall-collector "$STAGE"/etc/uci-defaults/* 2>/dev/null || true
 
