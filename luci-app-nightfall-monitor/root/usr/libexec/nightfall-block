@@ -155,7 +155,7 @@ used_of() {
 	)
 	[ -n "$ips" ] || { echo 0; return; }
 	awk -v ips="$ips" 'BEGIN {
-		n = split(ips, a, "\\n")
+		n = split(ips, a, "\n")
 		for (i = 1; i <= n; i++) used[a[i]] = 1
 	}
 	$1 in used { total += $2 + $3 }
