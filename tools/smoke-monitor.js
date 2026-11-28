@@ -278,11 +278,13 @@ const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
 				if (await outputRows.count() !== 3) bad(vn + ': selector cards должны показать все три тестовых выхода');
 				const outputText = await outputList.textContent();
 				if (!outputText.includes('АКТИВЕН') || !outputText.includes('ПРОВЕРИТЬ') || !outputText.includes('НЕДОСТУПЕН')) bad(vn + ': selector cards не различают активный, найденный и недоступный выходы');
-				const firstRow = await p.locator('.nfm-tg-output-choice[data-output="steer:groupvpn"]').evaluate(el => { const r=el.getBoundingClientRect(), s=getComputedStyle(el), hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2); return {w:r.width,h:r.height,pointer:s.pointerEvents,display:s.display,disabled:el.disabled,opacity:s.opacity,hit:!!hit && (hit===el || el.contains(hit)),hitTag:hit&&hit.tagName,hitClass:hit&&hit.className}; });
-				if (firstRow.w < 160 || firstRow.h < 40 || firstRow.pointer === 'none' || firstRow.display === 'none' || firstRow.disabled || !firstRow.hit) bad(vn + ': карточка VPN-выхода перекрыта или неактивна: ' + JSON.stringify(firstRow));
+				const firstRow = await p.locator('.nfm-tg-output-choice[data-output="steer:groupvpn"]').evaluate(el => { const r=el.getBoundingClientRect(), s=getComputedStyle(el), hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2); return {w:r.width,h:r.height,pointer:s.pointerEvents,cursor:s.cursor,display:s.display,disabled:el.disabled,ariaDisabled:el.getAttribute('aria-disabled'),hit:!!hit && (hit===el || el.contains(hit)),hitTag:hit&&hit.tagName,hitClass:hit&&hit.className}; });
+				if (firstRow.w < 160 || firstRow.h < 40 || firstRow.pointer === 'none' || firstRow.cursor !== 'pointer' || firstRow.display === 'none' || firstRow.disabled || firstRow.ariaDisabled === 'true' || !firstRow.hit) bad(vn + ': карточка VPN-выхода перекрыта, заблокирована или показывает запрещающий курсор: ' + JSON.stringify(firstRow));
 				/* Select a different Steer output with a real delegated button click (mouse/touch). */
 				await p.click('.nfm-tg-output-choice[data-output="steer:groupvpn"]'); await p.waitForTimeout(100);
 				if (await outputList.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output') !== 'steer:groupvpn') bad(vn + ': ручной выбор groupvpn нажатием не сработал');
+				await p.evaluate(() => window.__runMonitorTick()); await p.waitForTimeout(100);
+				if (await outputList.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output') !== 'steer:groupvpn') bad(vn + ': выбранный VPN-выход сбросился после обычного обновления монитора');
 				await p.click('.nfm-tg-output-actions button'); await p.waitForTimeout(200);
 				if (!(await p.locator('.nfm-tg-output-selection').textContent()).includes('Проверка пройдена')) bad(vn + ': предварительная проверка groupvpn не подтвердилась');
 				await p.click('button:has-text("Применить выбранный выход")'); await p.waitForTimeout(250);
