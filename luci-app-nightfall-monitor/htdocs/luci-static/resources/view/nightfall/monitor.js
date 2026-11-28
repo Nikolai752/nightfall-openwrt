@@ -199,7 +199,7 @@ const XCSS = `
 .nfm-app-legend-more { grid-column:1 / -1; border-top:1px solid var(--nfm-border); padding-top:7px; }
 .nfm-app-legend-more > summary { cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:12px; color:var(--nfm-text); font-size:12px; font-weight:600; list-style:none; }
 .nfm-app-legend-more > summary::-webkit-details-marker { display:none; }
-.nfm-app-legend-more > summary::after { content:'⌄'; color:var(--nfm-dim); }
+.nfm-app-legend-more > summary::after { content:"⌄"; color:var(--nfm-dim); }
 .nfm-app-legend-more[open] > summary::after { content:'⌃'; }
 .nfm-app-legend-more .nfm-app-legend { margin-top:10px; }
 .nfm-app-category { border:1px solid var(--nfm-border); border-radius:var(--nf-radius-in, 9px); background:var(--nfm-card2); overflow:hidden; }
@@ -239,6 +239,7 @@ const XCSS = `
 .nfm-history > .nfm-grid { min-width:0; margin:0; gap:12px; }
 .nfm-history .nfm-card { min-width:0; }
 .nfm-history .nfm-card-title { min-width:0; }
+.nfm-history .nfm-card-title > .nfm-history-range-tabs { min-width:0; max-width:100%; }
 .nfm-history .nfm-chart { min-width:0; }
 .nfm-history .nfm-exp { align-items:stretch; }
 .nfm-history .nfm-exp .nfm-btn { flex:0 1 auto; min-width:0; }
@@ -253,6 +254,12 @@ const XCSS = `
  .nfm-history .nfm-card { padding:13px 12px; }
  .nfm-history .nfm-exp { display:grid; grid-template-columns:minmax(0,1fr); }
  .nfm-history .nfm-exp .nfm-btn { width:100%; justify-content:center; }
+ .nfm-history .nfm-card-title > .nfm-history-range-tabs {
+   display:flex; flex:1 1 100%; width:100%; max-width:100%; min-width:0; box-sizing:border-box;
+ }
+ .nfm-history .nfm-card-title > .nfm-history-range-tabs .nfm-tab {
+   flex:1 1 0; min-width:0; padding:5px 4px; white-space:nowrap;
+ }
  .nfm-history .nfm-cmp-t { grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) minmax(0,1fr) 58px; font-size:11.5px; }
  .nfm-history .nfm-cmp-t > div { padding:7px 4px; }
 
@@ -676,6 +683,8 @@ const CSS = `
 .nfm-ti[data-ic='diag'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12h4l2-6 4 12 2-6h6'/%3E%3C/svg%3E"); }
 .nfm-ti[data-ic='sec'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3l8 3v6c0 4.5-3.2 7.7-8 9-4.8-1.3-8-4.5-8-9V6z'/%3E%3Cpath d='M9 12l2 2 4-4'/%3E%3C/svg%3E"); }
 .nfm-ti[data-ic='log'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01'/%3E%3C/svg%3E"); }
+.nfm-ti[data-ic='tg'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M21.55 3.15 18.3 20.3c-.25 1.2-.95 1.5-1.95.95l-5.4-3.98-2.6 2.5c-.28.28-.52.52-1.06.52l.38-5.5 10-9.03c.44-.38-.1-.6-.68-.22L4.63 12.9l-5.2-1.63c-1.13-.35-1.15-1.13.24-1.68L20 2.1c.92-.34 1.73.22 1.55 1.05z' transform='translate(2 0) scale(.9 1)'/%3E%3C/svg%3E"); }
+.nfm-ti[data-ic='settings'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 6h16M4 12h16M4 18h16'/%3E%3Cpath d='M8 4v4M15 10v4M11 16v4'/%3E%3C/svg%3E"); }
 .nfm-hint.sec-ok { border-color: color-mix(in srgb, #2fb36a 45%, transparent); }
 .nfm-hint.sec-warn { border-color: color-mix(in srgb, #f7a21b 55%, transparent); }
 .nfm-hint.sec-bad { border-color: color-mix(in srgb, #ef4444 60%, transparent); background: color-mix(in srgb, #ef4444 10%, transparent); }
@@ -833,11 +842,30 @@ const CSS = `
 .nfm-table td { padding: 8px 10px; border-bottom: 1px solid color-mix(in srgb, var(--nfm-border) 60%, transparent); vertical-align: middle; }
 .nfm-table tr:last-child td { border-bottom: 0; }
 .nfm-table tbody tr:hover td { background: transparent; }
-.nfm-tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-.nfm-tabs::-webkit-scrollbar { display: none; }
-.nfm-tab { white-space: nowrap; flex: none; }
+/* The main monitor navigation is a single contained row. Tabs share the available width. */
+.nfm-top { min-width: 0; }
+.nfm-top .nfm-tabs {
+  display: flex; flex: 0 0 100%; order: 5; box-sizing: border-box;
+  width: 100%; max-width: 100%; min-width: 0; overflow: hidden;
+  padding: 3px; gap: 2px; scrollbar-width: none;
+}
+.nfm-top .nfm-tabs .nfm-tab {
+  display: flex; flex: 1 1 0; min-width: 0; max-width: 100%;
+  align-items: center; justify-content: center; gap: 4px;
+  padding: 5px 3px; font-size: clamp(10px, .75vw, 11px);
+  line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.nfm-top .nfm-tabs .nfm-ti::before {
+  flex: 0 0 13px; width: 13px; height: 13px; margin-right: 0;
+}
+@media (max-width: 1100px) {
+  /* Keep every destination visible on compact screens; full names remain in the tooltip and accessibility tree. */
+  .nfm-top .nfm-tabs .nfm-tab { font-size: 0; gap: 0; }
+  .nfm-top .nfm-tabs .nfm-ti::before { flex-basis: 15px; width: 15px; height: 15px; }
+}
 @media (max-width: 640px) {
-  .nfm-top .nfm-tabs { display: flex; width: 100%; order: 5; } .nfm-top .nfm-tabs .nfm-tab { flex: 1 0 auto; padding: 6px 8px; font-size: 12.5px; }
+  .nfm-top .nfm-tabs { gap: 1px; padding: 2px; }
+  .nfm-top .nfm-tabs .nfm-tab { min-height: 40px; padding: 6px 1px; }
   .nfm-card-title { flex-wrap: wrap; row-gap: 8px; }
   .nfm-card-title > .nfm-spacer { flex: 0 0 100%; height: 0; margin: 0; }
   .nfm-card-title > .nfm-note-s, .nfm-card-title > .nfm-legend { flex: 1 0 100%; }
@@ -1350,7 +1378,7 @@ return view.extend({
 
 		/* history tab */
 		const rangeBtns = {};
-		const rangeTabs = E('div', { class: 'nfm-tabs' }, Object.keys(RANGES).map(k =>
+		const rangeTabs = E('div', { class: 'nfm-tabs nfm-history-range-tabs' }, Object.keys(RANGES).map(k =>
 			rangeBtns[k] = E('button', { class: 'nfm-tab', click: () => { S.range = k; S.hist = undefined; S.at.hist = 0; refresh(); tick(); } }, RANGES[k][2])));
 		const histNote = E('div', { class: 'nfm-hint', hidden: '' });
 		const histMain = chart({ right: true, height: 240,
@@ -1389,20 +1417,82 @@ return view.extend({
 		const backupMsg = E('span', { class: 'nfm-note-s' });
 		/* Telegram: сначала сохраняем введённое, потом просим роутер определить chat id или отправить проверочное сообщение */
 		const tgMsg = E('div', { class: 'nfm-note-s', style: 'margin-top:6px' });
-		const tgRun = cmd => {
-			tgMsg.textContent = _('Выполняю…');
-			const save = [ 'set' ].concat([ 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY', 'TG_IFACE' ].map(k => k + '=' + cfgInputs[k].value.trim()));
-			return callCfg(save).then(r => {
-				if (!(r && r.ok)) { tgMsg.textContent = _('Не сохранено: ') + (trCfgErr((r && r.error) || '') || _('нет ответа')); return null; }
-				return fs.exec(NOTIFYBIN, [ cmd ]).then(res => { try { return JSON.parse(res.stdout); } catch (e) { return { ok: false, error: _('нет ответа от роутера') }; } }).catch(() => ({ ok: false, error: _('нет прав на запуск (выйдите из LuCI и войдите снова; права обновляются при входе) или не найден /usr/libexec/nightfall-notify') }));
+		const TG_CFG_KEYS = [ 'TG', 'TG_ALERTS', 'TG_BOT', 'TG_CLEAN', 'TG_UPDATES', 'TG_SEC', 'TG_WIDGETS', 'TG_REPORT', 'TG_TOKEN', 'TG_CHAT', 'TG_USERS', 'TG_PROXY', 'TG_IFACE', 'TG_ROUTE_MODE', 'TG_ROUTE_OUTPUT' ];
+		const saveTelegramConfig = () => {
+			const args = [ 'set' ].concat(TG_CFG_KEYS.map(k => k + '=' + (cfgBoolKeys.has(k) ? (cfgInputs[k].checked ? '1' : '0') : cfgInputs[k].value.trim())));
+			return callCfg(args).then(r => {
+				if (!(r && r.ok)) {
+					tgMsg.textContent = _('Не сохранено: ') + ((r && r.error) || _('нет ответа'));
+					return null;
+				}
+				return r;
 			});
 		};
-		const tgTools = E('div', { style: 'margin-top:10px' }, [
-			E('div', { class: 'nfm-note-s' }, _('Как настроить: 1) в Telegram найдите @BotFather, создайте бота командой /newbot и вставьте токен выше; 2) откройте своего бота и нажмите Start; 3) нажмите «Определить chat id», затем «Отправить проверку»; 4) включите переключатель «Отправлять уведомления» и сохраните. После этого боту можно писать команды: /status, /clients, /traffic, /apps, /speed, /help (отвечает только вам).')),
-			E('div', { class: 'nfm-actions', style: 'margin:8px 0 0' }, [
-				E('button', { class: 'nfm-act', click: () => tgRun('chatid').then(r => { if (!r) return; if (r.ok) { cfgInputs.TG_CHAT.value = r.chat; callCfg([ 'set', 'TG_CHAT=' + r.chat ]); tgMsg.textContent = _('Chat id найден: ') + r.chat; } else tgMsg.textContent = trCfgErr(r.error); }) }, _('Определить chat id')),
-				E('button', { class: 'nfm-act', click: () => tgRun('test').then(r => { if (r) tgMsg.textContent = r.ok ? _('Сообщение отправлено, проверьте Telegram.') : _('Не отправлено: ') + trCfgErr(r.error); }) }, _('Отправить проверку')),
-				E('button', { class: 'nfm-act', click: () => tgRun('backup').then(r => { if (r) tgMsg.textContent = r.ok ? _('Резервная копия отправлена в Telegram файлом (без токена бота).') : _('Не отправлено: ') + trCfgErr(r.error); }) }, _('Резервная копия в Telegram')) ]),
+		const notifyExec = args => fs.exec(NOTIFYBIN, args).then(res => {
+			try { return JSON.parse(res.stdout || '{}'); }
+			catch (e) { return { ok: false, error: _('Некорректный ответ nightfall-notify') }; }
+		}).catch(err => ({ ok: false, error: _('Ошибка RPC запуска nightfall-notify: ') + ((err && err.message) || String(err)) }));
+		const runTelegramTest = () => notifyExec([ 'test-start' ]).then(started => {
+			if (!started || !started.ok) return started;
+			const wait = ms => new Promise(resolve => window.setTimeout(resolve, ms));
+			const pollResult = attempt => notifyExec([ 'test-status' ]).then(result => {
+				if (!result || result.state !== 'running') return result;
+				if (attempt >= 40)
+					return { ok: false, error: _('Проверка всё ещё выполняется. Повторите проверку позже; фоновый запрос продолжает работу.') };
+				return wait(1000).then(() => pollResult(attempt + 1));
+			});
+			return wait(500).then(() => pollResult(0));
+		});
+		let tgTestBusy = false, tgTestRouteUnavailable = false;
+		const tgTestButton = E('button', { type: 'button', class: 'nfm-act nfm-tg-test-button', click: () => tgRun('test').then(r => {
+			if (r) tgMsg.textContent = r.ok ? _('Сообщение отправлено, проверьте Telegram.') : _('Не отправлено: ') + r.error;
+		}) }, _('Отправить проверку'));
+		const tgRun = cmd => {
+			if (cmd === 'test') {
+				if (tgTestBusy) return Promise.resolve(null);
+				tgTestBusy = true;
+				tgTestButton.disabled = true;
+				tgTestButton.textContent = _('Проверяю маршрут…');
+				tgMsg.textContent = _('Сначала сверяю фактический маршрут Telegram…');
+				return fs.exec('/usr/libexec/nightfall-telegram-route', [ 'status' ]).then(res => {
+					let status = null;
+					try { status = JSON.parse(res.stdout || '{}'); } catch (e) {}
+					tgTestRouteUnavailable = !(status && status.ok);
+					if (status && status.ok) S.tgRouteRuntime = status;
+					renderTelegram();
+					const reason = telegramTestBlockReason(status, true);
+					if (reason) return { ok: false, error: reason, blocked: true };
+					const mode = cfgInputs.TG_ROUTE_MODE.value || (S.cfg && S.cfg.values && S.cfg.values.TG_ROUTE_MODE) || 'system';
+					if (mode === 'vpn') {
+						const selected = selectedTgOutput();
+						cfgInputs.TG_ROUTE_MODE.value = 'vpn';
+						cfgInputs.TG_ROUTE_OUTPUT.value = selected.id;
+					}
+					return saveTelegramConfig().then(saved => saved ? runTelegramTest() : null);
+				}).catch(err => ({ ok: false, error: _('Не удалось проверить активный маршрут: ') + ((err && err.message) || String(err)) })).then(result => {
+					tgTestBusy = false;
+					tgTestButton.textContent = _('Отправить проверку');
+					if (tgApiState && result) {
+						tgApiState.textContent = (result.ok ? _('Telegram API ответил успешно.') : (result.blocked ? _('Тест не отправлен: ') : _('Проверка не пройдена: ')) + (result.error || _('нет ответа'))) + ' · ' + new Date().toLocaleTimeString();
+						tgApiState.classList.toggle('is-good', !!result.ok);
+						tgApiState.classList.toggle('is-bad', !result.ok);
+					}
+					syncTelegramTestButton();
+					return result;
+				});
+			}
+			tgMsg.textContent = _('Сохраняю настройки Telegram…');
+			return saveTelegramConfig().then(saved => saved ? notifyExec([ cmd ]) : null);
+		};
+		const tgTools = E('div', { class: 'nfm-tg-connection-tools' }, [
+			E('details', { class: 'nfm-tg-help' }, [
+				E('summary', {}, _('Как подключить бота')),
+				E('div', {}, _('Создайте бота через @BotFather, вставьте токен, откройте чат с ботом и нажмите Start. Затем определите Chat ID и отправьте проверку. Команды: /status, /clients, /traffic, /apps, /speed, /help.'))
+			]),
+			E('div', { class: 'nfm-actions nfm-tg-connect-actions', style: 'margin:8px 0 0' }, [
+				tgTestButton,
+				E('button', { class: 'nfm-act', click: () => tgRun('chatid').then(r => { if (!r) return; if (r.ok) { cfgInputs.TG_CHAT.value = r.chat; callCfg([ 'set', 'TG_CHAT=' + r.chat ]); tgMsg.textContent = _('Chat id найден: ') + r.chat; } else tgMsg.textContent = r.error; }) }, _('Определить chat id')),
+				E('button', { class: 'nfm-act', click: () => tgRun('backup').then(r => { if (r) tgMsg.textContent = r.ok ? _('Резервная копия отправлена в Telegram файлом (без токена бота).') : _('Не отправлено: ') + r.error; }) }, _('Резервная копия в Telegram')) ]),
 			tgMsg ]);
 		/* ---- Накопители: найти флешку / SD-карту и одним нажатием хранить на ней историю ---- */
 		const dskBody = E('div', {}, E('div', { class: 'nfm-empty' }, _('Ищу накопители…')));
@@ -1524,14 +1614,7 @@ return view.extend({
 				cfgGroup(_('Хранение истории и резервные копии'), [ 'PERSIST_DIR', 'PERSIST_HOURS', 'HIST_DAYS', 'BACKUP_KEEP', 'PERSIST_ANY', 'JOURNAL', 'WIFI_HIST' ]),
 				cfgGroup(_('Режим и функции мониторинга'), [ 'LITE', 'APPS', 'NEWDEV' ])
 			]),
-			E('section', { class: 'nfm-cfg-g nfm-cfg-telegram' }, [
-				E('h4', {}, _('Telegram — уведомления и управление')),
-				E('div', { class: 'nfm-tg-grid' }, [
-					cfgGroup(_('Уведомления'), [ 'TG', 'TG_ALERTS', 'TG_UPDATES', 'TG_SEC', 'TG_REPORT' ]),
-					cfgGroup(_('Управление ботом'), [ 'TG_BOT', 'TG_CLEAN', 'TG_WIDGETS', 'TG_USERS' ]),
-					cfgGroup(_('Подключение и инструменты'), [ 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY', 'TG_IFACE' ], tgTools)
-				])
-			]),
+
 			E('div', { class: 'nfm-cfg-actions' }, [
 				E('button', { class: 'nfm-act', click: () => saveCfg() }, _('✓ Сохранить и применить')),
 				E('button', { class: 'nfm-act', click: () => (S.cfg ? Promise.resolve(S.cfg) : callCfg([ 'get' ]).then(c => (S.cfg = c))).then(c => fillCfg(c && c.defaults)) }, _('Значения по умолчанию')),
@@ -1550,6 +1633,538 @@ return view.extend({
 				E('div', {}, _('Для честного разделения трафика укажите известные VPN-серверы в формате IP:порт (через запятую): их внешний трафик будет показан как «VPN». Содержимое внутри зашифрованного туннеля определить нельзя. Пустой адрес 1 отключает проверку интернета. Историю безопаснее хранить на USB/SD. Путь внутри /overlay разрешается только при включённом переключателе внутренней флеш-памяти: это ускоряет износ и может заполнить системный раздел, поэтому оставляйте запас свободного места. Корневой / и /rom всегда запрещены. Резервные копии лежат отдельно в nightfall-backups; если USB отключён, копия временно создаётся в /tmp. После сохранения сборщик перезапускается, накопленная история не теряется.'))
 			])
 		]), 'nfm-cfg-settings-card');
+
+		/* ---- Telegram control centre: settings moved here from History. ---- */
+		cfgInputs.TG_IFACE = E('input', { type: 'hidden', value: '' });
+		cfgInputs.TG_ROUTE_MODE = E('input', { type: 'hidden', value: '' });
+		cfgInputs.TG_ROUTE_OUTPUT = E('input', { type: 'hidden', value: '' });
+
+		const tgModeRadios = {};
+		/* Keep output-card DOM stable between monitor polls so focus and pointer selection remain reliable. */
+		let tgOutputSignature = null;
+		const tgSteerValue = E('b', {}, _('Определение…'));
+		const tgOutputCount = E('b', {}, '–');
+		const tgOutputListCount = E('span', { class: 'nfm-tg-output-count' }, '–');
+		const tgRouteState = E('div', { class: 'nfm-tg-state' }, _('Загрузка данных маршрутизации…'));
+		const tgApiState = E('div', { class: 'nfm-tg-state' }, _('Проверка ещё не выполнялась'));
+		const tgRouteStatus = E('div', { class: 'nfm-tg-state' }, _('Маршрут ещё не применён.'));
+		const tgSettingsMsg = E('div', { class: 'nfm-tg-state' }, '');
+		const tgOutputList = E('div', { class: 'nfm-tg-output-list', role: 'group', 'aria-label': _('Выход VPN для Telegram') });
+		const tgOutputSelection = E('div', { class: 'nfm-tg-output-selection' }, _('Выберите VPN-выход для проверки.'));
+		let tgPendingOutput = null, tgProbeBusy = false, tgApplyBusy = false;
+		const tgProbeButton = E('button', { type: 'button', class: 'nfm-act', click: () => probeTgOutput() }, _('Проверить выбранный выход'));
+		tgOutputList.addEventListener('click', ev => {
+			const button = ev.target && ev.target.closest ? ev.target.closest('button[data-output]') : null;
+			if (!button || !tgOutputList.contains(button) || tgProbeBusy || tgApplyBusy) return;
+			const item = allTgOutputs().find(output => output.id === button.getAttribute('data-output'));
+			if (!item) return;
+			tgPendingOutput = item.id;
+			item.probeError = '';
+			renderTelegram();
+		});
+		function allTgOutputs() {
+			const info = S.tgInfo || {};
+			const steer = info.outputs || [];
+			const devices = new Set(steer.map(item => item.device).filter(Boolean));
+			const outputs = steer.concat((info.interfaces || []).filter(item => !devices.has(item.device)));
+			const runtime = S.tgRouteRuntime || {};
+			/* Never show an empty selector while the kernel confirms a live route. */
+			if (runtime.active && runtime.output && !outputs.some(item => item.id === runtime.output)) {
+				outputs.unshift({ id: runtime.output, label: runtime.output.replace(/^(steer:|iface:)/, '') + ' · ' + _('текущий маршрут'), device: runtime.device || '', table: runtime.table || 0, mark: runtime.mark || '', ready: true, verified: true, activeOnly: true });
+			}
+			return outputs;
+		}
+		function telegramTestBlockReason(status, requireFresh) {
+			const values = S.cfg && S.cfg.values || {};
+			const mode = cfgInputs.TG_ROUTE_MODE.value || values.TG_ROUTE_MODE || (values.TG_PROXY ? 'proxy' : values.TG_IFACE ? 'vpn' : 'system');
+			if (mode === 'vpn') {
+				/* A test-send decision must never fall back to cached runtime status. */
+				if (requireFresh && (!status || !status.ok)) return _('Тест заблокирован: не удалось получить свежее подтверждение маршрута ядром. Сообщение не отправлено.');
+				const currentStatus = status && status.ok ? status : S.tgRouteRuntime || {};
+				const selected = selectedTgOutput();
+				if (!selected.id || !selected.item) return _('Тест заблокирован: нет выбранного и обнаруженного VPN-выхода. Обновите список и выберите маршрут.');
+				if (selected.item.ready === false) return _('Тест заблокирован: выбранный VPN-выход недоступен.');
+				if (!currentStatus.active || currentStatus.output !== selected.id) return _('Тест не отправлен: сначала выберите, проверьте и примените VPN-выход. Сейчас активный маршрут не совпадает с выбранным.');
+			}
+			if (mode === 'proxy' && !(cfgInputs.TG_PROXY.value || values.TG_PROXY || '').trim()) return _('Тест заблокирован: сначала укажите адрес прокси.');
+			return '';
+		}
+		function syncTelegramTestButton() {
+			const reason = telegramTestBlockReason();
+			tgTestButton.disabled = tgTestBusy || tgTestRouteUnavailable || !!reason;
+			tgTestButton.title = reason || _('Отправить проверочное сообщение по текущему активному способу подключения');
+		}
+		function selectedTgOutput() {
+			const runtime = S.tgRouteRuntime || {};
+			const values = S.cfg && S.cfg.values || {};
+			const info = S.tgInfo || {};
+			const saved = cfgInputs.TG_ROUTE_OUTPUT.value || values.TG_ROUTE_OUTPUT || info.selected_output || (values.TG_IFACE ? 'iface:' + values.TG_IFACE : '');
+			const active = runtime.active && runtime.output ? runtime.output : '';
+			const id = tgPendingOutput || active || saved;
+			return { id, item: allTgOutputs().find(item => item.id === id), active };
+		}
+		function probeTgOutput() {
+			const selected = selectedTgOutput(), item = selected.item;
+			if (!item || tgProbeBusy || tgApplyBusy) return Promise.resolve(null);
+			tgProbeBusy = true;
+			tgOutputSelection.textContent = _('Проверяю маршрут через ') + (item.label || item.id) + '…';
+			tgProbeButton.disabled = true;
+			return fs.exec('/usr/libexec/nightfall-telegram-route', [ 'probe', item.id ]).then(res => {
+				let result = null;
+				try { result = JSON.parse(res.stdout || '{}'); } catch (e) {}
+				item.verified = !!(result && result.ok && result.verified);
+				item.probeError = item.verified ? '' : ((result && result.error) || _('Ядро не подтвердило этот маршрут.'));
+				if (item.verified) {
+					item.probe = result;
+					tgOutputSelection.textContent = _('Проверка успешна: ') + item.device + (item.table ? ' · table ' + item.table : '') + _(' · можно применять');
+				} else {
+					tgOutputSelection.textContent = _('Проверка не пройдена: ') + item.probeError;
+				}
+				return result;
+			}).catch(err => {
+				item.verified = false;
+				item.probeError = (err && err.message) || String(err);
+				tgOutputSelection.textContent = _('Ошибка проверки: ') + item.probeError;
+				return null;
+			}).then(result => {
+				tgProbeBusy = false;
+				renderTelegram();
+				return result;
+			});
+		}
+		const tgProxyField = cfgField('TG_PROXY');
+		const tgProxyPane = E('div', { class: 'nfm-tg-mode-pane' }, [
+			E('div', { class: 'nfm-note-s' }, _('Прокси используется только запросами Nightfall к Telegram API. Для DNS через прокси используйте socks5h://.')),
+			tgProxyField
+		]);
+		const tgVpnPane = E('div', { class: 'nfm-tg-mode-pane nfm-tg-vpn-pane' }, [
+			E('div', { class: 'nfm-tg-output-heading' }, [ E('b', {}, _('VPN-выход для Telegram')), tgOutputListCount ]),
+			tgOutputList,
+			tgOutputSelection,
+			E('div', { class: 'nfm-tg-note nfm-tg-output-help' }, _('Выбор не меняет текущий маршрут. Сначала проверьте кандидат; применение доступно только после успешной проверки.'))
+		]);
+		const tgModeDescription = E('div', { class: 'nfm-note-s', style: 'margin-top:10px' });
+		const tgApplyRouteButton = E('button', { type: 'button', class: 'nfm-act nfm-act-primary', click: () => applyTelegramRoute() }, _('Применить выбранный выход'));
+		function setTgMode(mode) {
+			cfgInputs.TG_ROUTE_MODE.value = mode;
+			renderTelegram();
+		}
+		function tgModeChoice(mode, title, description) {
+			const radio = E('input', { type: 'radio', name: 'nfm-tg-route-mode', value: mode, change: () => setTgMode(mode) });
+			tgModeRadios[mode] = radio;
+			return E('label', { class: 'nfm-tg-mode-choice', 'data-mode': mode }, [
+				radio,
+				E('span', { class: 'nfm-tg-mode-copy' }, [
+					E('b', {}, title),
+					E('small', {}, description)
+				])
+			]);
+		}
+		const tgRouteCard = card(_('Маршрут Telegram'), E('div', {}, [
+			E('div', { class: 'nfm-tg-mode-list' }, [
+				tgModeChoice('system', _('Система'), _('Стандартный маршрут OpenWrt')),
+				tgModeChoice('proxy', _('Прокси'), _('SOCKS5 / SOCKS5H / HTTP(S)')),
+				tgModeChoice('vpn', _('VPN'), _('Отдельный маршрут только для Telegram'))
+			]),
+			tgProxyPane, tgVpnPane,
+			E('div', { class: 'nfm-note-s nfm-tg-mode-description' }, tgModeDescription),
+			E('div', { class: 'nfm-tg-route-actions' }, [
+				E('button', { type: 'button', class: 'nfm-act', click: () => loadTelegram(true) }, _('Обновить выходы')),
+				tgProbeButton,
+				tgApplyRouteButton
+			]),
+			E('div', { class: 'nfm-tg-route-state' }, tgRouteState)
+		]));
+
+		const tgMasterField = cfgField('TG');
+		const tgHero = E('div', { class: 'nfm-tg-hero' }, [
+			E('div', { class: 'nfm-tg-brand' }, [
+				E('div', { class: 'nfm-tg-logo', 'aria-hidden': 'true' }, '➤'),
+				E('div', {}, [
+					E('h2', {}, _('Telegram-бот')),
+					E('div', { class: 'nfm-sub' }, _('Управление роутером и получение уведомлений через Telegram'))
+				])
+			]),
+			E('div', { class: 'nfm-tg-master' }, [
+				E('span', {}, _('Бот и уведомления')),
+				tgMasterField
+			])
+		]);
+		const tgConnectionCard = card(_('Данные подключения'), E('div', { class: 'nfm-tg-connection-body' }, [ cfgField('TG_TOKEN'), cfgField('TG_CHAT'), tgTools ]));
+		const tgNotifyGroup = cfgGroup(_('Уведомления'), [ 'TG_ALERTS', 'TG_UPDATES', 'TG_SEC', 'TG_REPORT' ]);
+		const tgBotGroup = cfgGroup(_('Управление ботом'), [ 'TG_BOT', 'TG_CLEAN', 'TG_WIDGETS' ]);
+		const tgNotifyDisclosure = E('details', { class: 'nfm-tg-disclosure' }, [ E('summary', {}, [ E('span', { class: 'nfm-tg-disclosure-icon' }, '◉'), _('Уведомления'), E('span', { class: 'nfm-tg-disclosure-hint' }, _('События и отчёты')) ]), tgNotifyGroup ]);
+		const tgBotDisclosure = E('details', { class: 'nfm-tg-disclosure' }, [ E('summary', {}, [ E('span', { class: 'nfm-tg-disclosure-icon' }, '⌘'), _('Управление ботом'), E('span', { class: 'nfm-tg-disclosure-hint' }, _('Команды и меню')) ]), tgBotGroup ]);
+		const tgIntegrationCard = card(_('Обнаруженная интеграция'), E('div', {}, [
+			E('div', { class: 'nfm-tg-info-row' }, [ E('span', {}, _('VPN-менеджер')), tgSteerValue ]),
+			E('div', { class: 'nfm-tg-info-row' }, [ E('span', {}, _('Доступные выходы')), tgOutputCount ]),
+			E('div', { class: 'nfm-tg-note' }, _('Обнаружение учитывает реальные интерфейсы, метки Steer и policy-routing. Наличие выхода не считается подтверждением маршрута.'))
+		]));
+		const tgApiCard = card(_('Адреса Telegram'), E('div', {}, [
+			E('div', { class: 'nfm-tg-info-row' }, [ E('span', {}, 'api.telegram.org'), E('b', {}, 'HTTPS · 443') ]),
+			E('div', { class: 'nfm-tg-note' }, _('Тест отправляется только после подтверждения реально активного маршрута.')),
+			tgApiState
+		]));
+		const tgRouteStatusCard = card(_('Статус маршрута'), E('div', {}, [
+			tgRouteStatus,
+			E('div', { class: 'nfm-tg-note' }, _('Проверяется реальный маршрут процесса Telegram. Остальной трафик роутера не перенаправляется.'))
+		]));
+		const tgAdvanced = E('details', { class: 'nfm-cfg-g nfm-tg-advanced' }, [
+			E('summary', { class: 'nfm-cfg-head' }, [
+				E('span', { class: 'nfm-cfg-icon' }, '⚙'),
+				E('span', { class: 'nfm-cfg-heading' }, _('Расширенные настройки')),
+				E('span', { class: 'nfm-cfg-chevron' }, '⌄')
+			]),
+			E('div', { class: 'nfm-cfg-body' }, [
+				E('div', { class: 'nfm-cfg' }, [ cfgField('TG_USERS') ]),
+				E('div', { class: 'nfm-note-s' }, _('Список разрешённых пользователей для управления ботом в групповом чате. В личном чате не требуется.'))
+			])
+		]);
+		const tgLeftColumn = E('div', { class: 'nfm-tg-left-column' }, [ tgConnectionCard, tgNotifyDisclosure ]);
+		const tgMainGrid = E('div', { class: 'nfm-tg-main-grid' }, [ tgLeftColumn, tgRouteCard ]);
+		const tgStatusGrid = E('div', { class: 'nfm-tg-status-grid' }, [ tgIntegrationCard, tgApiCard, tgRouteStatusCard ]);
+		const tgOptionsGrid = E('div', { class: 'nfm-tg-options-grid' }, [ tgBotDisclosure ]);
+		const tgSaveCard = card(_('Сохранение настроек'), E('div', { class: 'nfm-tg-save-row' }, [
+			E('div', {}, [ E('b', {}, _('Настройки бота')), E('div', { class: 'nfm-note-s' }, _('Сохраняет токен, Chat ID и параметры уведомлений. Маршрут VPN применяется отдельно.')) ]),
+			E('button', { type: 'button', class: 'nfm-act nfm-act-primary', click: () => saveTelegramConfig().then(r => {
+				tgSettingsMsg.textContent = r ? _('Настройки Telegram сохранены.') : _('Не удалось сохранить настройки Telegram.');
+			}) }, _('Сохранить настройки')),
+			tgSettingsMsg
+		]));
+		const tgTab = E('div', { hidden: true, class: 'nfm-tg-page' }, [
+			E('style', {}, [ `.nfm-tg-page{--tg-cyan:#19bfff;--tg-blue:#087cf0;--tg-green:#20cf83;min-width:0;display:block}
+.nfm-tg-page .nfm-card{min-width:0;padding:17px 18px;border:1px solid color-mix(in srgb,var(--nfm-accent) 18%,var(--nfm-border));border-radius:16px;background:linear-gradient(145deg,color-mix(in srgb,var(--nfm-card) 96%,#10294a),var(--nfm-card) 72%);box-shadow:0 10px 28px rgba(0,0,0,.10);overflow:hidden}
+.nfm-tg-page .nfm-card::after{height:54px;opacity:.35;pointer-events:none}
+.nfm-tg-page .nfm-card:hover{transform:none;box-shadow:0 10px 28px rgba(0,0,0,.12)}
+.nfm-tg-page .nfm-card-title{display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:15px;font-weight:750;letter-spacing:-.01em}
+.nfm-tg-hero{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;padding:17px 24px;margin:0 0 14px;border:1px solid color-mix(in srgb,var(--tg-cyan) 36%,var(--nfm-border));border-radius:18px;background:linear-gradient(110deg,color-mix(in srgb,#087cf0 13%,var(--nfm-card)),color-mix(in srgb,var(--nfm-card) 96%,#10294a) 62%);box-shadow:0 8px 30px rgba(0,90,190,.10)}
+.nfm-tg-brand{display:flex;align-items:center;gap:16px;min-width:0}
+.nfm-tg-logo{width:54px;height:54px;display:grid;place-items:center;flex:0 0 54px;border-radius:17px;background:linear-gradient(145deg,#23c5ff,#0877ed);color:white;font-size:29px;font-weight:800;box-shadow:0 7px 22px #168fd244}
+.nfm-tg-brand h2{margin:0 0 4px;font-size:22px;letter-spacing:-.025em}
+.nfm-tg-brand .nfm-sub{font-size:12px;opacity:.75}
+.nfm-tg-master{display:flex;align-items:center;gap:14px;padding:9px 14px;border:1px solid var(--nfm-border);border-radius:999px;background:color-mix(in srgb,var(--nfm-card) 88%,transparent);font-size:12px;font-weight:650}
+.nfm-tg-main-grid{display:grid;grid-template-columns:minmax(340px,.78fr) minmax(0,1.22fr);align-items:start;gap:14px;margin-bottom:14px}
+.nfm-tg-left-column{display:grid;gap:14px;min-width:0}
+.nfm-tg-status-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch;gap:14px;margin-bottom:14px}
+.nfm-tg-options-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin-bottom:12px}
+.nfm-tg-page .nfm-card-title:before{content:"";width:4px;height:19px;flex:0 0 4px;border-radius:4px;background:linear-gradient(180deg,var(--tg-cyan),var(--tg-blue));box-shadow:0 0 12px color-mix(in srgb,var(--tg-cyan) 45%,transparent)}
+.nfm-tg-connection-body{display:grid;gap:10px}
+.nfm-tg-connection-tools{padding-top:2px}
+.nfm-tg-page .nfm-cfg{margin-bottom:9px}
+.nfm-tg-page .nfm-cfg label,.nfm-tg-page .nfm-lbl{font-size:11px;font-weight:600}
+.nfm-tg-page input:not([type=checkbox]):not([type=radio]),.nfm-tg-page select{min-height:37px;border-radius:10px}
+.nfm-tg-help{padding:10px 12px;border:1px solid var(--nfm-border);border-radius:11px;background:color-mix(in srgb,var(--nfm-card2) 68%,transparent);font-size:11px}
+.nfm-tg-help summary{cursor:pointer;font-weight:700;color:var(--nfm-text)}
+.nfm-tg-help>div{padding-top:8px;color:var(--nfm-dim);line-height:1.5}
+.nfm-tg-connect-actions{display:flex;gap:8px;flex-wrap:wrap}
+.nfm-tg-connect-actions .nfm-act,.nfm-tg-route-actions .nfm-act{min-height:38px;padding:8px 12px;font-size:11px;border-radius:9px}
+.nfm-tg-test-button:not(:disabled),.nfm-tg-page .nfm-act-primary{border-color:color-mix(in srgb,var(--tg-blue) 72%,var(--nfm-border));background:linear-gradient(135deg,#087cf0,#075ac8);color:#fff;font-weight:750;box-shadow:0 5px 16px #087cf033}
+.nfm-tg-test-button:disabled{opacity:.4;cursor:not-allowed}
+.nfm-tg-mode-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.nfm-tg-mode-choice{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:9px;min-width:0;min-height:100px;padding:13px;border:1px solid var(--nfm-border);border-radius:13px;background:linear-gradient(145deg,color-mix(in srgb,var(--nfm-card2) 76%,transparent),var(--nfm-card));cursor:pointer;transition:border-color .16s ease,background .16s ease,box-shadow .16s ease}
+.nfm-tg-mode-choice:before{content:"";position:absolute;right:13px;top:12px;width:23px;height:23px;border-radius:7px;display:grid;place-items:center;color:var(--tg-cyan);font-size:18px;font-weight:800}
+.nfm-tg-mode-choice[data-mode=system]:before{content:"▣"}
+.nfm-tg-mode-choice[data-mode=proxy]:before{content:"▱"}
+.nfm-tg-mode-choice[data-mode=vpn]:before{content:"⬡"}
+.nfm-tg-mode-choice:hover{border-color:var(--tg-cyan);box-shadow:0 5px 18px color-mix(in srgb,var(--tg-cyan) 10%,transparent)}
+.nfm-tg-mode-choice:has(input:checked){border-color:var(--tg-cyan);background:linear-gradient(145deg,color-mix(in srgb,var(--tg-blue) 18%,var(--nfm-card)),var(--nfm-card));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--tg-cyan) 58%,transparent),0 7px 22px color-mix(in srgb,var(--tg-blue) 13%,transparent)}
+.nfm-tg-mode-choice input{margin:0;width:17px;height:17px;accent-color:var(--tg-blue)}
+.nfm-tg-mode-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
+.nfm-tg-mode-copy b{font-size:13px;font-weight:750}
+.nfm-tg-mode-copy small{font-size:10px;line-height:1.4;color:var(--nfm-dim)}
+.nfm-tg-mode-pane{margin-top:12px;padding:13px;border:1px solid color-mix(in srgb,var(--tg-cyan) 14%,var(--nfm-border));border-radius:14px;background:color-mix(in srgb,var(--nfm-card2) 62%,transparent)}
+.nfm-tg-vpn-pane{display:grid;gap:10px}
+.nfm-tg-output-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px;font-size:13px}
+.nfm-tg-output-count{padding:4px 9px;border-radius:999px;background:color-mix(in srgb,var(--tg-blue) 13%,var(--nfm-card));font-size:10px;font-weight:750;color:var(--nfm-text)}
+.nfm-tg-output-list{display:grid;grid-template-columns:1fr;gap:6px;max-height:330px;overflow:auto;padding:1px 3px 1px 1px}
+.nfm-tg-output-choice{display:flex;align-items:center;gap:11px;width:100%;min-width:0;min-height:50px;padding:9px 12px;border:1px solid var(--nfm-border);border-radius:11px;background:color-mix(in srgb,var(--nfm-card) 94%,transparent);color:var(--nfm-text);font:inherit;font-size:12px;line-height:1.3;text-align:left;cursor:pointer!important;pointer-events:auto;touch-action:manipulation;transition:border-color .16s ease,background .16s ease,box-shadow .16s ease}
+.nfm-tg-output-choice:hover{border-color:var(--tg-cyan);background:color-mix(in srgb,var(--tg-blue) 8%,var(--nfm-card))}
+.nfm-tg-output-choice:focus-visible{outline:2px solid var(--tg-cyan);outline-offset:2px}
+.nfm-tg-output-choice.selected{border-color:var(--tg-cyan);background:linear-gradient(100deg,color-mix(in srgb,var(--tg-blue) 17%,var(--nfm-card)),var(--nfm-card));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--tg-cyan) 48%,transparent)}
+.nfm-tg-output-choice.is-active{border-left:3px solid var(--tg-green)}
+.nfm-tg-output-radio{width:18px;height:18px;flex:0 0 18px;border:1.7px solid var(--nfm-dim);border-radius:50%;display:grid;place-items:center}
+.nfm-tg-output-choice.selected .nfm-tg-output-radio{border-color:var(--tg-cyan)}
+.nfm-tg-output-choice.selected .nfm-tg-output-radio:after{content:"";width:8px;height:8px;border-radius:50%;background:var(--tg-cyan);box-shadow:0 0 9px var(--tg-cyan)}
+.nfm-tg-output-copy{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.nfm-tg-output-name{min-width:0;overflow-wrap:anywhere;font-size:12px;font-weight:750}
+.nfm-tg-output-detail{color:var(--nfm-dim);font-size:10px;overflow-wrap:anywhere}
+.nfm-tg-output-state{flex:0 0 auto;max-width:130px;padding:5px 9px;border-radius:999px;background:color-mix(in srgb,var(--nfm-card2) 85%,transparent);text-align:center;font-size:9px;line-height:1.2;letter-spacing:.025em;font-weight:800;color:var(--nfm-dim)}
+.nfm-tg-output-state.is-active{color:var(--tg-green);background:color-mix(in srgb,var(--tg-green) 13%,var(--nfm-card))}
+.nfm-tg-output-state.is-verified{color:var(--tg-cyan);background:color-mix(in srgb,var(--tg-cyan) 12%,var(--nfm-card))}
+.nfm-tg-output-state.is-found{color:#d9a64c}
+.nfm-tg-output-state.is-unavailable{color:#df8550}
+.nfm-tg-output-selection{padding:10px 12px;border:1px solid var(--nfm-border);border-radius:10px;background:color-mix(in srgb,var(--nfm-card2) 72%,transparent);font-size:11px;line-height:1.45;overflow-wrap:anywhere}
+.nfm-tg-output-help{font-size:10px;line-height:1.45;color:var(--nfm-dim)}
+.nfm-tg-route-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:13px}
+.nfm-tg-route-actions .nfm-act-primary{margin-left:auto}
+.nfm-tg-mode-description{margin-top:10px;font-size:10px}
+.nfm-tg-route-state{margin-top:10px;padding:10px 12px;border:1px solid var(--nfm-border);border-radius:10px;background:color-mix(in srgb,var(--nfm-card2) 65%,transparent);font-size:11px}
+.nfm-tg-page .nfm-tg-info-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--nfm-border);font-size:11px}
+.nfm-tg-page .nfm-tg-info-row:last-of-type{border-bottom:0}
+.nfm-tg-page .nfm-tg-note{margin-top:9px;padding:10px 11px;font-size:10px;line-height:1.45;border-radius:10px;background:color-mix(in srgb,var(--nfm-card2) 68%,transparent)}
+.nfm-tg-page .nfm-tg-state{margin-top:9px;padding:10px 11px;font-size:11px;border:1px solid var(--nfm-border);border-radius:10px;background:color-mix(in srgb,var(--nfm-card2) 55%,transparent)}
+.nfm-tg-page .nfm-tg-state.is-good{border-color:color-mix(in srgb,var(--tg-green) 55%,var(--nfm-border));background:color-mix(in srgb,var(--tg-green) 8%,var(--nfm-card))}
+.nfm-tg-page .nfm-tg-state.is-bad{border-color:color-mix(in srgb,#e05252 55%,var(--nfm-border));background:color-mix(in srgb,#e05252 8%,var(--nfm-card))}
+.nfm-tg-disclosure{min-width:0;border:1px solid var(--nfm-border);border-radius:14px;background:linear-gradient(145deg,color-mix(in srgb,var(--nfm-card) 95%,#10294a),var(--nfm-card));padding:0 15px;overflow:hidden}
+.nfm-tg-disclosure>summary{display:flex;align-items:center;gap:10px;min-height:54px;cursor:pointer;list-style:none;font-weight:750;font-size:13px}
+.nfm-tg-disclosure>summary::-webkit-details-marker{display:none}
+.nfm-tg-disclosure>summary:after{content:"+";margin-left:auto;color:var(--tg-cyan);font-size:20px}
+.nfm-tg-disclosure[open]>summary:after{content:"−"}
+.nfm-tg-disclosure-icon{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:color-mix(in srgb,var(--tg-blue) 16%,var(--nfm-card2));color:var(--tg-cyan);font-size:16px}
+.nfm-tg-disclosure-hint{margin-left:auto;color:var(--nfm-dim);font-size:10px;font-weight:400}
+.nfm-tg-disclosure[open] .nfm-tg-disclosure-hint{display:none}
+.nfm-tg-disclosure .nfm-cfg-g{border:0;padding:0 0 12px;background:transparent;box-shadow:none}
+.nfm-tg-disclosure .nfm-cfg-head{display:none}
+.nfm-tg-disclosure .nfm-cfg-body{padding:0}
+.nfm-tg-advanced{margin:0 0 12px;border:1px solid var(--nfm-border);border-radius:14px;overflow:hidden}
+.nfm-tg-advanced .nfm-cfg-head{min-height:52px;padding:0 16px}
+.nfm-tg-advanced .nfm-cfg-body{padding:12px 16px}
+.nfm-tg-save-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.nfm-tg-save-row>div:first-child{flex:1;min-width:220px}
+.nfm-tg-save-row>div:first-child b{font-size:13px}
+.nfm-tg-save-row .nfm-note-s{font-size:10px}
+.nfm-tg-save-row .nfm-act{min-height:42px;padding:9px 18px;border-radius:10px}
+.nfm-tg-save-row .nfm-act-primary{background:linear-gradient(135deg,#087cf0,#075ac8);color:#fff}
+.nfm-tg-status-grid .nfm-card{height:100%}
+.nfm-tg-page .nfm-grid{margin-bottom:0}
+@media(max-width:1100px){.nfm-tg-main-grid{grid-template-columns:minmax(290px,.78fr) minmax(0,1.22fr)}.nfm-tg-status-grid{gap:10px}}
+@media(max-width:820px){.nfm-tg-main-grid{grid-template-columns:1fr}.nfm-tg-left-column{grid-template-columns:1fr 1fr;align-items:start}.nfm-tg-status-grid{grid-template-columns:1fr 1fr}.nfm-tg-status-grid .nfm-card:last-child{grid-column:1/-1}}
+@media(max-width:600px){.nfm-tg-left-column,.nfm-tg-status-grid{grid-template-columns:1fr}.nfm-tg-status-grid .nfm-card:last-child{grid-column:auto}.nfm-tg-mode-list{grid-template-columns:1fr}.nfm-tg-mode-choice{min-height:0;flex-direction:row;align-items:center}.nfm-tg-output-choice{min-height:54px}.nfm-tg-output-state{max-width:104px;font-size:8px}.nfm-tg-hero{padding:13px 15px}.nfm-tg-brand{gap:11px}.nfm-tg-logo{width:46px;height:46px;flex-basis:46px}.nfm-tg-brand h2{font-size:18px}.nfm-tg-master{width:100%;justify-content:space-between}.nfm-tg-connect-actions .nfm-act{flex:1 1 100%}.nfm-tg-route-actions .nfm-act{flex:1 1 100%}.nfm-tg-route-actions .nfm-act-primary{margin-left:0}}
+@media(prefers-reduced-motion:reduce){.nfm-tg-page *{transition:none!important;animation:none!important}}` ]),
+			tgHero,
+			tgMainGrid,
+			tgStatusGrid,
+			tgOptionsGrid,
+			tgAdvanced,
+			tgSaveCard
+		]);
+
+		function renderTelegramRuntime(mode) {
+			const status = S.tgRouteRuntime;
+			if (!status || !status.ok) {
+				tgRouteStatus.textContent = status && status.error
+					? _('Не удалось получить состояние маршрута: ') + status.error
+					: _('Проверяю, установлен ли отдельный маршрут Telegram…');
+				tgRouteStatus.classList.remove('is-good', 'is-bad');
+				return;
+			}
+			if (status.blocked) {
+				tgRouteStatus.textContent = _('Защитная блокировка активна: Telegram не уйдёт напрямую. Выход: ') + (status.output || cfgInputs.TG_ROUTE_OUTPUT.value || 'VPN');
+				tgRouteStatus.classList.add('is-bad');
+				tgRouteStatus.classList.remove('is-good');
+				return;
+			}
+			if (status.active) {
+				tgRouteStatus.textContent = _('Маршрут ядра активен: ') +
+					(status.source === 'steer' ? 'Steer' : _('VPN-интерфейс')) +
+					' · ' + (status.device || status.output || '') +
+					(status.table ? ' · table ' + status.table : '');
+				tgRouteStatus.classList.add('is-good');
+				tgRouteStatus.classList.remove('is-bad');
+				return;
+			}
+			tgRouteStatus.textContent = mode === 'system'
+				? _('Отдельные правила не установлены. Telegram использует системный маршрут OpenWrt.')
+				: mode === 'proxy'
+					? _('Прокси выбран. Проверка доступности Telegram появится после тестового запроса.')
+					: _('VPN выбран, но изолированный маршрут ещё не применён. Нажмите «Сохранить и применить маршрут».');
+			tgRouteStatus.classList.remove('is-good', 'is-bad');
+		}
+
+		function renderTelegram() {
+			/* Do not paint a fake default route while the saved UCI configuration is still loading. */
+			if (S.cfg === undefined || S.cfg === null) {
+				for (const key of Object.keys(tgModeRadios)) tgModeRadios[key].checked = false;
+				tgProxyPane.hidden = true;
+				tgVpnPane.hidden = true;
+				tgModeDescription.textContent = _('Загружаю сохранённые настройки Telegram…');
+				tgRouteState.textContent = _('Читаю сохранённый режим маршрутизации.');
+				tgRouteStatus.textContent = _('Ожидаю загрузку конфигурации…');
+				tgApplyRouteButton.disabled = true;
+				tgTestButton.disabled = true;
+				return;
+			}
+			const values = S.cfg && S.cfg.values || {};
+			const mode = cfgInputs.TG_ROUTE_MODE.value || values.TG_ROUTE_MODE || (values.TG_PROXY ? 'proxy' : values.TG_IFACE ? 'vpn' : 'system');
+			// Migrate legacy TG_IFACE/TG_PROXY values into the new route fields
+			// before any save action can overwrite the old configuration.
+			if (!cfgInputs.TG_ROUTE_MODE.value) cfgInputs.TG_ROUTE_MODE.value = mode;
+			if (!cfgInputs.TG_ROUTE_OUTPUT.value)
+				cfgInputs.TG_ROUTE_OUTPUT.value = values.TG_ROUTE_OUTPUT || (values.TG_IFACE ? 'iface:' + values.TG_IFACE : '');
+			if (!cfgInputs.TG_IFACE.value && values.TG_IFACE) cfgInputs.TG_IFACE.value = values.TG_IFACE;
+			for (const key of Object.keys(tgModeRadios))
+				tgModeRadios[key].checked = key === mode;
+			tgProxyPane.hidden = mode !== 'proxy';
+			tgVpnPane.hidden = mode !== 'vpn';
+			tgModeDescription.textContent = mode === 'system'
+				? _('Используется системный маршрут OpenWrt.')
+				: mode === 'proxy'
+					? _('Telegram API будет доступен только через указанный прокси.')
+					: _('VPN-режим использует отдельный UID и policy routing. При отсутствии рабочего выхода отправка блокируется.');
+
+			const info = S.tgInfo && S.tgInfo.ok ? S.tgInfo : {};
+			if (!S.tgInfo || !S.tgInfo.ok) {
+				tgSteerValue.textContent = S.tgInfo && S.tgInfo.error ? _('Ошибка обнаружения') : _('Не проверено');
+				tgRouteState.textContent = S.tgInfo && S.tgInfo.error ? _('Не удалось обнаружить выходы: ') + S.tgInfo.error : _('Обнаружение VPN-выходов ещё не завершено.');
+			} else {
+				tgSteerValue.textContent = info.steer && info.steer.found
+					? _('Steer ') + (info.steer.version || _('обнаружен'))
+					: _('Универсальный Linux policy routing');
+			}
+			const outputs = allTgOutputs();
+			const readyCount = outputs.filter(item => item.ready !== false).length;
+			tgOutputCount.textContent = _('%d обнаружено · %d доступны для проверки').format(outputs.length, readyCount);
+			tgOutputListCount.textContent = _('%d найдено').format(outputs.length);
+			const runtime = S.tgRouteRuntime || {};
+			const activeOutput = runtime.active && runtime.output ? runtime.output : '';
+			const savedOutput = cfgInputs.TG_ROUTE_OUTPUT.value || values.TG_ROUTE_OUTPUT || info.selected_output || (values.TG_IFACE ? 'iface:' + values.TG_IFACE : '');
+			const current = tgPendingOutput || activeOutput || savedOutput;
+			const selectedItem = outputs.find(item => item.id === current);
+			const selectedVerified = !!(selectedItem && (selectedItem.verified || (activeOutput && activeOutput === current)));
+			const outputSignature = JSON.stringify(outputs.map(item => [ item.id, item.label || '', item.ready !== false, !!item.verified, item.device || '', item.table || '', item.mark || '' ]));
+			/* Build the compact choice cards only when discovery changes; clicks update state in place. */
+			if (outputSignature !== tgOutputSignature) {
+				const choices = outputs.map(item => E('button', {
+					type: 'button', class: 'nfm-tg-output-choice', 'data-output': item.id,
+					'aria-pressed': 'false', 'aria-disabled': 'false'
+				}, [
+					E('span', { class: 'nfm-tg-output-radio', 'aria-hidden': 'true' }),
+					E('span', { class: 'nfm-tg-output-copy' }, [
+						E('span', { class: 'nfm-tg-output-name' }, item.label || item.id),
+						E('small', { class: 'nfm-tg-output-detail' }, [ item.device || '', item.table ? 'table ' + item.table : '', item.mark || '' ].filter(Boolean).join(' · ') || _('Интерфейс обнаружен'))
+					]),
+					E('span', { class: 'nfm-tg-output-state' }, '')
+				]));
+				tgOutputList.replaceChildren(...(choices.length ? choices : [ E('div', { class: 'nfm-note-s' }, _('VPN-выходы не обнаружены.')) ]));
+				tgOutputSignature = outputSignature;
+			}
+			Array.from(tgOutputList.querySelectorAll('button[data-output]')).forEach(button => {
+				/* Discovery state is informational. Every discovered route remains selectable for a probe. */
+				button.disabled = false;
+				button.removeAttribute('disabled');
+				button.setAttribute('aria-disabled', 'false');
+				const id = button.getAttribute('data-output');
+				const item = outputs.find(output => output.id === id);
+				const selected = id === current;
+				const active = id === activeOutput;
+				const verified = !!(item && item.verified) || active;
+				button.classList.toggle('selected', selected);
+				button.classList.toggle('is-active', active);
+				button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+				const state = button.querySelector('.nfm-tg-output-state');
+				if (state) {
+					state.className = 'nfm-tg-output-state' + (active ? ' is-active' : verified ? ' is-verified' : item && item.ready !== false ? ' is-found' : ' is-unavailable');
+					state.textContent = active ? _('АКТИВЕН') : verified ? _('ПРОВЕРЕН') : item && item.ready !== false ? (selected ? _('ВЫБРАН · ПРОВЕРИТЬ') : _('ПРОВЕРИТЬ')) : _('НЕДОСТУПЕН');
+				}
+			});
+			tgProbeButton.disabled = !selectedItem || tgProbeBusy || tgApplyBusy || (selectedItem.activeOnly && activeOutput === current);
+			tgProbeButton.textContent = tgProbeBusy ? _('Проверяю…') : selectedItem && selectedItem.activeOnly && activeOutput === current ? _('Маршрут уже активен') : selectedVerified ? _('Проверить ещё раз') : _('Проверить выбранный выход');
+			if (mode === 'vpn') {
+				if (!selectedItem) tgOutputSelection.textContent = current ? _('Сохранённый выход не найден в списке обнаружения.') : _('Выберите выход в списке.');
+				else if (activeOutput === current) tgOutputSelection.textContent = _('Сейчас реально активен: ') + (selectedItem.device || current) + (selectedItem.table ? ' · table ' + selectedItem.table : '');
+				else if (selectedItem.verified) tgOutputSelection.textContent = _('Проверка пройдена: ') + (selectedItem.device || current) + (selectedItem.table ? ' · table ' + selectedItem.table : '') + _(' · готов к применению');
+				else if (selectedItem.probeError) tgOutputSelection.textContent = _('Последняя проверка не пройдена: ') + selectedItem.probeError;
+				else tgOutputSelection.textContent = selectedItem.ready === false ? _('Интерфейс или таблица сейчас недоступны.') : _('Выход только обнаружен. Сначала выполните проверку маршрута.');
+			} else tgOutputSelection.textContent = _('Выбор VPN применяется только в режиме «Через VPN».');
+			if (tgApplyRouteButton) tgApplyRouteButton.disabled = tgApplyBusy || (mode === 'vpn' && (!selectedItem || selectedItem.ready === false || !selectedVerified));
+			if (mode === 'vpn') {
+				const selected = outputs.find(item => item.id === current);
+				tgRouteState.textContent = selected
+					? (selected.ready === false ? _('Сохранённый выход сейчас не готов. Выберите доступный выход.') : _('Выбранный выход: ') + (selected.label || selected.id))
+					: current ? _('Сохранённый VPN-выход не обнаружен. Выберите другой выход или восстановите подключение.') : _('Выберите VPN-выход. Автоматически первый выход не выбирается.');
+			} else if (mode === 'proxy') {
+				tgRouteState.textContent = cfgInputs.TG_PROXY.value ? _('Прокси указан. После сохранения можно проверить Telegram API.') : _('Укажите адрес прокси для этого режима.');
+			} else {
+				tgRouteState.textContent = _('Telegram использует стандартную маршрутизацию OpenWrt.');
+			}
+			renderTelegramRuntime(mode);
+			syncTelegramTestButton();
+		}
+
+		function loadTelegram(force) {
+			if (!force && S.tgInfo && Date.now() - (S.tgInfoAt || 0) < 30000) {
+				renderTelegram();
+				return Promise.resolve();
+			}
+			const helper = '/usr/libexec/nightfall-telegram-route';
+			return Promise.all([
+				fs.exec(helper, [ 'inspect' ]).then(res => {
+					try { return JSON.parse(res.stdout || '{}'); }
+					catch (e) { return { ok: false, error: _('Некорректный ответ службы маршрутизации') }; }
+				}).catch(err => ({ ok: false, error: (err && err.message) || String(err) })),
+				fs.exec(helper, [ 'status' ]).then(res => {
+					try { return JSON.parse(res.stdout || '{}'); }
+					catch (e) { return { ok: false, error: _('Некорректный ответ статуса маршрута') }; }
+				}).catch(err => ({ ok: false, error: (err && err.message) || String(err) }))
+			]).then(([info, status]) => {
+				S.tgInfo = info;
+				S.tgRouteRuntime = status;
+				tgTestRouteUnavailable = !(status && status.ok);
+				S.tgInfoAt = Date.now();
+				renderTelegram();
+			});
+		}
+
+		function applyTelegramRoute() {
+			const selected = selectedTgOutput(), mode = cfgInputs.TG_ROUTE_MODE.value || 'system';
+			if (mode === 'vpn' && (!selected.item || selected.item.ready === false)) {
+				tgRouteState.textContent = _('Сначала выберите обнаруженный VPN-выход.');
+				return Promise.resolve(null);
+			}
+			if (mode === 'vpn' && !selected.item.verified && selected.id !== selected.active) {
+				tgRouteState.textContent = _('Сначала отдельно проверьте выбранный выход.');
+				return Promise.resolve(null);
+			}
+			if (tgApplyBusy) return Promise.resolve(null);
+			tgApplyBusy = true;
+			const values = S.cfg && S.cfg.values || {};
+			const previousMode = values.TG_ROUTE_MODE || (selected.active ? 'vpn' : (cfgInputs.TG_ROUTE_MODE.value || 'system'));
+			const previousOutput = selected.active || values.TG_ROUTE_OUTPUT || (values.TG_IFACE ? 'iface:' + values.TG_IFACE : '');
+			const candidate = selected.id;
+			if (mode === 'vpn') {
+				cfgInputs.TG_ROUTE_MODE.value = 'vpn';
+				cfgInputs.TG_ROUTE_OUTPUT.value = candidate;
+			}
+			tgRouteState.textContent = _('Сохраняю настройки и применяю проверенный маршрут…');
+			const restoreSavedRoute = () => {
+				cfgInputs.TG_ROUTE_MODE.value = previousMode;
+				cfgInputs.TG_ROUTE_OUTPUT.value = previousOutput;
+				return saveTelegramConfig();
+			};
+			return saveTelegramConfig().then(saved => {
+				if (!saved) return null;
+				return fs.exec('/usr/libexec/nightfall-telegram-route', [ 'apply' ]).then(res => {
+					let result = null;
+					try { result = JSON.parse(res.stdout || '{}'); } catch (e) {}
+					if (result && result.ok) {
+						if (S.cfg && S.cfg.values) {
+							S.cfg.values.TG_ROUTE_MODE = cfgInputs.TG_ROUTE_MODE.value;
+							S.cfg.values.TG_ROUTE_OUTPUT = cfgInputs.TG_ROUTE_OUTPUT.value;
+						}
+						tgPendingOutput = null;
+						tgRouteState.textContent = result.mode === 'vpn'
+							? _('Маршрут подтверждён: ') + (result.output || candidate) + ' · ' + (result.device || '') + (result.table ? ' · table ' + result.table : '')
+							: result.mode === 'proxy' ? _('Прокси сохранён и готов к проверке.') : _('Используется системный маршрут OpenWrt.');
+						tgRouteStatus.textContent = tgRouteState.textContent;
+						return loadTelegram(true).then(() => result);
+					}
+					return restoreSavedRoute().then(() => {
+						tgRouteState.textContent = result && result.error ? result.error + ' · ' + _('Предыдущие настройки сохранены.') : _('Не удалось применить маршрут Telegram. Предыдущие настройки восстановлены.');
+						tgRouteStatus.textContent = tgRouteState.textContent;
+						return loadTelegram(true).then(() => null);
+					});
+				}).catch(err => restoreSavedRoute().then(() => {
+					tgRouteState.textContent = _('Не удалось запустить маршрутизацию: ') + (err.message || err) + ' · ' + _('Настройки предыдущего маршрута восстановлены.');
+					tgRouteStatus.textContent = tgRouteState.textContent;
+					return loadTelegram(true).then(() => null);
+				}));
+			}).then(result => {
+				tgApplyBusy = false;
+				renderTelegram();
+				return result;
+			});
+		}
+
 		const jrnTiles = E('div', { class: 'nfm-tiles t4', style: 'margin-bottom:10px' }, [ [ 'jCnt', _('обрывов за 7 дней') ], [ 'jSum', _('без связи суммарно') ], [ 'jAv', _('доступность') ], [ 'jBoot', _('последняя загрузка') ] ]
 			.map(([ k, l ]) => E('div', { class: 'nfm-tile' }, [ l, T[k] = E('b', {}, '–') ])));
 		const jrnBox = E('div');
@@ -2120,10 +2735,10 @@ return view.extend({
 				card(_('Хранение истории и износ флеш-памяти'), flashBox)
 			]),
 			E('div', { class: 'nfm-grid' }, [ card([ _('Экспорт данных в CSV'), E('span', { class: 'nfm-spacer' }), E('span', { class: 'nfm-note-s' }, _('открывается в Excel и Google Таблицах')) ], E('div', {}, [ E('div', { class: 'nfm-exp' }, expBtns), E('div', { style: 'margin-top:8px' }, expNote) ])) ]),
-			E('div', { class: 'nfm-grid' }, [ card([ _('Накопители'), E('span', { class: 'nfm-spacer' }), E('button', { type: 'button', class: 'nfm-btn', click: () => { dskBody.replaceChildren(E('div', { class: 'nfm-empty' }, _('Ищу накопители…'))); loadDisks(); } }, _('Обновить')) ], E('div', {}, [ dskBody, dskMsg, E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, _('История (графики, трафик по дням и приложениям, журнал) сохраняется на накопитель раз в час и не пропадает при перезагрузке. Флешка не изнашивает память роутера.')) ])) ])
-		]);
+			E('div', { class: 'nfm-grid' }, [ card([ _('Накопители'), E('span', { class: 'nfm-spacer' }), E('button', { type: 'button', class: 'nfm-btn', click: () => { dskBody.replaceChildren(E('div', { class: 'nfm-empty' }, _('Ищу накопители…'))); loadDisks(); } }, _('Обновить')) ], E('div', {}, [ dskBody, dskMsg, E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, _('История (графики, трафик по дням и приложениям, журнал) сохраняется на накопитель раз в час и не пропадает при перезагрузке. Флешка не изнашивает память роутера.')) ])) ]),
+			]);
 
-		/* Настройки вынесены из конца «Истории» в самостоятельную вкладку. */
+		/* General monitor settings stay separate from the Telegram Control Center. */
 		const settingsTab = E('div', { class: 'nfm-settings', hidden: true }, [
 			E('div', { class: 'nfm-grid' }, [ cfgCard ])
 		]);
@@ -2349,10 +2964,27 @@ return view.extend({
 		const pill = E('span', { class: 'nfm-pill' }, _('обновляется каждые %s с').format(INTERVAL));
 		const pauseBtn = E('button', { class: 'nfm-btn', click: () => setPaused(!S.paused) }, _('Пауза'));
 		const onTab = (...k) => k.indexOf(S.tab) >= 0;
-		const TAB_KEYS = [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist', 'settings' ];
+		const TAB_KEYS = [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist', 'tg', 'settings' ];
 		const tabBtns = {};
-		const tabs = E('div', { class: 'nfm-tabs', role: 'tablist' }, [ [ 'overview', _('Обзор') ], [ 'net', _('Сеть') ], [ 'wifi', 'Wi‑Fi' ], [ 'devs', _('Устройства') ], [ 'apps', _('Трафик') ], [ 'procs', _('Программы') ], [ 'svcs', _('Службы') ], [ 'diag', _('Диагностика') ], [ 'sec', _('Безопасность') ], [ 'log', _('Журнал') ], [ 'hist', _('История') ], [ 'settings', _('Настройки') ] ]
-			.map(([ k, l ]) => tabBtns[k] = E('button', { class: 'nfm-tab nfm-ti', 'data-ic': k, role: 'tab', click: () => { S.tab = k; refresh(); } }, l)));
+		let topDeviceHeader = null;
+		const tabs = E('div', { class: 'nfm-tabs', role: 'tablist' }, [
+			[ 'overview', _('Обзор') ],
+			[ 'net', _('Сеть') ],
+			[ 'wifi', 'Wi‑Fi' ],
+			[ 'devs', _('Устройства'), _('Устр.') ],
+			[ 'apps', _('Трафик') ],
+			[ 'procs', _('Программы'), _('Прогр.') ],
+			[ 'svcs', _('Службы') ],
+			[ 'diag', _('Диагностика'), _('Диагн.') ],
+			[ 'sec', _('Безопасность'), _('Защита') ],
+			[ 'log', _('Журнал') ],
+			[ 'hist', _('История') ],
+			[ 'tg', 'TG Bot' ],
+			[ 'settings', _('Настройки'), _('Настр.') ]
+		].map(([ k, full, compact ]) => tabBtns[k] = E('button', {
+			class: 'nfm-tab nfm-ti', 'data-ic': k, role: 'tab', title: full, 'aria-label': full,
+			click: () => { S.tab = k; if (topDeviceHeader) topDeviceHeader.hidden = k === 'tg'; refresh(); }
+		}, compact || full)));
 
 		const svcFilter = E('input', { class: 'nfm-in', type: 'search', placeholder: _('Найти службу…'), input: () => renderServices() });
 		const svcBox = E('div');
@@ -2363,13 +2995,13 @@ return view.extend({
 			E('div', { class: 'nfm-grid' }, [ svcMore ])
 		]);
 		{ const hv = (window.location.hash || '').replace('#', ''); if (TAB_KEYS.includes(hv)) S.tab = hv; }
+		topDeviceHeader = E('div', { class: 'nfm-top-device', hidden: S.tab === 'tg' }, [ E('h2', {}, _('Монитор ресурсов')),
+			E('div', { class: 'nfm-sub' }, [ (board.model || board.hostname || 'OpenWrt') + _(' · работает '), t('uptime') ]) ]);
 		const root = E('div', { class: 'nfm' }, [
 			E('style', {}, CSS + XCSS),
-			E('div', { class: 'nfm-top' }, [
-				E('div', {}, [ E('h2', {}, _('Монитор ресурсов')),
-					E('div', { class: 'nfm-sub' }, [ (board.model || board.hostname || 'OpenWrt') + _(' · работает '), t('uptime') ]) ]),
+			E('div', { class: 'nfm-top' }, [ topDeviceHeader,
 				E('span', { class: 'nfm-spacer' }), modeBadge, pill, pauseBtn, tabs ]),
-			overview, net, wifiTab, devsTab, appsTab, procs, svcs, diagTab, secTab, logTab, hist, settingsTab
+			overview, net, wifiTab, devsTab, appsTab, procs, svcs, diagTab, secTab, logTab, hist, tgTab, settingsTab
 		]);
 
 		/* host-theme dark/light adaptation: re-check after insertion, on theme
@@ -2764,7 +3396,7 @@ return view.extend({
 			if (onTab('hist', 'log') && due('jrn', 30)) jobs.push(callHistory([ 'journal' ]).then(r => { S.jrn = r; }));
 			if (onTab('hist', 'diag') && due('spd', S.spdRun ? 3 : 30)) jobs.push(callHistory([ 'speed' ]).then(r => { S.spd = r; if (S.spdRun && Date.now() - (S.spdT || 0) > 4000 && (!r || !r.running)) { S.spdRun = false; if (r === false) ui.addNotification(null, E('p', {}, _('Замер завершён, но результат не прочитан: ') + MISSING), 'danger'); } }));
 			if (S.tab === 'svcs' && due('svc', 6)) jobs.push(Promise.all([ L.resolveDefault(callInitList(), null), L.resolveDefault(callServiceList(), null) ]).then(r => { S.svc = { init: r[0], run: r[1] }; }));
-			if (onTab('hist', 'settings') && S.cfg === undefined) { S.cfg = null; jobs.push(callCfg([ 'get' ]).then(r => { S.cfg = r; fillCfg(r && r.values); renderDisks(); })); }
+			if (onTab('hist', 'tg', 'settings') && S.cfg === undefined) { S.cfg = null; jobs.push(callCfg([ 'get' ]).then(r => { S.cfg = r; fillCfg(r && r.values); renderDisks(); })); }
 			if (S.tab === 'hist' && S.dsk === undefined) { S.dsk = null; jobs.push(loadDisks()); }
 			return Promise.all(jobs);
 		}
@@ -2787,7 +3419,7 @@ return view.extend({
 		}
 
 		function saveCfg() {
-			const args = [ 'set' ].concat(Object.keys(cfgInputs).map(k => k + '=' + (cfgBoolKeys.has(k) ? (cfgInputs[k].checked ? '1' : '0') : cfgInputs[k].value.trim())));
+			const args = [ 'set' ].concat(Object.keys(cfgInputs).filter(k => !k.startsWith('TG')).map(k => k + '=' + (cfgBoolKeys.has(k) ? (cfgInputs[k].checked ? '1' : '0') : cfgInputs[k].value.trim())));
 			callCfg(args).then(r => {
 				if (r && r.ok) {
 					cfgMsg.textContent = _('Сохранено, сборщик перезапущен.');
@@ -3845,7 +4477,7 @@ return view.extend({
 				tabBtns[k].setAttribute('aria-selected', S.tab === k);
 			}
 			show(overview, S.tab === 'overview'); show(net, S.tab === 'net'); show(procs, S.tab === 'procs'); show(svcs, S.tab === 'svcs'); show(hist, S.tab === 'hist'); show(settingsTab, S.tab === 'settings');
-			show(wifiTab, S.tab === 'wifi'); show(devsTab, S.tab === 'devs'); show(appsTab, S.tab === 'apps'); show(diagTab, S.tab === 'diag'); show(secTab, S.tab === 'sec'); show(logTab, S.tab === 'log');
+			show(wifiTab, S.tab === 'wifi'); show(devsTab, S.tab === 'devs'); show(appsTab, S.tab === 'apps'); show(diagTab, S.tab === 'diag'); show(secTab, S.tab === 'sec'); show(logTab, S.tab === 'log'); show(tgTab, S.tab === 'tg');
 			if (!d) return;
 
 			T.uptime.textContent = fmtUptime(d.up);
@@ -3966,6 +4598,7 @@ return view.extend({
 			if (S.tab === 'log') { renderHist(); renderJournal(); renderLogTools(); renderRouterLog(); }
 			if (S.tab === 'diag') renderSpeed();
 			if (S.tab === 'sec') renderSec();
+			if (S.tab === 'tg') { renderTelegram(); if (!S.tgInfo || Date.now() - (S.tgInfoAt || 0) > 30000) loadTelegram(false); }
 			if (S.tab === 'devs') renderDevBlock();
 
 			/* overheating banner */

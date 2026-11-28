@@ -44,6 +44,9 @@
 				],
 				"/usr/libexec/nightfall-backup": [
 					"exec"
+				],
+				"/usr/libexec/nightfall-telegram-route": [
+					"exec"
 				]
 			},
 			"uci": [
@@ -106,9 +109,15 @@
 				],
 				"/usr/libexec/nightfall-backup": [
 					"exec"
+				],
+				"/usr/libexec/nightfall-telegram-route": [
+					"exec"
 				]
 			},
 			"ubus": {
+				"file": [
+					"exec"
+				],
 				"system": [
 					"reboot"
 				],
