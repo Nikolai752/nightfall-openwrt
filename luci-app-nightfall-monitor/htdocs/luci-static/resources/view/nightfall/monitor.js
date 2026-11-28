@@ -1630,7 +1630,7 @@ return view.extend({
 			const button = ev.target && ev.target.closest ? ev.target.closest('button[data-output]') : null;
 			if (!button || !tgOutputList.contains(button) || button.disabled) return;
 			const item = allTgOutputs().find(output => output.id === button.getAttribute('data-output'));
-			if (!item || item.ready === false) return;
+			if (!item) return;
 			tgPendingOutput = item.id;
 			item.probeError = '';
 			renderTelegram();
@@ -1678,7 +1678,7 @@ return view.extend({
 		}
 		function probeTgOutput() {
 			const selected = selectedTgOutput(), item = selected.item;
-			if (!item || item.ready === false || tgProbeBusy || tgApplyBusy) return Promise.resolve(null);
+			if (!item || tgProbeBusy || tgApplyBusy) return Promise.resolve(null);
 			tgProbeBusy = true;
 			tgOutputSelection.textContent = _('Проверяю маршрут через ') + (item.label || item.id) + '…';
 			tgProbeButton.disabled = true;
@@ -1900,9 +1900,9 @@ return view.extend({
 			if (outputSignature !== tgOutputSignature) {
 				const choices = outputs.map(item => E('button', {
 					type: 'button', class: 'nfm-tg-output-choice', 'data-output': item.id,
-					'aria-pressed': 'false', disabled: item.ready === false,
+					'aria-pressed': 'false',
 					click: () => {
-						if (item.ready === false || tgProbeBusy || tgApplyBusy) return;
+						if (tgProbeBusy || tgApplyBusy) return;
 						tgPendingOutput = item.id;
 						item.probeError = '';
 						renderTelegram();
@@ -1933,7 +1933,7 @@ return view.extend({
 					state.textContent = active ? _('АКТИВЕН') : verified ? _('ПРОВЕРЕН') : item && item.ready !== false ? (selected ? _('ВЫБРАН · ПРОВЕРИТЬ') : _('ПРОВЕРИТЬ')) : _('НЕДОСТУПЕН');
 				}
 			});
-			tgProbeButton.disabled = !selectedItem || selectedItem.ready === false || tgProbeBusy || tgApplyBusy || (selectedItem.activeOnly && activeOutput === current);
+			tgProbeButton.disabled = !selectedItem || tgProbeBusy || tgApplyBusy || (selectedItem.activeOnly && activeOutput === current);
 			tgProbeButton.textContent = tgProbeBusy ? _('Проверяю…') : selectedItem && selectedItem.activeOnly && activeOutput === current ? _('Маршрут уже активен') : selectedVerified ? _('Проверить ещё раз') : _('Проверить выбранный выход');
 			if (mode === 'vpn') {
 				if (!selectedItem) tgOutputSelection.textContent = current ? _('Сохранённый выход не найден в списке обнаружения.') : _('Выберите выход в списке.');
