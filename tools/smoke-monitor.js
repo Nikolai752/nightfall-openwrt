@@ -60,7 +60,7 @@ const EXEC = (cmd, args) => {
 		if (value) TG_ROUTE_OUTPUT = value.slice('TG_ROUTE_OUTPUT='.length);
 		return '{"ok":true}';
 	}
-	if (n === 'nightfall-config' && args[0] === 'get') return JSON.stringify({ ok: true, values: { TG: '1', TG_ALERTS: '1', TG_BOT: '1', TG_CLEAN: '0', TG_UPDATES: '1', TG_SEC: '1', TG_WIDGETS: '0', TG_REPORT: '', TG_TOKEN: '', TG_CHAT: '', TG_USERS: '', TG_PROXY: '', TG_IFACE: '', TG_ROUTE_MODE: 'vpn', TG_ROUTE_OUTPUT: 'steer:zm_vpn2' } });
+	if (n === 'nightfall-config' && args[0] === 'get') return JSON.stringify({ ok: true, values: { TG: '1', TG_ALERTS: '1', TG_BOT: '1', TG_CLEAN: '0', TG_UPDATES: '1', TG_SEC: '1', TG_WIDGETS: '0', TG_REPORT: '', TG_TOKEN: '123456:TESTTOKEN', TG_CHAT: '123456789', TG_USERS: '', TG_PROXY: '', TG_IFACE: '', TG_ROUTE_MODE: 'vpn', TG_ROUTE_OUTPUT: 'steer:zm_vpn2' } });
 	if (n === 'nightfall-sec' || n === 'nightfall-diag' || n === 'nightfall-log') return run(n, args);
 	if (n === 'nightfall-dns') return run(n, args, { NF_LOGREAD: path.join(T, 'dnslogread'), NF_UCI: path.join(T, 'uci_dns') });
 	if (n === 'nightfall-history') return args[0] === 'apps' ? JSON.stringify({ enabled: 1, lite: 0, today: '20261118', day: [["192.168.1.20", "ВКонтакте", "VPN", 1048576, 51200], ["192.168.1.20", "Прочее · okcdn.ru", "Direct", 2097152, 1024], ["192.168.1.20", "Прочее · Нет DNS-имени", "Unknown", 512000, 1000], ["192.168.1.20", "Telegram", "VPN", 256000, 1000]], hist: [] }) : args[0] === 'devices' ? JSON.stringify({ now: NOW, ts: NOW - 10, rate: [], day: [["192.168.1.20", 5000000, 1000000]], yday: [], neigh: [["192.168.1.20", "aa:bb:cc:dd:ee:01"]], info: {} }) : args[0] === 'wifi' && !args[1] ? JSON.stringify({ now: NOW, rows: [], events: [[NOW - 60, "aa:bb:cc:dd:ee:01", "join", "phy0"], [NOW - 120, "aa:bb:cc:dd:ee:01", "leave", "phy0"]] }) : args[0] === 'extip' ? JSON.stringify({ now: NOW, rows: [[NOW - 86400, "203.0.113.7", 0], [NOW - 60, "100.64.3.9", 1]] }) : args[0] === 'procmem' ? JSON.stringify({ now: NOW, rows: Array.from({ length: 8 }, (_, i) => [NOW - (7 - i) * 900, [["dnsmasq", 10000 + i * 3000], ["uhttpd", 3000]]]) }) : args[0] === 'known' ? '{"now":1794786100,"rows":[["AA:BB:CC:DD:EE:01","x",1794700000]]}' : args[0] === 'mode' ? '{"mode":"full","step":15}' : args[0] === 'journal' ? JSON.stringify({ now: NOW, rows: [[ NOW - 120, 'outage', 120, 'нет интернета' ], [ NOW - 600, 'boot', 0, 'Загрузка роутера' ]] }) : '{}';
@@ -312,25 +312,27 @@ const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
 				await p.locator('.nfm-tg-disclosure').evaluateAll(els => els.forEach(el => { el.open = false; }));
 				if (await p.locator('.nfm-tg-disclosure[open]').count()) bad(vn + ': дополнительные разделы должны быть свёрнуты по умолчанию');
 								/* A confirmed active route may send the test. A stale saved output alone may not. */
-				await p.locator('.nfm-tg-test-button').click(); await p.waitForTimeout(750);
-				if (await p.evaluate(() => window.__getTgTestStarts()) !== 1) bad(vn + ': тест Telegram не стартовал при активном zm_vpn2');
+				await p.locator('.nfm-tg-test-button').click();
+				await p.waitForFunction(() => window.__getTgTestStarts() >= 1, { timeout: 5000 }).catch(() => {});
+				if (await p.evaluate(() => window.__getTgTestStarts()) !== 1) bad(vn + ': тест Telegram не стартовал при активном zm_vpn2 (starts=' + await p.evaluate(() => window.__getTgTestStarts()) + ')');
 				await p.evaluate(() => window.__setTgRouteActive(false));
 				await p.locator('.nfm-tg-test-button').evaluate(el => { el.disabled = false; el.click(); });
-				await p.waitForTimeout(700);
-				if (await p.evaluate(() => window.__getTgTestStarts()) !== 1) bad(vn + ': Telegram отправил тест при неактивном маршруте и только сохранённом выборе');
+				await p.waitForTimeout(1200);
+				if (await p.evaluate(() => window.__getTgTestStarts()) !== 1) bad(vn + ': Telegram отправил тест при неактивном маршруте и только сохранённом выборе (starts=' + await p.evaluate(() => window.__getTgTestStarts()) + ')');
 				if (!(await p.locator('.nfm-tg-test-button').isDisabled())) bad(vn + ': кнопка теста должна блокироваться при неактивном VPN-маршруте');
 				await p.evaluate(() => window.__setTgRouteActive(true));
 				await p.locator('.nfm-tg-test-button').evaluate(el => { el.disabled = false; el.click(); });
-				await p.waitForTimeout(750);
-				if (await p.evaluate(() => window.__getTgTestStarts()) !== 2) bad(vn + ': повторная проверка не возобновилась после восстановления активного маршрута');
+				await p.waitForFunction(() => window.__getTgTestStarts() >= 2, { timeout: 5000 }).catch(() => {});
+				if (await p.evaluate(() => window.__getTgTestStarts()) !== 2) bad(vn + ': повторная проверка не возобновилась после восстановления активного маршрута (starts=' + await p.evaluate(() => window.__getTgTestStarts()) + ')');
 				await p.evaluate(() => window.__setTgRouteStatusOk(false));
-				await p.locator('.nfm-tg-test-button').evaluate(el => { el.disabled = false; el.click(); }); await p.waitForTimeout(700);
-				if (await p.evaluate(() => window.__getTgTestStarts()) !== 2) bad(vn + ': старый кэш маршрута разрешил тест при ошибке свежего route status');
+				await p.locator('.nfm-tg-test-button').evaluate(el => { el.disabled = false; el.click(); }); await p.waitForTimeout(1200);
+				if (await p.evaluate(() => window.__getTgTestStarts()) !== 2) bad(vn + ': старый кэш маршрута разрешил тест при ошибке свежего route status (starts=' + await p.evaluate(() => window.__getTgTestStarts()) + ')');
 				if (!(await p.locator('.nfm-tg-test-button').isDisabled())) bad(vn + ': кнопка теста должна блокироваться при ошибке свежего route status');
 				await p.evaluate(() => window.__setTgRouteStatusOk(true));
 				await p.click('button:has-text("Обновить выходы")'); await p.waitForTimeout(200);
-				await p.locator('.nfm-tg-test-button').click(); await p.waitForTimeout(800);
-				if (await p.evaluate(() => window.__getTgTestStarts()) !== 3) bad(vn + ': тест Telegram не стартовал при подтверждённом активном zm_vpn2 после восстановления маршрута');
+				await p.locator('.nfm-tg-test-button').click();
+				await p.waitForFunction(() => window.__getTgTestStarts() >= 3, { timeout: 5000 }).catch(() => {});
+				if (await p.evaluate(() => window.__getTgTestStarts()) !== 3) bad(vn + ': тест Telegram не стартовал при подтверждённом активном zm_vpn2 после восстановления маршрута (starts=' + await p.evaluate(() => window.__getTgTestStarts()) + ')');
 				await p.screenshot({ path: path.join(OUT, 'monitor-tg-' + vn + '.png'), fullPage: true });
 			}
 			if (k === 'hist') {
