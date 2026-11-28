@@ -67,6 +67,38 @@ want "gsched off" '"ok":true' "$(run gsched Дети off)"
 chk 2 2100 - "расписание группы снято"
 
 
+echo "== суточная квота по всем адресам устройства =="
+mkdir -p "$T/proc/net"
+cat > "$T/proc/net/arp" <<EOF
+IP address       HW type     Flags       HW address            Mask     Device
+192.168.1.20     0x1         0x2         $M                   *        br-lan
+EOF
+cat > "$T/quota.neigh" <<EOF
+192.168.1.20 dev br-lan lladdr $M REACHABLE
+fd00::20 dev br-lan lladdr $M REACHABLE
+EOF
+cat > "$T/dir/dev.day" <<EOF
+192.168.1.20 1200000000 0 1200000000
+fd00::20 950000000 0 950000000
+EOF
+export NF_NEIGH=$T/quota.neigh NF_IP=true NF_TODAY=20261128
+r=$(run quota "$M" 2000 TV)
+want "квота сохранена" '"ok":true' "$r"
+r=$(run list)
+want "IPv4 и IPv6 суммируются без двойного учёта одного IP" '"used":2150000000' "$r"
+want "общий расход по двум адресам включает блокировку" '"reason":"quota"' "$r"
+
+# IPv6-only: устройство без IPv4 ARP-записи также должно получать квоту.
+: > "$T/proc/net/arp"
+printf 'fd00::20 15000000 0 15000000\\n' > "$T/dir/dev.day"
+printf 'fd00::20 dev br-lan lladdr %s REACHABLE\\n' "$M" > "$T/quota.neigh"
+r=$(run quota "$M" 10 TV)
+want "IPv6-only квота сохранена" '"ok":true' "$r"
+r=$(run list)
+want "IPv6-only расход учитывается" '"used":15000000' "$r"
+want "IPv6-only устройство блокируется после превышения" '"reason":"quota"' "$r"
+unset NF_NEIGH NF_IP NF_TODAY
+
 # Проверка передачи физического LAN-порта из FDB в JSON.
 PORTMAC=aa:bb:cc:dd:ee:02
 printf '%s LAN4\n' "$PORTMAC" > "$T/ports"
