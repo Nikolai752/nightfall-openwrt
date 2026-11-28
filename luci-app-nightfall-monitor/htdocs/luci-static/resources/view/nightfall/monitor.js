@@ -1431,7 +1431,7 @@ return view.extend({
 					try { status = JSON.parse(res.stdout || '{}'); } catch (e) {}
 					if (status && status.ok) S.tgRouteRuntime = status;
 					renderTelegram();
-					const reason = telegramTestBlockReason(status);
+					const reason = telegramTestBlockReason(status, true);
 					if (reason) return { ok: false, error: reason, blocked: true };
 					const mode = cfgInputs.TG_ROUTE_MODE.value || (S.cfg && S.cfg.values && S.cfg.values.TG_ROUTE_MODE) || 'system';
 					if (mode === 'vpn') {
@@ -1646,10 +1646,12 @@ return view.extend({
 			}
 			return outputs;
 		}
-		function telegramTestBlockReason(status) {
+		function telegramTestBlockReason(status, requireFresh) {
 			const values = S.cfg && S.cfg.values || {};
 			const mode = cfgInputs.TG_ROUTE_MODE.value || values.TG_ROUTE_MODE || (values.TG_PROXY ? 'proxy' : values.TG_IFACE ? 'vpn' : 'system');
 			if (mode === 'vpn') {
+				/* A test-send decision must never fall back to cached runtime status. */
+				if (requireFresh && (!status || !status.ok)) return _('Тест заблокирован: не удалось получить свежее подтверждение маршрута ядром. Сообщение не отправлено.');
 				const currentStatus = status && status.ok ? status : S.tgRouteRuntime || {};
 				const selected = selectedTgOutput();
 				if (!selected.id || !selected.item) return _('Тест заблокирован: нет выбранного и обнаруженного VPN-выхода. Обновите список и выберите маршрут.');
