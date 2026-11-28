@@ -90,8 +90,8 @@ want "общий расход по двум адресам включает бл
 
 # IPv6-only: устройство без IPv4 ARP-записи также должно получать квоту.
 : > "$T/proc/net/arp"
-printf 'fd00::20 15000000 0 15000000\\n' > "$T/dir/dev.day"
-printf 'fd00::20 dev br-lan lladdr %s REACHABLE\\n' "$M" > "$T/quota.neigh"
+printf 'fd00::20 15000000 0 15000000\n' > "$T/dir/dev.day"
+printf 'fd00::20 dev br-lan lladdr %s REACHABLE\n' "$M" > "$T/quota.neigh"
 r=$(run quota "$M" 10 TV)
 want "IPv6-only квота сохранена" '"ok":true' "$r"
 r=$(run list)
