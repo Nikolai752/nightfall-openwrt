@@ -7040,6 +7040,8 @@ html body #view #status_leases6 .tr.placeholder > .td {
 	min-width: 0 !important;
 	max-width: 100%;
 	box-sizing: border-box;
+	/* The ID-scoped DHCP layout overrides the generic empty-state cell rules. */
+	text-align: center !important;
 }
 
 /* Network → Interfaces: keep the port tooltip outside the rounded interface card.
