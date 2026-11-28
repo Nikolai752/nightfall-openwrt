@@ -105,7 +105,19 @@ window.__mod = (new Function('view', 'rpc', 'fs', 'poll', 'ui', 'network', 'DevI
 		await p.addScriptTag({ content: 'const SRC = ' + JSON.stringify(SRC) + ';\nconst CHARTS_SRC = ' + JSON.stringify(CHARTS_SRC) + ';\n' + BOOT });
 		await p.evaluate(async () => { const m = window.__mod; const d = await m.load(); document.getElementById('m').appendChild(m.render(d)); });
 		await p.waitForTimeout(2500);
-		const tabs = await p.$$eval('.nfm-tab.nfm-ti', els => els.map(e => e.getAttribute('data-ic')));
+		const tabs = await p.locator('.nfm-tab.nfm-ti').evaluateAll(els => els.map(e => e.getAttribute('data-ic')));
+		if (vn === 'desktop') {
+			const layout = await p.evaluate(() => {
+				const nav = document.querySelector('.nfm-main-tabs');
+				const last = nav && nav.lastElementChild;
+				if (!nav || !last) return { found: false };
+				const nr = nav.getBoundingClientRect(), lr = last.getBoundingClientRect();
+				return { found: true, clientWidth: nav.clientWidth, scrollWidth: nav.scrollWidth, navRight: nr.right, lastRight: lr.right };
+			});
+			if (!layout.found) bad('desktop: не найдено основное меню вкладок');
+			else if (layout.scrollWidth > layout.clientWidth + 2 || layout.lastRight > layout.navRight + 2)
+				bad('desktop: верхнее меню вкладок не помещается целиком; ширина=' + layout.clientWidth + ', содержимое=' + layout.scrollWidth);
+		}
 		for (const k of [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist', 'settings' ]) if (!tabs.includes(k)) bad(vn + ': нет вкладки ' + k);
 		for (const k of [ 'overview', 'procs', 'wifi', 'devs', 'apps', 'diag', 'sec', 'log', 'net', 'hist', 'settings' ]) {
 			await p.click(`.nfm-tab.nfm-ti[data-ic="${k}"]`); await p.evaluate(() => window.__runMonitorTick()); await p.waitForTimeout(k === 'sec' || k === 'log' ? 3000 : 1500);
