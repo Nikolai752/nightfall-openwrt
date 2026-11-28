@@ -308,14 +308,18 @@ const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
 					bad(vn + ': переключатели TG Bot имеют неправильный размер: ' + JSON.stringify(tgSwitches));
 				await p.locator('.nfm-tg-disclosure').evaluateAll(els => els.forEach(el => { el.open = false; }));
 				if (await p.locator('.nfm-tg-disclosure[open]').count()) bad(vn + ': дополнительные разделы должны быть свёрнуты по умолчанию');
-								/* A stale saved output must not send a test message when the live route is no longer active. */
+								/* A confirmed active route may send the test. A stale saved output alone may not. */
+				await p.locator('.nfm-tg-test-button').click(); await p.waitForTimeout(750);
+				if (await p.evaluate(() => window.__getTgTestStarts()) !== 1) bad(vn + ': тест Telegram не стартовал при активном zm_vpn2');
 				await p.evaluate(() => window.__setTgRouteActive(false));
 				await p.locator('.nfm-tg-test-button').evaluate(el => { el.disabled = false; el.click(); });
 				await p.waitForTimeout(700);
-				if (await p.evaluate(() => window.__getTgTestStarts()) !== 0) bad(vn + ': тест Telegram был отправлен без подтверждённого активного маршрута');
+				if (await p.evaluate(() => window.__getTgTestStarts()) !== 1) bad(vn + ': Telegram отправил тест при неактивном маршруте и только сохранённом выборе');
 				if (!(await p.locator('.nfm-tg-test-button').isDisabled())) bad(vn + ': кнопка теста должна блокироваться при неактивном VPN-маршруте');
 				await p.evaluate(() => window.__setTgRouteActive(true));
-				await p.evaluate(() => window.__runMonitorTick()); await p.waitForTimeout(150);
+				await p.locator('.nfm-tg-test-button').evaluate(el => { el.disabled = false; el.click(); });
+				await p.waitForTimeout(750);
+				if (await p.evaluate(() => window.__getTgTestStarts()) !== 2) bad(vn + ': повторная проверка не возобновилась после восстановления активного маршрута');
 				await p.locator('.nfm-tg-test-button').click(); await p.waitForTimeout(800);
 				if (await p.evaluate(() => window.__getTgTestStarts()) !== 1) bad(vn + ': тест Telegram не стартовал при подтверждённом активном zm_vpn2');
 				await p.screenshot({ path: path.join(OUT, 'monitor-tg-' + vn + '.png'), fullPage: true });
