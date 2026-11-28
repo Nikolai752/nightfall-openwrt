@@ -231,7 +231,7 @@ ok "switch to zm_vpn2 selects its Steer mark/table and confirms active status"
 # A failed candidate must not tear down the known-good active zm_vpn2 route.
 printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:wrongroute\n' > "$T/conf"
 if "$H" apply > "$T/wrong-apply-result"; then bad "invalid candidate output was applied"; fi
-grep -Fq 'текущий активный маршрут Telegram сохранён' "$T/wrong-apply-result" ||
+grep -Fq 'другой активный выход сохранён' "$T/wrong-apply-result" ||
 	bad "invalid candidate failure did not explain that the old route is retained"
 out=$("$H" status) || bad "active route status failed after invalid candidate"
 printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.active || d.output!=="steer:zm_vpn2" || d.device!=="wg2") process.exit(1)' ||
