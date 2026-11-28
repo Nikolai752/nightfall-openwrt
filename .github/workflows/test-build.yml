@@ -8,6 +8,7 @@ on:
       - feature/tg-bot-center-universal
       - feat/router-log-center
       - feat/router-log-intelligent-diagnostics
+      - feat/tg-bot-center-compact-ui
   workflow_dispatch:
     inputs:
       version:
