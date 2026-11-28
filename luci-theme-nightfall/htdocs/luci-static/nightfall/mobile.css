@@ -39,8 +39,11 @@ header h3 a, header .brand {
 		box-sizing: border-box;
 	}
 
-	.table .td.cbi-dropdown-open {
+	/* LuCI marks an expanded dropdown on the widget itself with [open]. */
+	.table .td:has(.cbi-dropdown[open]) {
 		overflow: visible;
+		position: relative;
+		z-index: 100;
 	}
 
 	.col-1 { flex: 1 1 30px !important; -webkit-flex: 1 1 30px !important; }
