@@ -408,6 +408,22 @@ const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
 					return { viewportWidth: window.innerWidth, cards, charts, switches, cfgGroups: document.querySelectorAll('.nfm-cfg-layout > .nfm-cfg-g').length };
 				});
 				if (geometry.charts.length < 3 || geometry.charts.some(x => x.width < 80 || x.height < 60)) bad(vn + ': графики истории не получили корректный размер; найдено=' + geometry.charts.length + ', размеры=' + JSON.stringify(geometry.charts.map(x => ({ width: Math.round(x.width), height: Math.round(x.height) }))));
+				if (vn !== 'desktop') {
+					const rangeLayout = await p.evaluate(() => {
+						const el = document.querySelector('.nfm-history-range-tabs');
+						if (!el) return null;
+						const buttons = Array.from(el.querySelectorAll('.nfm-tab'));
+						const rects = buttons.map(b => b.getBoundingClientRect());
+						return {
+							count: buttons.length, clientWidth: el.clientWidth, scrollWidth: el.scrollWidth,
+							rows: new Set(rects.map(r => Math.round(r.top))).size,
+							rightOverflow: rects.length ? Math.max(...rects.map(r => r.right)) - el.getBoundingClientRect().right : 0
+						};
+					});
+					if (!rangeLayout || rangeLayout.count !== 5 || rangeLayout.rows !== 1 ||
+						rangeLayout.scrollWidth > rangeLayout.clientWidth + 1 || rangeLayout.rightOverflow > 1)
+						bad(vn + ': периоды графика истории должны помещаться в одну строку без обрезки: ' + JSON.stringify(rangeLayout));
+				}
 				const cardOverflow = geometry.cards.filter(x => x.right > geometry.viewportWidth + 1 || x.scroll > x.client + 3);
 				if (cardOverflow.length) bad(vn + ': карточка истории выходит за границы или обрезает содержимое: ' + JSON.stringify(cardOverflow));
 				if (geometry.cfgGroups !== 6) bad(vn + ': сетка настроек истории должна содержать шесть основных групп');
