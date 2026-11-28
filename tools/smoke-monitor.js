@@ -272,6 +272,17 @@ const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
 				if (!tgIcon || tgIcon === 'none') bad(vn + ': у вкладки TG Bot отсутствует SVG-значок');
 				if (!tt.includes('Маршрут ядра активен')) bad(vn + ': не показано фактическое состояние активного маршрута');
 				const outputList = p.locator('.nfm-tg-output-list');
+				const layout = await p.evaluate(() => ({
+					left: !!document.querySelector('.nfm-tg-left-column .nfm-tg-connection-body'),
+					notificationsUnderConnection: !!document.querySelector('.nfm-tg-left-column .nfm-tg-disclosure'),
+					routeOnRight: !!document.querySelector('.nfm-tg-main-grid > .nfm-card'),
+					statusCards: document.querySelectorAll('.nfm-tg-status-grid .nfm-card').length,
+					management: !!document.querySelector('.nfm-tg-options-grid .nfm-tg-disclosure')
+				}));
+				if (!layout.left || !layout.notificationsUnderConnection || !layout.routeOnRight || layout.statusCards !== 3 || !layout.management)
+					bad(vn + ': новая компоновка Telegram Control Center нарушена: ' + JSON.stringify(layout));
+				const routeActions = await p.locator('.nfm-tg-route-actions button').count();
+				if (routeActions !== 3) bad(vn + ': в панели маршрута должны быть три действия — обновить, проверить, применить');
 				let selectedRoute = await outputList.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output');
 				if (selectedRoute !== 'steer:zm_vpn2') bad(vn + ': TG Bot должен показывать активный steer:zm_vpn2, получено: ' + selectedRoute);
 				const outputRows = outputList.locator('.nfm-tg-output-choice');
@@ -285,14 +296,14 @@ const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
 				if (await outputList.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output') !== 'steer:groupvpn') bad(vn + ': ручной выбор groupvpn нажатием не сработал');
 				await p.evaluate(() => window.__runMonitorTick()); await p.waitForTimeout(100);
 				if (await outputList.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output') !== 'steer:groupvpn') bad(vn + ': выбранный VPN-выход сбросился после обычного обновления монитора');
-				await p.click('.nfm-tg-output-actions button'); await p.waitForTimeout(200);
+				await p.click('.nfm-tg-route-actions button:nth-child(2)'); await p.waitForTimeout(200);
 				if (!(await p.locator('.nfm-tg-output-selection').textContent()).includes('Проверка пройдена')) bad(vn + ': предварительная проверка groupvpn не подтвердилась');
 				await p.click('button:has-text("Применить выбранный выход")'); await p.waitForTimeout(250);
 				if (!CFG_SET_CALLS[CFG_SET_CALLS.length - 1].includes('TG_ROUTE_OUTPUT=steer:groupvpn')) bad(vn + ': применение не сохранило выбранный groupvpn');
 				if (!(await p.locator('.nfm-tg-output-choice[data-output="steer:groupvpn"]').evaluate(el => el.classList.contains('is-active')))) bad(vn + ': groupvpn не стал фактически активным после применения');
 				/* Return to the known-good route and verify it remains independently selectable. */
 				await p.click('.nfm-tg-output-choice[data-output="steer:zm_vpn2"]'); await p.waitForTimeout(100);
-				await p.click('.nfm-tg-output-actions button'); await p.waitForTimeout(200);
+				await p.click('.nfm-tg-route-actions button:nth-child(2)'); await p.waitForTimeout(200);
 				if (!(await p.locator('.nfm-tg-output-selection').textContent()).includes('Проверка пройдена')) bad(vn + ': повторная проверка zm_vpn2 не прошла');
 				await p.click('button:has-text("Применить выбранный выход")'); await p.waitForTimeout(250);
 				selectedRoute = await outputList.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output');
@@ -306,7 +317,7 @@ const tgIcon = await p.$eval('.nfm-tab[data-ic="tg"]', el => {
 				if (unavailable !== 0) bad(vn + ': обнаруженные VPN-выходы должны оставаться выбираемыми даже при ready=false');
 				await p.click('.nfm-tg-output-choice[data-output="steer:offline"]'); await p.waitForTimeout(100);
 				if (await outputList.locator('.nfm-tg-output-choice[aria-pressed="true"]').getAttribute('data-output') !== 'steer:offline') bad(vn + ': не удалось выбрать обнаруженный, но неготовый VPN-выход для диагностики');
-				await p.click('.nfm-tg-output-actions button'); await p.waitForTimeout(200);
+				await p.click('.nfm-tg-route-actions button:nth-child(2)'); await p.waitForTimeout(200);
 				if (!(await p.locator('.nfm-tg-output-selection').textContent()).includes('выход недоступен')) bad(vn + ': диагностика не показала причину отказа для неготового выхода');
 				if (!(await p.locator('button:has-text("Применить выбранный выход")').isDisabled())) bad(vn + ': неготовый выход нельзя применять до успешной проверки');
 				await p.click('.nfm-tg-output-choice[data-output="steer:zm_vpn2"]'); await p.waitForTimeout(100);
