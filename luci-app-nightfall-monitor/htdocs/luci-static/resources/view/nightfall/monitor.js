@@ -1257,7 +1257,7 @@ return view.extend({
 		}
 		function renderDiagHist() {
 			const l = diagLoad();
-			diagHistBox.replaceChildren(...(l.length ? l.map(x => E('div', { class: 'nfm-ev-i ' + (/❌|сильный/.test(x.out) ? 'crit' : /заметно/.test(x.out) ? 'warn' : 'info'), style: 'cursor:pointer', title: _('Показать результат'), click: () => { diagOut.textContent = x.out; } }, [ E('i'), E('time', {}, fmtTs(x.t)), E('span', {}, DNAME[x.cmd] + (x.host ? ' · ' + x.host : '') + ' — ' + (x.out.split('\n').find(z => /[✅❌]|Вывод/.test(z)) || x.out.split('\n')[0]).slice(0, 90)) ])) : [ E('div', { class: 'nfm-empty' }, _('Здесь появятся результаты ваших проверок (хранятся в этом браузере).')) ]));
+			diagHistBox.replaceChildren(...(l.length ? l.map(x => E('div', { class: 'nfm-ev-i ' + (/❌|сильный/.test(x.out) ? 'crit' : /заметно/.test(x.out) ? 'warn' : 'info'), style: 'cursor:pointer', title: _('Показать результат'), click: () => { diagOut.textContent = trDiagOut(x.out); } }, [ E('i'), E('time', {}, fmtTs(x.t)), E('span', {}, DNAME[x.cmd] + (x.host ? ' · ' + x.host : '') + ' — ' + trDiag((x.out.split('\n').find(z => /[✅❌]|Вывод/.test(z)) || x.out.split('\n')[0]).slice(0, 90))) ])) : [ E('div', { class: 'nfm-empty' }, _('Здесь появятся результаты ваших проверок (хранятся в этом браузере).')) ]));
 		}
 		function runDiag(cmd) {
 			const h = (cmd === 'check' || cmd === 'bloat') ? cmd : diagHost.value.trim();
@@ -1265,7 +1265,7 @@ return view.extend({
 			if (diagBusy) return;
 			diagBusy = true; diagBox.classList.add('busy');
 			diagOut.textContent = ({ ping: _('Пинг ') + h + '…', trace: _('Маршрут до ') + h + _(' (до 30 секунд)…'), route: _('Измеряю потери по маршруту до ') + h + _(' (до 25 секунд)…'), bloat: _('Измеряю задержку без нагрузки и под нагрузкой (около 20 секунд)…'), dns: _('Запрос DNS ') + h + '…', check: _('Проверяю шлюз, интернет и DNS (до 20 секунд)…') })[cmd];
-			fs.exec(DIAG, (cmd === 'check' || cmd === 'bloat') ? [ cmd ] : [ cmd, h ]).then(r => { diagOut.textContent = ((r.stdout || '') + (r.stderr || '')).trim() || _('Нет ответа.'); diagSave(cmd, (cmd === 'check' || cmd === 'bloat') ? '' : h, diagOut.textContent); })
+			fs.exec(DIAG, (cmd === 'check' || cmd === 'bloat') ? [ cmd ] : [ cmd, h ]).then(r => { diagOut.textContent = trDiagOut(((r.stdout || '') + (r.stderr || '')).trim()) || _('Нет ответа.'); diagSave(cmd, (cmd === 'check' || cmd === 'bloat') ? '' : h, diagOut.textContent); })
 				.catch(e => { const m = String((e && e.message) || e || ''); diagOut.textContent = _('Не удалось выполнить') + (m ? ' (' + m.slice(0, 120) + ')' : '') + '. ' + (/denied|permission|access/i.test(m) ? _('Выйдите из LuCI и войдите снова (нужны новые права).') : _('Скорее всего, команда не уложилась в лимит времени ответа роутера; попробуйте узел поближе.')); })
 				.then(() => { diagBusy = false; diagBox.classList.remove('busy'); });
 		}
@@ -1392,16 +1392,16 @@ return view.extend({
 			tgMsg.textContent = _('Выполняю…');
 			const save = [ 'set' ].concat([ 'TG_TOKEN', 'TG_CHAT', 'TG_PROXY', 'TG_IFACE' ].map(k => k + '=' + cfgInputs[k].value.trim()));
 			return callCfg(save).then(r => {
-				if (!(r && r.ok)) { tgMsg.textContent = _('Не сохранено: ') + ((r && r.error) || _('нет ответа')); return null; }
+				if (!(r && r.ok)) { tgMsg.textContent = _('Не сохранено: ') + (trCfgErr((r && r.error) || '') || _('нет ответа')); return null; }
 				return fs.exec(NOTIFYBIN, [ cmd ]).then(res => { try { return JSON.parse(res.stdout); } catch (e) { return { ok: false, error: _('нет ответа от роутера') }; } }).catch(() => ({ ok: false, error: _('нет прав на запуск (выйдите из LuCI и войдите снова; права обновляются при входе) или не найден /usr/libexec/nightfall-notify') }));
 			});
 		};
 		const tgTools = E('div', { style: 'margin-top:10px' }, [
 			E('div', { class: 'nfm-note-s' }, _('Как настроить: 1) в Telegram найдите @BotFather, создайте бота командой /newbot и вставьте токен выше; 2) откройте своего бота и нажмите Start; 3) нажмите «Определить chat id», затем «Отправить проверку»; 4) включите переключатель «Отправлять уведомления» и сохраните. После этого боту можно писать команды: /status, /clients, /traffic, /apps, /speed, /help (отвечает только вам).')),
 			E('div', { class: 'nfm-actions', style: 'margin:8px 0 0' }, [
-				E('button', { class: 'nfm-act', click: () => tgRun('chatid').then(r => { if (!r) return; if (r.ok) { cfgInputs.TG_CHAT.value = r.chat; callCfg([ 'set', 'TG_CHAT=' + r.chat ]); tgMsg.textContent = _('Chat id найден: ') + r.chat; } else tgMsg.textContent = r.error; }) }, _('Определить chat id')),
-				E('button', { class: 'nfm-act', click: () => tgRun('test').then(r => { if (r) tgMsg.textContent = r.ok ? _('Сообщение отправлено, проверьте Telegram.') : _('Не отправлено: ') + r.error; }) }, _('Отправить проверку')),
-				E('button', { class: 'nfm-act', click: () => tgRun('backup').then(r => { if (r) tgMsg.textContent = r.ok ? _('Резервная копия отправлена в Telegram файлом (без токена бота).') : _('Не отправлено: ') + r.error; }) }, _('Резервная копия в Telegram')) ]),
+				E('button', { class: 'nfm-act', click: () => tgRun('chatid').then(r => { if (!r) return; if (r.ok) { cfgInputs.TG_CHAT.value = r.chat; callCfg([ 'set', 'TG_CHAT=' + r.chat ]); tgMsg.textContent = _('Chat id найден: ') + r.chat; } else tgMsg.textContent = trCfgErr(r.error); }) }, _('Определить chat id')),
+				E('button', { class: 'nfm-act', click: () => tgRun('test').then(r => { if (r) tgMsg.textContent = r.ok ? _('Сообщение отправлено, проверьте Telegram.') : _('Не отправлено: ') + trCfgErr(r.error); }) }, _('Отправить проверку')),
+				E('button', { class: 'nfm-act', click: () => tgRun('backup').then(r => { if (r) tgMsg.textContent = r.ok ? _('Резервная копия отправлена в Telegram файлом (без токена бота).') : _('Не отправлено: ') + trCfgErr(r.error); }) }, _('Резервная копия в Telegram')) ]),
 			tgMsg ]);
 		/* ---- Накопители: найти флешку / SD-карту и одним нажатием хранить на ней историю ---- */
 		const dskBody = E('div', {}, E('div', { class: 'nfm-empty' }, _('Ищу накопители…')));
@@ -1410,7 +1410,7 @@ return view.extend({
 		function setPersist(dir, hours, msg) {
 			dskMsg.textContent = _('Применяю…');
 			callCfg(dir ? [ 'set', 'PERSIST_DIR=' + dir, 'PERSIST_HOURS=' + hours ] : [ 'set', 'PERSIST_DIR=' ]).then(r => {
-				if (!(r && r.ok)) { dskMsg.textContent = _('Не сохранено: ') + ((r && r.error) || _('нет ответа')); return; }
+				if (!(r && r.ok)) { dskMsg.textContent = _('Не сохранено: ') + (trCfgErr((r && r.error) || '') || _('нет ответа')); return; }
 				dskMsg.textContent = msg; S.at.alerts = 0; S.at.hist = 0;
 				callCfg([ 'get' ]).then(c => { S.cfg = c; if (c) fillCfg(c.values); renderDisks(); });
 			});
@@ -1538,8 +1538,8 @@ return view.extend({
 				E('button', { class: 'nfm-act', click: () => {
 					backupMsg.textContent = _('Создаю и проверяю резервную копию…');
 					fs.exec('/usr/libexec/nightfall-backup', [ 'create' ]).then(r => {
-						backupMsg.textContent = ((r.stdout || '') + (r.stderr || '')).trim() || _('Нет ответа от архиватора.');
-					}).catch(e => { backupMsg.textContent = _('Не удалось создать копию: ') + String((e && e.message) || e); });
+						backupMsg.textContent = trBackupOut(((r.stdout || '') + (r.stderr || '')).trim()) || _('Нет ответа от архиватора.');
+					}).catch(e => { backupMsg.textContent = _('Не удалось создать копию: ') + trBackupOut(String((e && e.message) || e)); });
 				} }, _('Создать резервную копию сейчас'))
 			]),
 			cfgMsg,
@@ -1559,7 +1559,7 @@ return view.extend({
 		const spdList = E('div', { class: 'nfm-lst', style: 'margin-top:12px' });
 		const spdNote = E('div', { class: 'nfm-note-s', style: 'margin-top:8px' });
 		const spdSel = E('select', { class: 'nfm-sel', title: _('Автоматический замер'), change: ev => {
-			callCfg([ 'set', 'SPEED_HOURS=' + ev.target.value ]).then(r => { if (!(r && r.ok)) ui.addNotification(null, E('p', {}, _('Не сохранено: ') + ((r && r.error) || _('нет ответа'))), 'danger'); S.at.spd = 0; }); } },
+			callCfg([ 'set', 'SPEED_HOURS=' + ev.target.value ]).then(r => { if (!(r && r.ok)) ui.addNotification(null, E('p', {}, _('Не сохранено: ') + (trCfgErr((r && r.error) || '') || _('нет ответа'))), 'danger'); S.at.spd = 0; }); } },
 			[ [ '0', _('Автозамер выключен') ], [ '1', _('Каждый час') ], [ '3', _('Каждые 3 часа') ], [ '6', _('Каждые 6 часов') ], [ '12', _('Каждые 12 часов') ], [ '24', _('Раз в сутки') ] ].map(([ v, l ]) => E('option', { value: v }, l)));
 		const SPEED_PRESETS = [
 			[ 'https://speed.cloudflare.com/__down?bytes=25000000', _('Cloudflare (25 МБ на поток)') ],
@@ -1570,7 +1570,7 @@ return view.extend({
 			if (!ev.target.value) { ui.addNotification(null, E('p', {}, _('Свой адрес впишите в поле «Файл для замера скорости» в настройках ниже.')), 'info'); return; }
 			callCfg([ 'set', 'SPEED_URL=' + ev.target.value ]).then(r => {
 				if (r && r.ok) { if (S.cfg && S.cfg.values) S.cfg.values.SPEED_URL = ev.target.value; if (cfgInputs.SPEED_URL) cfgInputs.SPEED_URL.value = ev.target.value; }
-				else ui.addNotification(null, E('p', {}, _('Не сохранено: ') + ((r && r.error) || _('нет ответа'))), 'danger'); }); } },
+				else ui.addNotification(null, E('p', {}, _('Не сохранено: ') + (trCfgErr((r && r.error) || '') || _('нет ответа'))), 'danger'); }); } },
 			SPEED_PRESETS.map(([ v, l ]) => E('option', { value: v }, l)).concat([ E('option', { value: '' }, _('Свой адрес (в настройках)')) ]));
 		const spdBtn = E('button', { class: 'nfm-btn', click: () => startSpeed() }, _('Измерить сейчас'));
 		const flashBox = E('div');
@@ -2522,6 +2522,161 @@ return view.extend({
 			return tx;
 		}
 
+	/* Backend /usr/libexec/nightfall-backup streams Russian progress/error
+	   texts; rebuild the known shapes through catalog templates at display
+	   time. Unknown texts pass through unchanged. */
+	/* Backend nightfall-diag / nightfall-config stream Russian status and
+	   validation texts; rebuild through catalog templates at display time. */
+	function trDiag(line) {
+		if (typeof line !== 'string') return line;
+		var m;
+		var exact = {
+			'Не найден ping': 1, 'Не найден nslookup': 1, 'Некорректный адрес узла': 1, 'Слишком длинный адрес': 1,
+			'Нужен curl для создания нагрузки: apk add curl': 1,
+			'Не установлен traceroute. Установите: apk add traceroute (или opkg install traceroute)': 1,
+			'❌ Нет ответа от 1.1.1.1: проверьте подключение к интернету': 1,
+			'❌ Маршрут по умолчанию не найден (нет подключения к провайдеру)': 1,
+			'Под нагрузкой: ответов нет (канал забит полностью)': 1,
+			'Вывод: сильный bufferbloat. Включите SQM (luci-app-sqm, cake).': 1,
+			'Вывод: сильный bufferbloat. Включите SQM (luci-app-sqm, cake) и задайте скорость около 90% от тарифа.': 1,
+			'Вывод: отлично, очередь не раздувается.': 1,
+			'Вывод: заметно. Видеозвонки и игры при загруженном канале могут подтормаживать. Поможет SQM (luci-app-sqm, cake).': 1,
+			'Потери на промежуточном узле, которые не продолжаются дальше, обычно безвредны: узел просто не отвечает на служебные пакеты.': 1
+		};
+		if (exact[line]) return _(line);
+		if ((m = /^✅ DNS: (\S+) разрешается за (\d+) мс$/.exec(line))) return _('✅ DNS: %s разрешается за %s мс').format(m[1], m[2]);
+		if ((m = /^✅ DNS: (\S+) разрешается$/.exec(line))) return _('✅ DNS: %s разрешается').format(m[1]);
+		if ((m = /^❌ DNS: (\S+) не разрешается$/.exec(line))) return _('❌ DNS: %s не разрешается').format(m[1]);
+		if ((m = /^✅ Интернет: (\S+) — (.+)$/.exec(line))) return _('✅ Интернет: %s — %s').format(m[1], m[2]);
+		if ((m = /^❌ Интернет: (\S+) не отвечает$/.exec(line))) return _('❌ Интернет: %s не отвечает').format(m[1]);
+		if ((m = /^✅ Шлюз (\S+): (.+)$/.exec(line))) return _('✅ Шлюз %s: %s').format(m[1], m[2]);
+		if ((m = /^Время ответа: (\d+) мс$/.exec(line))) return _('Время ответа: %s мс').format(m[1]);
+		if ((m = /^Задержка до 1\.1\.1\.1 без нагрузки: (.+)$/.exec(line))) return _('Задержка до 1.1.1.1 без нагрузки: %s').format(m[1]);
+		if ((m = /^Задержка под нагрузкой \(скачивание в 3 потока\): (.+)$/.exec(line))) return _('Задержка под нагрузкой (скачивание в 3 потока): %s').format(m[1]);
+		if (/^Узел\s+Адрес\s+Потери\s+Среднее/.exec(line)) return _('Узел  Адрес  Потери  Среднее');
+		return line;
+	}
+
+	function trDiagOut(tx) {
+		if (typeof tx !== 'string') return tx;
+		return tx.split('\n').map(trDiag).join('\n');
+	}
+
+	function trBlkReason(tx) {
+		var m = { manual: _('вручную'), gmanual: _('группа отключена вручную'), quota: _('достигнут суточный лимит трафика'), sched: _('расписание') };
+		return m[tx] || tx;
+	}
+
+	function trBackupOut(tx) {
+		if (typeof tx !== 'string') return tx;
+		return tx.split('\n').map(trBackup).join('\n');
+	}
+
+	function trCfgErr(tx) {
+		if (typeof tx !== 'string') return tx;
+		var m;
+		var exact = {
+			'PERSIST_DIR: для внутренней флеш-памяти включите «Разрешить сохранение на встроенный накопитель»': 1,
+			'PERSIST_DIR: недопустимые символы': 1, 'PERSIST_DIR: нужен абсолютный путь': 1,
+			'PERSIST_DIR: слишком длинный путь': 1, 'PERSIST_DIR: этот системный путь запрещён': 1,
+			'SPEED_URL: недопустимые символы (разрешены буквы, цифры и . _ ~ : / ? = % + -)': 1,
+			'SPEED_URL: нужен адрес http:// или https://': 1, 'SPEED_URL: слишком длинный адрес': 1,
+			'TEMP_WARN должен быть меньше TEMP_CRIT': 1,
+			'TG_CHAT: нужен числовой chat id': 1, 'TG_IFACE: нужно имя интерфейса, например wg0': 1,
+			'TG_PROXY: нужен адрес вида socks5h://127.0.0.1:1080 или http://host:port': 1,
+			'TG_REPORT: время вида 21:00 или пусто': 1,
+			'TG_TOKEN: ожидался токен вида 123456:ABC… от @BotFather': 1,
+			'TG_USERS: числовые id через запятую, например 123456789,987654321': 1,
+			'картинка пустая или слишком большая': 1, 'настройки темы пустые или слишком большие': 1,
+			'недопустимые символы': 1, 'некорректный JSON': 1, 'нет параметров': 1,
+			'не удалось записать картинку': 1, 'не удалось записать конфигурацию': 1,
+			'не удалось записать настройки темы': 1, 'не удалось записать фото': 1,
+			'нужна картинка png, webp или jpeg': 1, 'нужно фото webp или jpeg': 1,
+			'ожидался JSON-объект': 1, 'фото пустое или слишком большое': 1,
+			'Бот пока ничего не получал. Откройте бота в Telegram, нажмите Start или напишите ему любое сообщение и повторите.': 1,
+			'не найден nightfall-backup': 1, 'не удалось подготовить каталог состояния': 1,
+			'не удалось сохранить ссылку на архив': 1, 'не указан chat id': 1, 'не указан токен бота': 1,
+			'резервная копия создана, но архив не найден': 1,
+			'неверный MAC-адрес': 1,
+			'нет способа отправить пакет: установите пакет etherwake (opkg install etherwake или apk add etherwake)': 1,
+			'не удалось записать список': 1, 'не удалось записать список групп': 1, 'не удалось записать список устройств': 1
+		};
+		if (exact[tx]) return _(tx);
+		if ((m = /^(\S+): допустимо от (\S+) до (\S+)$/.exec(tx))) return _('%s: допустимо от %s до %s').format(m[1], m[2], m[3]);
+		if ((m = /^(\S+): нужно число$/.exec(tx))) return _('%s: нужно число').format(m[1]);
+		if ((m = /^(\S+): допустимо 0 или 1$/.exec(tx))) return _('%s: допустимо 0 или 1').format(m[1]);
+		if ((m = /^(\S+): недопустимые символы$/.exec(tx))) return _('%s: недопустимые символы').format(m[1]);
+		if ((m = /^(\S+): слишком длинное значение$/.exec(tx))) return _('%s: слишком длинное значение').format(m[1]);
+		if ((m = /^неизвестный параметр: (\S+)$/.exec(tx))) return _('неизвестный параметр: %s').format(m[1]);
+		return tx;
+	}
+
+	function trBackup(tx) {
+		if (typeof tx !== 'string') return tx;
+		var exact = {
+			'Архив проверен. Состав:': 1, 'Блок принят.': 1, 'Временная загрузка удалена.': 1,
+			'Загрузка начата.': 1, 'Настройки Nightfall восстановлены.': 1,
+			'TG_TOKEN и TG_PROXY не включены. Сетевые настройки OpenWrt не включены.': 1,
+			'Сетевые настройки OpenWrt не менялись. TG_TOKEN сохранён из текущей конфигурации.': 1,
+			'Перезапустите сборщик: /etc/init.d/nightfall-collector restart': 1,
+			'Предварительный просмотр завершён. Для восстановления выполните:': 1,
+			'Проверьте TG_PROXY и при необходимости задайте его заново.': 1,
+			'архив изменился или прочитан не полностью': 1, 'архив не найден': 1,
+			'архив не найден или недоступен для чтения': 1, 'архив повреждён или не является gzip-архивом': 1,
+			'архив пустой': 1, 'архив пустой или превышает 5 МБ': 1,
+			'архив содержит недопустимые пути или файлы': 1, 'в архиве нет настроек Nightfall': 1,
+			'в архиве обнаружены ссылки или специальные файлы': 1, 'в архиве отсутствует манифест': 1,
+			'в распакованной копии обнаружена символическая ссылка': 1,
+			'внешний накопитель отключился до создания копии': 1,
+			'восстановление отменено; исходные настройки возвращены': 1,
+			'загрузка не найдена': 1, 'запрошен пустой блок за концом архива': 1,
+			'идентификатор загрузки уже используется': 1, 'имя архива должно оканчиваться на .tar.gz': 1,
+			'каталог резервных копий не может быть символической ссылкой': 1,
+			'контрольные суммы не совпали; восстановление запрещено': 1,
+			'КРИТИЧЕСКАЯ ОШИБКА: не удалось полностью вернуть исходные настройки. Проверьте /etc вручную': 1,
+			'на роутере не найдены файлы настроек Nightfall': 1, 'небезопасный каталог резервных копий': 1,
+			'неверные параметры загрузки': 1, 'неверный идентификатор загрузки': 1, 'неверный размер блока': 1,
+			'недопустимое имя архива': 1, 'недопустимые символы блока': 1, 'неизвестный режим': 1,
+			'не найден sha256sum': 1, 'не найден tar': 1,
+			'не найдена base64. Установите пакет coreutils-base64 (apk add coreutils-base64) или используйте сборку BusyBox с applet base64': 1,
+			'не удалось безопасно декодировать архив': 1, 'не удалось безопасно начать загрузку': 1,
+			'не удалось выделить блок архива': 1, 'не удалось закодировать блок архива': 1,
+			'не удалось записать блок': 1, 'не удалось определить размер архива': 1, 'не удалось открыть /etc': 1,
+			'не удалось передать кодированный блок': 1, 'не удалось подготовить архив': 1,
+			'не удалось подготовить временные файлы': 1, 'не удалось подготовить временный блок': 1,
+			'не удалось подготовить защищённый файл секретов': 1, 'не удалось подготовить конфигурацию': 1,
+			'не удалось подготовить транзакцию восстановления': 1, 'не удалось посчитать контрольные суммы': 1,
+			'не удалось проверить архив': 1, 'не удалось проверить кодированный блок': 1,
+			'не удалось проверить прочитанный блок': 1, 'не удалось проверить размер блока': 1,
+			'не удалось прочитать архив': 1, 'не удалось распаковать архив': 1, 'не удалось собрать архив': 1,
+			'не удалось создать временный каталог': 1, 'не удалось создать каталог назначения': 1,
+			'не удалось создать каталог резервных копий': 1, 'не удалось сохранить TG_PROXY': 1,
+			'не удалось сохранить TG_TOKEN': 1, 'не удалось сохранить архив': 1,
+			'не удалось сохранить текущие секреты': 1, 'не удалось удалить секреты из копии': 1,
+			'смещение за пределами архива': 1, 'созданный gzip-архив не прошёл проверку целостности': 1,
+			'созданный tar-архив не прошёл проверку состава': 1, 'создан пустой архив': 1,
+			'точка монтирования изменилась; резервная копия не создана': 1, 'укажите путь к архиву': 1
+		};
+		if (exact[tx]) return _(tx);
+		var m;
+		if ((m = /^Архив загружен: (.+)$/.exec(tx))) return _('Архив загружен: %s').format(m[1]);
+		if ((m = /^архив не найден: (.+)$/.exec(tx))) return _('архив не найден: %s').format(m[1]);
+		if ((m = /^Ошибка: (.+)$/.exec(tx))) return _('Ошибка: %s').format(m[1]);
+		if ((m = /^Резервная копия создана: (.+)$/.exec(tx))) return _('Резервная копия создана: %s').format(m[1]);
+		if ((m = /^Файлов: (\d+)$/.exec(tx))) return _('Файлов: %s').format(m[1]);
+		if ((m = /^неполный base64-блок: (\d+) вместо (\d+) символов$/.exec(tx))) return _('неполный base64-блок: %s вместо %s символов').format(m[1], m[2]);
+		if ((m = /^неполный блок архива: (\d+) из (\d+) байт$/.exec(tx))) return _('неполный блок архива: %s из %s байт').format(m[1], m[2]);
+		if ((m = /^не удалось подготовить (.+)$/.exec(tx))) return _('не удалось подготовить %s').format(m[1]);
+		if ((m = /^не удалось скопировать (.+)$/.exec(tx))) return _('не удалось скопировать %s').format(m[1]);
+		if ((m = /^не удалось создать каталог (.+)$/.exec(tx))) return _('не удалось создать каталог %s').format(m[1]);
+		if ((m = /^небезопасный тип текущего файла (\/etc\/\S+); восстановление остановлено$/.exec(tx))) return _('небезопасный тип текущего файла %s; восстановление остановлено').format(m[1]);
+		if ((m = /^не удалось сохранить текущий файл (\/etc\/\S+)$/.exec(tx))) return _('не удалось сохранить текущий файл %s').format(m[1]);
+		if ((m = /^Ошибка установки (\/etc\/\S+)\. Возвращаю исходные настройки…$/.exec(tx))) return _('Ошибка установки %s. Возвращаю исходные настройки…').format(m[1]);
+		if ((m = /^Хранилище: USB\/SD \((\S+)\); оставляем последние (\d+) копий\.$/.exec(tx))) return _('Хранилище: USB/SD (%s); оставляем последние %s копий.').format(m[1], m[2]);
+		if ((m = /^Хранилище: временное \((\S+)\); постоянный USB\/SD не обнаружен или PERSIST_DIR не настроен\.$/.exec(tx))) return _('Хранилище: временное (%s); постоянный USB/SD не обнаружен или PERSIST_DIR не настроен.').format(m[1]);
+		return tx;
+	}
+
 		function trEv(tx) {
 			if (typeof tx !== 'string') return tx;
 			let m;
@@ -2635,7 +2790,7 @@ return view.extend({
 					callCfg([ 'get' ]).then(c => { S.cfg = c; if (c) fillCfg(c.values); cfgMsg.textContent = _('Сохранено, сборщик перезапущен.'); });
 					window.setTimeout(() => { cfgMsg.textContent = ''; }, 5000);
 				}
-				else ui.addNotification(null, E('p', {}, _('Не сохранено: ') + ((r && r.error) || _('нет ответа от nightfall-config'))), 'danger');
+				else ui.addNotification(null, E('p', {}, _('Не сохранено: ') + (trCfgErr((r && r.error) || '') || _('нет ответа от nightfall-config'))), 'danger');
 			});
 		}
 
@@ -3354,7 +3509,7 @@ return view.extend({
 			const j = S.jrn;
 			if (j && j.rows) for (const r of j.rows) items.push(r[1] === 'outage' ? { t: r[0], k: 'jr', cls: 'crit', txt: _('Обрыв связи: ') + trEv(r[3]) + (r[2] ? ' (' + fmtDur(r[2]) + ')' : '') } : { t: r[0], k: 'jr', cls: 'info', txt: _('Перезагрузка: ') + trEv(r[3]) });
 			const bl = S.blog;
-			if (bl && bl.log) for (const r of bl.log) items.push({ t: r[0], k: 'bl', cls: r[3] === 'on' ? 'warn' : 'info', txt: (r[2] || r[1]) + (r[3] === 'on' ? _(': доступ закрыт') : _(': доступ открыт')) + (r[4] ? ' · ' + r[4] : '') });
+			if (bl && bl.log) for (const r of bl.log) items.push({ t: r[0], k: 'bl', cls: r[3] === 'on' ? 'warn' : 'info', txt: (r[2] || r[1]) + (r[3] === 'on' ? _(': доступ закрыт') : _(': доступ открыт')) + (r[4] ? ' · ' + trBlkReason(r[4]) : '') });
 			if (!h && !j && !bl) { logBox.replaceChildren(E('div', { class: 'nfm-empty' }, _('Загружаю…'))); return; }
 			const seen = new Set();
 			const since = S.logP ? Date.now() / 1000 - S.logP : 0;
@@ -3371,7 +3526,7 @@ return view.extend({
 			S.at.sec = 0; S.at.bans = 0; })
 			.catch(() => window.alert(_('Не получилось выполнить команду на роутере.')));
 		const banBtn = ip => isExternalIp(ip) ? E('button', { type: 'button', class: 'nfm-btn', title: _('Роутер перестанет принимать пакеты с этого адреса на 24 часа (до перезагрузки роутера)'),
-			click: () => { if (window.confirm(_('Закрыть адрес ') + ip + _(' для роутера на 24 часа?'))) secAct([ 'ban', ip, '24' ]); } }, _('Закрыть на 24 ч')) : '';
+			click: () => { if (window.confirm(_('Закрыть адрес %s для роутера на 24 часа?').format(ip))) secAct([ 'ban', ip, '24' ]); } }, _('Закрыть на 24 ч')) : '';
 		const RISKY = { 21: _('FTP без шифрования'), 23: _('Telnet без шифрования'), 445: 'SMB', 139: 'SMB', 3389: _('удалённый рабочий стол'), 5900: 'VNC' };
 		const routerLogLevel = x => {
 			/* BusyBox crond logs a normal job dispatch at cron.err; it does not mean the job failed. */
