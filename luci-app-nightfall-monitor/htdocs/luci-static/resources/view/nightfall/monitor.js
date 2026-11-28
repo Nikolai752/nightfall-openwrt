@@ -676,6 +676,7 @@ const CSS = `
 .nfm-ti[data-ic='sec'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3l8 3v6c0 4.5-3.2 7.7-8 9-4.8-1.3-8-4.5-8-9V6z'/%3E%3Cpath d='M9 12l2 2 4-4'/%3E%3C/svg%3E"); }
 .nfm-ti[data-ic='log'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01'/%3E%3C/svg%3E"); }
 .nfm-ti[data-ic='tg'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M21.55 3.15 18.3 20.3c-.25 1.2-.95 1.5-1.95.95l-5.4-3.98-2.6 2.5c-.28.28-.52.52-1.06.52l.38-5.5 10-9.03c.44-.38-.1-.6-.68-.22L4.63 12.9l-5.2-1.63c-1.13-.35-1.15-1.13.24-1.68L20 2.1c.92-.34 1.73.22 1.55 1.05z' transform='translate(2 0) scale(.9 1)'/%3E%3C/svg%3E"); }
+.nfm-ti[data-ic='settings'] { --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 6h16M4 12h16M4 18h16'/%3E%3Cpath d='M8 4v4M15 10v4M11 16v4'/%3E%3C/svg%3E"); }
 .nfm-hint.sec-ok { border-color: color-mix(in srgb, #2fb36a 45%, transparent); }
 .nfm-hint.sec-warn { border-color: color-mix(in srgb, #f7a21b 55%, transparent); }
 .nfm-hint.sec-bad { border-color: color-mix(in srgb, #ef4444 60%, transparent); background: color-mix(in srgb, #ef4444 10%, transparent); }
@@ -833,11 +834,30 @@ const CSS = `
 .nfm-table td { padding: 8px 10px; border-bottom: 1px solid color-mix(in srgb, var(--nfm-border) 60%, transparent); vertical-align: middle; }
 .nfm-table tr:last-child td { border-bottom: 0; }
 .nfm-table tbody tr:hover td { background: transparent; }
-.nfm-tabs { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-.nfm-tabs::-webkit-scrollbar { display: none; }
-.nfm-tab { white-space: nowrap; flex: none; }
+/* The main monitor navigation is a single contained row. Tabs share the available width. */
+.nfm-top { min-width: 0; }
+.nfm-top .nfm-tabs {
+  display: flex; flex: 0 0 100%; order: 5; box-sizing: border-box;
+  width: 100%; max-width: 100%; min-width: 0; overflow: hidden;
+  padding: 3px; gap: 2px; scrollbar-width: none;
+}
+.nfm-top .nfm-tabs .nfm-tab {
+  display: flex; flex: 1 1 0; min-width: 0; max-width: 100%;
+  align-items: center; justify-content: center; gap: 4px;
+  padding: 5px 3px; font-size: clamp(10px, .75vw, 11px);
+  line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.nfm-top .nfm-tabs .nfm-ti::before {
+  flex: 0 0 13px; width: 13px; height: 13px; margin-right: 0;
+}
+@media (max-width: 1100px) {
+  /* Keep every destination visible on compact screens; full names remain in the tooltip and accessibility tree. */
+  .nfm-top .nfm-tabs .nfm-tab { font-size: 0; gap: 0; }
+  .nfm-top .nfm-tabs .nfm-ti::before { flex-basis: 15px; width: 15px; height: 15px; }
+}
 @media (max-width: 640px) {
-  .nfm-top .nfm-tabs { display: flex; width: 100%; order: 5; } .nfm-top .nfm-tabs .nfm-tab { flex: 1 0 auto; padding: 6px 8px; font-size: 12.5px; }
+  .nfm-top .nfm-tabs { gap: 1px; padding: 2px; }
+  .nfm-top .nfm-tabs .nfm-tab { min-height: 40px; padding: 6px 1px; }
   .nfm-card-title { flex-wrap: wrap; row-gap: 8px; }
   .nfm-card-title > .nfm-spacer { flex: 0 0 100%; height: 0; margin: 0; }
   .nfm-card-title > .nfm-note-s, .nfm-card-title > .nfm-legend { flex: 1 0 100%; }
@@ -2708,6 +2728,10 @@ return view.extend({
 			]),
 			E('div', { class: 'nfm-grid' }, [ card([ _('Экспорт данных в CSV'), E('span', { class: 'nfm-spacer' }), E('span', { class: 'nfm-note-s' }, _('открывается в Excel и Google Таблицах')) ], E('div', {}, [ E('div', { class: 'nfm-exp' }, expBtns), E('div', { style: 'margin-top:8px' }, expNote) ])) ]),
 			E('div', { class: 'nfm-grid' }, [ card([ _('Накопители'), E('span', { class: 'nfm-spacer' }), E('button', { type: 'button', class: 'nfm-btn', click: () => { dskBody.replaceChildren(E('div', { class: 'nfm-empty' }, _('Ищу накопители…'))); loadDisks(); } }, _('Обновить')) ], E('div', {}, [ dskBody, dskMsg, E('div', { class: 'nfm-note-s', style: 'margin-top:8px' }, _('История (графики, трафик по дням и приложениям, журнал) сохраняется на накопитель раз в час и не пропадает при перезагрузке. Флешка не изнашивает память роутера.')) ])) ]),
+			]);
+
+		/* General monitor settings stay separate from the Telegram Control Center. */
+		const settingsTab = E('div', { class: 'nfm-settings', hidden: true }, [
 			E('div', { class: 'nfm-grid' }, [ cfgCard ])
 		]);
 
@@ -2932,11 +2956,11 @@ return view.extend({
 		const pill = E('span', { class: 'nfm-pill' }, _('обновляется каждые %s с').format(INTERVAL));
 		const pauseBtn = E('button', { class: 'nfm-btn', click: () => setPaused(!S.paused) }, _('Пауза'));
 		const onTab = (...k) => k.indexOf(S.tab) >= 0;
-		const TAB_KEYS = [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist', 'tg' ];
+		const TAB_KEYS = [ 'overview', 'net', 'wifi', 'devs', 'apps', 'procs', 'svcs', 'diag', 'sec', 'log', 'hist', 'tg', 'settings' ];
 		const tabBtns = {};
 		let topDeviceHeader = null;
-		const tabs = E('div', { class: 'nfm-tabs', role: 'tablist' }, [ [ 'overview', _('Обзор') ], [ 'net', _('Сеть') ], [ 'wifi', 'Wi‑Fi' ], [ 'devs', _('Устройства') ], [ 'apps', _('Трафик') ], [ 'procs', _('Программы') ], [ 'svcs', _('Службы') ], [ 'diag', _('Диагностика') ], [ 'sec', _('Безопасность') ], [ 'log', _('Журнал') ], [ 'hist', _('История') ], [ 'tg', 'TG Bot' ] ]
-			.map(([ k, l ]) => tabBtns[k] = E('button', { class: 'nfm-tab nfm-ti', 'data-ic': k, role: 'tab', click: () => { S.tab = k; if (topDeviceHeader) topDeviceHeader.hidden = k === 'tg'; refresh(); } }, l)));
+		const tabs = E('div', { class: 'nfm-tabs', role: 'tablist' }, [ [ 'overview', _('Обзор') ], [ 'net', _('Сеть') ], [ 'wifi', 'Wi‑Fi' ], [ 'devs', _('Устройства') ], [ 'apps', _('Трафик') ], [ 'procs', _('Программы') ], [ 'svcs', _('Службы') ], [ 'diag', _('Диагностика') ], [ 'sec', _('Безопасность') ], [ 'log', _('Журнал') ], [ 'hist', _('История') ], [ 'tg', 'TG Bot' ], [ 'settings', _('Настройки') ] ]
+			.map(([ k, l ]) => tabBtns[k] = E('button', { class: 'nfm-tab nfm-ti', 'data-ic': k, role: 'tab', title: l, 'aria-label': l, click: () => { S.tab = k; if (topDeviceHeader) topDeviceHeader.hidden = k === 'tg'; refresh(); } }, l)));
 
 		const svcFilter = E('input', { class: 'nfm-in', type: 'search', placeholder: _('Найти службу…'), input: () => renderServices() });
 		const svcBox = E('div');
@@ -2953,7 +2977,7 @@ return view.extend({
 			E('style', {}, CSS + XCSS),
 			E('div', { class: 'nfm-top' }, [ topDeviceHeader,
 				E('span', { class: 'nfm-spacer' }), modeBadge, pill, pauseBtn, tabs ]),
-			overview, net, wifiTab, devsTab, appsTab, procs, svcs, diagTab, secTab, logTab, hist, tgTab
+			overview, net, wifiTab, devsTab, appsTab, procs, svcs, diagTab, secTab, logTab, hist, tgTab, settingsTab
 		]);
 
 		/* host-theme dark/light adaptation: re-check after insertion, on theme
@@ -4273,7 +4297,7 @@ return view.extend({
 				tabBtns[k].classList.toggle('on', S.tab === k);
 				tabBtns[k].setAttribute('aria-selected', S.tab === k);
 			}
-			show(overview, S.tab === 'overview'); show(net, S.tab === 'net'); show(procs, S.tab === 'procs'); show(svcs, S.tab === 'svcs'); show(hist, S.tab === 'hist');
+			show(overview, S.tab === 'overview'); show(net, S.tab === 'net'); show(procs, S.tab === 'procs'); show(svcs, S.tab === 'svcs'); show(hist, S.tab === 'hist'); show(settingsTab, S.tab === 'settings');
 			show(wifiTab, S.tab === 'wifi'); show(devsTab, S.tab === 'devs'); show(appsTab, S.tab === 'apps'); show(diagTab, S.tab === 'diag'); show(secTab, S.tab === 'sec'); show(logTab, S.tab === 'log'); show(tgTab, S.tab === 'tg');
 			if (!d) return;
 
