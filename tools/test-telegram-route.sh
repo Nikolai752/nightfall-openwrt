@@ -206,7 +206,7 @@ for spec in "vlessvpn|tun-vless|0x40700000|307" "xsvpn|xsteer0|0x40800000|308" "
 	printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:%s\n' "$name" > "$T/conf"
 	out=$("$H" apply) || bad "Steer $name apply failed: $out"
 	grep -Fq "route_output meta skuid 104 meta mark set (meta mark & 0xb00fffff) | $expected_mark" "$NF_TG_TEST_NFT" || bad "Steer $name did not preserve unrelated fwmark bits"
-	grep -Fq "egress_guard meta skuid 104 oifname != "$expected_dev" drop" "$NF_TG_TEST_NFT" || bad "Steer $name egress guard does not target $expected_dev"
+	grep -Fq "egress_guard meta skuid 104 oifname != \"$expected_dev\" drop" "$NF_TG_TEST_NFT" || bad "Steer $name egress guard does not target $expected_dev"
 	out=$("$H" status) || bad "Steer $name status failed: $out"
 	printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.active || d.device!==process.argv[1] || d.table!==Number(process.argv[2])) process.exit(1)' "$expected_dev" "$expected_table" || bad "Steer $name status is not bound to its live device/table"
 done
