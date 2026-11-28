@@ -1415,7 +1415,7 @@ return view.extend({
 			});
 			return wait(500).then(() => pollResult(0));
 		});
-		let tgTestBusy = false;
+		let tgTestBusy = false, tgTestRouteUnavailable = false;
 		const tgTestButton = E('button', { type: 'button', class: 'nfm-act nfm-tg-test-button', click: () => tgRun('test').then(r => {
 			if (r) tgMsg.textContent = r.ok ? _('Сообщение отправлено, проверьте Telegram.') : _('Не отправлено: ') + r.error;
 		}) }, _('Отправить проверку'));
@@ -1429,6 +1429,7 @@ return view.extend({
 				return fs.exec('/usr/libexec/nightfall-telegram-route', [ 'status' ]).then(res => {
 					let status = null;
 					try { status = JSON.parse(res.stdout || '{}'); } catch (e) {}
+					tgTestRouteUnavailable = !(status && status.ok);
 					if (status && status.ok) S.tgRouteRuntime = status;
 					renderTelegram();
 					const reason = telegramTestBlockReason(status, true);
@@ -1663,7 +1664,7 @@ return view.extend({
 		}
 		function syncTelegramTestButton() {
 			const reason = telegramTestBlockReason();
-			tgTestButton.disabled = tgTestBusy || !!reason;
+			tgTestButton.disabled = tgTestBusy || tgTestRouteUnavailable || !!reason;
 			tgTestButton.title = reason || _('Отправить проверочное сообщение по текущему активному способу подключения');
 		}
 		function selectedTgOutput() {
@@ -1956,6 +1957,7 @@ return view.extend({
 			]).then(([info, status]) => {
 				S.tgInfo = info;
 				S.tgRouteRuntime = status;
+				tgTestRouteUnavailable = !(status && status.ok);
 				S.tgInfoAt = Date.now();
 				renderTelegram();
 			});
