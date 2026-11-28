@@ -23,6 +23,44 @@ const login = '<!doctype html><html lang="ru"><head><meta charset=utf-8><style>'
 let fail = 0; const bad = m => { console.log('ОШИБКА: ' + m); fail = 1; };
 (async () => {
 	const b = await chromium.launch();
+	// LuCI changes.displayStatus() reuses the same modal and resets its classes every second.
+	const applyPage = await b.newPage({ viewport: { width: 390, height: 844 } });
+	await applyPage.setContent('<!doctype html><html lang="ru"><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><style>' + CSS + '</style></head><body class="modal-overlay-active"><div id="modal_overlay"><div class="modal alert-message notice spinning" id="apply-status"><h4></h4><p>Applying configuration changes… 30s</p></div></div></body></html>');
+	let applyPrev = null;
+	for (let i = 0; i < 4; i++) {
+		await applyPage.evaluate(n => {
+			const modal = document.getElementById('apply-status');
+			// Match LuCI: showModal() resets the class list, then displayStatus adds these classes again.
+			modal.setAttribute('class', 'modal');
+			modal.classList.add('alert-message', 'notice', 'spinning');
+			const h = document.createElement('h4');
+			const p = document.createElement('p');
+			p.textContent = 'Applying configuration changes… ' + (30 - n) + 's';
+			modal.replaceChildren(h, p);
+		}, i);
+		await applyPage.waitForTimeout(70);
+		const st = await applyPage.evaluate(() => {
+			const modal = document.getElementById('apply-status');
+			const rect = modal.getBoundingClientRect();
+			const cs = getComputedStyle(modal), before = getComputedStyle(modal, '::before');
+			return {
+				animation: cs.animationName,
+				leftPadding: parseFloat(cs.paddingLeft),
+				iconLeft: parseFloat(before.left),
+				iconWidth: parseFloat(before.width),
+				iconHeight: parseFloat(before.height),
+				iconMarginTop: before.marginTop,
+				top: rect.top, height: rect.height
+			};
+		});
+		if (st.animation !== 'none') bad('окно применения: анимация появления повторно запускается при обновлении статуса (' + st.animation + ')');
+		if (st.leftPadding < st.iconLeft + st.iconWidth + 4) bad('окно применения: индикатор перекрывает текст');
+		if (st.iconWidth !== 28 || st.iconHeight !== 28) bad('окно применения: размер индикатора неожиданно изменился (' + st.iconWidth + '×' + st.iconHeight + ' px)');
+		if (st.iconMarginTop !== '0px') bad('окно применения: у увеличенного индикатора остался старый вертикальный отступ (' + st.iconMarginTop + ')');
+		if (applyPrev && (Math.abs(st.top - applyPrev.top) > 1 || Math.abs(st.height - applyPrev.height) > 1)) bad('окно применения: геометрия меняется при обновлении текста статуса');
+		applyPrev = st;
+	}
+	await applyPage.close();
 	const p = await b.newPage({ viewport: { width: 1400, height: 900 } });
 	p.on('pageerror', e => bad(e.message));
 	await p.setContent(html); await p.waitForTimeout(700);
