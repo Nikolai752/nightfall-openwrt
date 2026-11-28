@@ -325,17 +325,28 @@ install_drop() {
 	MODE=fail; FAIL=1; DEV=; MARK=; PREF=; TABLE=0; OWN=0
 	write_state && nft_install
 }
+fail_close_if_same_output() {
+	read_state || return 0
+	[ "$S_OUTPUT" = "$OUTPUT" ] || return 0
+	UID_TG=$S_UID
+	lock || return 1
+	remove_previous
+	install_drop
+	unlock
+}
 apply_steer() {
 	OUT_NAME=$(printf '%s' "$OUTPUT" | sed 's/^steer://')
 	outname "$OUT_NAME" || { err "Некорректное имя выхода Steer"; return 1; }
 	load_status || {
-		err "Не удалось получить steer status; текущий активный маршрут Telegram сохранён"
+		fail_close_if_same_output
+		err "Не удалось получить steer status; другой активный выход сохранён, отказ текущего выхода заблокирован"
 		return 1
 	}
 	read_steer_output || READY=false
 	json_select .. >/dev/null 2>&1 || :
 	if [ "$READY" != true ]; then
-		err "Выход Steer сейчас не готов. Текущий активный маршрут Telegram не изменён."
+		fail_close_if_same_output
+		err "Выход Steer сейчас не готов. Другой активный выход сохранён; отказ текущего выхода блокируется."
 		return 1
 	fi
 	# Validate the candidate mark against the kernel BEFORE touching the currently
@@ -344,8 +355,9 @@ apply_steer() {
 	mark_num=$((MARK | 0x40000000))
 	MARK=$(printf '0x%08x' "$mark_num")
 	lookup=$("$IP" -4 route get 149.154.167.220 mark "$MARK" uid "$UID_TG" 2>&1)
-	if ! printf '%s\\n' "$lookup" | grep -Fq "dev $DEV"; then
-		err "Проверка маршрута Steer не пройдена для $OUTPUT; текущий активный маршрут Telegram сохранён"
+	if ! printf '%s\n' "$lookup" | grep -Fq "dev $DEV"; then
+		fail_close_if_same_output
+		err "Проверка маршрута Steer не пройдена для $OUTPUT; другой активный выход сохранён, отказ текущего выхода заблокирован"
 		return 1
 	fi
 	MODE=steer; FAIL=0; OWN=0; PREF=
