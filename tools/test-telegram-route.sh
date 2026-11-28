@@ -65,7 +65,6 @@ case "$args" in
 	*"-o link show dev tun-vless"*) echo '12: tun-vless: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420' ;;
 	*"-o link show dev xsteer0"*) echo '13: xsteer0: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420' ;;
 	*"-o link show dev awg0"*) echo '14: awg0: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420' ;;
-		;;
 	*"-o link show dev wg3"*)
 		echo '11: wg3: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 1420'
 		;;
@@ -102,7 +101,6 @@ case "$args" in
 	*"-4 route show table 307 default"*) echo 'default dev tun-vless scope link' ;;
 	*"-4 route show table 308 default"*) echo 'default dev xsteer0 scope link' ;;
 	*"-4 route show table 309 default"*) echo 'default dev awg0 scope link' ;;
-		;;
 	*"-4 route show table 42000 default"*)
 		echo 'default dev wg1 scope link'
 		;;
@@ -205,16 +203,16 @@ for spec in "vlessvpn|tun-vless|0x40700000|307" "xsvpn|xsteer0|0x40800000|308" "
 	expected_table=$(printf '%s' "$spec" | cut -d '|' -f 4)
 	out=$("$H" probe "steer:$name") || bad "Steer $name preflight failed: $out"
 	printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.verified) process.exit(1)' || bad "Steer $name did not pass its marked route check"
-	printf 'TG=1\\nTG_TOKEN=x\\nTG_CHAT=1\\nTG_ROUTE_MODE=vpn\\nTG_ROUTE_OUTPUT=steer:%s\\n' "$name" > "$T/conf"
+	printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:%s\n' "$name" > "$T/conf"
 	out=$("$H" apply) || bad "Steer $name apply failed: $out"
 	grep -Fq "route_output meta skuid 104 meta mark set (meta mark & 0xb00fffff) | $expected_mark" "$NF_TG_TEST_NFT" || bad "Steer $name did not preserve unrelated fwmark bits"
-	grep -Fq "egress_guard meta skuid 104 oifname != \"$expected_dev\" drop" "$NF_TG_TEST_NFT" || bad "Steer $name egress guard does not target $expected_dev"
+	grep -Fq "egress_guard meta skuid 104 oifname != "$expected_dev" drop" "$NF_TG_TEST_NFT" || bad "Steer $name egress guard does not target $expected_dev"
 	out=$("$H" status) || bad "Steer $name status failed: $out"
 	printf '%s' "$out" | node -e 'const d=JSON.parse(require("fs").readFileSync(0,"utf8")); if(!d.active || d.device!==process.argv[1] || d.table!==Number(process.argv[2])) process.exit(1)' "$expected_dev" "$expected_table" || bad "Steer $name status is not bound to its live device/table"
 done
-printf 'TG=1\\nTG_TOKEN=x\\nTG_CHAT=1\\nTG_ROUTE_MODE=vpn\\nTG_ROUTE_OUTPUT=steer:zm_vpn2\\n' > "$T/conf"
+printf 'TG=1\nTG_TOKEN=x\nTG_CHAT=1\nTG_ROUTE_MODE=vpn\nTG_ROUTE_OUTPUT=steer:zm_vpn2\n' > "$T/conf"
 out=$("$H" apply) || bad "restoring known-good zm_vpn2 after protocol tests failed: $out"
-case "$out" in *'\"ok\":true'*'\"device\":\"wg2\"'*) ;; *) bad "zm_vpn2 was not restored after protocol tests: $out" ;; esac
+case "$out" in *'"ok":true'*'"device":"wg2"'*) ;; *) bad "zm_vpn2 was not restored after protocol tests: $out" ;; esac
 grep -Fq 'egress_guard meta skuid 104 oifname != "wg2" drop' "$NF_TG_TEST_NFT" || bad "zm_vpn2 guard was not restored after protocol tests"
 ok "VLESS, xsteer and AWG use their own Steer device/mark/table; zm_vpn2 is restored afterwards"
 
