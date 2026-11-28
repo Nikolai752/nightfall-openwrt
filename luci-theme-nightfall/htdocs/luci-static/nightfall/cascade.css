@@ -7027,20 +7027,26 @@ html body #view #status_leases6 .tr.placeholder {
 	position: relative;
 	width: 100%;
 	max-width: 100%;
-	height: auto;
+	height: 112px;
 	box-sizing: border-box;
 }
 html body #view #lease_status_table .tr.placeholder > .td,
 html body #view #lease6_status_table .tr.placeholder > .td,
 html body #view #status_leases .tr.placeholder > .td,
 html body #view #status_leases6 .tr.placeholder > .td {
-	display: block;
-	position: static;
-	width: 100% !important;
+	/* LuCI creates a single-cell placeholder after a multi-column header.
+	 * The fixed table layout otherwise constrains that cell to column one. */
+	display: flex;
+	position: absolute;
+	inset: 0;
+	width: auto !important;
 	min-width: 0 !important;
-	max-width: 100%;
+	max-width: none;
+	height: 100%;
+	align-items: center;
+	justify-content: center;
+	padding: 0 16px;
 	box-sizing: border-box;
-	/* The ID-scoped DHCP layout overrides the generic empty-state cell rules. */
 	text-align: center !important;
 }
 
